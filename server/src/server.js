@@ -51,7 +51,7 @@ app.use(
 
       // List of allowed origins
       const allowedOrigins = [
-        "https://lyndon-gastric-dax.ngrok-free.dev",
+        "http://localhost:5000",
         "http://localhost:3000",
         "http://localhost:3001",
         "http://localhost:5173",
@@ -476,7 +476,7 @@ async function startServer() {
       app.listen(port, () => {
         console.log(`========================================`);
         console.log(`🚀 Backend Server running on port ${port}`);
-        console.log(`📦 SSR Enabled - Access: https://lyndon-gastric-dax.ngrok-free.dev`);
+        console.log(`📦 SSR Enabled - Access: http://localhost:5000`);
         console.log(`📦 Local Access: http://localhost:${port}`);
         console.log(`⚠️  DO NOT use http://localhost:3000 (Vite dev server)`);
         console.log(`========================================`);

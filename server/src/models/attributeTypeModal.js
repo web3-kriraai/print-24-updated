@@ -71,6 +71,13 @@ const AttributeTypeSchema = new mongoose.Schema(
       default: "INFORMATIONAL",
     },
 
+    // Description of impact on product (What This Affects)
+    effectDescription: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+
     // Can users use this to filter the catalog results?
     isFilterable: {
       type: Boolean,

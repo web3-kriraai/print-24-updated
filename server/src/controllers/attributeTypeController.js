@@ -10,6 +10,7 @@ export const createAttributeType = async (req, res) => {
       inputStyle,
       isFixedQuantityNeeded,
       primaryEffectType,
+      effectDescription,
       isFilterable,
       attributeValues,
       defaultValue,
@@ -19,6 +20,10 @@ export const createAttributeType = async (req, res) => {
       applicableCategories,
       applicableSubCategories,
     } = req.body;
+
+    // Debug log to check if effectDescription is received
+    console.log("CREATE AttributeType - Received effectDescription:", effectDescription);
+    console.log("CREATE AttributeType - Full body:", JSON.stringify({ ...req.body, attributeValues: "[array]" }));
 
     if (!attributeName) {
       return res.status(400).json({ error: "Attribute name is required." });
@@ -104,6 +109,7 @@ export const createAttributeType = async (req, res) => {
       inputStyle,
       isFixedQuantityNeeded: isFixedQuantityNeeded === true || isFixedQuantityNeeded === 'true',
       primaryEffectType,
+      effectDescription: effectDescription !== undefined && effectDescription !== null ? String(effectDescription) : "",
       isFilterable: isFilterable === true || isFilterable === 'true',
       attributeValues: parsedAttributeValues,
       defaultValue,
@@ -114,10 +120,18 @@ export const createAttributeType = async (req, res) => {
       applicableSubCategories: parsedSubCategories,
     });
 
+    console.log("CREATE AttributeType - Saved effectDescription:", attributeType.effectDescription);
+
+    // Ensure effectDescription is always returned (convert undefined/null to empty string)
+    const responseData = attributeType.toObject();
+    if (!responseData.effectDescription) {
+      responseData.effectDescription = "";
+    }
+
     return res.json({
       success: true,
       message: "Attribute type created successfully",
-      data: attributeType,
+      data: responseData,
     });
   } catch (err) {
     console.log("ATTRIBUTE TYPE CREATE ERROR ===>", err);
@@ -156,9 +170,18 @@ export const getAllAttributeTypes = async (req, res) => {
       .populate('applicableCategories', 'name')
       .populate('applicableSubCategories', 'name');
 
+    // Ensure effectDescription is always returned (convert undefined/null to empty string)
+    const attributeTypesWithEffectDescription = attributeTypes.map(attr => {
+      const attrObj = attr.toObject();
+      if (!attrObj.effectDescription) {
+        attrObj.effectDescription = "";
+      }
+      return attrObj;
+    });
+
     return res.json({
       success: true,
-      data: attributeTypes,
+      data: attributeTypesWithEffectDescription,
     });
   } catch (err) {
     console.log("GET ATTRIBUTE TYPES ERROR ===>", err);
@@ -184,13 +207,19 @@ export const getUnusedAttributeTypes = async (req, res) => {
       .filter(id => id != null)
       .map(id => id.toString());
     
-    // Filter out used attribute types
-    const unusedAttributeTypes = allAttributeTypes.filter(
-      (attrType) => {
+    // Filter out used attribute types and ensure effectDescription is always present
+    const unusedAttributeTypes = allAttributeTypes
+      .filter((attrType) => {
         const attrTypeIdStr = attrType._id.toString();
         return !usedAttributeTypeIds.includes(attrTypeIdStr);
-      }
-    );
+      })
+      .map(attr => {
+        const attrObj = attr.toObject();
+        if (!attrObj.effectDescription) {
+          attrObj.effectDescription = "";
+        }
+        return attrObj;
+      });
 
     return res.json({
       success: true,
@@ -214,9 +243,15 @@ export const getSingleAttributeType = async (req, res) => {
       return res.status(404).json({ error: "Attribute type not found" });
     }
 
+    // Ensure effectDescription is always returned (convert undefined/null to empty string)
+    const responseData = attributeType.toObject();
+    if (!responseData.effectDescription) {
+      responseData.effectDescription = "";
+    }
+
     return res.json({
       success: true,
-      data: attributeType,
+      data: responseData,
     });
   } catch (err) {
     console.log("GET ATTRIBUTE TYPE ERROR ===>", err);
@@ -235,6 +270,7 @@ export const updateAttributeType = async (req, res) => {
       inputStyle,
       isFixedQuantityNeeded,
       primaryEffectType,
+      effectDescription,
       isFilterable,
       attributeValues,
       defaultValue,
@@ -244,6 +280,10 @@ export const updateAttributeType = async (req, res) => {
       applicableCategories,
       applicableSubCategories,
     } = req.body;
+
+    // Debug log to check if effectDescription is received
+    console.log("UPDATE AttributeType - Received effectDescription:", effectDescription);
+    console.log("UPDATE AttributeType - ID:", id);
 
     const attributeType = await AttributeType.findById(id);
     if (!attributeType) {
@@ -314,6 +354,20 @@ export const updateAttributeType = async (req, res) => {
     if (inputStyle !== undefined) attributeType.inputStyle = inputStyle;
     if (isFixedQuantityNeeded !== undefined) attributeType.isFixedQuantityNeeded = isFixedQuantityNeeded === true || isFixedQuantityNeeded === 'true';
     if (primaryEffectType !== undefined) attributeType.primaryEffectType = primaryEffectType;
+    // Always update effectDescription if it's provided (even if empty string)
+    if (effectDescription !== undefined && effectDescription !== null) {
+      attributeType.effectDescription = String(effectDescription);
+      console.log("UPDATE AttributeType - Setting effectDescription to:", attributeType.effectDescription);
+    } else if (effectDescription === null || effectDescription === "") {
+      // Explicitly set to empty string if null or empty
+      attributeType.effectDescription = "";
+      console.log("UPDATE AttributeType - Setting effectDescription to empty string");
+    } else {
+      // If not provided in update, keep existing value or set to empty string
+      if (!attributeType.effectDescription) {
+        attributeType.effectDescription = "";
+      }
+    }
     if (isFilterable !== undefined) attributeType.isFilterable = isFilterable === true || isFilterable === 'true';
     if (attributeValues !== undefined) attributeType.attributeValues = parsedAttributeValues;
     if (defaultValue !== undefined) attributeType.defaultValue = defaultValue;
@@ -324,15 +378,24 @@ export const updateAttributeType = async (req, res) => {
     if (applicableSubCategories !== undefined) attributeType.applicableSubCategories = parsedSubCategories;
 
     await attributeType.save();
+    console.log("UPDATE AttributeType - Saved effectDescription:", attributeType.effectDescription);
 
     const updatedAttributeType = await AttributeType.findById(id)
       .populate('applicableCategories', 'name')
       .populate('applicableSubCategories', 'name');
 
+    console.log("UPDATE AttributeType - Retrieved effectDescription:", updatedAttributeType?.effectDescription);
+
+    // Ensure effectDescription is always returned (convert undefined/null to empty string)
+    const responseData = updatedAttributeType.toObject();
+    if (!responseData.effectDescription) {
+      responseData.effectDescription = "";
+    }
+
     return res.json({
       success: true,
       message: "Attribute type updated successfully",
-      data: updatedAttributeType,
+      data: responseData,
     });
   } catch (err) {
     console.log("UPDATE ATTRIBUTE TYPE ERROR ===>", err);

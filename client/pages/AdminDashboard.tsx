@@ -3535,22 +3535,41 @@ const AdminDashboard: React.FC = () => {
         return;
       }
       
+      // Ensure effectDescription is always included in payload - prioritize form value
       const payload = {
-        ...fullAttributeType,
+        attributeName: fullAttributeType.attributeName || "",
+        functionType: fullAttributeType.functionType || "GENERAL",
+        isPricingAttribute: fullAttributeType.isPricingAttribute || false,
+        inputStyle: fullAttributeType.inputStyle || "DROPDOWN",
+        isFixedQuantityNeeded: fullAttributeType.isFixedQuantityNeeded || false,
+        primaryEffectType: fullAttributeType.primaryEffectType || "INFORMATIONAL",
+        effectDescription: attributeTypeForm.effectDescription || fullAttributeType.effectDescription || "", // Always use form value first
+        isFilterable: fullAttributeType.isFilterable || false,
         attributeValues: JSON.stringify(fullAttributeType.attributeValues),
+        defaultValue: fullAttributeType.defaultValue || "",
+        isRequired: fullAttributeType.isRequired || false,
+        displayOrder: fullAttributeType.displayOrder || 0,
+        isCommonAttribute: fullAttributeType.isCommonAttribute !== undefined ? fullAttributeType.isCommonAttribute : true,
         applicableCategories: JSON.stringify(fullAttributeType.applicableCategories),
         applicableSubCategories: JSON.stringify(fullAttributeType.applicableSubCategories),
         parentAttribute: fullAttributeType.parentAttribute || null,
         showWhenParentValue: JSON.stringify(fullAttributeType.showWhenParentValue || []),
         hideWhenParentValue: JSON.stringify(fullAttributeType.hideWhenParentValue || []),
       };
+      
+      // Debug: Log the payload to verify effectDescription is included
+      console.log("=== ATTRIBUTE TYPE PAYLOAD ===");
+      console.log("Form effectDescription:", attributeTypeForm.effectDescription);
+      console.log("FullAttributeType effectDescription:", fullAttributeType.effectDescription);
+      console.log("Payload effectDescription:", payload.effectDescription);
+      console.log("==============================");
 
       const url = editingAttributeTypeId
         ? `${API_BASE_URL}/attribute-types/${editingAttributeTypeId}`
         : `${API_BASE_URL}/attribute-types`;
       const method = editingAttributeTypeId ? "PUT" : "POST";
 
-      console.log("Sending attribute type request:", { url, method, payload: { ...payload, attributeValues: "[stringified]" } });
+      console.log("Sending attribute type request:", { url, method, payload: { ...payload, attributeValues: "[stringified]", effectDescription: payload.effectDescription } });
 
       const response = await fetch(url, {
         method,
@@ -3569,6 +3588,12 @@ const AdminDashboard: React.FC = () => {
       }
       
       const data = await handleNgrokResponse(response);
+      
+      console.log("Attribute type response data:", { 
+        success: data.success, 
+        effectDescription: data.data?.effectDescription,
+        fullData: data.data 
+      });
       
       if (!response.ok) {
         throw new Error(data.error || data.message || `Failed to save attribute type: ${response.status} ${response.statusText}`);
@@ -3642,6 +3667,11 @@ const AdminDashboard: React.FC = () => {
 
   const handleEditAttributeType = (attributeTypeId: string) => {
     const attributeType = attributeTypes.find((at) => at._id === attributeTypeId);
+    console.log("EDIT AttributeType - Found attributeType:", {
+      _id: attributeType?._id,
+      attributeName: attributeType?.attributeName,
+      effectDescription: attributeType?.effectDescription
+    });
     if (attributeType) {
       // Convert attributeValues back to attributeOptionsTable
       const attributeOptionsTable = ((attributeType.attributeValues || [])
