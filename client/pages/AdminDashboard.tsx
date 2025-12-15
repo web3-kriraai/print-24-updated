@@ -37,6 +37,7 @@ import {
   CheckCircle2,
   Clock,
   FileText,
+  Copy,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ReviewFilterDropdown } from "../components/ReviewFilterDropdown";
@@ -2884,6 +2885,58 @@ const AdminDashboard: React.FC = () => {
       priority: 0,
       isActive: true,
     });
+  };
+
+  const handleDuplicateRule = (rule: any) => {
+    // Map backend rule to form format similar to handleEditRule, but treat as new rule
+    const whenAttributeName = typeof rule.when.attribute === 'object' && rule.when.attribute !== null
+      ? rule.when.attribute.attributeName
+      : attributeTypes.find(attr => attr._id === rule.when.attribute)?.attributeName || '';
+
+    let scopeRefId = "";
+    if (rule.applicableProduct) {
+      scopeRefId = typeof rule.applicableProduct === 'object' && rule.applicableProduct !== null
+        ? rule.applicableProduct._id
+        : rule.applicableProduct;
+    } else if (rule.applicableCategory) {
+      scopeRefId = typeof rule.applicableCategory === 'object' && rule.applicableCategory !== null
+        ? rule.applicableCategory._id
+        : rule.applicableCategory;
+    }
+
+    const duplicatedActions = (rule.then || [])
+      .filter((action: any) => action && action.targetAttribute)
+      .map((action: any) => {
+        const targetAttributeName = typeof action.targetAttribute === 'object' && action.targetAttribute !== null
+          ? action.targetAttribute.attributeName
+          : (action.targetAttribute
+              ? attributeTypes.find(attr => attr._id === action.targetAttribute)?.attributeName || ''
+              : '');
+
+        return {
+          action: action.action,
+          targetAttribute: targetAttributeName,
+          allowedValues: action.allowedValues || [],
+          defaultValue: action.defaultValue || null,
+        };
+      });
+
+    setRuleForm({
+      name: `${rule.name || "Untitled Rule"} (Copy)`,
+      scope: rule.applicableProduct ? "PRODUCT" : (rule.applicableCategory ? "CATEGORY" : "GLOBAL"),
+      scopeRefId,
+      when: {
+        attribute: whenAttributeName,
+        value: rule.when.value || "",
+      },
+      then: duplicatedActions,
+      priority: rule.priority || 0,
+      isActive: rule.isActive !== undefined ? rule.isActive : true,
+    });
+
+    // Clear editing id so submit creates a new rule
+    setEditingRuleId(null);
+    setShowRuleBuilder(true);
   };
 
   const handleEditRule = (rule: any) => {
@@ -12598,6 +12651,13 @@ const AdminDashboard: React.FC = () => {
                                     className="px-2 py-1 text-sm bg-cream-200 text-cream-900 rounded hover:bg-cream-300 transition-colors"
                                   >
                                     <Edit size={14} />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDuplicateRule(rule)}
+                                    className="px-2 py-1 text-sm bg-cream-100 text-cream-900 rounded hover:bg-cream-200 transition-colors"
+                                    title="Duplicate rule"
+                                  >
+                                    <Copy size={14} />
                                   </button>
                                   <button
                                     onClick={() => handleDeleteRule(rule._id)}
