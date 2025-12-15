@@ -167,6 +167,39 @@ const GlossProductSelection: React.FC = () => {
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
+  
+  // RADIO attribute modal state
+  const [radioModalOpen, setRadioModalOpen] = useState(false);
+  const [radioModalData, setRadioModalData] = useState<{
+    attributeId: string;
+    attributeName: string;
+    attributeValues: Array<{
+      value: string;
+      label: string;
+      priceMultiplier?: number;
+      image?: string;
+      description?: string;
+      hasSubAttributes?: boolean;
+    }>;
+    selectedValue: string | null;
+    isRequired: boolean;
+  } | null>(null);
+  // Sub-attribute modal state (for RADIO values that have sub-attributes)
+  const [subAttrModalOpen, setSubAttrModalOpen] = useState(false);
+  const [subAttrModalData, setSubAttrModalData] = useState<{
+    attributeId: string;
+    parentValue: string;
+    parentLabel: string;
+    subAttributes: Array<{
+      _id: string;
+      value: string;
+      label: string;
+      image?: string;
+      priceAdd: number;
+      parentValue: string;
+    }>;
+    selectedValue: string | null;
+  } | null>(null);
   const [isGettingLocation, setIsGettingLocation] = useState(false);
 
   const navigate = useNavigate();
@@ -2442,13 +2475,13 @@ const GlossProductSelection: React.FC = () => {
         {/* Main Content - Only show if not loading and no error */}
         {!loading && !error && !pdpLoading && !pdpError && (
           <>
-            {/* Main Layout: 50/50 Split - Left Image, Right Products */}
+            {/* Main Layout: 50/50 Split - Left Image + Summary, Right Config / Products */}
             <div className="flex flex-col lg:flex-row gap-6 sm:gap-8 lg:gap-12 min-h-[600px]">
-              {/* Left Side: Subcategory Image (Fixed, Large) - Updates based on selected attribute */}
+              {/* Left Side: Subcategory Image (top) + Order Summary (below) */}
               <div className="lg:w-1/2">
-                <div className="lg:sticky lg:top-24">
+                <div className="lg:sticky lg:top-24 space-y-4">
                   <motion.div
-                    className="bg-white p-4 sm:p-6 md:p-8 lg:p-12 rounded-2xl sm:rounded-3xl shadow-sm border border-cream-100 flex items-center justify-center min-h-[400px] sm:min-h-[500px] md:min-h-[600px] bg-cream-100/50"
+                    className="bg-white p-4 sm:p-6 md:p-8 lg:p-12 rounded-2xl sm:rounded-3xl shadow-sm border border-cream-100 flex items-center justify-center min-h-[320px] sm:min-h-[420px] md:min-h-[520px] bg-cream-100/50"
                   >
                     <div className="w-full h-full flex items-center justify-center">
                       {(() => {
@@ -2519,6 +2552,83 @@ const GlossProductSelection: React.FC = () => {
                       })()}
                     </div>
                   </motion.div>
+
+                  {/* Compact Order Summary - shown when a product is selected */}
+                  {selectedProduct && (
+                    <div className="bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-cream-100 p-4 sm:p-5 md:p-6">
+                      <div className="flex items-center justify-between mb-3">
+                        <h2 className="text-sm sm:text-base font-semibold text-cream-900">
+                          Order Summary
+                        </h2>
+                        <span className="text-xs text-cream-500">
+                          Live estimate
+                        </span>
+                      </div>
+
+                      <div className="space-y-2 text-xs sm:text-sm text-cream-800">
+                        <div className="flex justify-between">
+                          <span className="text-cream-600">Product</span>
+                          <span className="font-medium text-right line-clamp-1 ml-2">
+                            {selectedProduct.name}
+                          </span>
+                        </div>
+
+                        <div className="flex justify-between">
+                          <span className="text-cream-600">Quantity</span>
+                          <span className="font-medium">
+                            {quantity.toLocaleString()}
+                          </span>
+                        </div>
+
+                        <div className="flex justify-between">
+                          <span className="text-cream-600">Base price</span>
+                          <span className="font-medium">
+                            ₹{(price || 0).toFixed(2)}
+                          </span>
+                        </div>
+
+                        {additionalDesignCharge > 0 && (
+                          <div className="flex justify-between">
+                            <span className="text-cream-600">Design charge</span>
+                            <span className="font-medium">
+                              ₹{additionalDesignCharge.toFixed(2)}
+                            </span>
+                          </div>
+                        )}
+
+                        {gstAmount > 0 && (
+                          <div className="flex justify-between">
+                            <span className="text-cream-600">
+                              GST ({selectedProduct.gstPercentage || 18}%)
+                            </span>
+                            <span className="font-medium">
+                              ₹{gstAmount.toFixed(2)}
+                            </span>
+                          </div>
+                        )}
+
+                        {appliedDiscount !== null && appliedDiscount > 0 && (
+                          <div className="flex justify-between text-green-700">
+                            <span>Discount</span>
+                            <span>-{appliedDiscount.toFixed(1)}%</span>
+                          </div>
+                        )}
+
+                        <div className="border-t border-cream-200 mt-3 pt-3 flex justify-between items-center">
+                          <span className="text-xs sm:text-sm font-semibold text-cream-700">
+                            Estimated total
+                          </span>
+                          <span className="text-base sm:text-lg font-bold text-cream-900">
+                            ₹{(price + gstAmount).toFixed(2)}
+                          </span>
+                        </div>
+
+                        <p className="text-[11px] text-cream-500 mt-1">
+                          Final price may adjust slightly based on selected options and taxes at checkout.
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -3457,129 +3567,47 @@ const GlossProductSelection: React.FC = () => {
                                             )}
 
                                             {attrType.inputStyle === 'RADIO' && (
-                                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3" data-attribute={attrId}>
+                                              <div data-attribute={attrId}>
                                                 {attributeValues.length === 0 ? (
-                                                  <div className="col-span-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                                                  <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                                                     <p className="text-sm text-yellow-800">
                                                       No options available for this attribute. Please contact support.
                                                     </p>
                                                   </div>
                                                 ) : (
-                                                  attributeValues
-                                                    .filter((av: any) => av && av.value && av.label) // Filter out invalid options
-                                                    .map((av: any) => {
-                                                      // Format price display as per unit price
-                                                      const getPriceDisplay = () => {
-                                                        if (!av.priceMultiplier || av.priceMultiplier === 1 || !selectedProduct) return null;
-                                                        const basePrice = selectedProduct.basePrice || 0;
-                                                        const pricePerUnit = basePrice * (av.priceMultiplier - 1);
-                                                        if (Math.abs(pricePerUnit) < 0.01) return null;
-                                                        return `+₹${pricePerUnit.toFixed(2)}/unit`;
-                                                      };
-
-                                                      const isSelected = selectedDynamicAttributes[attrId] === av.value;
-                                                      // Check if this value has sub-attributes
-                                                      const valueHasSubAttributes = av.hasSubAttributes === true;
-                                                      // Get sub-attributes for this specific value
-                                                      const valueSubAttributesKey = `${attrId}:${av.value}`;
-                                                      const valueSubAttributes = (valueHasSubAttributes && isSelected)
-                                                        ? (pdpSubAttributes[valueSubAttributesKey] || [])
-                                                        : [];
-
-                                                      return (
-                                                        <div key={av.value}>
-                                                          <button
-                                                            onClick={() => {
-                                                              setSelectedDynamicAttributes({
-                                                                ...selectedDynamicAttributes,
-                                                                [attrId]: av.value
-                                                              });
-                                                              // Mark this attribute as user-selected for image updates
-                                                              setUserSelectedAttributes(prev => new Set(prev).add(attrId));
-                                                            }}
-                                                          className={`p-4 rounded-xl border text-left transition-all duration-200 relative ${isSelected
-                                                              ? "border-cream-900 bg-cream-50 text-cream-900 ring-1 ring-cream-900"
-                                                              : "border-cream-200 text-cream-600 hover:border-cream-400 hover:bg-cream-50"
-                                                            }`}
-                                                        >
-                                                          {isSelected && (
-                                                            <div className="absolute top-2 right-2">
-                                                              <Check size={18} className="text-cream-900" />
-                                                            </div>
-                                                          )}
-                                                          {av.image && (
-                                                            <div className="mb-2">
-                                                              <img
-                                                                src={av.image}
-                                                                alt={av.label}
-                                                                className="w-full h-32 object-cover rounded-lg border border-cream-200"
-                                                              />
-                                                            </div>
-                                                          )}
-                                                          <div className="font-bold text-sm">{av.label}</div>
-                                                          {getPriceDisplay() && (
-                                                            <div className="text-xs text-cream-600 mt-1">
-                                                              {getPriceDisplay()}
-                                                            </div>
-                                                          )}
-                                                        </button>
-                                                        {/* Sub-attributes for this radio value */}
-                                                        {isSelected && valueSubAttributes.length > 0 && (
-                                                          <div className="mt-3 col-span-full">
-                                                            <label className="block text-xs font-semibold text-cream-700 mb-2">
-                                                              Select {av.label} Option:
-                                                            </label>
-                                                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                                                              {valueSubAttributes.map((subAttr) => {
-                                                                // Format price display for sub-attribute
-                                                                const getSubAttrPriceDisplay = () => {
-                                                                  if (!subAttr.priceAdd || subAttr.priceAdd === 0) return null;
-                                                                  return `+₹${subAttr.priceAdd.toFixed(2)}/piece`;
-                                                                };
-                                                                
-                                                                const subAttrKey = `${attrId}__${av.value}`;
-                                                                const isSubAttrSelected = selectedDynamicAttributes[subAttrKey] === subAttr.value;
-                                                                
-                                                                return (
-                                                                  <button
-                                                                    key={subAttr._id}
-                                                                    type="button"
-                                                                    onClick={() => {
-                                                                      setSelectedDynamicAttributes((prev) => ({
-                                                                        ...prev,
-                                                                        [subAttrKey]: subAttr.value,
-                                                                      }));
-                                                                    }}
-                                                                    className={`p-3 rounded-lg border text-left transition-all ${
-                                                                      isSubAttrSelected
-                                                                        ? "border-cream-900 bg-cream-50 ring-1 ring-cream-900"
-                                                                        : "border-cream-200 hover:border-cream-400"
-                                                                    }`}
-                                                                  >
-                                                                    {subAttr.image && (
-                                                                      <div className="mb-2">
-                                                                        <img
-                                                                          src={subAttr.image}
-                                                                          alt={subAttr.label}
-                                                                          className="w-full h-24 object-cover rounded"
-                                                                        />
-                                                                      </div>
-                                                                    )}
-                                                                    <div className="text-sm font-medium">{subAttr.label}</div>
-                                                                    {getSubAttrPriceDisplay() && (
-                                                                      <div className="text-xs text-cream-600 mt-1">
-                                                                        {getSubAttrPriceDisplay()}
-                                                                      </div>
-                                                                    )}
-                                                                  </button>
-                                                                );
-                                                              })}
-                                                            </div>
+                                                  <>
+                                                    <button
+                                                      type="button"
+                                                      onClick={() => {
+                                                        const filteredValues = attributeValues.filter((av: any) => av && av.value && av.label);
+                                                        setRadioModalData({
+                                                          attributeId: attrId,
+                                                          attributeName: attrType.attributeName,
+                                                          attributeValues: filteredValues,
+                                                          selectedValue: (selectedDynamicAttributes[attrId] as string) || null,
+                                                          isRequired: isRequired,
+                                                        });
+                                                        setRadioModalOpen(true);
+                                                      }}
+                                                      className="w-full px-4 py-3 border-2 border-dashed border-cream-300 rounded-xl hover:border-cream-400 hover:bg-cream-50 transition-all duration-200 text-left flex items-center justify-between group"
+                                                    >
+                                                      <div className="flex-1">
+                                                        <span className="text-sm font-medium text-cream-700 group-hover:text-cream-900">
+                                                          {selectedDynamicAttributes[attrId] 
+                                                            ? attributeValues.find((av: any) => av.value === selectedDynamicAttributes[attrId])?.label || 'Select option'
+                                                            : `Select ${attrType.attributeName}${isRequired ? ' *' : ''}`
+                                                          }
+                                                        </span>
+                                                        {selectedDynamicAttributes[attrId] && (
+                                                          <div className="text-xs text-cream-500 mt-1">
+                                                            Click to change selection
                                                           </div>
                                                         )}
                                                       </div>
-                                                    );
-                                                  })
+                                                      <ArrowRight size={18} className="text-cream-400 group-hover:text-cream-600 transition-colors" />
+                                                    </button>
+                                                    
+                                                  </>
                                                 )}
                                               </div>
                                             )}
@@ -3824,122 +3852,6 @@ const GlossProductSelection: React.FC = () => {
                             </div>
                           </div>
 
-                        </div>
-
-                        {/* Detailed Price Breakdown - Before Place Order */}
-                        <div className="mt-6 p-4 sm:p-6 bg-cream-50 rounded-xl border border-cream-200">
-                          <h3 className="text-lg font-bold text-cream-900 mb-4 flex items-center gap-2">
-                            <CreditCard size={20} />
-                            Order Summary
-                          </h3>
-                          <div className="space-y-3">
-                            {/* Base Price */}
-                            <div className="flex justify-between text-sm">
-                              <span className="text-cream-600">Base Price ({quantity.toLocaleString()} units):</span>
-                              <span className="text-cream-900 font-medium">₹{(selectedProduct.basePrice * quantity).toFixed(2)}</span>
-                            </div>
-
-                            {/* Product Options Charges */}
-                            {productOptionsCharge !== 0 && selectedProductOptions.length > 0 && (
-                              <div className="flex justify-between text-sm">
-                                <span className="text-cream-600">Product Options ({selectedProductOptions.join(", ")}):</span>
-                                <span className="text-cream-900 font-medium">
-                                  {productOptionsCharge > 0 ? `+₹${productOptionsCharge.toFixed(2)}` : `₹${productOptionsCharge.toFixed(2)}`}
-                                </span>
-                              </div>
-                            )}
-
-                            {/* Printing Option Charge */}
-                            {printingOptionCharge !== 0 && (
-                              <div className="flex justify-between text-sm">
-                                <span className="text-cream-600">Printing Option ({selectedPrintingOption}):</span>
-                                <span className="text-cream-900 font-medium">
-                                  {printingOptionCharge > 0 ? `+₹${printingOptionCharge.toFixed(2)}` : printingOptionCharge < 0 ? `₹${printingOptionCharge.toFixed(2)}` : "Included"}
-                                </span>
-                              </div>
-                            )}
-
-                            {/* Delivery Speed Charge */}
-                            {deliverySpeedCharge !== 0 && (
-                              <div className="flex justify-between text-sm">
-                                <span className="text-cream-600">Delivery Speed ({selectedDeliverySpeed}):</span>
-                                <span className="text-cream-900 font-medium">
-                                  {deliverySpeedCharge > 0 ? `+₹${deliverySpeedCharge.toFixed(2)}` : deliverySpeedCharge < 0 ? `₹${deliverySpeedCharge.toFixed(2)}` : "Included"}
-                                </span>
-                              </div>
-                            )}
-
-                            {/* Texture Type Charge */}
-                            {textureTypeCharge !== 0 && selectedTextureType && (
-                              <div className="flex justify-between text-sm">
-                                <span className="text-cream-600">Texture Type ({selectedTextureType}):</span>
-                                <span className="text-cream-900 font-medium">
-                                  {textureTypeCharge > 0 ? `+₹${textureTypeCharge.toFixed(2)}` : textureTypeCharge < 0 ? `₹${textureTypeCharge.toFixed(2)}` : "Included"}
-                                </span>
-                              </div>
-                            )}
-
-                            {/* Dynamic Attributes Charges */}
-                            {dynamicAttributesCharges.map((attrCharge, idx) => (
-                              <div key={idx} className="flex justify-between text-sm">
-                                <span className="text-cream-600">{attrCharge.name} ({attrCharge.label}):</span>
-                                <span className="text-cream-900 font-medium">
-                                  {attrCharge.charge > 0 ? `+₹${attrCharge.charge.toFixed(2)}` : `₹${attrCharge.charge.toFixed(2)}`}
-                                </span>
-                              </div>
-                            ))}
-
-                            {/* Subtotal Before Discount */}
-                            {baseSubtotalBeforeDiscount !== subtotal && (
-                              <div className="flex justify-between text-sm text-cream-600 pt-2 border-t border-cream-200">
-                                <span>Subtotal (before discount):</span>
-                                <span>₹{baseSubtotalBeforeDiscount.toFixed(2)}</span>
-                              </div>
-                            )}
-
-                            {/* Quantity Discount */}
-                            {appliedDiscount !== null && appliedDiscount > 0 && (
-                              <div className="flex justify-between text-sm text-green-700">
-                                <span>Quantity Discount ({appliedDiscount}%):</span>
-                                <span className="font-medium">-₹{Math.abs(baseSubtotalBeforeDiscount - subtotal).toFixed(2)}</span>
-                              </div>
-                            )}
-
-                            {/* Subtotal */}
-                            <div className="flex justify-between pt-2 border-t border-cream-300">
-                              <span className="text-cream-700 font-medium">Subtotal:</span>
-                              <span className="text-cream-900 font-bold">₹{subtotal.toFixed(2)}</span>
-                            </div>
-
-                            {/* Additional Design Charge */}
-                            {additionalDesignCharge !== 0 && (
-                              <div className="flex justify-between text-sm">
-                                <span className="text-cream-600">Additional Design Charge:</span>
-                                <span className="text-cream-900 font-medium">₹{additionalDesignCharge.toFixed(2)}</span>
-                              </div>
-                            )}
-
-                            {/* Total */}
-                            <div className="flex justify-between pt-3 border-t-2 border-cream-400 mt-2">
-                              <span className="text-lg font-bold text-cream-900">
-                                Total {selectedProduct?.showPriceIncludingGst ? '(Including GST)' : '(Excluding GST)'}:
-                              </span>
-                              <span className="text-2xl font-bold text-cream-900">
-                                {(() => {
-                                  const showIncludingGst = selectedProduct?.showPriceIncludingGst || false;
-                                  if (showIncludingGst) {
-                                    return `₹${(price + gstAmount).toFixed(2)}`;
-                                  }
-                                  return `₹${price.toFixed(2)}`;
-                                })()}
-                              </span>
-                            </div>
-                            {!selectedProduct?.showPriceIncludingGst && (
-                              <p className="text-xs text-cream-500 mt-1 text-right">
-                                GST will be added at checkout
-                              </p>
-                            )}
-                          </div>
                         </div>
 
                         {/* Place Order Button - Fixed at bottom */}
@@ -4275,6 +4187,305 @@ const GlossProductSelection: React.FC = () => {
               >
                 <X size={24} />
               </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* RADIO Attribute Selection Modal */}
+      <AnimatePresence>
+        {radioModalOpen && radioModalData && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => setRadioModalOpen(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              transition={{ type: "spring", duration: 0.3 }}
+              className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Modal Header */}
+              <div className="px-6 py-4 border-b border-cream-200 bg-gradient-to-r from-cream-50 to-cream-100 flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-cream-900">
+                    Select {radioModalData.attributeName}
+                  </h2>
+                  {radioModalData.isRequired && (
+                    <p className="text-xs text-red-500 mt-1">Required field</p>
+                  )}
+                </div>
+                <button
+                  onClick={() => setRadioModalOpen(false)}
+                  className="p-2 hover:bg-cream-200 rounded-full transition-colors"
+                  aria-label="Close modal"
+                >
+                  <X size={20} className="text-cream-700" />
+                </button>
+              </div>
+
+              {/* Modal Content - Scrollable */}
+              <div className="flex-1 overflow-y-auto p-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 justify-items-center">
+                  {radioModalData.attributeValues.map((av) => {
+                    // Format price display as per unit price
+                    const getPriceDisplay = () => {
+                      if (!av.priceMultiplier || av.priceMultiplier === 1 || !selectedProduct) return null;
+                      const basePrice = selectedProduct.basePrice || 0;
+                      const pricePerUnit = basePrice * (av.priceMultiplier - 1);
+                      if (Math.abs(pricePerUnit) < 0.01) return null;
+                      return `+₹${pricePerUnit.toFixed(2)}/unit`;
+                    };
+
+                    const isSelected = radioModalData.selectedValue === av.value;
+
+                    // Check if this value has sub-attributes available in PDP data
+                    const valueSubAttributesKey = `${radioModalData.attributeId}:${av.value}`;
+                    const valueSubAttributes = pdpSubAttributes[valueSubAttributesKey] || [];
+
+                    return (
+                      <motion.button
+                        key={av.value}
+                        type="button"
+                        onClick={() => {
+                          // Select main attribute value
+                          const newSelected = {
+                            ...selectedDynamicAttributes,
+                            [radioModalData.attributeId]: av.value
+                          };
+                          setSelectedDynamicAttributes(newSelected);
+                          // Mark this attribute as user-selected for image updates
+                          setUserSelectedAttributes(prev => new Set(prev).add(radioModalData.attributeId));
+
+                          // If this value has sub-attributes, open sub-attribute modal
+                          if (valueSubAttributes.length > 0) {
+                            const subAttrKey = `${radioModalData.attributeId}__${av.value}`;
+                            const existingSubValue = (newSelected[subAttrKey] as string) || null;
+                            setSubAttrModalData({
+                              attributeId: radioModalData.attributeId,
+                              parentValue: av.value,
+                              parentLabel: av.label,
+                              subAttributes: valueSubAttributes,
+                              selectedValue: existingSubValue,
+                            });
+                            setSubAttrModalOpen(true);
+                          }
+
+                          // Close main radio modal
+                          setRadioModalOpen(false);
+                        }}
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        className={`relative p-2 rounded-lg border-2 text-left transition-all duration-200 flex flex-col w-[140px] h-[140px] overflow-hidden ${
+                          isSelected
+                            ? "border-cream-900 bg-cream-50 text-cream-900 ring-2 ring-cream-900 ring-offset-1"
+                            : "border-cream-200 text-cream-700 hover:border-cream-400 hover:bg-cream-50 hover:shadow-md"
+                        }`}
+                      >
+                        {isSelected && (
+                          <motion.div
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            className="absolute top-1.5 right-1.5 bg-cream-900 text-white rounded-full p-1 shadow-lg z-10"
+                          >
+                            <Check size={12} />
+                          </motion.div>
+                        )}
+                        
+                        {av.image && (
+                          <div className="mb-1.5 overflow-hidden rounded border border-cream-200 bg-cream-50 flex-shrink-0">
+                            <img
+                              src={av.image}
+                              alt={av.label}
+                              className="w-full h-[70px] object-cover transition-transform duration-200 hover:scale-105"
+                            />
+                          </div>
+                        )}
+                        
+                        <div className="space-y-1 flex-1 flex flex-col min-h-0">
+                          <div className="font-semibold text-xs text-cream-900 leading-tight line-clamp-2">
+                            {av.label}
+                          </div>
+                          
+                          {av.description && (
+                            <p className="text-[10px] text-cream-600 line-clamp-2 leading-tight">
+                              {av.description}
+                            </p>
+                          )}
+                          
+                          {getPriceDisplay() && (
+                            <div className="mt-auto pt-1 border-t border-cream-200 text-[10px] font-semibold text-cream-700 leading-tight">
+                              {getPriceDisplay()}
+                            </div>
+                          )}
+                        </div>
+                      </motion.button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="px-6 py-4 border-t border-cream-200 bg-cream-50 flex items-center justify-between">
+                <div className="text-sm text-cream-600">
+                  {radioModalData.selectedValue ? (
+                    <span>
+                      Selected: <span className="font-semibold text-cream-900">
+                        {radioModalData.attributeValues.find(av => av.value === radioModalData.selectedValue)?.label}
+                      </span>
+                    </span>
+                  ) : (
+                    <span>Please select an option</span>
+                  )}
+                </div>
+                <button
+                  onClick={() => setRadioModalOpen(false)}
+                  className="px-6 py-2 bg-cream-900 text-white rounded-lg font-semibold hover:bg-cream-800 transition-colors"
+                >
+                  {radioModalData.selectedValue ? 'Done' : 'Cancel'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Sub-Attribute Selection Modal (for RADIO values with sub-attributes) */}
+      <AnimatePresence>
+        {subAttrModalOpen && subAttrModalData && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => setSubAttrModalOpen(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              transition={{ type: "spring", duration: 0.3 }}
+              className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[80vh] overflow-hidden flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="px-6 py-4 border-b border-cream-200 bg-gradient-to-r from-cream-50 to-cream-100 flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-bold text-cream-900">
+                    Select {subAttrModalData.parentLabel} Option
+                  </h2>
+                  <p className="text-xs text-cream-600 mt-1">
+                    Additional options related to {subAttrModalData.parentLabel}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setSubAttrModalOpen(false)}
+                  className="p-2 hover:bg-cream-200 rounded-full transition-colors"
+                  aria-label="Close sub-attribute modal"
+                >
+                  <X size={18} className="text-cream-700" />
+                </button>
+              </div>
+
+              {/* Content */}
+              <div className="flex-1 overflow-y-auto p-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 justify-items-center">
+                  {subAttrModalData.subAttributes.map((subAttr) => {
+                    const getSubAttrPriceDisplay = () => {
+                      if (!subAttr.priceAdd || subAttr.priceAdd === 0) return null;
+                      return `+₹${subAttr.priceAdd.toFixed(2)}/piece`;
+                    };
+
+                    const subAttrKey = `${subAttrModalData.attributeId}__${subAttrModalData.parentValue}`;
+                    const isSelected = selectedDynamicAttributes[subAttrKey] === subAttr.value;
+
+                    return (
+                      <motion.button
+                        key={subAttr._id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedDynamicAttributes((prev) => ({
+                            ...prev,
+                            [subAttrKey]: subAttr.value,
+                          }));
+                          setSubAttrModalData({
+                            ...subAttrModalData,
+                            selectedValue: subAttr.value,
+                          });
+                        }}
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        className={`relative p-2 rounded-lg border-2 text-left transition-all duration-200 flex flex-col w-[140px] h-[140px] overflow-hidden ${
+                          isSelected
+                            ? "border-cream-900 bg-cream-50 text-cream-900 ring-2 ring-cream-900 ring-offset-1"
+                            : "border-cream-200 text-cream-700 hover:border-cream-400 hover:bg-cream-50 hover:shadow-md"
+                        }`}
+                      >
+                        {isSelected && (
+                          <motion.div
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            className="absolute top-1.5 right-1.5 bg-cream-900 text-white rounded-full p-1 shadow-lg z-10"
+                          >
+                            <Check size={12} />
+                          </motion.div>
+                        )}
+
+                        {subAttr.image && (
+                          <div className="mb-1.5 overflow-hidden rounded border border-cream-200 bg-cream-50 flex-shrink-0">
+                            <img
+                              src={subAttr.image}
+                              alt={subAttr.label}
+                              className="w-full h-[70px] object-cover transition-transform duration-200 hover:scale-105"
+                            />
+                          </div>
+                        )}
+
+                        <div className="space-y-1 flex-1 flex flex-col min-h-0">
+                          <div className="font-semibold text-xs text-cream-900 leading-tight line-clamp-2">
+                            {subAttr.label}
+                          </div>
+
+                          {getSubAttrPriceDisplay() && (
+                            <div className="mt-auto pt-1 border-t border-cream-200 text-[10px] font-semibold text-cream-700 leading-tight">
+                              {getSubAttrPriceDisplay()}
+                            </div>
+                          )}
+                        </div>
+                      </motion.button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="px-6 py-4 border-t border-cream-200 bg-cream-50 flex items-center justify-between">
+                <div className="text-sm text-cream-600">
+                  {subAttrModalData.selectedValue ? (
+                    <span>
+                      Selected:{" "}
+                      <span className="font-semibold text-cream-900">
+                        {subAttrModalData.subAttributes.find(
+                          (s) => s.value === subAttrModalData.selectedValue
+                        )?.label}
+                      </span>
+                    </span>
+                  ) : (
+                    <span>Sub-option is optional</span>
+                  )}
+                </div>
+                <button
+                  onClick={() => setSubAttrModalOpen(false)}
+                  className="px-6 py-2 bg-cream-900 text-white rounded-lg font-semibold hover:bg-cream-800 transition-colors"
+                >
+                  Done
+                </button>
+              </div>
             </motion.div>
           </motion.div>
         )}
