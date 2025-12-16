@@ -28,6 +28,11 @@ interface Product {
   basePrice: number;
   image?: string;
   subcategory?: SubCategory | string;
+  category?: {
+    _id: string;
+    name: string;
+    description?: string;
+  } | string;
 }
 
 const VisitingCards: React.FC = () => {
@@ -44,6 +49,11 @@ const VisitingCards: React.FC = () => {
   const [isGlossFinish, setIsGlossFinish] = useState(false);
   const [subCategorySearchQuery, setSubCategorySearchQuery] = useState<string>("");
   const [selectedSubCategoryFilter, setSelectedSubCategoryFilter] = useState<string | null>(null);
+
+  // Scroll to top when route params change
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [categoryId, subCategoryId]);
 
   // Helper function to handle API responses
   // Fixed: Clone response before reading to prevent "body stream already read" error
@@ -129,7 +139,7 @@ const VisitingCards: React.FC = () => {
                   const fallbackData = await handleApiResponse(fallbackResponse);
                   if (fallbackData && Array.isArray(fallbackData) && fallbackData.length > 0) {
                     // Process fallback data
-                    subcategoriesArray = Array.isArray(fallbackData) ? fallbackData : (fallbackData?.data || []);
+                    subcategoriesArray = fallbackData;
                     if (subcategoriesArray.length > 0) {
                       // Sort by sortOrder
                       subcategoriesArray.sort((a: SubCategory, b: SubCategory) => (a.sortOrder || 0) - (b.sortOrder || 0));
@@ -845,7 +855,7 @@ const VisitingCards: React.FC = () => {
       opacity: 1,
       transition: {
         duration: 0.5,
-        ease: "easeOut",
+        ease: "easeOut" as const,
       },
     },
   };
@@ -994,6 +1004,9 @@ const VisitingCards: React.FC = () => {
                       : `/digital-print/${subCategoryIdForLink}`
                     } 
                     className="group block h-full"
+                    onClick={() => {
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
                   >
                     <div className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-2xl transition-all duration-500 border border-cream-100 h-full flex flex-col hover:-translate-y-2">
                       
@@ -1113,32 +1126,47 @@ const VisitingCards: React.FC = () => {
                                 : `/digital-print/${product._id}`
                               } 
                               className="group block w-full"
+                              onClick={() => {
+                                window.scrollTo({ top: 0, behavior: 'smooth' });
+                              }}
                             >
-                              <div className="w-full p-4 sm:p-6 rounded-xl border-2 border-cream-200 hover:border-cream-900 text-left transition-all duration-200 hover:bg-cream-50 min-h-[140px] sm:min-h-[160px] flex flex-col">
-                                <div className="flex items-start justify-between gap-3 mb-3">
-                                  <h3 className="font-serif text-base sm:text-lg font-bold text-cream-900 group-hover:text-cream-600 transition-colors flex-1">
-                                    {product.name}
-                                  </h3>
-                                  <div className="text-right flex-shrink-0 flex items-center gap-2">
-                                    <div>
-                                      <div className="text-lg sm:text-xl font-bold text-cream-900">
-                                        ₹{displayPrice}
-                                      </div>
-                                      {priceLabel && (
-                                        <div className="text-xs text-cream-500 mt-0.5">
-                                          {priceLabel}
-                                        </div>
-                                      )}
-                                    </div>
-                                    <span className="text-cream-900 group-hover:text-cream-600 text-xl font-bold transition-colors">→</span>
-                                  </div>
+                              <div className="w-full p-4 sm:p-6 rounded-xl border-2 border-cream-200 hover:border-cream-900 text-left transition-all duration-200 hover:bg-cream-50 min-h-[140px] sm:min-h-[160px] flex gap-4">
+                                {/* Product Image */}
+                                <div className="flex-shrink-0 w-24 sm:w-32 h-24 sm:h-32 rounded-lg overflow-hidden bg-cream-100 border border-cream-200">
+                                  <img
+                                    src={product.image || "/Glossy.png"}
+                                    alt={product.name}
+                                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                                  />
                                 </div>
                                 
-                                {shortDescription && (
-                                  <div className="text-cream-600 text-xs sm:text-sm mb-2 leading-relaxed flex-grow">
-                                    <p className="line-clamp-3">{shortDescription}</p>
+                                {/* Product Content */}
+                                <div className="flex-1 flex flex-col min-w-0">
+                                  <div className="flex items-start justify-between gap-3 mb-2">
+                                    <h3 className="font-serif text-base sm:text-lg font-bold text-cream-900 group-hover:text-cream-600 transition-colors flex-1">
+                                      {product.name}
+                                    </h3>
+                                    <div className="text-right flex-shrink-0 flex items-center gap-2">
+                                      <div>
+                                        <div className="text-lg sm:text-xl font-bold text-cream-900">
+                                          ₹{displayPrice}
+                                        </div>
+                                        {priceLabel && (
+                                          <div className="text-xs text-cream-500 mt-0.5">
+                                            {priceLabel}
+                                          </div>
+                                        )}
+                                      </div>
+                                      <span className="text-cream-900 group-hover:text-cream-600 text-xl font-bold transition-colors">→</span>
+                                    </div>
                                   </div>
-                                )}
+                                  
+                                  {shortDescription && (
+                                    <div className="text-cream-600 text-xs sm:text-sm leading-relaxed flex-grow">
+                                      <p className="line-clamp-2">{shortDescription}</p>
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                             </Link>
                           </motion.div>
@@ -1180,7 +1208,7 @@ const VisitingCards: React.FC = () => {
 
             {/* Main Layout: 50/50 Split - Left Image, Right Products */}
             <div className="flex flex-col lg:flex-row gap-6 sm:gap-8 lg:gap-12 min-h-[600px]">
-              {/* Left Side: Subcategory Image (Fixed, Large) */}
+              {/* Left Side: Category Image (Fixed, Large) */}
               <div className="lg:w-1/2">
                 <div className="lg:sticky lg:top-24">
                   <motion.div
@@ -1191,8 +1219,8 @@ const VisitingCards: React.FC = () => {
                   >
                     <div className="w-full h-full flex items-center justify-center">
                       <img
-                        src={selectedSubCategory?.image || "/Glossy.png"}
-                        alt={selectedSubCategory?.name || categoryName || "Product Preview"}
+                        src={categoryImage || selectedSubCategory?.image || "/Glossy.png"}
+                        alt={categoryName || selectedSubCategory?.name || "Category Preview"}
                         className="w-full h-full object-contain cursor-pointer hover:opacity-90 transition-opacity rounded-lg"
                         style={{ 
                           maxWidth: '100%',
@@ -1254,32 +1282,47 @@ const VisitingCards: React.FC = () => {
                             : `/digital-print/${product._id}`
                           } 
                           className="group block w-full"
+                          onClick={() => {
+                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                          }}
                         >
-                          <div className="w-full p-4 sm:p-6 rounded-xl border-2 border-cream-200 hover:border-cream-900 text-left transition-all duration-200 hover:bg-cream-50 min-h-[140px] sm:min-h-[160px] flex flex-col">
-                            <div className="flex items-start justify-between gap-3 mb-3">
-                              <h3 className="font-serif text-base sm:text-lg font-bold text-cream-900 group-hover:text-cream-600 transition-colors flex-1">
-                                {product.name}
-                              </h3>
-                              <div className="text-right flex-shrink-0 flex items-center gap-2">
-                                <div>
-                                  <div className="text-lg sm:text-xl font-bold text-cream-900">
-                                    ₹{displayPrice}
-                                  </div>
-                                  {priceLabel && (
-                                    <div className="text-xs text-cream-500 mt-0.5">
-                                      {priceLabel}
-                                    </div>
-                                  )}
-                                </div>
-                                <span className="text-cream-900 group-hover:text-cream-600 text-xl font-bold transition-colors">→</span>
-                              </div>
+                          <div className="w-full p-4 sm:p-6 rounded-xl border-2 border-cream-200 hover:border-cream-900 text-left transition-all duration-200 hover:bg-cream-50 min-h-[140px] sm:min-h-[160px] flex gap-4">
+                            {/* Product Image */}
+                            <div className="flex-shrink-0 w-24 sm:w-32 h-24 sm:h-32 rounded-lg overflow-hidden bg-cream-100 border border-cream-200">
+                              <img
+                                src={product.image || "/Glossy.png"}
+                                alt={product.name}
+                                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                              />
                             </div>
                             
-                            {shortDescription && (
-                              <div className="text-cream-600 text-xs sm:text-sm mb-2 leading-relaxed flex-grow">
-                                <p className="line-clamp-3">{shortDescription}</p>
+                            {/* Product Content */}
+                            <div className="flex-1 flex flex-col min-w-0">
+                              <div className="flex items-start justify-between gap-3 mb-2">
+                                <h3 className="font-serif text-base sm:text-lg font-bold text-cream-900 group-hover:text-cream-600 transition-colors flex-1">
+                                  {product.name}
+                                </h3>
+                                <div className="text-right flex-shrink-0 flex items-center gap-2">
+                                  <div>
+                                    <div className="text-lg sm:text-xl font-bold text-cream-900">
+                                      ₹{displayPrice}
+                                    </div>
+                                    {priceLabel && (
+                                      <div className="text-xs text-cream-500 mt-0.5">
+                                        {priceLabel}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <span className="text-cream-900 group-hover:text-cream-600 text-xl font-bold transition-colors">→</span>
+                                </div>
                               </div>
-                            )}
+                              
+                              {shortDescription && (
+                                <div className="text-cream-600 text-xs sm:text-sm leading-relaxed flex-grow">
+                                  <p className="line-clamp-2">{shortDescription}</p>
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </Link>
                       </motion.div>
@@ -1310,90 +1353,135 @@ const VisitingCards: React.FC = () => {
           </div>
           )
         ) : categoryId && products.length > 0 ? (
-          /* Products Display - Direct from category (with or without subcategories) - Old UI Style */
+          /* Products Display - Direct from category (with or without subcategories) - 50/50 Layout */
           <div>
             {/* Select Product Heading */}
             <h2 className="font-serif text-2xl sm:text-3xl font-bold text-cream-900 mb-6">
               Select Product
             </h2>
             
-            {/* Products List - Old UI Style */}
-            <div className="w-full">
-              <motion.div
-                className="space-y-3 sm:space-y-4 w-full"
-                variants={containerVariants}
-                initial="hidden"
-                animate="visible"
-              >
-                {products.map((product) => {
-                  const productSubcategory = typeof product.subcategory === "object" 
-                    ? product.subcategory 
-                    : null;
-                  // Use product's subcategory if available, otherwise use category
-                  // This prevents navigation errors when product has invalid subcategory ID
-                  const productSubcategoryId = productSubcategory?.slug || productSubcategory?._id || 
-                    categoryId;
-                  
-                  // Calculate price per 1000 units if basePrice is less than 1
-                  const basePrice = product.basePrice || 0;
-                  const displayPrice = basePrice < 1 
-                    ? (basePrice * 1000).toFixed(2)
-                    : basePrice.toFixed(2);
-                  const priceLabel = basePrice < 1 ? "per 1000 units" : "";
-                  
-                  // Get description preview (strip HTML and get first few lines)
-                  const descriptionText = product.description 
-                    ? product.description.replace(/<[^>]*>/g, '').trim()
-                    : "";
-                  // Get first 3 lines or up to 200 characters
-                  const lines = descriptionText.split('\n').filter(line => line.trim());
-                  const firstFewLines = lines.slice(0, 3).join(' ').trim();
-                  const shortDescription = firstFewLines.length > 200 
-                    ? firstFewLines.substring(0, 200) + '...' 
-                    : firstFewLines || "";
-                  
-                  return (
-                    <motion.div
-                      key={product._id}
-                      variants={itemVariants}
-                    >
-                      <Link 
-                        to={categoryId && productSubcategoryId
-                          ? `/digital-print/${categoryId}/${productSubcategoryId}/${product._id}`
-                          : categoryId
-                          ? `/digital-print/${categoryId}/${product._id}`
-                          : `/digital-print/${product._id}`
-                        } 
-                        className="group block w-full"
+            {/* Main Layout: 50/50 Split - Left Category Image, Right Products */}
+            <div className="flex flex-col lg:flex-row gap-6 sm:gap-8 lg:gap-12 min-h-[600px]">
+              {/* Left Side: Category Image (Fixed, Large) */}
+              <div className="lg:w-1/2">
+                <div className="lg:sticky lg:top-24">
+                  <motion.div
+                    className="bg-white p-4 sm:p-6 md:p-8 lg:p-12 rounded-2xl sm:rounded-3xl shadow-sm border border-cream-100 flex items-center justify-center min-h-[400px] sm:min-h-[500px] md:min-h-[600px] bg-cream-100/50"
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ duration: 0.5 }}
+                  >
+                    <div className="w-full h-full flex items-center justify-center">
+                      <img
+                        src={categoryImage || "/Glossy.png"}
+                        alt={categoryName || "Category Preview"}
+                        className="w-full h-full object-contain cursor-pointer hover:opacity-90 transition-opacity rounded-lg"
+                        style={{ 
+                          maxWidth: '100%',
+                          maxHeight: '100%',
+                        }}
+                      />
+                    </div>
+                  </motion.div>
+                </div>
+              </div>
+
+              {/* Right Side: Product List with Images */}
+              <div className="lg:w-1/2">
+                <motion.div
+                  className="space-y-3 sm:space-y-4 w-full"
+                  variants={containerVariants}
+                  initial="hidden"
+                  animate="visible"
+                >
+                  {products.map((product) => {
+                    const productSubcategory = typeof product.subcategory === "object" 
+                      ? product.subcategory 
+                      : null;
+                    // Use product's subcategory if available, otherwise use category
+                    // This prevents navigation errors when product has invalid subcategory ID
+                    const productSubcategoryId = productSubcategory?.slug || productSubcategory?._id || 
+                      categoryId;
+                    
+                    // Calculate price per 1000 units if basePrice is less than 1
+                    const basePrice = product.basePrice || 0;
+                    const displayPrice = basePrice < 1 
+                      ? (basePrice * 1000).toFixed(2)
+                      : basePrice.toFixed(2);
+                    const priceLabel = basePrice < 1 ? "per 1000 units" : "";
+                    
+                    // Get description preview (strip HTML and get first few lines)
+                    const descriptionText = product.description 
+                      ? product.description.replace(/<[^>]*>/g, '').trim()
+                      : "";
+                    // Get first 3 lines or up to 200 characters
+                    const lines = descriptionText.split('\n').filter(line => line.trim());
+                    const firstFewLines = lines.slice(0, 3).join(' ').trim();
+                    const shortDescription = firstFewLines.length > 200 
+                      ? firstFewLines.substring(0, 200) + '...' 
+                      : firstFewLines || "";
+                    
+                    return (
+                      <motion.div
+                        key={product._id}
+                        variants={itemVariants}
                       >
-                        <div className="w-full p-3 sm:p-4 rounded-xl border-2 border-cream-200 hover:border-cream-900 text-left transition-all duration-200 hover:bg-cream-50">
-                          <div className="flex items-start justify-between gap-3 mb-2">
-                            <h3 className="font-serif text-base sm:text-lg font-bold text-cream-900 group-hover:text-cream-600 transition-colors flex-1">
-                              {product.name}
-                            </h3>
-                            <div className="text-right flex-shrink-0">
-                              <div className="text-lg sm:text-xl font-bold text-cream-900">
-                                ₹{displayPrice}
+                        <Link 
+                          to={categoryId && productSubcategoryId
+                            ? `/digital-print/${categoryId}/${productSubcategoryId}/${product._id}`
+                            : categoryId
+                            ? `/digital-print/${categoryId}/${product._id}`
+                            : `/digital-print/${product._id}`
+                          } 
+                          className="group block w-full"
+                          onClick={() => {
+                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                          }}
+                        >
+                          <div className="w-full p-4 sm:p-6 rounded-xl border-2 border-cream-200 hover:border-cream-900 text-left transition-all duration-200 hover:bg-cream-50 min-h-[140px] sm:min-h-[160px] flex gap-4">
+                            {/* Product Image */}
+                            <div className="flex-shrink-0 w-24 sm:w-32 h-24 sm:h-32 rounded-lg overflow-hidden bg-cream-100 border border-cream-200">
+                              <img
+                                src={product.image || "/Glossy.png"}
+                                alt={product.name}
+                                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                              />
+                            </div>
+                            
+                            {/* Product Content */}
+                            <div className="flex-1 flex flex-col min-w-0">
+                              <div className="flex items-start justify-between gap-3 mb-2">
+                                <h3 className="font-serif text-base sm:text-lg font-bold text-cream-900 group-hover:text-cream-600 transition-colors flex-1">
+                                  {product.name}
+                                </h3>
+                                <div className="text-right flex-shrink-0 flex items-center gap-2">
+                                  <div>
+                                    <div className="text-lg sm:text-xl font-bold text-cream-900">
+                                      ₹{displayPrice}
+                                    </div>
+                                    {priceLabel && (
+                                      <div className="text-xs text-cream-500 mt-0.5">
+                                        {priceLabel}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <span className="text-cream-900 group-hover:text-cream-600 text-xl font-bold transition-colors">→</span>
+                                </div>
                               </div>
-                              {priceLabel && (
-                                <div className="text-xs text-cream-500 mt-0.5">
-                                  {priceLabel}
+                              
+                              {shortDescription && (
+                                <div className="text-cream-600 text-xs sm:text-sm leading-relaxed flex-grow">
+                                  <p className="line-clamp-2">{shortDescription}</p>
                                 </div>
                               )}
                             </div>
                           </div>
-                          
-                          {shortDescription && (
-                            <div className="text-cream-600 text-xs sm:text-sm mb-2 leading-relaxed">
-                              <p className="line-clamp-3">{shortDescription}</p>
-                            </div>
-                          )}
-                        </div>
-                      </Link>
-                    </motion.div>
-                  );
-                })}
-              </motion.div>
+                        </Link>
+                      </motion.div>
+                    );
+                  })}
+                </motion.div>
+              </div>
             </div>
           </div>
         ) : (categoryId && subCategories.length === 0) && products.length === 0 ? (

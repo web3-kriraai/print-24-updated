@@ -393,6 +393,7 @@ const GlossProductSelection: React.FC = () => {
                   showPriceIncludingGst: productData.showPriceIncludingGst || false,
                   instructions: productData.instructions || "",
                 };
+                
                 setSelectedProduct(mappedProduct);
 
                 // Store PDP data
@@ -406,7 +407,6 @@ const GlossProductSelection: React.FC = () => {
               setPdpError("Failed to fetch product details");
             }
           } catch (err) {
-            console.error("Error fetching PDP data:", err);
             setPdpError("Error loading product details");
           } finally {
             setPdpLoading(false);
@@ -513,15 +513,9 @@ const GlossProductSelection: React.FC = () => {
         const productsText = await productsResponse.text();
         if (productsText.startsWith("<!DOCTYPE") || productsText.startsWith("<html")) {
           // Server returned HTML instead of JSON - don't throw error, just log and continue
-          console.warn("Server returned HTML instead of JSON. Please check your server configuration.");
           setProducts([]);
         } else if (!productsResponse.ok) {
           // Products not found or error - don't throw, just log and continue
-          if (productsResponse.status === 404) {
-            console.warn(`No products found`);
-          } else {
-            console.warn(`Failed to fetch products: ${productsResponse.status} ${productsResponse.statusText}`);
-          }
           setProducts([]);
         } else {
           try {
@@ -529,7 +523,6 @@ const GlossProductSelection: React.FC = () => {
 
             // Ensure productsData is an array
             if (!Array.isArray(productsData)) {
-              console.warn("Invalid products data format received from server.");
               setProducts([]);
             } else {
               // Map API products to GlossProduct format
@@ -592,14 +585,12 @@ const GlossProductSelection: React.FC = () => {
                 }
               }
             }
-          } catch (parseErr) {
-            console.warn("Error parsing products data:", parseErr);
+              } catch (parseErr) {
             setProducts([]);
           }
         }
       } catch (err) {
         // Don't set error for subcategory-related issues - just log and continue
-        console.warn("Error fetching data:", err);
         setProducts([]);
         // Only set error for critical issues that prevent the page from working
         // Subcategory not found is not a critical error - user can still browse
@@ -1307,7 +1298,6 @@ const GlossProductSelection: React.FC = () => {
         }
       }
     } catch (err) {
-      console.error('Error geocoding pincode:', err);
     }
     return null;
   };
@@ -1352,7 +1342,6 @@ const GlossProductSelection: React.FC = () => {
                   }
                 }
               } catch (geocodeErr) {
-                console.error('Reverse geocoding error:', geocodeErr);
               }
 
               // Calculate delivery from nearest branch
@@ -1430,7 +1419,6 @@ const GlossProductSelection: React.FC = () => {
           }
         }
       } catch (err) {
-        console.error('Error fetching delivery estimate:', err);
       }
     };
 
@@ -1499,11 +1487,9 @@ const GlossProductSelection: React.FC = () => {
           setPaymentError("Could not determine address from location. Please enter manually.");
         }
       } catch (err) {
-        console.error('Reverse geocoding error:', err);
         setPaymentError("Could not fetch address from location. Please enter manually.");
       }
     } catch (error: any) {
-      console.error('Geolocation error:', error);
       if (error.code === 1) {
         setPaymentError("Location access denied. Please enable location permissions or enter address manually.");
       } else if (error.code === 2) {
@@ -1790,7 +1776,6 @@ const GlossProductSelection: React.FC = () => {
           filename: frontDesignFile.name || "front-design.png",
         };
       } catch (err) {
-        console.error("Error preparing front image:", err);
         throw new Error(err instanceof Error ? err.message : "Failed to prepare front design image. Please try uploading again.");
       }
 
@@ -1811,7 +1796,6 @@ const GlossProductSelection: React.FC = () => {
             };
           }
         } catch (err) {
-          console.error("Error preparing back image:", err);
           // Back image is optional, so we'll just log the error
         }
       }
@@ -1981,16 +1965,6 @@ const GlossProductSelection: React.FC = () => {
         specialEffects: orderDynamicAttributes.specialEffects ? [orderDynamicAttributes.specialEffects] : [],
       };
 
-      console.log("Sending order data:", {
-        productId: orderData.productId,
-        quantity: orderData.quantity,
-        finish: orderData.finish,
-        shape: orderData.shape,
-        totalPrice: orderData.totalPrice,
-        hasUploadedDesign: !!orderData.uploadedDesign,
-        paymentStatus: orderData.paymentStatus,
-      });
-
       // Check if user is authenticated
       const token = localStorage.getItem("token");
       let response: Response;
@@ -2027,7 +2001,6 @@ const GlossProductSelection: React.FC = () => {
           const errorData = await response.json();
           errorMessage = errorData.error || errorMessage;
           errorDetails = errorData.details;
-          console.error("Order creation error response:", errorData);
 
           // Check if it's a "No token provided" error (shouldn't happen with new flow, but handle it)
           if (errorMessage.includes("No token provided") || errorMessage.includes("token")) {
@@ -2081,15 +2054,12 @@ const GlossProductSelection: React.FC = () => {
             if (Array.isArray(errorData.details)) {
               const detailsText = errorData.details.map((d: any) => `${d.field}: ${d.message}`).join("\n");
               errorMessage += "\n\n" + detailsText;
-              console.error("Validation errors:", errorData.details);
             } else {
               errorMessage += "\n\n" + errorData.details;
             }
           }
         } catch (parseError) {
-          console.error("Error parsing error response:", parseError);
           const responseText = await response.text().catch(() => "");
-          console.error("Raw error response:", responseText);
           errorMessage += `\n\nServer returned: ${response.status} ${response.statusText}`;
         }
         throw new Error(errorMessage);
@@ -2126,7 +2096,6 @@ const GlossProductSelection: React.FC = () => {
         navigate("/profile");
       }
     } catch (err) {
-      console.error("Error placing order:", err);
       setPaymentError(err instanceof Error ? err.message : "Failed to process payment and create order. Please try again.");
       setIsProcessingPayment(false);
     }
@@ -2486,9 +2455,14 @@ const GlossProductSelection: React.FC = () => {
                     <div className="w-full h-full flex items-center justify-center">
                       {(() => {
                         // Get the image to display based on selected attributes
-                        // Start with main product image, only update if user has explicitly selected an attribute
-                        let displayImage = selectedSubCategory?.image || selectedProduct?.image || "/Glossy.png";
-                        let displayAlt = selectedSubCategory?.name || selectedProduct?.name || "Product Preview";
+                        // Prioritize product image first, then subcategory, then fallback
+                        let displayImage = selectedProduct?.image || selectedSubCategory?.image || "/Glossy.png";
+                        let displayAlt = selectedProduct?.name || selectedSubCategory?.name || "Product Preview";
+                        
+                        // Ensure image URL is valid (not empty or null)
+                        if (!displayImage || displayImage.trim() === "" || displayImage === "null" || displayImage === "undefined") {
+                          displayImage = selectedSubCategory?.image || "/Glossy.png";
+                        }
 
                         // Only check for attribute images if user has explicitly selected at least one attribute
                         // This ensures the main product image is shown initially
@@ -2541,8 +2515,14 @@ const GlossProductSelection: React.FC = () => {
                           <img
                             src={displayImage}
                             alt={displayAlt}
-                            className="w-full h-full object-contain cursor-pointer hover:opacity-90 transition-opacity rounded-lg"
-                            onClick={() => setIsImageModalOpen(true)}
+                            className="w-full h-full object-contain rounded-lg"
+                            onError={(e) => {
+                              // Fallback to subcategory image or default if product image fails to load
+                              const target = e.target as HTMLImageElement;
+                              if (target.src !== selectedSubCategory?.image && target.src !== "/Glossy.png") {
+                                target.src = selectedSubCategory?.image || "/Glossy.png";
+                              }
+                            }}
                             style={{
                               maxWidth: '100%',
                               maxHeight: '100%',
@@ -3417,12 +3397,10 @@ const GlossProductSelection: React.FC = () => {
                                             attrType = attr.attributeType;
                                             attrId = attrType._id;
                                           } else if (typeof attr.attributeType === 'string' && attr.attributeType.trim() !== '') {
-                                            console.warn(`Attribute type not populated for attribute: ${attr.attributeType}`);
                                             return null;
                                           }
 
                                           if (!attrType || !attrType._id) {
-                                            console.warn('Invalid attributeType:', attr.attributeType);
                                             return null;
                                           }
 
@@ -3441,7 +3419,6 @@ const GlossProductSelection: React.FC = () => {
                                         if (requiresMultipleOptions) {
                                           // For dropdown/radio/popup, need at least 2 options
                                           if (attributeValues.length < 1) {
-                                            console.warn(`Attribute "${attrType.attributeName}" (${attrType.inputStyle}) requires at least 2 options but only has ${attributeValues.length}`);
                                             return (
                                               <div key={attrId} className="mb-6 sm:mb-8 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                                                 <label className="block text-xs sm:text-sm font-bold text-cream-900 mb-2 sm:mb-3 uppercase tracking-wider">
