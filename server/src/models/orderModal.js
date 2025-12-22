@@ -50,6 +50,11 @@ const OrderSchema = new mongoose.Schema(
         priceAdd: Number, // Additional price if applicable
         description: String, // Description of the selected value
         image: String, // Image URL if available
+        uploadedImages: [{
+          data: Buffer, // Base64 image data
+          contentType: String, // MIME type (e.g., "image/png")
+          filename: String, // Original filename
+        }], // Images uploaded by user for this attribute
       },
     ],
     totalPrice: {

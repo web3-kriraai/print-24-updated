@@ -38,6 +38,7 @@ import {
   getAllUploads,
   getUploadById,
   createAdmin,
+  createEmployee,
   getAllAdmins,
   getAllUsers,
   getAllEmployees,
@@ -77,6 +78,7 @@ import {
   getAllSubCategories,
   getSubCategory,
   getSubCategoriesByCategory,
+  getSubCategoriesByParent,
   updateSubCategory,
   deleteSubCategory,
 } from "../controllers/subcategoryController.js";
@@ -183,6 +185,7 @@ router.post(
 
 router.get("/subcategories", getAllSubCategories);
 router.get("/subcategories/category/:categoryId", getSubCategoriesByCategory);
+router.get("/subcategories/parent/:parentId", getSubCategoriesByParent);
 router.get("/subcategories/:id", getSubCategory);
 router.put(
   "/subcategories/:id",
@@ -235,6 +238,8 @@ router.get("/admin/uploads/:id", authMiddleware, adminAuth, getUploadById);
 router.delete("/admin/uploads/:id", authMiddleware, adminAuth, deleteUpload);
 
 router.post("/admin/create-admin", authMiddleware, adminAuth, createAdmin);
+
+router.post("/admin/create-employee", authMiddleware, adminAuth, createEmployee);
 
 router.get("/admin/admins", authMiddleware, adminAuth, getAllAdmins);
 

@@ -224,7 +224,7 @@ const DigitalPrint: React.FC = () => {
           Accept: "application/json",
         };
 
-        const response = await fetch(`${BASE_URL}/subcategories/category/${selectedCategory}`, {
+        const response = await fetch(`${BASE_URL}/subcategories/category/${selectedCategory}?includeChildren=true`, {
           method: "GET",
           headers,
         });
@@ -234,9 +234,28 @@ const DigitalPrint: React.FC = () => {
           if (!text.trim().startsWith("<!DOCTYPE") && !text.trim().startsWith("<html")) {
             const data = JSON.parse(text);
             const subcategories = Array.isArray(data) ? data : (data?.data || []);
+            
+            // Flatten nested subcategories for display (but keep hierarchy info)
+            const flattenSubcategories = (subcats: any[]): any[] => {
+              let result: any[] = [];
+              subcats.forEach((subcat) => {
+                result.push({ ...subcat, _displayLevel: 0 });
+                if (subcat.children && subcat.children.length > 0) {
+                  const nested = subcat.children.map((child: any) => ({
+                    ...child,
+                    _displayLevel: 1,
+                    _parentName: subcat.name,
+                  }));
+                  result = result.concat(nested);
+                }
+              });
+              return result;
+            };
+            
+            const flattened = flattenSubcategories(subcategories);
             // Sort by sortOrder
-            subcategories.sort((a: any, b: any) => (a.sortOrder || 0) - (b.sortOrder || 0));
-            setSubCategories(subcategories);
+            flattened.sort((a: any, b: any) => (a.sortOrder || 0) - (b.sortOrder || 0));
+            setSubCategories(flattened);
           } else {
             setSubCategories([]);
           }
@@ -424,7 +443,8 @@ const DigitalPrint: React.FC = () => {
                       if (value && selectedCategory) {
                         const subCategory = subCategories.find(sc => sc._id === value);
                         if (subCategory) {
-                          const subCategoryId = subCategory.slug || subCategory._id;
+                          // Always use ObjectId instead of slug
+                          const subCategoryId = subCategory._id;
                           navigate(`/digital-print/${selectedCategory}/${subCategoryId}`);
                         }
                       }

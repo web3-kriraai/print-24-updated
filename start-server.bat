@@ -15,7 +15,7 @@ if not exist .env (
 echo .env file found ✓
 echo.
 echo Starting server on port 5000...
-echo Access the app at: http://localhost:5000
+echo Access the app at: https://kelsi-kimonoed-corene.ngrok-free.dev
 echo.
 npm start
 

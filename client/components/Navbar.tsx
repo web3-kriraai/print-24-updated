@@ -127,6 +127,9 @@ const Navbar: React.FC = () => {
     return colors[index];
   };
 
+  // Check if we're on login or signup page
+  const isAuthPage = location.pathname === '/login' || location.pathname === '/signup';
+
   return (
     <nav
       className={`fixed w-full z-50 transition-all duration-300 ${
@@ -136,64 +139,87 @@ const Navbar: React.FC = () => {
       }`}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-16">
-          {/* Logo */}
-          <Link 
-            to="/" 
-            className="flex items-center gap-2 group cursor-pointer h-full"
-            onClick={() => {
-              if (location.pathname === "/") {
-                window.scrollTo({ top: 0, behavior: "smooth" });
-              }
+        <div className="flex items-center h-16 relative">
+          {/* Logo - Smoothly transitions from left to center */}
+          <motion.div
+            initial={false}
+            animate={{
+              left: isAuthPage ? "50%" : "0px",
+              x: isAuthPage ? "-50%" : "0%",
             }}
+            transition={{ 
+              duration: 0.6, 
+              ease: [0.4, 0, 0.2, 1] // Custom easing for smooth motion
+            }}
+            className="flex items-center absolute"
           >
-            <img
-              src="/logo.svg"
-              alt="Prints24 Logo"
-              className="h-12 w-auto sm:h-14 md:h-16 object-contain group-hover:scale-105 transition-all duration-300 cursor-pointer"
-            />
-          </Link>
-
-          {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center space-x-6">
-            {allNavLinks.map((link) => (
-              <Link
-                key={link.path}
-                to={link.path}
-                className={`text-sm font-medium transition-colors duration-200 relative group ${
-                  isActive(link.path)
-                    ? "text-cream-800 font-semibold"
-                    : "text-cream-600 hover:text-cream-900"
+            <Link 
+              to="/" 
+              className="flex items-center gap-2 group cursor-pointer h-full"
+              onClick={(e) => {
+                if (isAuthPage) {
+                  e.preventDefault();
+                  navigate("/");
+                } else if (location.pathname === "/") {
+                  window.scrollTo({ top: 0, behavior: "smooth" });
+                }
+              }}
+            >
+              <motion.img
+                src="/logo.svg"
+                alt="Prints24 Logo"
+                className={`object-contain group-hover:scale-105 transition-all duration-300 cursor-pointer ${
+                  isAuthPage 
+                    ? "h-12 sm:h-14 md:h-16 w-auto" 
+                    : "h-12 w-auto sm:h-14 md:h-16"
                 }`}
-              >
-                {link.label}
-                <span
-                  className={`absolute -bottom-1 left-0 w-0 h-0.5 bg-cream-800 transition-all duration-300 group-hover:w-full ${
-                    isActive(link.path) ? "w-full" : ""
-                  }`}
-                />
-              </Link>
-            ))}
-          </div>
+                initial={false}
+              />
+            </Link>
+          </motion.div>
 
-          {/* Auth / Profile */}
-          {/* IMPORTANT: Server always renders logged-out state, client updates after mount */}
-          {/* This ensures hydration match - both render !userData initially */}
-          <div className="hidden md:flex items-center space-x-3">
-            {!userData || !isMounted ? (
-              <>
-                <Link to="/login">
-                  <button className="text-cream-900 font-medium text-base hover:text-cream-600 transition-colors px-4 py-2">
-                    Login
-                  </button>
-                </Link>
-                <Link to="/signup">
-                  <button className="bg-cream-900 text-cream-50 px-6 py-2.5 rounded-full text-base font-medium hover:bg-cream-800 transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5">
-                    Sign Up
-                  </button>
-                </Link>
-              </>
-            ) : (
+          {/* Desktop Navigation - Hidden on auth pages */}
+          {!isAuthPage && (
+            <div className="flex-1 flex items-center justify-end">
+              <div className="hidden md:flex items-center space-x-6">
+                {allNavLinks.map((link) => (
+                  <Link
+                    key={link.path}
+                    to={link.path}
+                    className={`text-sm font-medium transition-colors duration-200 relative group ${
+                      isActive(link.path)
+                        ? "text-cream-800 font-semibold"
+                        : "text-cream-600 hover:text-cream-900"
+                    }`}
+                  >
+                    {link.label}
+                    <span
+                      className={`absolute -bottom-1 left-0 w-0 h-0.5 bg-cream-800 transition-all duration-300 group-hover:w-full ${
+                        isActive(link.path) ? "w-full" : ""
+                      }`}
+                    />
+                  </Link>
+                ))}
+              </div>
+
+              {/* Auth / Profile - Hidden on auth pages */}
+              {/* IMPORTANT: Server always renders logged-out state, client updates after mount */}
+              {/* This ensures hydration match - both render !userData initially */}
+              <div className="hidden md:flex items-center space-x-3 ml-8">
+                {!userData || !isMounted ? (
+                  <>
+                    <Link to="/login">
+                      <button className="text-cream-900 font-medium text-base hover:text-cream-600 transition-colors px-4 py-2">
+                        Login
+                      </button>
+                    </Link>
+                    <Link to="/signup">
+                      <button className="bg-cream-900 text-cream-50 px-6 py-2.5 rounded-full text-base font-medium hover:bg-cream-800 transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5">
+                        Sign Up
+                      </button>
+                    </Link>
+                  </>
+                ) : (
               <div className="relative profile-dropdown">
                 <button
                   onClick={() =>
@@ -309,30 +335,36 @@ const Navbar: React.FC = () => {
                   )}
                 </AnimatePresence>
               </div>
-            )}
-          </div>
+                )}
+              </div>
+            </div>
+          )}
 
-          {/* Mobile Menu Toggle */}
-          <div className="md:hidden">
-            <button
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="text-cream-900 focus:outline-none p-1"
-            >
-              {isMobileMenuOpen ? <X size={28} /> : <Menu size={28} />}{" "}
-              {/* Increased from 24 to 28 */}
-            </button>
-          </div>
+          {/* Mobile Menu Toggle - Hidden on auth pages */}
+          {!isAuthPage && (
+            <div className="md:hidden">
+              <button
+                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                className="text-cream-900 focus:outline-none p-1"
+              >
+                {isMobileMenuOpen ? <X size={28} /> : <Menu size={28} />}{" "}
+                {/* Increased from 24 to 28 */}
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Mobile Menu */}
-      {isMobileMenuOpen && (
-        <motion.div
-          initial={{ opacity: 0, height: 0 }}
-          animate={{ opacity: 1, height: "auto" }}
-          exit={{ opacity: 0, height: 0 }}
-          className="md:hidden bg-cream-50 border-t border-cream-200"
-        >
+      {/* Mobile Menu - Hidden on auth pages */}
+      {!isAuthPage && (
+        <AnimatePresence>
+          {isMobileMenuOpen && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              className="md:hidden bg-cream-50 border-t border-cream-200"
+            >
           <div className="px-4 pt-2 pb-4 space-y-2">
             {" "}
             {/* Increased padding */}
@@ -439,7 +471,9 @@ const Navbar: React.FC = () => {
               )}
             </div>
           </div>
-        </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       )}
     </nav>
   );

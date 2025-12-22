@@ -38,6 +38,7 @@ import {
   Clock,
   FileText,
   Copy,
+  Briefcase,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ReviewFilterDropdown } from "../components/ReviewFilterDropdown";
@@ -67,8 +68,8 @@ interface Product {
   description: string;
   basePrice: number;
   category?: string | { _id: string; name: string };
-  subcategory?: string | { 
-    _id: string; 
+  subcategory?: string | {
+    _id: string;
     name: string;
     category?: string | { _id: string; name: string };
   };
@@ -158,6 +159,11 @@ interface Order {
     description?: string;
     priceAdd?: number;
     priceMultiplier?: number;
+    uploadedImages?: Array<{
+      data: Buffer | string;
+      contentType: string;
+      filename: string;
+    }>;
   }>;
   totalPrice: number;
   status: "request" | "production_ready" | "approved" | "processing" | "completed" | "cancelled" | "rejected";
@@ -237,7 +243,7 @@ const HierarchicalCategorySelector: React.FC<{
   const buildCategoryPath = (categoryId: string): string[] => {
     const path: string[] = [];
     let currentId = categoryId;
-    
+
     while (currentId) {
       const category = categories.find(c => c._id === currentId);
       if (!category) break;
@@ -248,15 +254,15 @@ const HierarchicalCategorySelector: React.FC<{
         break;
       }
     }
-    
+
     return path;
   };
 
   // Initialize type and path from selected category
   React.useEffect(() => {
     if (selectedCategoryId) {
-      const category = categories.find(c => c._id === selectedCategoryId) || 
-                      subCategories.find(sc => sc._id === selectedCategoryId);
+      const category = categories.find(c => c._id === selectedCategoryId) ||
+        subCategories.find(sc => sc._id === selectedCategoryId);
       if (category) {
         const type = category.type || (category.category && typeof category.category === 'object' ? category.category.type : '');
         if (type) {
@@ -411,6 +417,7 @@ const AdminDashboard: React.FC = () => {
     name?: string;
     type?: string;
     image?: string;
+    sortOrder?: string;
   }>({});
   const [attributeFormErrors, setAttributeFormErrors] = useState<{
     attributeName?: string;
@@ -432,6 +439,7 @@ const AdminDashboard: React.FC = () => {
     name?: string;
     category?: string;
     image?: string;
+    sortOrder?: string;
   }>({});
 
   // Product form state
@@ -446,9 +454,9 @@ const AdminDashboard: React.FC = () => {
     options: "",
     filters: {
       printingOption: [] as string[],
-      orderQuantity: { 
-        min: 1000, 
-        max: 72000, 
+      orderQuantity: {
+        min: 1000,
+        max: 72000,
         multiples: 1000,
         quantityType: "SIMPLE" as "SIMPLE" | "STEP_WISE" | "RANGE_WISE",
         stepWiseQuantities: [] as number[],
@@ -527,12 +535,20 @@ const AdminDashboard: React.FC = () => {
     name: "",
     description: "",
     category: "",
+    parent: "", // Parent subcategory for nesting
     type: "", // Type filter for parent category selection
     slug: "",
     sortOrder: 0,
     image: null as File | null,
   });
-  
+
+  // State for available parent subcategories (for nested subcategories)
+  const [availableParentSubcategories, setAvailableParentSubcategories] = useState<any[]>([]);
+  const [loadingParentSubcategories, setLoadingParentSubcategories] = useState(false);
+
+  // State to track if nested subcategory mode is active
+  const [isNestedSubcategoryMode, setIsNestedSubcategoryMode] = useState(false);
+
   const [editingSubCategoryId, setEditingSubCategoryId] = useState<string | null>(null);
   const [editingSubCategoryImage, setEditingSubCategoryImage] = useState<string | null>(null);
   const [subCategories, setSubCategories] = useState<any[]>([]);
@@ -544,6 +560,13 @@ const AdminDashboard: React.FC = () => {
   const [userRoleForm, setUserRoleForm] = useState({
     username: "",
     role: "user",
+  });
+
+  // Create employee form state
+  const [createEmployeeForm, setCreateEmployeeForm] = useState({
+    name: "",
+    email: "",
+    password: "",
   });
 
   // Data states
@@ -558,7 +581,7 @@ const AdminDashboard: React.FC = () => {
   const [draggedSubCategoryId, setDraggedSubCategoryId] = useState<string | null>(null);
   const autoScrollIntervalRef = React.useRef<NodeJS.Timeout | null>(null);
   const categoryListRef = React.useRef<HTMLDivElement | null>(null);
-  
+
   // Delete confirmation modal state
   const [deleteConfirmModal, setDeleteConfirmModal] = useState<{
     isOpen: boolean;
@@ -589,7 +612,7 @@ const AdminDashboard: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedSubCategoryForView, setSelectedSubCategoryForView] = useState<string | null>(null);
   const [categorySubcategories, setCategorySubcategories] = useState<any[]>([]);
-  
+
   // View description modal state
   const [viewDescriptionModal, setViewDescriptionModal] = useState<{
     isOpen: boolean;
@@ -602,7 +625,7 @@ const AdminDashboard: React.FC = () => {
     name: '',
     description: '',
   });
-  
+
   // Hierarchical selection state for product form
   const [selectedType, setSelectedType] = useState<string>("");
   const [filteredCategoriesByType, setFilteredCategoriesByType] = useState<Category[]>([]);
@@ -612,12 +635,39 @@ const AdminDashboard: React.FC = () => {
   const [categoryProducts, setCategoryProducts] = useState<Product[]>([]);
   const [loadingCategoryProducts, setLoadingCategoryProducts] = useState(false);
   const [users, setUsers] = useState<User[]>([]);
+
+  // Print Partner Requests state
+  interface PrintPartnerRequest {
+    _id: string;
+    businessName: string;
+    ownerName: string;
+    mobileNumber: string;
+    whatsappNumber: string;
+    emailAddress: string;
+    gstNumber?: string;
+    fullBusinessAddress: string;
+    city: string;
+    state: string;
+    pincode: string;
+    proofFileUrl: string;
+    status: "pending" | "approved" | "rejected";
+    approvedBy?: { _id: string; name: string; email: string };
+    approvedAt?: string;
+    rejectionReason?: string;
+    userId?: { _id: string; name: string; email: string; mobileNumber: string };
+    createdAt: string;
+    updatedAt: string;
+  }
+  const [printPartnerRequests, setPrintPartnerRequests] = useState<PrintPartnerRequest[]>([]);
+  const [printPartnerRequestFilter, setPrintPartnerRequestFilter] = useState<"all" | "pending" | "approved" | "rejected">("all");
+  const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
+  const [rejectionReason, setRejectionReason] = useState("");
   const [uploads, setUploads] = useState<Upload[]>([]);
   const [selectedUpload, setSelectedUpload] = useState<Upload | null>(null);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [loadingUploads, setLoadingUploads] = useState(false);
   const [imageLoading, setImageLoading] = useState<{ [key: string]: boolean }>({});
-  
+
   // Orders state
   const [orders, setOrders] = useState<Order[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(false);
@@ -627,6 +677,23 @@ const AdminDashboard: React.FC = () => {
     status: "",
     deliveryDate: "",
     adminNotes: "",
+  });
+
+  // Create employee modal state (for department section)
+  const [showCreateEmployeeModal, setShowCreateEmployeeModal] = useState(false);
+  const [createEmployeeModalForm, setCreateEmployeeModalForm] = useState({
+    name: "",
+    email: "",
+    password: "",
+  });
+
+  // Create department modal state (for sequence section)
+  const [showCreateDepartmentModal, setShowCreateDepartmentModal] = useState(false);
+  const [createDepartmentModalForm, setCreateDepartmentModalForm] = useState({
+    name: "",
+    description: "",
+    isEnabled: true,
+    operators: [] as string[],
   });
 
   // Attribute Types state
@@ -735,7 +802,15 @@ const AdminDashboard: React.FC = () => {
     priceImpactPer1000: "", // If affects PRICE: price change per 1000 units (e.g., "20" = +₹20 per 1000)
     fileRequirements: "", // If affects FILE: file requirements description
     // Options table for dropdown/radio/price effect
-    attributeOptionsTable: [] as Array<{ name: string; priceImpactPer1000: string; image?: string }>, // Table: name and price impact per 1000
+    attributeOptionsTable: [] as Array<{
+      name: string;
+      priceImpactPer1000: string;
+      image?: string;
+      optionUsage: { price: boolean; image: boolean; listing: boolean };
+      priceImpact: string;
+      numberOfImagesRequired: number;
+      listingFilters: string;
+    }>, // Table: name, price impact per 1000, option usage, and related fields
     // Cascading/Dependent Attributes Support
     parentAttribute: "", // Parent attribute ID (if this attribute depends on another)
     showWhenParentValue: [] as string[], // Show this attribute when parent has these values
@@ -807,6 +882,28 @@ const AdminDashboard: React.FC = () => {
     }
   }, [activeTab]);
 
+  // Auto-scroll to top when validation error occurs
+  useEffect(() => {
+    if (error) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [error]);
+
+  // Auto-scroll to top when field-level validation errors occur
+  useEffect(() => {
+    const hasFieldErrors =
+      Object.keys(productFormErrors).length > 0 ||
+      Object.keys(categoryFormErrors).length > 0 ||
+      Object.keys(departmentFormErrors).length > 0 ||
+      Object.keys(sequenceFormErrors).length > 0 ||
+      Object.keys(subCategoryFormErrors).length > 0 ||
+      Object.keys(attributeFormErrors).length > 0;
+
+    if (hasFieldErrors) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [productFormErrors, categoryFormErrors, departmentFormErrors, sequenceFormErrors, subCategoryFormErrors, attributeFormErrors]);
+
   // Ensure parent category matches selected type when type changes
   useEffect(() => {
     if (categoryForm.parent && categoryForm.type) {
@@ -824,11 +921,11 @@ const AdminDashboard: React.FC = () => {
   // Categories are from Category collection (top-level only)
   // Subcategories are from SubCategory collection and shown under their parent categories
   type CategoryWithChildren = Category & { children?: any[]; isSubcategory?: boolean };
-  
+
   const buildCategoryTree = async (cats: Category[]): Promise<CategoryWithChildren[]> => {
     // Since all categories are top-level (no parent), we need to fetch subcategories and add them as children
     const categoryMap = new Map<string, CategoryWithChildren>();
-    
+
     // Create map of categories
     cats.forEach(cat => {
       categoryMap.set(cat._id, { ...cat, children: [] });
@@ -838,17 +935,17 @@ const AdminDashboard: React.FC = () => {
     const rootCategories: CategoryWithChildren[] = [];
     for (const cat of cats) {
       const category = categoryMap.get(cat._id)!;
-      
+
       // Fetch subcategories for this category
       try {
         const response = await fetch(`${API_BASE_URL}/subcategories/category/${cat._id}`, {
           headers: getAuthHeaders(),
         });
-        
+
         if (response.ok) {
           const subcategoriesData = await handleNgrokResponse(response);
           const subcategories = Array.isArray(subcategoriesData) ? subcategoriesData : [];
-          
+
           // Map subcategories to category-like structure for display
           // Sort subcategories by sortOrder before mapping
           const sortedSubcategories = subcategories.sort((a: any, b: any) => {
@@ -860,7 +957,7 @@ const AdminDashboard: React.FC = () => {
             // If same sortOrder, sort by createdAt (newer first)
             return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
           });
-          
+
           category.children = sortedSubcategories.map((sub: any) => ({
             _id: sub._id,
             name: sub.name,
@@ -880,7 +977,7 @@ const AdminDashboard: React.FC = () => {
         console.error(`Error fetching subcategories for category ${cat._id}:`, err);
         category.children = [];
       }
-      
+
       rootCategories.push(category);
     }
 
@@ -926,7 +1023,7 @@ const AdminDashboard: React.FC = () => {
     // Apply search query
     if (categorySearchQuery.trim() !== "") {
       const query = categorySearchQuery.toLowerCase().trim();
-      filtered = filtered.filter(cat => 
+      filtered = filtered.filter(cat =>
         cat.name.toLowerCase().includes(query) ||
         (cat.description && cat.description.toLowerCase().includes(query)) ||
         (cat.type && cat.type.toLowerCase().includes(query))
@@ -935,12 +1032,12 @@ const AdminDashboard: React.FC = () => {
 
     // Sort filtered categories by sortOrder before building tree
     filtered.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
-    
+
     // Build tree and flatten for display
     // Fetch subcategories and build tree with them
     const buildTreeAndFlatten = async () => {
       let tree = await buildCategoryTree(filtered);
-      
+
       // Apply level filter after building tree
       if (categoryTopLevelFilter === "top-level") {
         // Remove all children (subcategories) from tree
@@ -956,14 +1053,14 @@ const AdminDashboard: React.FC = () => {
         tree = allSubcategories;
       }
       // If "all", keep tree as is (categories with their subcategories)
-      
+
       // The tree is already sorted by sortOrder at each level in buildCategoryTree
       // flattenCategoryTree preserves the order (parent, then its children)
       // So we just need to flatten it - no additional sorting needed to maintain hierarchy
       const flattened = flattenCategoryTree(tree);
       setFilteredCategories(flattened as Category[]);
     };
-    
+
     buildTreeAndFlatten();
   }, [categories, categorySearchQuery, categoryTypeFilter, categoryTopLevelFilter]);
 
@@ -974,7 +1071,7 @@ const AdminDashboard: React.FC = () => {
     // Apply search query
     if (subCategorySearchQuery.trim() !== "") {
       const query = subCategorySearchQuery.toLowerCase().trim();
-      filtered = filtered.filter(subCat => 
+      filtered = filtered.filter(subCat =>
         subCat.name.toLowerCase().includes(query) ||
         (subCat.description && subCat.description.toLowerCase().includes(query)) ||
         (subCat.slug && subCat.slug.toLowerCase().includes(query)) ||
@@ -1059,7 +1156,7 @@ const AdminDashboard: React.FC = () => {
         }
         return false;
       }).filter(cat => !cat.parent);
-      
+
       if (filtered.length === 1 && !sequenceForm.category) {
         const singleCategory = filtered[0];
         if (singleCategory && singleCategory._id) {
@@ -1078,62 +1175,62 @@ const AdminDashboard: React.FC = () => {
       Authorization: `Bearer ${token}`,
       Accept: "application/json",
     };
-    
+
     if (includeContentType) {
       headers["Content-Type"] = "application/json";
     }
-    
+
     return headers;
   };
 
   // Generate unique slug by checking existing categories and subcategories
   const generateUniqueSlug = (baseSlug: string, excludeCategoryId?: string | null, excludeSubCategoryId?: string | null): string => {
     if (!baseSlug) return "";
-    
+
     let slug = baseSlug.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
     let uniqueSlug = slug;
     let counter = 2;
-    
+
     // Check if slug exists in categories or subcategories (excluding current item if editing)
-    let categoryExists = categories.some(cat => 
-      cat.slug === uniqueSlug && 
+    let categoryExists = categories.some(cat =>
+      cat.slug === uniqueSlug &&
       (!excludeCategoryId || cat._id !== excludeCategoryId)
     );
-    
-    let subCategoryExists = subCategories.some(subCat => 
-      subCat.slug === uniqueSlug && 
+
+    let subCategoryExists = subCategories.some(subCat =>
+      subCat.slug === uniqueSlug &&
       (!excludeSubCategoryId || subCat._id !== excludeSubCategoryId)
     );
-    
+
     // If slug exists, append number until unique
     while (categoryExists || subCategoryExists) {
       uniqueSlug = `${slug}-${counter}`;
       counter++;
-      
+
       // Re-check with new slug
-      categoryExists = categories.some(cat => 
-        cat.slug === uniqueSlug && 
+      categoryExists = categories.some(cat =>
+        cat.slug === uniqueSlug &&
         (!excludeCategoryId || cat._id !== excludeCategoryId)
       );
-      subCategoryExists = subCategories.some(subCat => 
-        subCat.slug === uniqueSlug && 
+      subCategoryExists = subCategories.some(subCat =>
+        subCat.slug === uniqueSlug &&
         (!excludeSubCategoryId || subCat._id !== excludeSubCategoryId)
       );
     }
-    
+
     return uniqueSlug;
   };
 
   // Helper function to handle API responses
   const handleNgrokResponse = async (response: Response) => {
     const text = await response.text();
-    
+
     // Check if response is HTML (could be error page)
     if (text.trim().startsWith("<!DOCTYPE") || text.trim().startsWith("<html")) {
       // It's likely a server error page
       throw new Error(`Server returned HTML instead of JSON. Status: ${response.status} ${response.statusText}`);
     }
-    
+
     // Try to parse as JSON
     try {
       const data = JSON.parse(text);
@@ -1158,15 +1255,15 @@ const AdminDashboard: React.FC = () => {
         method: "GET",
         headers: getAuthHeaders(),
       });
-      
+
       if (!response.ok) {
         throw new Error(`Failed to fetch categories: ${response.status} ${response.statusText}`);
       }
-      
+
       const data = await handleNgrokResponse(response);
       // Filter to ensure only top-level categories (no parent) are included
       // This is a safety check - server should already return only top-level categories
-      const topLevelCategories = Array.isArray(data) 
+      const topLevelCategories = Array.isArray(data)
         ? data.filter(cat => !cat.parent || cat.parent === null || (typeof cat.parent === 'object' && !cat.parent._id))
         : [];
       // Sort by sortOrder to maintain original order
@@ -1181,31 +1278,31 @@ const AdminDashboard: React.FC = () => {
 
   const fetchAvailableParentCategories = async (excludeId?: string) => {
     try {
-      const url = excludeId 
+      const url = excludeId
         ? `${API_BASE_URL}/categories/available-parents?excludeId=${excludeId}`
         : `${API_BASE_URL}/categories/available-parents`;
-      
+
       const response = await fetch(url, {
         method: "GET",
         headers: getAuthHeaders(),
       });
-      
+
       if (!response.ok) {
         throw new Error(`Failed to fetch available parent categories: ${response.status} ${response.statusText}`);
       }
-      
+
       const data = await handleNgrokResponse(response);
       // Sort by sortOrder, then by name (since we may not have createdAt)
-      const sorted = Array.isArray(data) 
+      const sorted = Array.isArray(data)
         ? data.sort((a, b) => {
-            const sortOrderA = a.sortOrder || 0;
-            const sortOrderB = b.sortOrder || 0;
-            if (sortOrderA !== sortOrderB) {
-              return sortOrderA - sortOrderB;
-            }
-            // If sortOrder is the same, sort by name
-            return (a.name || "").localeCompare(b.name || "");
-          })
+          const sortOrderA = a.sortOrder || 0;
+          const sortOrderB = b.sortOrder || 0;
+          if (sortOrderA !== sortOrderB) {
+            return sortOrderA - sortOrderB;
+          }
+          // If sortOrder is the same, sort by name
+          return (a.name || "").localeCompare(b.name || "");
+        })
         : [];
       setAvailableParentCategories(sorted);
     } catch (err) {
@@ -1220,24 +1317,24 @@ const AdminDashboard: React.FC = () => {
         method: "GET",
         headers: getAuthHeaders(),
       });
-      
+
       if (!response.ok) {
         throw new Error(`Failed to fetch subcategories: ${response.status} ${response.statusText}`);
       }
-      
+
       const data = await handleNgrokResponse(response);
-      
+
       // Check for subcategories with deleted parent categories
-      const invalidSubCategories = data.filter((subCat: any) => 
+      const invalidSubCategories = data.filter((subCat: any) =>
         !subCat.category || subCat._warning
       );
-      
+
       if (invalidSubCategories.length > 0) {
         setError(
           `Warning: ${invalidSubCategories.length} subcategor${invalidSubCategories.length === 1 ? 'y' : 'ies'} have deleted parent categories. Please reassign them to valid categories.`
         );
       }
-      
+
       setSubCategories(data);
     } catch (err) {
       console.error("Error fetching subcategories:", err);
@@ -1249,7 +1346,7 @@ const AdminDashboard: React.FC = () => {
     try {
       setLoadingProducts(true);
       let url = `${API_BASE_URL}/products`;
-      
+
       // If categoryId is provided, fetch products for that category/subcategory
       // The /products/category/:categoryId endpoint handles both:
       // - Products where category = categoryId (direct category products)
@@ -1257,15 +1354,15 @@ const AdminDashboard: React.FC = () => {
       if (categoryId) {
         url = `${API_BASE_URL}/products/category/${categoryId}`;
       }
-      
+
       const response = await fetch(url, {
         headers: getAuthHeaders(),
       });
-      
+
       if (!response.ok) {
         throw new Error(`Failed to fetch products: ${response.status} ${response.statusText}`);
       }
-      
+
       const data = await handleNgrokResponse(response);
       console.log("=== PRODUCTS FETCHED (AdminDashboard) ===");
       console.log("Total products:", Array.isArray(data) ? data.length : 0);
@@ -1300,15 +1397,15 @@ const AdminDashboard: React.FC = () => {
     // Filter by category/subcategory - check both category and subcategory fields
     if (selectedSubCategoryFilter) {
       filtered = filtered.filter((product) => {
-        const productCategoryId = product.category && typeof product.category === 'object' 
-          ? product.category._id 
+        const productCategoryId = product.category && typeof product.category === 'object'
+          ? product.category._id
           : product.category;
-        const productSubcategoryId = product.subcategory && typeof product.subcategory === 'object' 
-          ? product.subcategory._id 
+        const productSubcategoryId = product.subcategory && typeof product.subcategory === 'object'
+          ? product.subcategory._id
           : product.subcategory;
         // Match if product's category or subcategory matches the selected filter
-        return productCategoryId === selectedSubCategoryFilter || 
-               productSubcategoryId === selectedSubCategoryFilter;
+        return productCategoryId === selectedSubCategoryFilter ||
+          productSubcategoryId === selectedSubCategoryFilter;
       });
     }
 
@@ -1318,10 +1415,10 @@ const AdminDashboard: React.FC = () => {
       filtered = filtered.filter((product) => {
         const nameMatch = product.name?.toLowerCase().includes(query);
         const descMatch = product.description?.toLowerCase().includes(query);
-        const categoryMatch = product.category && typeof product.category === 'object' 
+        const categoryMatch = product.category && typeof product.category === 'object'
           ? product.category.name?.toLowerCase().includes(query)
           : false;
-        const subcategoryMatch = product.subcategory && typeof product.subcategory === 'object' 
+        const subcategoryMatch = product.subcategory && typeof product.subcategory === 'object'
           ? product.subcategory.name?.toLowerCase().includes(query)
           : false;
         return nameMatch || descMatch || categoryMatch || subcategoryMatch;
@@ -1387,8 +1484,8 @@ const AdminDashboard: React.FC = () => {
 
     try {
       setLoadingCategoryChildren(prev => ({ ...prev, [categoryId]: true }));
-      // Use the new subcategories endpoint
-      const response = await fetch(`${API_BASE_URL}/subcategories/category/${categoryId}`, {
+      // Use the new subcategories endpoint with nested children
+      const response = await fetch(`${API_BASE_URL}/subcategories/category/${categoryId}?includeChildren=true`, {
         headers: getAuthHeaders(),
       });
 
@@ -1397,7 +1494,7 @@ const AdminDashboard: React.FC = () => {
         const fallbackResponse = await fetch(`${API_BASE_URL}/categories/parent/${categoryId}`, {
           headers: getAuthHeaders(),
         });
-        
+
         if (fallbackResponse.ok) {
           const fallbackData = await handleNgrokResponse(fallbackResponse);
           const subcategoriesArray = Array.isArray(fallbackData) ? fallbackData : (fallbackData?.data || []);
@@ -1407,16 +1504,31 @@ const AdminDashboard: React.FC = () => {
           }));
           return;
         }
-        
+
         throw new Error(`Failed to fetch child categories: ${response.status} ${response.statusText}`);
       }
 
       const data = await handleNgrokResponse(response);
       // Ensure data is an array
       const subcategoriesArray = Array.isArray(data) ? data : (data?.data || []);
+
+      // Flatten nested subcategories for product form selection
+      const flattenSubcategories = (subcats: any[]): any[] => {
+        let result: any[] = [];
+        subcats.forEach((subcat) => {
+          result.push(subcat);
+          if (subcat.children && subcat.children.length > 0) {
+            result = result.concat(flattenSubcategories(subcat.children));
+          }
+        });
+        return result;
+      };
+
+      const flattenedSubcategories = flattenSubcategories(subcategoriesArray);
+
       setCategoryChildrenMap(prev => ({
         ...prev,
-        [categoryId]: subcategoriesArray
+        [categoryId]: flattenedSubcategories
       }));
     } catch (err) {
       console.error("Error fetching child categories:", err);
@@ -1436,56 +1548,56 @@ const AdminDashboard: React.FC = () => {
   // Helper function to build category path from root to a specific category
   const buildCategoryPath = (rootCategoryId: string, targetCategoryId?: string): string[] => {
     if (!rootCategoryId) return [];
-    
+
     const path: string[] = [rootCategoryId];
-    
+
     if (!targetCategoryId || targetCategoryId === rootCategoryId) {
       return path;
     }
-    
+
     // Find the target category and build path to it
     const findPathToTarget = (currentId: string, targetId: string, currentPath: string[]): string[] | null => {
       if (currentId === targetId) {
         return currentPath;
       }
-      
+
       const children = categoryChildrenMap[currentId] || [];
       for (const child of children) {
         const newPath = [...currentPath, child._id];
         const result = findPathToTarget(child._id, targetId, newPath);
         if (result) return result;
       }
-      
+
       return null;
     };
-    
+
     // Try to find path in already loaded children
     const foundPath = findPathToTarget(rootCategoryId, targetCategoryId, path);
     if (foundPath) {
       return foundPath;
     }
-    
+
     // If not found in loaded children, search in all categories
     const targetCategory = categories.find(cat => cat._id === targetCategoryId);
     if (targetCategory) {
       // Build path by traversing parent chain
       const reversePath: string[] = [];
       let currentId: string | null = targetCategoryId;
-      
+
       while (currentId) {
         reversePath.unshift(currentId);
         if (currentId === rootCategoryId) break;
-        
+
         const cat = categories.find(c => c._id === currentId);
         if (!cat || !cat.parent) break;
-        
+
         currentId = typeof cat.parent === "object" ? cat.parent._id : cat.parent;
         if (reversePath.includes(currentId)) break; // Prevent loops
       }
-      
+
       return reversePath;
     }
-    
+
     return path;
   };
 
@@ -1493,8 +1605,8 @@ const AdminDashboard: React.FC = () => {
   useEffect(() => {
     if (selectedType) {
       // Filter by type and only show top-level categories (those without a parent)
-      const filtered = categories.filter(cat => 
-        cat.type === selectedType && 
+      const filtered = categories.filter(cat =>
+        cat.type === selectedType &&
         (!cat.parent || cat.parent === null || (typeof cat.parent === 'object' && !cat.parent._id))
       );
       setFilteredCategoriesByType(filtered);
@@ -1520,7 +1632,7 @@ const AdminDashboard: React.FC = () => {
     if (lastCategoryId && !categoryChildrenMap[lastCategoryId]) {
       fetchCategoryChildren(lastCategoryId);
     }
-    
+
     // Also fetch children for all categories in the path to ensure we have the data
     selectedCategoryPath.forEach(categoryId => {
       if (!categoryChildrenMap[categoryId]) {
@@ -1532,13 +1644,13 @@ const AdminDashboard: React.FC = () => {
   // Helper function to recursively fetch all products from a category and its subcategories
   const fetchAllProductsFromCategory = async (categoryId: string): Promise<Product[]> => {
     const allProducts: Product[] = [];
-    
+
     try {
       // Fetch products directly under this category
       const productsResponse = await fetch(`${API_BASE_URL}/products/category/${categoryId}`, {
         headers: getAuthHeaders(),
       });
-      
+
       if (productsResponse.ok) {
         const productsData = await handleNgrokResponse(productsResponse);
         console.log(`=== PRODUCTS FROM CATEGORY (fetchAllProductsFromCategory) ===`);
@@ -1549,16 +1661,16 @@ const AdminDashboard: React.FC = () => {
           allProducts.push(...productsData);
         }
       }
-      
+
       // Fetch child categories (subcategories) from SubCategory collection
       const subcategoriesResponse = await fetch(`${API_BASE_URL}/subcategories/category/${categoryId}`, {
         headers: getAuthHeaders(),
       });
-      
+
       if (subcategoriesResponse.ok) {
         const subcategoriesData = await handleNgrokResponse(subcategoriesResponse);
         const childCategories = Array.isArray(subcategoriesData) ? subcategoriesData : (subcategoriesData?.data || []);
-        
+
         // Recursively fetch products from each subcategory
         for (const childCategory of childCategories) {
           const childProducts = await fetchAllProductsFromCategory(childCategory._id);
@@ -1570,11 +1682,11 @@ const AdminDashboard: React.FC = () => {
           const fallbackResponse = await fetch(`${API_BASE_URL}/categories/parent/${categoryId}`, {
             headers: getAuthHeaders(),
           });
-          
+
           if (fallbackResponse.ok) {
             const fallbackData = await handleNgrokResponse(fallbackResponse);
             const childCategories = Array.isArray(fallbackData) ? fallbackData : (fallbackData?.data || []);
-            
+
             for (const childCategory of childCategories) {
               const childProducts = await fetchAllProductsFromCategory(childCategory._id);
               allProducts.push(...childProducts);
@@ -1587,7 +1699,7 @@ const AdminDashboard: React.FC = () => {
     } catch (err) {
       console.error(`Error fetching products from category ${categoryId}:`, err);
     }
-    
+
     return allProducts;
   };
 
@@ -1604,15 +1716,15 @@ const AdminDashboard: React.FC = () => {
       setSelectedCategory(categoryId);
       setSelectedSubCategoryForView(null);
       setCategoryProducts([]);
-      
+
       try {
         setLoadingCategoryProducts(true);
-        
+
         // Fetch products directly under this category (without subcategory)
         const productsResponse = await fetch(`${API_BASE_URL}/products/category/${categoryId}`, {
           headers: getAuthHeaders(),
         });
-        
+
         let directProducts: Product[] = [];
         if (productsResponse.ok) {
           const productsData = await handleNgrokResponse(productsResponse);
@@ -1622,21 +1734,21 @@ const AdminDashboard: React.FC = () => {
           console.log("Full products data:", JSON.stringify(productsData, null, 2));
           // Filter to only include products without subcategory (directly added to category)
           if (Array.isArray(productsData)) {
-            directProducts = productsData.filter((product: Product) => 
-              !product.subcategory || product.subcategory === null || 
+            directProducts = productsData.filter((product: Product) =>
+              !product.subcategory || product.subcategory === null ||
               (typeof product.subcategory === 'string' && product.subcategory === '')
             );
           }
         }
-        
-        // Also fetch subcategories for this category from SubCategory collection
+
+        // Also fetch subcategories for this category from SubCategory collection (with nested children)
         let childCategories: any[] = [];
         try {
-          // Fetch subcategories from SubCategory collection
-          const response = await fetch(`${API_BASE_URL}/subcategories/category/${categoryId}`, {
+          // Fetch subcategories from SubCategory collection with nested children
+          const response = await fetch(`${API_BASE_URL}/subcategories/category/${categoryId}?includeChildren=true`, {
             headers: getAuthHeaders(),
           });
-          
+
           if (response.ok) {
             const data = await handleNgrokResponse(response);
             childCategories = Array.isArray(data) ? data : (data?.data || []);
@@ -1655,60 +1767,60 @@ const AdminDashboard: React.FC = () => {
           console.error("Error fetching subcategories:", subcatErr);
           setCategorySubcategories([]);
         }
-        
-          // If there are subcategories, also fetch products from all subcategories
-          if (childCategories.length > 0) {
-            const allSubcategoryProducts: Product[] = [];
-            for (const childCategory of childCategories) {
-              try {
-                // First priority: Fetch products with this subcategory
-                let subcategoryProducts: Product[] = [];
-                const subProductsResponse = await fetch(`${API_BASE_URL}/products/subcategory/${childCategory._id}`, {
+
+        // If there are subcategories, also fetch products from all subcategories
+        if (childCategories.length > 0) {
+          const allSubcategoryProducts: Product[] = [];
+          for (const childCategory of childCategories) {
+            try {
+              // First priority: Fetch products with this subcategory
+              let subcategoryProducts: Product[] = [];
+              const subProductsResponse = await fetch(`${API_BASE_URL}/products/subcategory/${childCategory._id}`, {
+                headers: getAuthHeaders(),
+              });
+              if (subProductsResponse.ok) {
+                const subProductsData = await handleNgrokResponse(subProductsResponse);
+                console.log(`=== SUBCATEGORY PRODUCTS (handleCategoryClick) ===`);
+                console.log(`Subcategory ID: ${childCategory._id}`);
+                console.log(`Products fetched: ${Array.isArray(subProductsData) ? subProductsData.length : 0}`);
+                console.log("Full products data:", JSON.stringify(subProductsData, null, 2));
+                if (Array.isArray(subProductsData)) {
+                  subcategoryProducts = subProductsData;
+                }
+              }
+
+              // If no products found with subcategory, fall back to category products
+              if (subcategoryProducts.length === 0) {
+                const categoryProductsResponse = await fetch(`${API_BASE_URL}/products/category/${categoryId}`, {
                   headers: getAuthHeaders(),
                 });
-                if (subProductsResponse.ok) {
-                  const subProductsData = await handleNgrokResponse(subProductsResponse);
-                  console.log(`=== SUBCATEGORY PRODUCTS (handleCategoryClick) ===`);
-                  console.log(`Subcategory ID: ${childCategory._id}`);
-                  console.log(`Products fetched: ${Array.isArray(subProductsData) ? subProductsData.length : 0}`);
-                  console.log("Full products data:", JSON.stringify(subProductsData, null, 2));
-                  if (Array.isArray(subProductsData)) {
-                    subcategoryProducts = subProductsData;
+                if (categoryProductsResponse.ok) {
+                  const categoryProductsData = await handleNgrokResponse(categoryProductsResponse);
+                  if (Array.isArray(categoryProductsData)) {
+                    // Filter to only include products without subcategory (directly added to category)
+                    const directCategoryProducts = categoryProductsData.filter((p: Product) =>
+                      !p.subcategory || p.subcategory === null ||
+                      (typeof p.subcategory === 'string' && p.subcategory === '')
+                    );
+                    subcategoryProducts = directCategoryProducts;
                   }
                 }
-                
-                // If no products found with subcategory, fall back to category products
-                if (subcategoryProducts.length === 0) {
-                  const categoryProductsResponse = await fetch(`${API_BASE_URL}/products/category/${categoryId}`, {
-                    headers: getAuthHeaders(),
-                  });
-                  if (categoryProductsResponse.ok) {
-                    const categoryProductsData = await handleNgrokResponse(categoryProductsResponse);
-                    if (Array.isArray(categoryProductsData)) {
-                      // Filter to only include products without subcategory (directly added to category)
-                      const directCategoryProducts = categoryProductsData.filter((p: Product) => 
-                        !p.subcategory || p.subcategory === null || 
-                        (typeof p.subcategory === 'string' && p.subcategory === '')
-                      );
-                      subcategoryProducts = directCategoryProducts;
-                    }
-                  }
-                }
-                
-                // Deduplicate by product ID before adding
-                const existingIds = new Set(allSubcategoryProducts.map(p => p._id));
-                const newProducts = subcategoryProducts.filter((p: Product) => !existingIds.has(p._id));
-                allSubcategoryProducts.push(...newProducts);
-              } catch (err) {
-                console.error(`Error fetching products from subcategory ${childCategory._id}:`, err);
               }
+
+              // Deduplicate by product ID before adding
+              const existingIds = new Set(allSubcategoryProducts.map(p => p._id));
+              const newProducts = subcategoryProducts.filter((p: Product) => !existingIds.has(p._id));
+              allSubcategoryProducts.push(...newProducts);
+            } catch (err) {
+              console.error(`Error fetching products from subcategory ${childCategory._id}:`, err);
             }
-            // Combine direct products and subcategory products
-            setCategoryProducts([...directProducts, ...allSubcategoryProducts]);
-          } else {
-            // No subcategories, just show direct products
-            setCategoryProducts(directProducts);
           }
+          // Combine direct products and subcategory products
+          setCategoryProducts([...directProducts, ...allSubcategoryProducts]);
+        } else {
+          // No subcategories, just show direct products
+          setCategoryProducts(directProducts);
+        }
       } catch (err) {
         console.error("Error fetching category products:", err);
         setError(err instanceof Error ? err.message : "Failed to fetch category products");
@@ -1724,17 +1836,17 @@ const AdminDashboard: React.FC = () => {
     if (e) {
       e.stopPropagation();
     }
-    
+
     if (selectedSubCategoryForView === subcategoryId) {
       // If same subcategory clicked, collapse it
       setSelectedSubCategoryForView(null);
       setCategoryProducts([]);
     } else {
       setSelectedSubCategoryForView(subcategoryId);
-      
+
       try {
         setLoadingCategoryProducts(true);
-        
+
         // First priority: Fetch products with this specific subcategory
         let subcategoryProducts: Product[] = [];
         try {
@@ -1752,7 +1864,7 @@ const AdminDashboard: React.FC = () => {
         } catch (subcatErr) {
           console.error("Error fetching subcategory products:", subcatErr);
         }
-        
+
         // If no products found with subcategory, fall back to parent category products
         if (subcategoryProducts.length === 0 && selectedCategory) {
           console.log("No products found with subcategory, trying parent category products...");
@@ -1764,8 +1876,8 @@ const AdminDashboard: React.FC = () => {
               const categoryProductsData = await handleNgrokResponse(categoryProductsResponse);
               // Filter to only include products without subcategory (directly added to category)
               if (Array.isArray(categoryProductsData)) {
-                const directCategoryProducts = categoryProductsData.filter((product: Product) => 
-                  !product.subcategory || product.subcategory === null || 
+                const directCategoryProducts = categoryProductsData.filter((product: Product) =>
+                  !product.subcategory || product.subcategory === null ||
                   (typeof product.subcategory === 'string' && product.subcategory === '')
                 );
                 subcategoryProducts = directCategoryProducts;
@@ -1776,7 +1888,7 @@ const AdminDashboard: React.FC = () => {
             console.error("Error fetching category products as fallback:", categoryErr);
           }
         }
-        
+
         setCategoryProducts(subcategoryProducts);
       } catch (err) {
         console.error("Error fetching subcategory products:", err);
@@ -1863,7 +1975,7 @@ const AdminDashboard: React.FC = () => {
           }
         }
       };
-      
+
       // Start the scroll loop
       scroll();
     } else {
@@ -1885,7 +1997,7 @@ const AdminDashboard: React.FC = () => {
     const confirmed = window.confirm(
       "Are you sure you want to reorder these categories? This will update the sort order for all affected categories."
     );
-    
+
     if (!confirmed) {
       return;
     }
@@ -1900,7 +2012,7 @@ const AdminDashboard: React.FC = () => {
       if (!draggedCategory) {
         draggedCategory = categories.find(cat => cat._id === draggedId);
       }
-      
+
       // If still not found, try to fetch it from the API
       if (!draggedCategory) {
         try {
@@ -1924,8 +2036,8 @@ const AdminDashboard: React.FC = () => {
                 draggedCategory = {
                   ...fetchedSubcat,
                   parent: fetchedSubcat.category,
-                  type: fetchedSubcat.category && typeof fetchedSubcat.category === 'object' 
-                    ? fetchedSubcat.category.type 
+                  type: fetchedSubcat.category && typeof fetchedSubcat.category === 'object'
+                    ? fetchedSubcat.category.type
                     : 'Digital'
                 } as Category;
               }
@@ -1945,8 +2057,8 @@ const AdminDashboard: React.FC = () => {
       }
 
       // Check if dragged category is actually a subcategory - if so, redirect to subcategory reorder
-      const isDraggedSubcategory = (draggedCategory as any).isSubcategory || 
-                                   ((draggedCategory as any).displayLevel && (draggedCategory as any).displayLevel > 0);
+      const isDraggedSubcategory = (draggedCategory as any).isSubcategory ||
+        ((draggedCategory as any).displayLevel && (draggedCategory as any).displayLevel > 0);
       if (isDraggedSubcategory) {
         setError("Subcategories should be reordered in their own section. Please use the subcategory drag and drop.");
         setLoading(false);
@@ -1958,7 +2070,7 @@ const AdminDashboard: React.FC = () => {
       if (!targetCategory) {
         targetCategory = categories.find(cat => cat._id === targetId);
       }
-      
+
       // If still not found, try to fetch it from the API
       if (!targetCategory) {
         try {
@@ -1982,8 +2094,8 @@ const AdminDashboard: React.FC = () => {
                 targetCategory = {
                   ...fetchedSubcat,
                   parent: fetchedSubcat.category,
-                  type: fetchedSubcat.category && typeof fetchedSubcat.category === 'object' 
-                    ? fetchedSubcat.category.type 
+                  type: fetchedSubcat.category && typeof fetchedSubcat.category === 'object'
+                    ? fetchedSubcat.category.type
                     : 'Digital'
                 } as Category;
               }
@@ -2003,8 +2115,8 @@ const AdminDashboard: React.FC = () => {
       }
 
       // Check if target category is actually a subcategory - if so, redirect to subcategory reorder
-      const isTargetSubcategory = (targetCategory as any).isSubcategory || 
-                                  ((targetCategory as any).displayLevel && (targetCategory as any).displayLevel > 0);
+      const isTargetSubcategory = (targetCategory as any).isSubcategory ||
+        ((targetCategory as any).displayLevel && (targetCategory as any).displayLevel > 0);
       if (isTargetSubcategory) {
         setError("Subcategories should be reordered in their own section. Please use the subcategory drag and drop.");
         setLoading(false);
@@ -2012,12 +2124,12 @@ const AdminDashboard: React.FC = () => {
       }
 
       // Get the parent ID of the dragged category (null for top-level)
-      const draggedParentId = draggedCategory.parent 
+      const draggedParentId = draggedCategory.parent
         ? (typeof draggedCategory.parent === 'object' ? draggedCategory.parent._id : draggedCategory.parent)
         : null;
 
       // Get the parent ID of the target category
-      const targetParentId = targetCategory.parent 
+      const targetParentId = targetCategory.parent
         ? (typeof targetCategory.parent === 'object' ? targetCategory.parent._id : targetCategory.parent)
         : null;
 
@@ -2034,10 +2146,10 @@ const AdminDashboard: React.FC = () => {
         ...categories,
         ...filteredCategories.filter(fc => !categories.find(c => c._id === fc._id))
       ];
-      
+
       const allSiblings = allCategoriesCombined
         .filter(cat => {
-          const catParentId = cat.parent 
+          const catParentId = cat.parent
             ? (typeof cat.parent === 'object' ? cat.parent._id : cat.parent)
             : null;
           return catParentId === draggedParentId;
@@ -2047,7 +2159,7 @@ const AdminDashboard: React.FC = () => {
       // Get filtered siblings (categories visible in the current filtered view at the same level)
       const filteredSiblings = filteredCategories
         .filter(cat => {
-          const catParentId = cat.parent 
+          const catParentId = cat.parent
             ? (typeof cat.parent === 'object' ? cat.parent._id : cat.parent)
             : null;
           return catParentId === draggedParentId;
@@ -2095,7 +2207,7 @@ const AdminDashboard: React.FC = () => {
 
       // Build the list of categories to update with insert logic
       const categoriesToUpdate: { id: string; sortOrder: number }[] = [];
-      
+
       // The dragged category gets the target's sortOrder
       categoriesToUpdate.push({ id: draggedId, sortOrder: targetSortOrder });
 
@@ -2131,9 +2243,9 @@ const AdminDashboard: React.FC = () => {
       // Update all affected categories
       const updatePromises = categoriesToUpdate.map(async ({ id, sortOrder }) => {
         // Try to get category data from combined sources
-        let currentCat = categories.find(c => c._id === id) || 
-                        filteredCategories.find(c => c._id === id);
-        
+        let currentCat = categories.find(c => c._id === id) ||
+          filteredCategories.find(c => c._id === id);
+
         // If not found, fetch from API
         if (!currentCat) {
           try {
@@ -2151,7 +2263,7 @@ const AdminDashboard: React.FC = () => {
 
         const formData = new FormData();
         formData.append("sortOrder", sortOrder.toString());
-        
+
         if (currentCat) {
           formData.append("name", currentCat.name);
           formData.append("description", currentCat.description || "");
@@ -2169,7 +2281,7 @@ const AdminDashboard: React.FC = () => {
           // If we can't find the category, still try to update with just sortOrder
           console.warn(`Category ${id} not found in local state, updating with sortOrder only`);
         }
-        
+
         const response = await fetch(`${API_BASE_URL}/categories/${id}`, {
           method: "PUT",
           headers: {
@@ -2177,12 +2289,12 @@ const AdminDashboard: React.FC = () => {
           },
           body: formData,
         });
-        
+
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({ error: `HTTP ${response.status}: ${response.statusText}` }));
           throw new Error(`Failed to update category ${id}: ${errorData.error || response.statusText}`);
         }
-        
+
         return response;
       });
 
@@ -2204,7 +2316,7 @@ const AdminDashboard: React.FC = () => {
     const confirmed = window.confirm(
       "Are you sure you want to reorder these subcategories? This will update the sort order for all affected subcategories."
     );
-    
+
     if (!confirmed) {
       return;
     }
@@ -2223,7 +2335,7 @@ const AdminDashboard: React.FC = () => {
           draggedSubCategory = draggedFromList as any;
         }
       }
-      
+
       if (!draggedSubCategory) {
         setError("Dragged subcategory not found");
         setLoading(false);
@@ -2239,7 +2351,7 @@ const AdminDashboard: React.FC = () => {
           targetSubCategory = targetFromList as any;
         }
       }
-      
+
       if (!targetSubCategory) {
         setError("Target subcategory not found");
         setLoading(false);
@@ -2247,10 +2359,10 @@ const AdminDashboard: React.FC = () => {
       }
 
       // Verify both subcategories belong to the same parent category
-      const draggedCategoryId = draggedSubCategory.category 
+      const draggedCategoryId = draggedSubCategory.category
         ? (typeof draggedSubCategory.category === 'object' ? draggedSubCategory.category._id : draggedSubCategory.category)
         : null;
-      const targetCategoryId = targetSubCategory.category 
+      const targetCategoryId = targetSubCategory.category
         ? (typeof targetSubCategory.category === 'object' ? targetSubCategory.category._id : targetSubCategory.category)
         : null;
 
@@ -2264,7 +2376,7 @@ const AdminDashboard: React.FC = () => {
       // First try from categorySubcategories, then from filteredCategories, then fetch from API
       let allSubcategoriesForCategory = [...categorySubcategories];
       if (allSubcategoriesForCategory.length === 0 || !allSubcategoriesForCategory.some(sc => {
-        const scCategoryId = sc.category 
+        const scCategoryId = sc.category
           ? (typeof sc.category === 'object' ? sc.category._id : sc.category)
           : null;
         return scCategoryId === draggedCategoryId;
@@ -2274,7 +2386,7 @@ const AdminDashboard: React.FC = () => {
           .filter(cat => {
             const isSub = (cat as any).isSubcategory || (cat as any).displayLevel > 0;
             if (!isSub) return false;
-            const scCategoryId = (cat as any).category 
+            const scCategoryId = (cat as any).category
               ? (typeof (cat as any).category === 'object' ? (cat as any).category._id : (cat as any).category)
               : ((cat as any).parent ? (typeof (cat as any).parent === 'object' ? (cat as any).parent._id : (cat as any).parent) : null);
             return scCategoryId === draggedCategoryId;
@@ -2296,10 +2408,10 @@ const AdminDashboard: React.FC = () => {
           }
         }
       }
-      
+
       const sortedSubcategories = allSubcategoriesForCategory
         .filter(sc => {
-          const scCategoryId = sc.category 
+          const scCategoryId = sc.category
             ? (typeof sc.category === 'object' ? sc.category._id : sc.category)
             : (sc.parent ? (typeof sc.parent === 'object' ? sc.parent._id : sc.parent) : null);
           return scCategoryId === draggedCategoryId;
@@ -2323,43 +2435,19 @@ const AdminDashboard: React.FC = () => {
         return;
       }
 
-      // Get the target's sortOrder (the position we're inserting into)
-      const targetSortOrder = sortedSubcategories[targetIndex].sortOrder || targetIndex;
-
       // Build the list of items to update
       const subcategoriesToUpdate: Array<{ id: string; sortOrder: number }> = [];
-      
-      // The dragged item gets the target's sortOrder
-      subcategoriesToUpdate.push({ id: draggedId, sortOrder: targetSortOrder });
 
-      // Update all items that need to shift based on drag direction
-      if (draggedIndex < targetIndex) {
-        // Dragging from left to right (e.g., drag position 1 to 4):
-        // - Dragged item gets target's sortOrder (4)
-        // - Items between dragged and target shift left (decrease by 1): positions 2,3 get sortOrder 1,2
-        // - Target item shifts right (increase by 1): position 4 gets sortOrder 5
-        for (let i = draggedIndex + 1; i <= targetIndex; i++) {
-          const item = sortedSubcategories[i];
-          const currentSortOrder = item.sortOrder || i;
-          if (i === targetIndex) {
-            // Target item shifts right (gets +1, so 4 → 5)
-            subcategoriesToUpdate.push({ id: item._id, sortOrder: currentSortOrder + 1 });
-          } else {
-            // Items between shift left (get -1, so 2→1, 3→2)
-            subcategoriesToUpdate.push({ id: item._id, sortOrder: currentSortOrder - 1 });
-          }
-        }
-      } else {
-        // Dragging from right to left (e.g., drag position 4 to 1):
-        // - Dragged item gets target's sortOrder (1)
-        // - Target item and items between shift right (increase by 1): positions 1,2,3 get sortOrder 2,3,4
-        for (let i = targetIndex; i < draggedIndex; i++) {
-          const item = sortedSubcategories[i];
-          const currentSortOrder = item.sortOrder || i;
-          // All items from target to dragged shift right (get +1, so 1→2, 2→3, 3→4)
-          subcategoriesToUpdate.push({ id: item._id, sortOrder: currentSortOrder + 1 });
-        }
-      }
+      // Create a new array with the reordered items
+      const reorderedSubcategories = [...sortedSubcategories];
+      const [draggedItem] = reorderedSubcategories.splice(draggedIndex, 1);
+      reorderedSubcategories.splice(targetIndex, 0, draggedItem);
+
+      // Assign sequential sort orders based on new positions (0, 1, 2, 3, ...)
+      // This prevents sort orders from continuously increasing
+      reorderedSubcategories.forEach((item, index) => {
+        subcategoriesToUpdate.push({ id: item._id, sortOrder: index });
+      });
 
       // Update all affected subcategories with new sortOrder values
       const updatePromises = subcategoriesToUpdate.map(({ id, sortOrder }) => {
@@ -2386,7 +2474,7 @@ const AdminDashboard: React.FC = () => {
       await Promise.all(updatePromises);
 
       setSuccess(`Subcategory "${draggedSubCategory.name}" moved successfully!`);
-      
+
       // Update local state immediately for better UX - insert at new position
       const updatedSubcategories = categorySubcategories.map(subCat => {
         const update = subcategoriesToUpdate.find(u => u.id === subCat._id);
@@ -2396,12 +2484,12 @@ const AdminDashboard: React.FC = () => {
         return subCat;
       });
       setCategorySubcategories(updatedSubcategories);
-      
+
       // Refresh subcategories from server to ensure consistency
       if (selectedCategory) {
         await handleCategoryClick(selectedCategory);
       }
-      
+
       // Refresh categories to update the main list
       await fetchCategories();
     } catch (err) {
@@ -2419,6 +2507,7 @@ const AdminDashboard: React.FC = () => {
         name: "",
         description: "",
         category: categoryId,
+        parent: "",
         type: category.type || "",
         slug: "",
         sortOrder: 0,
@@ -2438,7 +2527,7 @@ const AdminDashboard: React.FC = () => {
     if (category) {
       // Set the type and category in the product form
       setSelectedType(category.type || "");
-      
+
       // Build category path - if subcategory is provided, build the full path
       let categoryPath: string[] = [categoryId];
       if (subcategoryId) {
@@ -2446,30 +2535,30 @@ const AdminDashboard: React.FC = () => {
         categoryPath = buildCategoryPath(categoryId, subcategoryId);
       }
       setSelectedCategoryPath(categoryPath);
-      
+
       // Set category and subcategory in product form
       setProductForm({
         ...productForm,
         category: categoryId,
         subcategory: subcategoryId || "", // Set subcategory if provided
       });
-      
+
       // Filter categories by type
       if (category.type) {
         const filtered = categories.filter(cat => cat.type === category.type);
         setFilteredCategoriesByType(filtered);
       }
-      
+
       // If subcategory is provided, fetch its children for the hierarchical selector
       if (subcategoryId) {
         fetchCategoryChildren(subcategoryId);
       }
-      
+
       // Fetch children for all categories in the path
       categoryPath.forEach(catId => {
         fetchCategoryChildren(catId);
       });
-      
+
       // Switch to products tab
       setActiveTab("products");
       setError(null);
@@ -2485,17 +2574,17 @@ const AdminDashboard: React.FC = () => {
       setError("No subcategory ID provided. Please refresh and try again.");
       return;
     }
-    
+
     // Convert to string and validate it's a proper MongoDB ObjectId (24 hex characters)
     const subcategoryIdString = String(subcategoryId).trim();
     const isObjectId = /^[0-9a-fA-F]{24}$/.test(subcategoryIdString);
-    
+
     if (!isObjectId) {
       console.error("Invalid subcategory ID format. Expected MongoDB ObjectId (24 hex characters), got:", subcategoryIdString);
       setError(`Invalid subcategory ID format: "${subcategoryIdString}". Please refresh the page and try again.`);
       return;
     }
-    
+
     // Log the subcategoryId to help debug
     console.log("handleSubCategorySelect called with valid ID:", subcategoryIdString);
 
@@ -2507,32 +2596,32 @@ const AdminDashboard: React.FC = () => {
       // Clear previous products immediately
       setCategoryProducts([]);
       setSelectedSubCategoryForView(subcategoryIdString);
-      
+
       try {
         setLoadingCategoryProducts(true);
         setError(null);
-        
+
         // Ensure we're using the correct ID format (already validated above)
         const url = `${API_BASE_URL}/products/subcategory/${subcategoryIdString}`;
         console.log("=== Fetching Products by Subcategory ===");
         console.log("Subcategory ID:", subcategoryIdString);
         console.log("Request URL:", url);
         console.log("Request Method: GET");
-        
+
         const response = await fetch(url, {
           method: "GET",
           headers: getAuthHeaders(),
         });
-        
+
         console.log("Response Status:", response.status, response.statusText);
         console.log("Response OK:", response.ok);
-        
+
         if (!response.ok) {
           let errorMessage = `Failed to fetch products: ${response.status} ${response.statusText}`;
           try {
             const errorText = await response.clone().text();
             console.error("API Error Response Text:", errorText);
-            
+
             // Try to parse as JSON for better error message
             try {
               const errorJson = JSON.parse(errorText);
@@ -2548,10 +2637,10 @@ const AdminDashboard: React.FC = () => {
           } catch (parseErr) {
             console.error("Error parsing error response:", parseErr);
           }
-          
+
           throw new Error(errorMessage);
         }
-        
+
         const data = await handleNgrokResponse(response);
         console.log("=== Products Response ===");
         console.log("Response Type:", typeof data);
@@ -2560,7 +2649,7 @@ const AdminDashboard: React.FC = () => {
         console.log("Products Data:", data);
         console.log("=== FULL PRODUCTS DATA (handleSubCategorySelect) ===");
         console.log(JSON.stringify(data, null, 2));
-        
+
         // Ensure data is an array
         if (Array.isArray(data)) {
           if (data.length === 0) {
@@ -2587,7 +2676,7 @@ const AdminDashboard: React.FC = () => {
         console.error("Error Type:", err instanceof Error ? err.constructor.name : typeof err);
         console.error("Error Message:", err instanceof Error ? err.message : String(err));
         console.error("Full Error:", err);
-        
+
         const errorMessage = err instanceof Error ? err.message : "Failed to fetch products";
         setError(errorMessage);
         setCategoryProducts([]);
@@ -2603,11 +2692,11 @@ const AdminDashboard: React.FC = () => {
       const response = await fetch(`${API_BASE_URL}/admin/users`, {
         headers: getAuthHeaders(),
       });
-      
+
       if (!response.ok) {
         throw new Error(`Failed to fetch users: ${response.status} ${response.statusText}`);
       }
-      
+
       const data = await handleNgrokResponse(response);
       setUsers(data);
     } catch (err) {
@@ -2616,16 +2705,99 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
+  const fetchPrintPartnerRequests = async () => {
+    try {
+      const statusParam = printPartnerRequestFilter !== "all" ? `?status=${printPartnerRequestFilter}` : "";
+      const response = await fetch(`${API_BASE_URL}/auth/print-partner-requests${statusParam}`, {
+        headers: getAuthHeaders(),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch print partner requests");
+      }
+
+      const data = await response.json();
+      if (data.success) {
+        setPrintPartnerRequests(data.requests || []);
+      }
+    } catch (err) {
+      console.error("Error fetching print partner requests:", err);
+      setError(err instanceof Error ? err.message : "Failed to fetch print partner requests");
+    }
+  };
+
+  const handleApprovePrintPartnerRequest = async (requestId: string) => {
+    if (!confirm("Are you sure you want to approve this print partner request? A user account will be created.")) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/print-partner-requests/${requestId}/approve`, {
+        method: "POST",
+        headers: getAuthHeaders(),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.message || "Failed to approve request");
+      }
+
+      const data = await response.json();
+      toast.success(data.message || "Request approved successfully");
+      fetchPrintPartnerRequests();
+      setSelectedRequestId(null);
+    } catch (err) {
+      console.error("Error approving request:", err);
+      toast.error(err instanceof Error ? err.message : "Failed to approve request");
+    }
+  };
+
+  const handleRejectPrintPartnerRequest = async (requestId: string) => {
+    if (!rejectionReason.trim()) {
+      toast.error("Please provide a reason for rejection");
+      return;
+    }
+
+    if (!confirm("Are you sure you want to reject this print partner request?")) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/print-partner-requests/${requestId}/reject`, {
+        method: "POST",
+        headers: {
+          ...getAuthHeaders(),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ rejectionReason }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.message || "Failed to reject request");
+      }
+
+      const data = await response.json();
+      toast.success(data.message || "Request rejected successfully");
+      fetchPrintPartnerRequests();
+      setSelectedRequestId(null);
+      setRejectionReason("");
+    } catch (err) {
+      console.error("Error rejecting request:", err);
+      toast.error(err instanceof Error ? err.message : "Failed to reject request");
+    }
+  };
+
   const fetchEmployees = async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/admin/employees`, {
         headers: getAuthHeaders(),
       });
-      
+
       if (!response.ok) {
         throw new Error(`Failed to fetch employees: ${response.status} ${response.statusText}`);
       }
-      
+
       const data = await handleNgrokResponse(response);
       setEmployees(data);
     } catch (err) {
@@ -2643,11 +2815,11 @@ const AdminDashboard: React.FC = () => {
       const response = await fetch(url, {
         headers: getAuthHeaders(),
       });
-      
+
       // Use handleNgrokResponse which handles both success and error cases
       // This prevents reading the response body multiple times
       const data = await handleNgrokResponse(response);
-      
+
       // Handle timeout errors specifically if needed
       if (response.status === 503) {
         throw new Error(data.error || "Database connection timeout. Try again without images.");
@@ -2669,11 +2841,11 @@ const AdminDashboard: React.FC = () => {
       const response = await fetch(`${API_BASE_URL}/admin/orders`, {
         headers: getAuthHeaders(),
       });
-      
+
       if (!response.ok) {
         throw new Error(`Failed to fetch orders: ${response.status} ${response.statusText}`);
       }
-      
+
       const data = await handleNgrokResponse(response);
       setOrders(data || []);
     } catch (err) {
@@ -2910,8 +3082,8 @@ const AdminDashboard: React.FC = () => {
         const targetAttributeName = typeof action.targetAttribute === 'object' && action.targetAttribute !== null
           ? action.targetAttribute.attributeName
           : (action.targetAttribute
-              ? attributeTypes.find(attr => attr._id === action.targetAttribute)?.attributeName || ''
-              : '');
+            ? attributeTypes.find(attr => attr._id === action.targetAttribute)?.attributeName || ''
+            : '');
 
         return {
           action: action.action,
@@ -2943,7 +3115,7 @@ const AdminDashboard: React.FC = () => {
     // Map backend rule to form format
     // Backend uses IDs, but we need to convert to attributeNames for UI
     const whenAttributeName = typeof rule.when.attribute === 'object' && rule.when.attribute !== null
-      ? rule.when.attribute.attributeName 
+      ? rule.when.attribute.attributeName
       : attributeTypes.find(attr => attr._id === rule.when.attribute)?.attributeName || '';
 
     // Extract scopeRefId properly (could be object or string)
@@ -2966,7 +3138,7 @@ const AdminDashboard: React.FC = () => {
         const targetAttributeName = typeof action.targetAttribute === 'object' && action.targetAttribute !== null
           ? action.targetAttribute.attributeName
           : (action.targetAttribute ? attributeTypes.find(attr => attr._id === action.targetAttribute)?.attributeName || '' : '');
-        
+
         return {
           action: action.action,
           targetAttribute: targetAttributeName,
@@ -3059,7 +3231,7 @@ const AdminDashboard: React.FC = () => {
         formData.append("label", subAttributeForm.label);
         formData.append("priceAdd", subAttributeForm.priceAdd.toString());
         formData.append("isEnabled", subAttributeForm.isEnabled.toString());
-        
+
         if (subAttributeForm.image) {
           formData.append("image", subAttributeForm.image);
         }
@@ -3099,7 +3271,7 @@ const AdminDashboard: React.FC = () => {
               createFormData.append("label", subAttr.label.trim());
               createFormData.append("priceAdd", subAttr.priceAdd.toString());
               createFormData.append("isEnabled", subAttr.isEnabled.toString());
-              
+
               if (subAttr.image) {
                 createFormData.append("image", subAttr.image);
               }
@@ -3166,7 +3338,7 @@ const AdminDashboard: React.FC = () => {
             formData.append("label", subAttr.label.trim());
             formData.append("priceAdd", subAttr.priceAdd.toString());
             formData.append("isEnabled", subAttr.isEnabled.toString());
-            
+
             if (subAttr.image) {
               formData.append("image", subAttr.image);
             }
@@ -3303,24 +3475,24 @@ const AdminDashboard: React.FC = () => {
       // Build URL with optional filters for category/subcategory
       let url = `${API_BASE_URL}/attribute-types`;
       const params = new URLSearchParams();
-      
+
       // Filter by category/subcategory if provided
       if (categoryId) params.append('categoryId', categoryId);
       if (subCategoryId) params.append('subCategoryId', subCategoryId);
-      
+
       if (params.toString()) {
         url += `?${params.toString()}`;
       }
-      
+
       console.log("Fetching attribute types from:", url);
-      
+
       const response = await fetch(url, {
         method: "GET",
         headers: getAuthHeaders(),
       });
-      
+
       console.log("Attribute types response status:", response.status, response.statusText);
-      
+
       // Check response status before parsing
       if (!response.ok) {
         if (response.status === 404) {
@@ -3331,40 +3503,40 @@ const AdminDashboard: React.FC = () => {
         }
         throw new Error(`Failed to fetch attribute types: ${response.status} ${response.statusText}`);
       }
-      
+
       const data = await handleNgrokResponse(response);
       const fetchedAttributes = data.data || data || [];
-      
+
       // Filter to show common attributes and applicable ones
       const filteredAttributes = fetchedAttributes.filter((attr: any) => {
         // Always show common attributes
         if (attr.isCommonAttribute) return true;
-        
+
         // If no category/subcategory filter, show all
         if (!categoryId && !subCategoryId) return true;
-        
+
         // Check if attribute is applicable to current category/subcategory
         const applicableCategories = attr.applicableCategories || [];
         const applicableSubCategories = attr.applicableSubCategories || [];
-        
+
         // If no restrictions, show it
         if (applicableCategories.length === 0 && applicableSubCategories.length === 0) return true;
-        
+
         // Check category match
         if (categoryId && applicableCategories.some((cat: any) => {
           const catId = typeof cat === 'object' && cat !== null ? cat._id : cat;
           return catId === categoryId;
         })) return true;
-        
+
         // Check subcategory match
         if (subCategoryId && applicableSubCategories.some((subCat: any) => {
           const subCatId = typeof subCat === 'object' && subCat !== null ? subCat._id : subCat;
           return subCatId === subCategoryId;
         })) return true;
-        
+
         return false;
       });
-      
+
       setAttributeTypes(filteredAttributes);
     } catch (err) {
       console.error("Error fetching attribute types:", err);
@@ -3384,24 +3556,37 @@ const AdminDashboard: React.FC = () => {
   const convertFormToAttributeType = () => {
     // Convert attributeOptionsTable to attributeValues
     let attributeValues: Array<{ value: string; label: string; priceMultiplier: number; description: string; image: string }> = [];
-    
+
     // Use attributeOptionsTable if it has entries
     if (attributeTypeForm.attributeOptionsTable && attributeTypeForm.attributeOptionsTable.length > 0) {
       attributeValues = attributeTypeForm.attributeOptionsTable
         .filter(opt => opt.name.trim() !== "") // Only include options with names
         .map((option) => {
-          const priceImpact = parseFloat(option.priceImpactPer1000) || 0;
-          // Convert price impact per 1000 units to a multiplier
-          // If admin enters "20 per 1000", that means +₹20 for every 1000 units
-          // Per unit: 20/1000 = ₹0.02 per unit
+          // Use priceImpact if Price checkbox is checked, otherwise fall back to priceImpactPer1000 for backward compatibility
+          let priceImpact = 0;
+          if (option.optionUsage?.price && option.priceImpact) {
+            priceImpact = parseFloat(option.priceImpact) || 0;
+          } else if (option.priceImpactPer1000) {
+            priceImpact = parseFloat(option.priceImpactPer1000) || 0;
+          }
+
+          // Convert price impact to a multiplier
+          // If admin enters "20", that means +₹20
           // We'll use a percentage approach: 20 per 1000 = 2% = 1.02 multiplier
           const multiplier = priceImpact > 0 ? 1 + (priceImpact / 1000) : 1.0;
-          
+
+          // Build description with option usage information
+          const usageInfo = [];
+          if (option.optionUsage?.price) usageInfo.push(`Price Impact: ₹${option.priceImpact || 0}`);
+          if (option.optionUsage?.image) usageInfo.push(`Images Required: ${option.numberOfImagesRequired || 0}`);
+          if (option.optionUsage?.listing) usageInfo.push(`Filters: ${option.listingFilters || 'None'}`);
+          const description = usageInfo.length > 0 ? usageInfo.join(' | ') : "";
+
           return {
             value: option.name.toLowerCase().replace(/\s+/g, '-'),
             label: option.name,
             priceMultiplier: multiplier,
-            description: "",
+            description: description,
             image: option.image || "",
           };
         });
@@ -3411,7 +3596,7 @@ const AdminDashboard: React.FC = () => {
         .split(',')
         .map(opt => opt.trim())
         .filter(opt => opt !== "");
-      
+
       attributeValues = options.map((option) => {
         return {
           value: option.toLowerCase().replace(/\s+/g, '-'),
@@ -3436,9 +3621,9 @@ const AdminDashboard: React.FC = () => {
 
     // Auto-set fields based on selections
     // Use checkbox value if set, otherwise infer from description
-    const isPricingAttribute = attributeTypeForm.isPriceEffect || 
+    const isPricingAttribute = attributeTypeForm.isPriceEffect ||
       (attributeTypeForm.effectDescription && attributeTypeForm.effectDescription.toLowerCase().includes('price'));
-    
+
     // If isPriceEffect is checked but no options table, create a single option with price effect
     if (attributeTypeForm.isPriceEffect && attributeTypeForm.priceEffectAmount && attributeValues.length === 0) {
       // If no options but price effect is set, create a single value
@@ -3452,7 +3637,7 @@ const AdminDashboard: React.FC = () => {
         image: "",
       }];
     }
-    
+
     // Determine primaryEffectType from description
     let primaryEffectType = attributeTypeForm.primaryEffectType;
     if (attributeTypeForm.effectDescription) {
@@ -3467,12 +3652,12 @@ const AdminDashboard: React.FC = () => {
         primaryEffectType = "INFORMATIONAL";
       }
     }
-    
-    const functionType = attributeTypeForm.primaryEffectType === "FILE" 
+
+    const functionType = attributeTypeForm.primaryEffectType === "FILE"
       ? (attributeTypeForm.inputStyle === "FILE_UPLOAD" ? "PRINTING_IMAGE" : "GENERAL")
       : attributeTypeForm.primaryEffectType === "PRICE" && attributeTypeForm.inputStyle === "NUMBER"
-      ? "QUANTITY_PRICING"
-      : "GENERAL";
+        ? "QUANTITY_PRICING"
+        : "GENERAL";
 
     // Store fixed quantity min/max in attributeValues as metadata (first value's description)
     if (attributeTypeForm.isFixedQuantity && attributeTypeForm.fixedQuantityMin && attributeTypeForm.fixedQuantityMax) {
@@ -3495,7 +3680,7 @@ const AdminDashboard: React.FC = () => {
 
     // Ensure primaryEffectType is always set (required by server)
     const finalPrimaryEffectType = primaryEffectType || attributeTypeForm.primaryEffectType || "INFORMATIONAL";
-    
+
     return {
       attributeName: attributeTypeForm.attributeName || "",
       functionType: functionType || "GENERAL",
@@ -3519,6 +3704,22 @@ const AdminDashboard: React.FC = () => {
       // Store fixed quantity min/max as custom fields (will be stored in attributeValues description)
       fixedQuantityMin: attributeTypeForm.isFixedQuantity ? parseInt(attributeTypeForm.fixedQuantityMin) || 0 : undefined,
       fixedQuantityMax: attributeTypeForm.isFixedQuantity ? parseInt(attributeTypeForm.fixedQuantityMax) || 0 : undefined,
+      // Step and Range quantity settings
+      isStepQuantity: attributeTypeForm.isStepQuantity || false,
+      isRangeQuantity: attributeTypeForm.isRangeQuantity || false,
+      stepQuantities: attributeTypeForm.isStepQuantity && attributeTypeForm.stepQuantities.length > 0
+        ? attributeTypeForm.stepQuantities.map(step => ({
+          quantity: parseFloat(step.quantity) || 0,
+          price: parseFloat(step.price) || 0
+        })).filter(step => step.quantity > 0)
+        : [],
+      rangeQuantities: attributeTypeForm.isRangeQuantity && attributeTypeForm.rangeQuantities.length > 0
+        ? attributeTypeForm.rangeQuantities.map(range => ({
+          min: parseFloat(range.min) || 0,
+          max: range.max ? parseFloat(range.max) : null,
+          price: parseFloat(range.price) || 0
+        })).filter(range => range.min > 0)
+        : [],
     };
   };
 
@@ -3532,7 +3733,7 @@ const AdminDashboard: React.FC = () => {
     try {
       // Convert simplified form to full structure
       const fullAttributeType = convertFormToAttributeType();
-      
+
       // Validate required fields with auto-scroll
       setAttributeFormErrors({});
       let hasErrors = false;
@@ -3554,7 +3755,7 @@ const AdminDashboard: React.FC = () => {
         errors.primaryEffectType = "Primary effect type is required. Please describe what this attribute affects in the 'What This Affects' field.";
         hasErrors = true;
       }
-      
+
       // Validate effectDescription is provided (used to determine primaryEffectType)
       if (!attributeTypeForm.effectDescription || attributeTypeForm.effectDescription.trim() === "") {
         errors.primaryEffectType = "Please describe what this attribute affects in the 'What This Affects' field.";
@@ -3565,6 +3766,19 @@ const AdminDashboard: React.FC = () => {
       if (['DROPDOWN', 'RADIO', 'POPUP'].includes(fullAttributeType.inputStyle)) {
         if (!fullAttributeType.attributeValues || fullAttributeType.attributeValues.length < 2) {
           errors.attributeValues = `${fullAttributeType.inputStyle} requires at least 2 options. Please add options in the table above.`;
+          hasErrors = true;
+        }
+      }
+
+      // Validate that each option has at least one usage checkbox checked
+      if (attributeTypeForm.attributeOptionsTable && attributeTypeForm.attributeOptionsTable.length > 0) {
+        const invalidOptions = attributeTypeForm.attributeOptionsTable.filter((opt, idx) => {
+          if (!opt.name || opt.name.trim() === "") return false; // Skip empty options
+          const usage = opt.optionUsage || { price: false, image: false, listing: false };
+          return !usage.price && !usage.image && !usage.listing;
+        });
+        if (invalidOptions.length > 0) {
+          errors.attributeValues = "Each option must have at least one usage selected (Price, Image, or Listing).";
           hasErrors = true;
         }
       }
@@ -3587,7 +3801,7 @@ const AdminDashboard: React.FC = () => {
         }
         return;
       }
-      
+
       // Ensure effectDescription is always included in payload - prioritize form value
       const payload = {
         attributeName: fullAttributeType.attributeName || "",
@@ -3609,7 +3823,7 @@ const AdminDashboard: React.FC = () => {
         showWhenParentValue: JSON.stringify(fullAttributeType.showWhenParentValue || []),
         hideWhenParentValue: JSON.stringify(fullAttributeType.hideWhenParentValue || []),
       };
-      
+
       // Debug: Log the payload to verify effectDescription is included
       console.log("=== ATTRIBUTE TYPE PAYLOAD ===");
       console.log("Form effectDescription:", attributeTypeForm.effectDescription);
@@ -3632,22 +3846,22 @@ const AdminDashboard: React.FC = () => {
         },
         body: JSON.stringify(payload),
       });
-      
+
       console.log("Attribute type response status:", response.status, response.statusText);
 
       // Check if response is 404 - route might not exist
       if (response.status === 404) {
         throw new Error("Attribute types API endpoint not found (404). Please ensure the server is running and the route is registered. Try restarting the server.");
       }
-      
+
       const data = await handleNgrokResponse(response);
-      
-      console.log("Attribute type response data:", { 
-        success: data.success, 
+
+      console.log("Attribute type response data:", {
+        success: data.success,
         effectDescription: data.data?.effectDescription,
-        fullData: data.data 
+        fullData: data.data
       });
-      
+
       if (!response.ok) {
         throw new Error(data.error || data.message || `Failed to save attribute type: ${response.status} ${response.statusText}`);
       }
@@ -3690,7 +3904,7 @@ const AdminDashboard: React.FC = () => {
       });
       const wasCreatingFromModal = showCreateAttributeModal;
       const createdAttributeId = data?._id || data?.attributeType?._id;
-      
+
       setEditingAttributeTypeId(null);
       if (showCreateAttributeModal) {
         setShowCreateAttributeModal(false);
@@ -3718,105 +3932,237 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
-  const handleEditAttributeType = (attributeTypeId: string) => {
-    const attributeType = attributeTypes.find((at) => at._id === attributeTypeId);
-    console.log("EDIT AttributeType - Found attributeType:", {
-      _id: attributeType?._id,
-      attributeName: attributeType?.attributeName,
-      effectDescription: attributeType?.effectDescription
-    });
-    if (attributeType) {
-      // Convert attributeValues back to attributeOptionsTable
-      const attributeOptionsTable = ((attributeType.attributeValues || [])
-        .filter((av: any) => (av.label || av.value) && av.value !== "fixed-quantity")
-        .map((av: any) => {
-          // Convert multiplier back to price impact per 1000
-          // multiplier = 1 + (impact/1000), so impact = (multiplier - 1) * 1000
-          const priceImpact = av.priceMultiplier ? ((av.priceMultiplier - 1) * 1000).toFixed(2) : "0";
-          return {
-            name: av.label || av.value || "",
-            priceImpactPer1000: priceImpact,
-            image: av.image || undefined,
-          };
-        })) || [];
-      
-      // Also create simpleOptions for backward compatibility
-      const simpleOptions = (attributeOptionsTable || []).map(opt => opt.name).join(", ");
-
-      // Extract fixed quantity min/max from attributeValues description or custom fields
-      let fixedQuantityMin = "";
-      let fixedQuantityMax = "";
-      let isFixedQuantity = false;
-      
-      if (attributeType.fixedQuantityMin !== undefined && attributeType.fixedQuantityMax !== undefined) {
-        fixedQuantityMin = String(attributeType.fixedQuantityMin);
-        fixedQuantityMax = String(attributeType.fixedQuantityMax);
-        isFixedQuantity = true;
-      } else if (attributeType.attributeValues && attributeType.attributeValues.length > 0) {
-        // Try to extract from description
-        try {
-          const firstValue = attributeType.attributeValues[0];
-          if (firstValue.description) {
-            const parsed = JSON.parse(firstValue.description);
-            if (parsed.fixedQuantityMin && parsed.fixedQuantityMax) {
-              fixedQuantityMin = String(parsed.fixedQuantityMin);
-              fixedQuantityMax = String(parsed.fixedQuantityMax);
-              isFixedQuantity = true;
-            }
-          }
-        } catch (e) {
-          // Not JSON, ignore
-        }
-      }
-
-      // Check if price effect is set
-      const isPriceEffect = attributeType.isPricingAttribute || false;
-      let priceEffectAmount = "";
-      if (isPriceEffect && attributeType.attributeValues && attributeType.attributeValues.length > 0) {
-        const firstValue = attributeType.attributeValues[0];
-        if (firstValue.priceMultiplier) {
-          priceEffectAmount = ((firstValue.priceMultiplier - 1) * 1000).toFixed(2);
-        }
-      }
-
-      setAttributeTypeForm({
-        attributeName: attributeType.attributeName || "",
-        inputStyle: attributeType.inputStyle || "DROPDOWN",
-        attributeImage: null, // File will be set separately if needed
-        effectDescription: attributeType.effectDescription || "",
-        simpleOptions: simpleOptions,
-        isPriceEffect: isPriceEffect,
-        isStepQuantity: (attributeType as any).isStepQuantity || false,
-        isRangeQuantity: (attributeType as any).isRangeQuantity || false,
-        priceEffectAmount: priceEffectAmount,
-        stepQuantities: (attributeType as any).stepQuantities || [],
-        rangeQuantities: (attributeType as any).rangeQuantities || [],
-        isFixedQuantity: isFixedQuantity,
-        fixedQuantityMin: fixedQuantityMin,
-        fixedQuantityMax: fixedQuantityMax,
-        primaryEffectType: attributeType.primaryEffectType || "INFORMATIONAL",
-        priceImpactPer1000: "",
-        fileRequirements: "",
-        attributeOptionsTable: attributeOptionsTable,
-        // Keep auto-set fields for compatibility
-        functionType: attributeType.functionType || "GENERAL",
-        isPricingAttribute: attributeType.isPricingAttribute || false,
-        isFixedQuantityNeeded: attributeType.isFixedQuantityNeeded || false,
-        isFilterable: attributeType.isFilterable || false,
-        attributeValues: attributeType.attributeValues || [],
-        defaultValue: attributeType.defaultValue || "",
-        isRequired: attributeType.isRequired || false,
-        displayOrder: attributeType.displayOrder || 0,
-        isCommonAttribute: attributeType.isCommonAttribute !== undefined ? attributeType.isCommonAttribute : true,
-        applicableCategories: attributeType.applicableCategories?.map((c: any) => c._id || c) || [],
-        applicableSubCategories: attributeType.applicableSubCategories?.map((sc: any) => sc._id || sc) || [],
-        parentAttribute: (attributeType.parentAttribute && typeof attributeType.parentAttribute === 'object') 
-          ? attributeType.parentAttribute._id 
-          : (attributeType.parentAttribute || ""),
-        showWhenParentValue: attributeType.showWhenParentValue || [],
-        hideWhenParentValue: attributeType.hideWhenParentValue || [],
+  const handleEditAttributeType = async (attributeTypeId: string) => {
+    // Fetch full attribute details from API to ensure we have all fields including isStepQuantity, isRangeQuantity, etc.
+    try {
+      const response = await fetch(`${API_BASE_URL}/attribute-types/${attributeTypeId}`, {
+        method: "GET",
+        headers: getAuthHeaders(),
       });
-      setEditingAttributeTypeId(attributeTypeId);
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch attribute type: ${response.status}`);
+      }
+
+      const data = await handleNgrokResponse(response);
+      const attributeType = data.data || data;
+
+      console.log("EDIT AttributeType - Fetched attributeType:", {
+        _id: attributeType?._id,
+        attributeName: attributeType?.attributeName,
+        isStepQuantity: attributeType?.isStepQuantity,
+        isRangeQuantity: attributeType?.isRangeQuantity,
+        stepQuantities: attributeType?.stepQuantities,
+        rangeQuantities: attributeType?.rangeQuantities,
+      });
+
+      if (attributeType) {
+        // Auto-scroll to top when edit button is clicked
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        // Convert attributeValues back to attributeOptionsTable
+        const attributeOptionsTable = ((attributeType.attributeValues || [])
+          .filter((av: any) => (av.label || av.value) && av.value !== "fixed-quantity")
+          .map((av: any) => {
+            // Convert multiplier back to price impact per 1000
+            // multiplier = 1 + (impact/1000), so impact = (multiplier - 1) * 1000
+            const priceImpact = av.priceMultiplier ? ((av.priceMultiplier - 1) * 1000).toFixed(2) : "0";
+            // Default to price usage if priceImpact exists, otherwise default to image
+            const hasPrice = parseFloat(priceImpact) > 0;
+            return {
+              name: av.label || av.value || "",
+              priceImpactPer1000: priceImpact,
+              image: av.image || undefined,
+              optionUsage: {
+                price: hasPrice,
+                image: !!av.image,
+                listing: false
+              },
+              priceImpact: hasPrice ? priceImpact : "",
+              numberOfImagesRequired: av.image ? 1 : 0,
+              listingFilters: ""
+            };
+          })) || [];
+
+        // Also create simpleOptions for backward compatibility
+        const simpleOptions = (attributeOptionsTable || []).map(opt => opt.name).join(", ");
+
+        // Extract fixed quantity min/max from attributeValues description or custom fields
+        let fixedQuantityMin = "";
+        let fixedQuantityMax = "";
+        let isFixedQuantity = false;
+
+        if (attributeType.fixedQuantityMin !== undefined && attributeType.fixedQuantityMax !== undefined) {
+          fixedQuantityMin = String(attributeType.fixedQuantityMin);
+          fixedQuantityMax = String(attributeType.fixedQuantityMax);
+          isFixedQuantity = true;
+        } else if (attributeType.attributeValues && attributeType.attributeValues.length > 0) {
+          // Try to extract from description
+          try {
+            const firstValue = attributeType.attributeValues[0];
+            if (firstValue.description) {
+              const parsed = JSON.parse(firstValue.description);
+              if (parsed.fixedQuantityMin && parsed.fixedQuantityMax) {
+                fixedQuantityMin = String(parsed.fixedQuantityMin);
+                fixedQuantityMax = String(parsed.fixedQuantityMax);
+                isFixedQuantity = true;
+              }
+            }
+          } catch (e) {
+            // Not JSON, ignore
+          }
+        }
+
+        // Check if price effect is set
+        const isPriceEffect = attributeType.isPricingAttribute || false;
+        let priceEffectAmount = "";
+        if (isPriceEffect && attributeType.attributeValues && attributeType.attributeValues.length > 0) {
+          const firstValue = attributeType.attributeValues[0];
+          if (firstValue.priceMultiplier) {
+            priceEffectAmount = ((firstValue.priceMultiplier - 1) * 1000).toFixed(2);
+          }
+        }
+
+        setAttributeTypeForm({
+          attributeName: attributeType.attributeName || "",
+          inputStyle: attributeType.inputStyle || "DROPDOWN",
+          attributeImage: null, // File will be set separately if needed
+          effectDescription: attributeType.effectDescription || "",
+          simpleOptions: simpleOptions,
+          isPriceEffect: isPriceEffect,
+          isStepQuantity: (attributeType as any).isStepQuantity || false,
+          isRangeQuantity: (attributeType as any).isRangeQuantity || false,
+          priceEffectAmount: priceEffectAmount,
+          stepQuantities: ((attributeType as any).stepQuantities || []).map((step: any) => ({
+            quantity: step.quantity ? String(step.quantity) : "",
+            price: step.price ? String(step.price) : ""
+          })),
+          rangeQuantities: ((attributeType as any).rangeQuantities || []).map((range: any) => ({
+            min: range.min ? String(range.min) : "",
+            max: range.max ? String(range.max) : "",
+            price: range.price ? String(range.price) : ""
+          })),
+          isFixedQuantity: isFixedQuantity,
+          fixedQuantityMin: fixedQuantityMin,
+          fixedQuantityMax: fixedQuantityMax,
+          primaryEffectType: attributeType.primaryEffectType || "INFORMATIONAL",
+          priceImpactPer1000: "",
+          fileRequirements: "",
+          attributeOptionsTable: attributeOptionsTable,
+          // Keep auto-set fields for compatibility
+          functionType: attributeType.functionType || "GENERAL",
+          isPricingAttribute: attributeType.isPricingAttribute || false,
+          isFixedQuantityNeeded: attributeType.isFixedQuantityNeeded || false,
+          isFilterable: attributeType.isFilterable || false,
+          attributeValues: attributeType.attributeValues || [],
+          defaultValue: attributeType.defaultValue || "",
+          isRequired: attributeType.isRequired || false,
+          displayOrder: attributeType.displayOrder || 0,
+          isCommonAttribute: attributeType.isCommonAttribute !== undefined ? attributeType.isCommonAttribute : true,
+          applicableCategories: attributeType.applicableCategories?.map((c: any) => c._id || c) || [],
+          applicableSubCategories: attributeType.applicableSubCategories?.map((sc: any) => sc._id || sc) || [],
+          parentAttribute: (attributeType.parentAttribute && typeof attributeType.parentAttribute === 'object')
+            ? attributeType.parentAttribute._id
+            : (attributeType.parentAttribute || ""),
+          showWhenParentValue: attributeType.showWhenParentValue || [],
+          hideWhenParentValue: attributeType.hideWhenParentValue || [],
+        });
+        setEditingAttributeTypeId(attributeTypeId);
+      } else {
+        setError("Attribute type not found");
+      }
+    } catch (err) {
+      console.error("Error fetching attribute type for editing:", err);
+      setError(err instanceof Error ? err.message : "Failed to load attribute type");
+      // Fallback to using cached data
+      const attributeType = attributeTypes.find((at) => at._id === attributeTypeId);
+      if (attributeType) {
+        // Use the same logic but with cached data
+        const attributeOptionsTable = ((attributeType.attributeValues || [])
+          .filter((av: any) => (av.label || av.value) && av.value !== "fixed-quantity")
+          .map((av: any) => {
+            const priceImpact = av.priceMultiplier ? ((av.priceMultiplier - 1) * 1000).toFixed(2) : "0";
+            const hasPrice = parseFloat(priceImpact) > 0;
+            return {
+              name: av.label || av.value || "",
+              priceImpactPer1000: priceImpact,
+              image: av.image || undefined,
+              optionUsage: {
+                price: hasPrice,
+                image: !!av.image,
+                listing: false
+              },
+              priceImpact: hasPrice ? priceImpact : "",
+              numberOfImagesRequired: av.image ? 1 : 0,
+              listingFilters: ""
+            };
+          })) || [];
+
+        const simpleOptions = (attributeOptionsTable || []).map(opt => opt.name).join(", ");
+
+        let fixedQuantityMin = "";
+        let fixedQuantityMax = "";
+        let isFixedQuantity = false;
+
+        if (attributeType.fixedQuantityMin !== undefined && attributeType.fixedQuantityMax !== undefined) {
+          fixedQuantityMin = String(attributeType.fixedQuantityMin);
+          fixedQuantityMax = String(attributeType.fixedQuantityMax);
+          isFixedQuantity = true;
+        }
+
+        const isPriceEffect = attributeType.isPricingAttribute || false;
+        let priceEffectAmount = "";
+        if (isPriceEffect && attributeType.attributeValues && attributeType.attributeValues.length > 0) {
+          const firstValue = attributeType.attributeValues[0];
+          if (firstValue.priceMultiplier) {
+            priceEffectAmount = ((firstValue.priceMultiplier - 1) * 1000).toFixed(2);
+          }
+        }
+
+        setAttributeTypeForm({
+          attributeName: attributeType.attributeName || "",
+          inputStyle: attributeType.inputStyle || "DROPDOWN",
+          attributeImage: null,
+          effectDescription: attributeType.effectDescription || "",
+          simpleOptions: simpleOptions,
+          isPriceEffect: isPriceEffect,
+          isStepQuantity: (attributeType as any).isStepQuantity || false,
+          isRangeQuantity: (attributeType as any).isRangeQuantity || false,
+          priceEffectAmount: priceEffectAmount,
+          stepQuantities: ((attributeType as any).stepQuantities || []).map((step: any) => ({
+            quantity: step.quantity ? String(step.quantity) : "",
+            price: step.price ? String(step.price) : ""
+          })),
+          rangeQuantities: ((attributeType as any).rangeQuantities || []).map((range: any) => ({
+            min: range.min ? String(range.min) : "",
+            max: range.max ? String(range.max) : "",
+            price: range.price ? String(range.price) : ""
+          })),
+          isFixedQuantity: isFixedQuantity,
+          fixedQuantityMin: fixedQuantityMin,
+          fixedQuantityMax: fixedQuantityMax,
+          primaryEffectType: attributeType.primaryEffectType || "INFORMATIONAL",
+          priceImpactPer1000: "",
+          fileRequirements: "",
+          attributeOptionsTable: attributeOptionsTable,
+          functionType: attributeType.functionType || "GENERAL",
+          isPricingAttribute: attributeType.isPricingAttribute || false,
+          isFixedQuantityNeeded: attributeType.isFixedQuantityNeeded || false,
+          isFilterable: attributeType.isFilterable || false,
+          attributeValues: attributeType.attributeValues || [],
+          defaultValue: attributeType.defaultValue || "",
+          isRequired: attributeType.isRequired || false,
+          displayOrder: attributeType.displayOrder || 0,
+          isCommonAttribute: attributeType.isCommonAttribute !== undefined ? attributeType.isCommonAttribute : true,
+          applicableCategories: attributeType.applicableCategories?.map((c: any) => c._id || c) || [],
+          applicableSubCategories: attributeType.applicableSubCategories?.map((sc: any) => sc._id || sc) || [],
+          parentAttribute: (attributeType.parentAttribute && typeof attributeType.parentAttribute === 'object')
+            ? attributeType.parentAttribute._id
+            : (attributeType.parentAttribute || ""),
+          showWhenParentValue: attributeType.showWhenParentValue || [],
+          hideWhenParentValue: attributeType.hideWhenParentValue || [],
+        });
+        setEditingAttributeTypeId(attributeTypeId);
+      }
     }
   };
 
@@ -3844,7 +4190,7 @@ const AdminDashboard: React.FC = () => {
         // Clone the response to read it without consuming the body
         const responseClone = response.clone();
         let errorMessage = "Failed to delete attribute type";
-        
+
         try {
           const errorData = await responseClone.json();
           errorMessage = errorData.error || errorData.message || errorMessage;
@@ -3858,15 +4204,15 @@ const AdminDashboard: React.FC = () => {
             errorMessage = response.statusText || errorMessage;
           }
         }
-        
+
         console.log("Error message:", errorMessage);
-        
+
         // Check if the error is about attribute being in use
-        const isInUseError = errorMessage.toLowerCase().includes("used") || 
-                            errorMessage.toLowerCase().includes("in use") ||
-                            errorMessage.toLowerCase().includes("product") ||
-                            errorMessage.toLowerCase().includes("cannot delete");
-        
+        const isInUseError = errorMessage.toLowerCase().includes("used") ||
+          errorMessage.toLowerCase().includes("in use") ||
+          errorMessage.toLowerCase().includes("product") ||
+          errorMessage.toLowerCase().includes("cannot delete");
+
         // Show toast notification
         if (isInUseError) {
           toast.error(
@@ -3885,7 +4231,7 @@ const AdminDashboard: React.FC = () => {
             position: "bottom-right",
           });
         }
-        
+
         setError(errorMessage);
         setLoading(false);
         return; // Exit early, don't throw
@@ -3899,17 +4245,17 @@ const AdminDashboard: React.FC = () => {
         duration: 3000,
         position: "bottom-right",
       });
-      
+
       fetchAttributeTypes();
     } catch (err) {
       console.error("Error deleting attribute type:", err);
       const errorMessage = err instanceof Error ? err.message : "Failed to delete attribute type";
-      
+
       // Check if error is about attribute being in use (in case it wasn't caught above)
-      const isInUseError = errorMessage.toLowerCase().includes("used") || 
-                          errorMessage.toLowerCase().includes("in use") ||
-                          errorMessage.toLowerCase().includes("product");
-      
+      const isInUseError = errorMessage.toLowerCase().includes("used") ||
+        errorMessage.toLowerCase().includes("in use") ||
+        errorMessage.toLowerCase().includes("product");
+
       if (isInUseError) {
         toast.error(
           <div>
@@ -3927,7 +4273,7 @@ const AdminDashboard: React.FC = () => {
           position: "bottom-right",
         });
       }
-      
+
       setError(errorMessage);
     } finally {
       setLoading(false);
@@ -4014,6 +4360,9 @@ const AdminDashboard: React.FC = () => {
   const handleEditDepartment = (departmentId: string) => {
     const department = departments.find((d) => d._id === departmentId);
     if (department) {
+      // Auto-scroll to top when edit button is clicked
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+
       // Extract operator IDs, handling both populated objects and plain IDs
       const operatorIds = department.operators?.map((op: any) => {
         if (typeof op === 'object' && op !== null) {
@@ -4021,7 +4370,7 @@ const AdminDashboard: React.FC = () => {
         }
         return String(op);
       }) || [];
-      
+
       setDepartmentForm({
         name: department.name || "",
         description: department.description || "",
@@ -4173,6 +4522,9 @@ const AdminDashboard: React.FC = () => {
   const handleEditSequence = (sequenceId: string) => {
     const sequence = (sequences || []).find((s) => s._id === sequenceId);
     if (sequence) {
+      // Auto-scroll to top when edit button is clicked
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+
       // Determine print type from category type, or default to digital if category exists
       let printType = "";
       if (sequence.category) {
@@ -4186,7 +4538,7 @@ const AdminDashboard: React.FC = () => {
         // If no category, it might be bulk print
         printType = "bulk";
       }
-      
+
       setSequenceForm({
         name: sequence.name || "",
         printType: printType,
@@ -4194,8 +4546,8 @@ const AdminDashboard: React.FC = () => {
         subcategory: sequence.subcategory && typeof sequence.subcategory === 'object' && sequence.subcategory !== null ? sequence.subcategory._id : sequence.subcategory || "",
         selectedDepartments: (sequence.departments || []).map((d: any) => {
           if (!d || !d.department) return null;
-          return typeof d.department === 'object' && d.department !== null 
-            ? d.department._id 
+          return typeof d.department === 'object' && d.department !== null
+            ? d.department._id
             : d.department;
         }).filter((id: any) => id !== null) || [],
         selectedAttributes: (sequence.attributes || []).map((attr: any) => {
@@ -4414,7 +4766,7 @@ const AdminDashboard: React.FC = () => {
         setProductFormErrors(errors);
         setError("Please fix the errors below");
         setLoading(false);
-        
+
         // Show toast with error summary
         const errorMessages = Object.values(errors).filter((msg): msg is string => !!msg);
         toast.error(
@@ -4428,7 +4780,7 @@ const AdminDashboard: React.FC = () => {
           </div>,
           { duration: 5000, position: "bottom-right" }
         );
-        
+
         // Scroll to first error field
         if (firstErrorField && firstErrorId) {
           scrollToInvalidField(firstErrorField, firstErrorId);
@@ -4453,37 +4805,37 @@ const AdminDashboard: React.FC = () => {
             }
           });
           const foundInMap = allSubcategories.find(sc => sc._id === productForm.subcategory);
-          
+
           if (!foundInMap) {
             setError("Selected subcategory not found. Please select a valid subcategory.");
             setLoading(false);
             return;
           }
-          
+
           // Verify subcategory belongs to the selected category
-          const subcategoryCategoryId = foundInMap.category 
+          const subcategoryCategoryId = foundInMap.category
             ? (typeof foundInMap.category === 'object' ? foundInMap.category._id : foundInMap.category)
             : null;
-          
+
           if (subcategoryCategoryId !== categoryId) {
             setError("Selected subcategory does not belong to the selected category. Please select a valid subcategory.");
             setLoading(false);
             return;
           }
-          
+
           subcategoryId = foundInMap._id;
         } else {
           // Verify subcategory belongs to the selected category
-          const subcategoryCategoryId = selectedSubCategory.category 
+          const subcategoryCategoryId = selectedSubCategory.category
             ? (typeof selectedSubCategory.category === 'object' ? selectedSubCategory.category._id : selectedSubCategory.category)
             : null;
-          
+
           if (subcategoryCategoryId !== categoryId) {
             setError("Selected subcategory does not belong to the selected category. Please select a valid subcategory.");
             setLoading(false);
             return;
           }
-          
+
           subcategoryId = selectedSubCategory._id;
         }
       }
@@ -4492,15 +4844,15 @@ const AdminDashboard: React.FC = () => {
       formData.append("name", productForm.name);
       formData.append("description", productForm.description || "");
       formData.append("basePrice", productForm.basePrice);
-      
+
       // Append product image if provided
       if (productForm.image) {
         formData.append("image", productForm.image);
       }
-      
+
       // Always append category (required field) - this is the parent category
       formData.append("category", categoryId);
-      
+
       // For updates, always send subcategory (even if empty) to allow clearing it
       // For creates, only send if it's selected and not empty
       if (editingProductId) {
@@ -4514,18 +4866,18 @@ const AdminDashboard: React.FC = () => {
         // If subcategory is empty, don't append it - product will be created directly under category
       }
       // Product type is no longer used - removed from form
-      
+
       // Parse description into array format for storage
       // Split by newlines and filter empty lines
       const descriptionLines = productForm.description
         .split('\n')
         .map(line => line.trim())
         .filter(line => line.length > 0);
-      
+
       if (descriptionLines.length > 0) {
         formData.append("descriptionArray", JSON.stringify(descriptionLines));
       }
-      
+
       // Append filters from tables - Printing options removed (should be attributes)
       const filtersToSend: any = {
         printingOption: [], // Empty - printing options should be attributes
@@ -4534,20 +4886,20 @@ const AdminDashboard: React.FC = () => {
         textureType: textureTypeTable.map(item => typeof item === 'string' ? item : item.name).filter(name => name.trim()),
         filterPricesEnabled: filterPricesEnabled,
       };
-      
+
       // Add filter prices if enabled (no printing option prices)
       if (filterPricesEnabled) {
         filtersToSend.printingOptionPrices = [];
         filtersToSend.deliverySpeedPrices = deliverySpeedTable
           .filter(item => typeof item === 'object' && item.name && item.name.trim())
-          .map(item => ({ 
-            name: item.name.trim(), 
+          .map(item => ({
+            name: item.name.trim(),
             priceAdd: typeof item.priceAdd === 'number' ? item.priceAdd : (item.priceAdd ? parseFloat(item.priceAdd) || 0 : 0)
           }));
         filtersToSend.textureTypePrices = textureTypeTable
           .filter(item => typeof item === 'object' && item.name && item.name.trim())
-          .map(item => ({ 
-            name: item.name.trim(), 
+          .map(item => ({
+            name: item.name.trim(),
             priceAdd: typeof item.priceAdd === 'number' ? item.priceAdd : (item.priceAdd ? parseFloat(item.priceAdd) || 0 : 0)
           }));
       } else {
@@ -4556,11 +4908,11 @@ const AdminDashboard: React.FC = () => {
         filtersToSend.deliverySpeedPrices = [];
         filtersToSend.textureTypePrices = [];
       }
-      
+
       // Debug: Log filters being sent
       console.log("Filters being sent:", JSON.stringify(filtersToSend, null, 2));
       formData.append("filters", JSON.stringify(filtersToSend));
-      
+
       // Always use optionsTable if it has data, otherwise use JSON string
       const optionsToSend =
         optionsTable.length > 0
@@ -4574,14 +4926,14 @@ const AdminDashboard: React.FC = () => {
       // Always send dynamicAttributes, even if empty array, to ensure proper handling
       const dynamicAttributesToSend = (selectedAttributeTypes && selectedAttributeTypes.length > 0)
         ? selectedAttributeTypes
-            .filter((sa) => sa && sa.attributeTypeId) // Filter out invalid entries
-            .map((sa) => ({
-              attributeType: sa.attributeTypeId,
-              isEnabled: sa.isEnabled !== undefined ? sa.isEnabled : true,
-              isRequired: sa.isRequired !== undefined ? sa.isRequired : false,
-              displayOrder: sa.displayOrder !== undefined ? sa.displayOrder : 0,
-              customValues: [], // Can be customized per product if needed
-            }))
+          .filter((sa) => sa && sa.attributeTypeId) // Filter out invalid entries
+          .map((sa) => ({
+            attributeType: sa.attributeTypeId,
+            isEnabled: sa.isEnabled !== undefined ? sa.isEnabled : true,
+            isRequired: sa.isRequired !== undefined ? sa.isRequired : false,
+            displayOrder: sa.displayOrder !== undefined ? sa.displayOrder : 0,
+            customValues: [], // Can be customized per product if needed
+          }))
         : [];
       formData.append("dynamicAttributes", JSON.stringify(dynamicAttributesToSend));
 
@@ -4662,11 +5014,11 @@ const AdminDashboard: React.FC = () => {
         const responseClone = response.clone();
         let errorMessage = "Failed to save product";
         const backendErrors: Record<string, string> = {};
-        
+
         try {
           const errorData = await responseClone.json();
           errorMessage = errorData.error || errorData.message || errorMessage;
-          
+
           // Try to map backend errors to fields
           // Common field mappings
           if (errorMessage.toLowerCase().includes("name")) {
@@ -4684,7 +5036,7 @@ const AdminDashboard: React.FC = () => {
           // If JSON parsing fails, use status text
           errorMessage = response.statusText || errorMessage;
         }
-        
+
         // Set field errors if any were mapped
         if (Object.keys(backendErrors).length > 0) {
           setFieldErrors(backendErrors);
@@ -4692,13 +5044,13 @@ const AdminDashboard: React.FC = () => {
           const firstErrorField = Object.keys(backendErrors)[0];
           scrollToInvalidField(firstErrorField, `product-${firstErrorField}`);
         }
-        
+
         // Show toast error
         toast.error(errorMessage, {
           duration: 5000,
           position: "bottom-right",
         });
-        
+
         setError(errorMessage);
         setLoading(false);
         return;
@@ -4715,7 +5067,7 @@ const AdminDashboard: React.FC = () => {
         duration: 3000,
         position: "bottom-right",
       });
-      
+
       setSuccess(`Product ${editingProductId ? "updated" : "created"} successfully!`);
       setSelectedType("");
       setFilteredCategoriesByType([]);
@@ -4732,14 +5084,14 @@ const AdminDashboard: React.FC = () => {
         options: "",
         filters: {
           printingOption: [],
-          orderQuantity: { 
-          min: 1000, 
-          max: 72000, 
-          multiples: 1000,
-          quantityType: "SIMPLE" as "SIMPLE" | "STEP_WISE" | "RANGE_WISE",
-          stepWiseQuantities: [],
-          rangeWiseQuantities: []
-        },
+          orderQuantity: {
+            min: 1000,
+            max: 72000,
+            multiples: 1000,
+            quantityType: "SIMPLE" as "SIMPLE" | "STEP_WISE" | "RANGE_WISE",
+            stepWiseQuantities: [],
+            rangeWiseQuantities: []
+          },
           deliverySpeed: [],
           textureType: [],
         },
@@ -4766,19 +5118,19 @@ const AdminDashboard: React.FC = () => {
       setSubcategoryProducts([]);
       setEditingProductId(null);
       setFieldErrors({}); // Clear field errors on success
-      
+
       // Refresh products list using the category route based on the category ID used to create the product
       if (createdCategoryId) {
         fetchProducts(createdCategoryId);
       } else {
         fetchProducts();
       }
-      
+
       // If viewing a category, refresh its products
       if (selectedCategory) {
         handleCategoryClick(typeof selectedCategory === 'string' ? selectedCategory : selectedCategory._id);
       }
-      
+
       // If viewing a subcategory, refresh its products
       if (selectedSubCategoryForView) {
         handleSubCategoryClick(selectedSubCategoryForView);
@@ -4809,7 +5161,7 @@ const AdminDashboard: React.FC = () => {
       console.log("Full product data:", JSON.stringify(product, null, 2));
 
       // Convert descriptionArray back to text format for editing
-      const descriptionText = product.descriptionArray && Array.isArray(product.descriptionArray) 
+      const descriptionText = product.descriptionArray && Array.isArray(product.descriptionArray)
         ? product.descriptionArray.join('\n')
         : product.description || "";
 
@@ -4817,32 +5169,32 @@ const AdminDashboard: React.FC = () => {
       // If subcategory exists, get category from subcategory, otherwise use product.category
       let categoryId = "";
       let productType = "";
-      
+
       if (product.subcategory) {
-        const subcategoryObj = typeof product.subcategory === "object" && product.subcategory !== null 
-          ? product.subcategory 
+        const subcategoryObj = typeof product.subcategory === "object" && product.subcategory !== null
+          ? product.subcategory
           : null;
         if (subcategoryObj && subcategoryObj.category) {
           const categoryObj = typeof subcategoryObj.category === "object" && subcategoryObj.category !== null
-            ? subcategoryObj.category 
+            ? subcategoryObj.category
             : null;
           categoryId = categoryObj ? categoryObj._id : (subcategoryObj.category || "");
           productType = categoryObj ? categoryObj.type : "";
         }
       }
-      
+
       // If no category from subcategory, use product.category
       if (!categoryId) {
         const categoryObj = typeof product.category === "object" && product.category !== null
-          ? product.category 
+          ? product.category
           : null;
         categoryId = categoryObj ? categoryObj._id : (product.category || "");
         productType = categoryObj ? categoryObj.type : "";
       }
-      
+
       // Set type first, then category (this will trigger filtering)
       setSelectedType(productType);
-      
+
       // Filter categories by type for the dropdown
       if (productType) {
         const filtered = categories.filter(cat => cat.type === productType && !cat.parent);
@@ -4850,7 +5202,7 @@ const AdminDashboard: React.FC = () => {
       } else {
         setFilteredCategoriesByType([]);
       }
-      
+
       // Set category
       setProductForm({
         name: product.name || "",
@@ -4858,8 +5210,8 @@ const AdminDashboard: React.FC = () => {
         descriptionArray: product.descriptionArray || [],
         basePrice: product.basePrice?.toString() || "",
         category: categoryId || "",
-        subcategory: product.subcategory && typeof product.subcategory === "object" && product.subcategory._id 
-          ? product.subcategory._id 
+        subcategory: product.subcategory && typeof product.subcategory === "object" && product.subcategory._id
+          ? product.subcategory._id
           : (product.subcategory && product.subcategory !== null && product.subcategory !== "null" && product.subcategory !== "" ? String(product.subcategory) : ""),
         image: null,
         options: "",
@@ -4877,12 +5229,12 @@ const AdminDashboard: React.FC = () => {
           deliverySpeed: product.filters?.deliverySpeed || [],
           textureType: product.filters?.textureType || [],
         },
-        quantityDiscounts: product.quantityDiscounts && Array.isArray(product.quantityDiscounts) 
+        quantityDiscounts: product.quantityDiscounts && Array.isArray(product.quantityDiscounts)
           ? product.quantityDiscounts.map((qd: any) => ({
-              minQuantity: qd.minQuantity || 0,
-              maxQuantity: qd.maxQuantity || null,
-              discountPercentage: qd.discountPercentage || 0,
-            }))
+            minQuantity: qd.minQuantity || 0,
+            maxQuantity: qd.maxQuantity || null,
+            discountPercentage: qd.discountPercentage || 0,
+          }))
           : [],
         maxFileSizeMB: product.maxFileSizeMB?.toString() || "",
         minFileWidth: product.minFileWidth?.toString() || "",
@@ -4897,9 +5249,9 @@ const AdminDashboard: React.FC = () => {
         variants: product.variants && Array.isArray(product.variants) ? product.variants : [],
         productionSequence: product.productionSequence && Array.isArray(product.productionSequence)
           ? product.productionSequence
-              .filter((dept: any) => dept !== null && dept !== undefined) // Filter out null/undefined departments
-              .map((dept: any) => typeof dept === 'object' && dept !== null ? (dept._id || "") : (dept || ""))
-              .filter((id: string) => id) // Filter out empty IDs
+            .filter((dept: any) => dept !== null && dept !== undefined) // Filter out null/undefined departments
+            .map((dept: any) => typeof dept === 'object' && dept !== null ? (dept._id || "") : (dept || ""))
+            .filter((id: string) => id) // Filter out empty IDs
           : [],
       });
 
@@ -4911,10 +5263,10 @@ const AdminDashboard: React.FC = () => {
 
       // Set filter prices enabled state
       setFilterPricesEnabled(product.filters?.filterPricesEnabled || false);
-      
+
       // Set filter tables from product data - Printing options are now handled via attributes
       setPrintingOptionsTable([]); // Printing options should be configured as attributes
-      
+
       const deliverySpeeds = product.filters?.deliverySpeed || [];
       const deliveryPrices = product.filters?.deliverySpeedPrices || [];
       setDeliverySpeedTable(deliverySpeeds.map((opt: string | any, idx: number) => {
@@ -4924,7 +5276,7 @@ const AdminDashboard: React.FC = () => {
         }
         return opt;
       }));
-      
+
       const textureTypes = product.filters?.textureType || [];
       const texturePrices = product.filters?.textureTypePrices || [];
       setTextureTypeTable(textureTypes.map((opt: string | any, idx: number) => {
@@ -4949,7 +5301,7 @@ const AdminDashboard: React.FC = () => {
               // Unpopulated attributeType ID string
               attributeTypeId = da.attributeType;
             }
-            
+
             return {
               attributeTypeId: attributeTypeId,
               isEnabled: da.isEnabled !== undefined ? da.isEnabled : true,
@@ -4958,7 +5310,7 @@ const AdminDashboard: React.FC = () => {
             };
           })
           .filter((attr: any) => attr.attributeTypeId && attr.attributeTypeId.trim() !== ""); // Filter out attributes without valid IDs
-        
+
         console.log("Loaded attributes for editing:", loadedAttributes);
         setSelectedAttributeTypes(loadedAttributes);
       } else {
@@ -4968,8 +5320,8 @@ const AdminDashboard: React.FC = () => {
 
       // Fetch attribute types filtered by product's category/subcategory
       const productCategoryId = categoryId || null;
-      const productSubCategoryId = product.subcategory && typeof product.subcategory === "object" && product.subcategory._id 
-        ? product.subcategory._id 
+      const productSubCategoryId = product.subcategory && typeof product.subcategory === "object" && product.subcategory._id
+        ? product.subcategory._id
         : (product.subcategory && product.subcategory !== null && product.subcategory !== "null" && product.subcategory !== "" ? String(product.subcategory) : null);
       await fetchAttributeTypes(productCategoryId, productSubCategoryId);
 
@@ -4978,19 +5330,19 @@ const AdminDashboard: React.FC = () => {
       const subcategoryId = product.subcategory && typeof product.subcategory === "object" && product.subcategory !== null
         ? (product.subcategory._id || "")
         : (product.subcategory && product.subcategory !== null && product.subcategory !== "null" ? String(product.subcategory) : "");
-      
+
       // Wait for categories to be loaded, then build path
       if (categoryId) {
         // First, fetch children for the root category
         await fetchCategoryChildren(categoryId);
-        
+
         // If subcategory exists and is valid, build path to it
         if (subcategoryId && subcategoryId.trim() !== "" && subcategoryId !== categoryId && subcategoryId !== "null") {
           // Wait a bit for children to load, then build path
           setTimeout(() => {
             const path = buildCategoryPath(categoryId, subcategoryId);
             setSelectedCategoryPath(path);
-            
+
             // Fetch children for all categories in the path
             path.forEach(catId => {
               if (catId !== categoryId) { // Already fetched root
@@ -5005,7 +5357,7 @@ const AdminDashboard: React.FC = () => {
       } else {
         setSelectedCategoryPath([]);
       }
-      
+
       // Fetch products for the selected category/subcategory
       const finalCategoryId = subcategoryId || categoryId;
       if (finalCategoryId) {
@@ -5014,7 +5366,7 @@ const AdminDashboard: React.FC = () => {
           const productsResponse = await fetch(`${API_BASE_URL}/products/category/${finalCategoryId}`, {
             headers: getAuthHeaders(),
           });
-          
+
           if (productsResponse.ok) {
             const productsData = await handleNgrokResponse(productsResponse);
             setCategoryProducts(productsData || []);
@@ -5043,11 +5395,11 @@ const AdminDashboard: React.FC = () => {
   const handleEditCategory = async (categoryId: string) => {
     try {
       setLoading(true);
-      
+
       // First, try to fetch from categories
       let category = null;
       let isSubcategory = false;
-      
+
       try {
         const response = await fetch(`${API_BASE_URL}/categories/${categoryId}`, {
           method: "GET",
@@ -5101,14 +5453,14 @@ const AdminDashboard: React.FC = () => {
       const categorySlug = category.slug || (category.name ? category.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') : "");
 
       // If it's a subcategory, map category field to parent
-      const parentId = isSubcategory 
-        ? (category.category ? (typeof category.category === 'object' ? category.category._id : category.category) : "")
-        : (category.parent ? (typeof category.parent === 'object' ? category.parent._id : category.parent) : "");
+      const parentId = isSubcategory
+        ? (category.category && typeof category.category === 'object' && category.category !== null ? category.category._id : (category.category || ""))
+        : (category.parent && typeof category.parent === 'object' && category.parent !== null ? category.parent._id : (category.parent || ""));
 
       setCategoryForm({
         name: category.name || "",
         description: category.description || "",
-        type: isSubcategory ? (category.category && typeof category.category === 'object' ? category.category.type : "Digital") : (category.type || "Digital"),
+        type: isSubcategory ? (category.category && typeof category.category === 'object' && category.category !== null ? category.category.type : "Digital") : (category.type || "Digital"),
         parent: parentId,
         sortOrder: category.sortOrder || 0,
         slug: categorySlug, // Always set slug, even if auto-generated
@@ -5120,7 +5472,7 @@ const AdminDashboard: React.FC = () => {
       setEditingCategoryImage(category.image || null);
       setActiveTab("categories");
       setError(null);
-      
+
       // Fetch available parent categories (excluding current category and its descendants)
       fetchAvailableParentCategories(categoryId);
     } catch (err) {
@@ -5138,20 +5490,20 @@ const AdminDashboard: React.FC = () => {
     setSelectedType("");
     setFilteredCategoriesByType([]);
     setFilteredSubCategories([]);
-      setProductForm({
-        name: "",
-        description: "",
-        descriptionArray: [],
-        basePrice: "",
-        category: "",
-        subcategory: "",
-        image: null,
+    setProductForm({
+      name: "",
+      description: "",
+      descriptionArray: [],
+      basePrice: "",
+      category: "",
+      subcategory: "",
+      image: null,
       options: "",
       filters: {
         printingOption: [],
-        orderQuantity: { 
-          min: 1000, 
-          max: 72000, 
+        orderQuantity: {
+          min: 1000,
+          max: 72000,
           multiples: 1000,
           quantityType: "SIMPLE" as "SIMPLE" | "STEP_WISE" | "RANGE_WISE",
           stepWiseQuantities: [],
@@ -5193,6 +5545,7 @@ const AdminDashboard: React.FC = () => {
       name: "",
       description: "",
       category: "",
+      parent: "",
       type: "",
       slug: "",
       sortOrder: 0,
@@ -5273,12 +5626,42 @@ const AdminDashboard: React.FC = () => {
           hasErrors = true;
         }
 
+        // Validate sort order uniqueness within the same parent category
+        if (categoryForm.parent) {
+          const conflictingSubcategory = subCategories.find((subCat: any) => {
+            // Get parent category ID
+            const parentId = typeof subCat.category === 'object' && subCat.category !== null ? subCat.category._id : subCat.category;
+            // Check if same parent
+            const sameParent = parentId === categoryForm.parent;
+            // Check if same sort order
+            const sameSortOrder = (subCat.sortOrder || 0) === categoryForm.sortOrder;
+            // Check if it's a different subcategory (not the one being edited)
+            const isDifferentSubcategory = subCat._id !== editingCategoryId;
+
+            return sameParent && sameSortOrder && isDifferentSubcategory;
+          });
+
+          if (conflictingSubcategory) {
+            const parentCategory = categories.find((cat: Category) => cat._id === categoryForm.parent);
+            const parentName = parentCategory ? parentCategory.name : 'this category';
+            errors.sortOrder = `Sort order ${categoryForm.sortOrder} is already used by another subcategory in ${parentName}. Please use a different sort order.`;
+            hasErrors = true;
+          }
+        }
+
         if (hasErrors) {
           setCategoryFormErrors(errors);
           setError("Please fix the errors below");
           setLoading(false);
           const firstErrorField = Object.keys(errors)[0];
           if (firstErrorField === 'image') scrollToInvalidField("image", "category-image");
+          else if (firstErrorField === 'sortOrder') {
+            // Scroll to sort order field
+            const sortOrderField = document.querySelector('input[type="number"]');
+            if (sortOrderField) {
+              sortOrderField.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+          }
           return;
         }
 
@@ -5362,6 +5745,27 @@ const AdminDashboard: React.FC = () => {
           hasErrors = true;
         }
 
+        // Validate sort order uniqueness within the same type
+        if (categoryForm.type) {
+          const conflictingCategory = categories.find((cat: Category) => {
+            // Check if it's a main category (no parent)
+            const isMainCategory = !cat.parent || (typeof cat.parent === 'object' && cat.parent !== null && !cat.parent._id);
+            // Check if same type
+            const sameType = cat.type === categoryForm.type;
+            // Check if same sort order
+            const sameSortOrder = (cat.sortOrder || 0) === categoryForm.sortOrder;
+            // Check if it's a different category (not the one being edited)
+            const isDifferentCategory = cat._id !== editingCategoryId;
+
+            return isMainCategory && sameType && sameSortOrder && isDifferentCategory;
+          });
+
+          if (conflictingCategory) {
+            errors.sortOrder = `Sort order ${categoryForm.sortOrder} is already used by another ${categoryForm.type} category (${conflictingCategory.name}). Please use a different sort order.`;
+            hasErrors = true;
+          }
+        }
+
         if (hasErrors) {
           setCategoryFormErrors(errors);
           setError("Please fix the errors below");
@@ -5369,6 +5773,13 @@ const AdminDashboard: React.FC = () => {
           const firstErrorField = Object.keys(errors)[0];
           if (firstErrorField === 'type') scrollToInvalidField("type", "category-type");
           else if (firstErrorField === 'image') scrollToInvalidField("image", "category-image");
+          else if (firstErrorField === 'sortOrder') {
+            // Scroll to sort order field
+            const sortOrderField = document.querySelector('input[type="number"][value="' + categoryForm.sortOrder + '"]');
+            if (sortOrderField) {
+              sortOrderField.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+          }
           return;
         }
 
@@ -5473,6 +5884,29 @@ const AdminDashboard: React.FC = () => {
         hasErrors = true;
       }
 
+      // Validate sort order uniqueness within the same parent category
+      if (subCategoryForm.category && subCategoryForm.category !== "pending") {
+        const conflictingSubcategory = subCategories.find((subCat: any) => {
+          // Get parent category ID
+          const parentId = typeof subCat.category === 'object' && subCat.category !== null ? subCat.category._id : subCat.category;
+          // Check if same parent
+          const sameParent = parentId === subCategoryForm.category;
+          // Check if same sort order
+          const sameSortOrder = (subCat.sortOrder || 0) === subCategoryForm.sortOrder;
+          // Check if it's a different subcategory (not the one being edited)
+          const isDifferentSubcategory = subCat._id !== editingSubCategoryId;
+
+          return sameParent && sameSortOrder && isDifferentSubcategory;
+        });
+
+        if (conflictingSubcategory) {
+          const parentCategory = categories.find((cat: Category) => cat._id === subCategoryForm.category);
+          const parentName = parentCategory ? parentCategory.name : 'this category';
+          errors.sortOrder = `Sort order ${subCategoryForm.sortOrder} is already used by another subcategory in ${parentName}. Please use a different sort order.`;
+          hasErrors = true;
+        }
+      }
+
       if (hasErrors) {
         setSubCategoryFormErrors(errors);
         setError("Please fix the errors below");
@@ -5481,6 +5915,13 @@ const AdminDashboard: React.FC = () => {
         if (firstErrorField === 'name') scrollToInvalidField("name", "subcategory-name");
         else if (firstErrorField === 'category') scrollToInvalidField("category", "subcategory-category");
         else if (firstErrorField === 'image') scrollToInvalidField("image", "subcategory-image");
+        else if (firstErrorField === 'sortOrder') {
+          // Scroll to sort order field
+          const sortOrderField = document.querySelector('input[type="number"]');
+          if (sortOrderField) {
+            sortOrderField.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }
         return;
       }
 
@@ -5505,6 +5946,9 @@ const AdminDashboard: React.FC = () => {
       formData.append("name", subCategoryForm.name.trim());
       formData.append("description", subCategoryForm.description || "");
       formData.append("category", subCategoryForm.category);
+      if (subCategoryForm.parent && subCategoryForm.parent !== "") {
+        formData.append("parent", subCategoryForm.parent);
+      }
       formData.append("sortOrder", subCategoryForm.sortOrder.toString());
       // Add slug - use provided slug or auto-generate unique slug from name
       const baseSlug = subCategoryForm.slug || (subCategoryForm.name ? subCategoryForm.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') : '');
@@ -5537,16 +5981,17 @@ const AdminDashboard: React.FC = () => {
       await handleNgrokResponse(response);
 
       setSuccess(`Subcategory ${editingSubCategoryId ? "updated" : "created"} successfully!`);
-      
+
       // If we were viewing a category, refresh its subcategories
       if (selectedCategory) {
         await handleCategoryClick(selectedCategory);
       }
-      
+
       setSubCategoryForm({
         name: "",
         description: "",
         category: "",
+        parent: "",
         type: "",
         slug: "",
         sortOrder: 0,
@@ -5578,24 +6023,64 @@ const AdminDashboard: React.FC = () => {
       const subCategory = await handleNgrokResponse(response);
 
       // Get type from parent category
-      const parentCategory = typeof subCategory.category === "object" 
-        ? subCategory.category 
+      const parentCategory = typeof subCategory.category === "object" && subCategory.category !== null
+        ? subCategory.category
         : categories.find(c => c._id === subCategory.category);
       const categoryType = parentCategory?.type || "";
 
       // Auto-generate slug if not present - always ensure slug is set
       const subCategorySlug = subCategory.slug || (subCategory.name ? subCategory.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') : "");
 
+      const categoryId = typeof subCategory.category === "object" && subCategory.category !== null ? subCategory.category._id : subCategory.category || "";
+      const parentId = typeof subCategory.parent === "object" && subCategory.parent !== null ? subCategory.parent._id : (subCategory.parent || "");
+
       setSubCategoryForm({
         name: subCategory.name || "",
         description: subCategory.description || "",
-        category: typeof subCategory.category === "object" ? subCategory.category._id : subCategory.category || "",
+        category: categoryId,
+        parent: parentId,
         type: categoryType,
         slug: subCategorySlug, // Always set slug, even if auto-generated
         sortOrder: subCategory.sortOrder || 0,
         image: null,
       });
       setIsSubCategorySlugManuallyEdited(!!subCategory.slug); // If subcategory has a slug, consider it manually set
+
+      // Fetch available parent subcategories for the category (with nested children)
+      if (categoryId) {
+        setLoadingParentSubcategories(true);
+        try {
+          const response = await fetch(`${API_BASE_URL}/subcategories/category/${categoryId}?includeChildren=true`);
+          if (response.ok) {
+            const data = await response.json();
+            // Flatten nested subcategories recursively for parent selection
+            const flattenSubcategories = (subcats: any[], level: number = 0): any[] => {
+              let result: any[] = [];
+              subcats.forEach((subcat) => {
+                // Filter out the current subcategory and its descendants from parent options
+                if (subcat._id !== subCategoryId) {
+                  result.push({ ...subcat, _displayLevel: level });
+                  if (subcat.children && subcat.children.length > 0) {
+                    result = result.concat(flattenSubcategories(subcat.children, level + 1));
+                  }
+                }
+              });
+              return result;
+            };
+            const flattened = flattenSubcategories(Array.isArray(data) ? data : (data?.data || []));
+            setAvailableParentSubcategories(flattened || []);
+          } else {
+            setAvailableParentSubcategories([]);
+          }
+        } catch (err) {
+          console.error("Error fetching parent subcategories:", err);
+          setAvailableParentSubcategories([]);
+        } finally {
+          setLoadingParentSubcategories(false);
+        }
+      } else {
+        setAvailableParentSubcategories([]);
+      }
 
       setEditingSubCategoryId(subCategoryId);
       setEditingSubCategoryImage(subCategory.image || null);
@@ -5618,7 +6103,7 @@ const AdminDashboard: React.FC = () => {
       const productsResponse = await fetch(`${API_BASE_URL}/products/subcategory/${subCategoryId}`, {
         headers: getAuthHeaders(),
       });
-      
+
       let productCount = 0;
       if (productsResponse.ok) {
         const productsData = await handleNgrokResponse(productsResponse);
@@ -5704,10 +6189,10 @@ const AdminDashboard: React.FC = () => {
       const childCategoriesResponse = await fetch(`${API_BASE_URL}/subcategories/category/${categoryId}`, {
         headers: getAuthHeaders(),
       });
-      
+
       let childCategoryCount = 0;
       let childCategories: any[] = [];
-      
+
       if (childCategoriesResponse.ok) {
         const childCategoriesData = await handleNgrokResponse(childCategoriesResponse);
         childCategories = Array.isArray(childCategoriesData) ? childCategoriesData : (childCategoriesData?.data || []);
@@ -5718,7 +6203,7 @@ const AdminDashboard: React.FC = () => {
           const fallbackResponse = await fetch(`${API_BASE_URL}/categories/parent/${categoryId}`, {
             headers: getAuthHeaders(),
           });
-          
+
           if (fallbackResponse.ok) {
             const fallbackData = await handleNgrokResponse(fallbackResponse);
             childCategories = Array.isArray(fallbackData) ? fallbackData : (fallbackData?.data || []);
@@ -5739,7 +6224,7 @@ const AdminDashboard: React.FC = () => {
       const productsResponse = await fetch(`${API_BASE_URL}/products/category/${categoryId}`, {
         headers: getAuthHeaders(),
       });
-      
+
       let productCount = 0;
       if (productsResponse.ok) {
         const productsData = await handleNgrokResponse(productsResponse);
@@ -5837,6 +6322,154 @@ const AdminDashboard: React.FC = () => {
       fetchUsers();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update user role");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreateEmployee = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/admin/create-employee`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeaders(),
+        },
+        body: JSON.stringify({
+          name: createEmployeeForm.name,
+          email: createEmployeeForm.email,
+          password: createEmployeeForm.password,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await handleNgrokResponse(response);
+        throw new Error(errorData.message || errorData.error || `Failed to create employee: ${response.status} ${response.statusText}`);
+      }
+
+      await handleNgrokResponse(response);
+
+      setSuccess("Employee created successfully!");
+      setCreateEmployeeForm({
+        name: "",
+        email: "",
+        password: "",
+      });
+      fetchUsers();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create employee");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreateEmployeeFromModal = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/admin/create-employee`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeaders(),
+        },
+        body: JSON.stringify({
+          name: createEmployeeModalForm.name,
+          email: createEmployeeModalForm.email,
+          password: createEmployeeModalForm.password,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await handleNgrokResponse(response);
+        throw new Error(errorData.message || errorData.error || `Failed to create employee: ${response.status} ${response.statusText}`);
+      }
+
+      await handleNgrokResponse(response);
+
+      setSuccess("Employee created successfully!");
+      setCreateEmployeeModalForm({
+        name: "",
+        email: "",
+        password: "",
+      });
+      setShowCreateEmployeeModal(false);
+      fetchEmployees(); // Refresh employees list so new employee appears in operators list
+      fetchUsers(); // Also refresh users list
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create employee");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreateDepartmentFromModal = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      if (!createDepartmentModalForm.name.trim()) {
+        setError("Department name is required");
+        setLoading(false);
+        return;
+      }
+
+      const response = await fetch(`${API_BASE_URL}/departments`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeaders(),
+        },
+        body: JSON.stringify({
+          name: createDepartmentModalForm.name,
+          description: createDepartmentModalForm.description || "",
+          isEnabled: createDepartmentModalForm.isEnabled,
+          operators: createDepartmentModalForm.operators,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await handleNgrokResponse(response);
+        throw new Error(errorData.error || errorData.message || `Failed to create department: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await handleNgrokResponse(response);
+      const newDepartmentId = data.data?._id || data.data?.id || data._id || data.id;
+
+      setSuccess("Department created successfully!");
+      setCreateDepartmentModalForm({
+        name: "",
+        description: "",
+        isEnabled: true,
+        operators: [],
+      });
+      setShowCreateDepartmentModal(false);
+
+      // Refresh departments list
+      await fetchDepartments();
+
+      // Refresh employees list in case new employees were assigned
+      await fetchEmployees();
+
+      // Optionally add the new department to selected departments in sequence form
+      if (newDepartmentId && sequenceForm.selectedDepartments) {
+        setSequenceForm({
+          ...sequenceForm,
+          selectedDepartments: [...sequenceForm.selectedDepartments, newDepartmentId],
+        });
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create department");
     } finally {
       setLoading(false);
     }
@@ -5999,6 +6632,7 @@ const AdminDashboard: React.FC = () => {
     { id: "orders", label: "Orders", icon: ShoppingBag },
     { id: "uploads", label: "Uploaded Images", icon: ImageIcon },
     { id: "users", label: "Manage Users", icon: Users },
+    { id: "print-partner-requests", label: "Print Partners", icon: Briefcase },
   ];
 
   return (
@@ -6041,6 +6675,8 @@ const AdminDashboard: React.FC = () => {
                       fetchSubCategories(); // Also fetch subcategories for the manage page
                     } else if (tab.id === "users") {
                       fetchUsers();
+                    } else if (tab.id === "print-partner-requests") {
+                      fetchPrintPartnerRequests();
                     } else if (tab.id === "orders") {
                       fetchOrders();
                     } else if (tab.id === "attribute-types") {
@@ -6056,11 +6692,10 @@ const AdminDashboard: React.FC = () => {
                       fetchProducts(); // Also refresh products list
                     }
                   }}
-                  className={`flex items-center gap-2.5 px-5 py-3 text-sm sm:text-base font-semibold transition-all duration-200 whitespace-nowrap rounded-lg border-2 ${
-                    activeTab === tab.id
-                      ? "bg-cream-900 text-white border-cream-900 shadow-lg transform scale-105"
-                      : "text-cream-700 bg-white border-cream-200 hover:bg-cream-50 hover:border-cream-300 hover:text-cream-900 hover:shadow-sm"
-                  }`}
+                  className={`flex items-center gap-2.5 px-5 py-3 text-sm sm:text-base font-semibold transition-all duration-200 whitespace-nowrap rounded-lg border-2 ${activeTab === tab.id
+                    ? "bg-cream-900 text-white border-cream-900 shadow-lg transform scale-105"
+                    : "text-cream-700 bg-white border-cream-200 hover:bg-cream-50 hover:border-cream-300 hover:text-cream-900 hover:shadow-sm"
+                    }`}
                 >
                   <Icon size={18} className={`sm:w-5 sm:h-5 ${activeTab === tab.id ? "text-white" : "text-cream-600"}`} />
                   <span className="hidden sm:inline">{tab.label}</span>
@@ -6101,7 +6736,7 @@ const AdminDashboard: React.FC = () => {
         <div className="bg-white rounded-2xl shadow-lg p-6">
           {/* Add/Edit Product */}
           {activeTab === "products" && (
-            <form 
+            <form
               onSubmit={(e) => {
                 e.preventDefault();
                 handleProductSubmit(e);
@@ -6198,9 +6833,8 @@ const AdminDashboard: React.FC = () => {
                           setProductFormErrors({ ...productFormErrors, name: undefined });
                         }
                       }}
-                      className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500 ${
-                        productFormErrors.name ? 'border-red-300 bg-red-50' : 'border-cream-300'
-                      }`}
+                      className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500 ${productFormErrors.name ? 'border-red-300 bg-red-50' : 'border-cream-300'
+                        }`}
                       placeholder="e.g., Glossy Business Cards - Premium"
                       maxLength={100}
                     />
@@ -6314,7 +6948,7 @@ const AdminDashboard: React.FC = () => {
                     Printing options should be configured as attributes in the Product Attributes section below
                   </div>
                 </div>
-                
+
                 {/* Order Quantity Configuration */}
                 <div className="mb-6 p-4 bg-white rounded-lg border border-cream-200">
                   <div className="flex items-center justify-between mb-4">
@@ -6326,7 +6960,7 @@ const AdminDashboard: React.FC = () => {
                       Configure quantity options based on production capabilities and raw material batching
                     </div>
                   </div>
-                  
+
                   {/* Simple Quantity Configuration */}
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div>
@@ -6741,9 +7375,8 @@ const AdminDashboard: React.FC = () => {
                             setProductFormErrors({ ...productFormErrors, basePrice: undefined });
                           }
                         }}
-                        className={`w-full pl-8 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500 ${
-                          productFormErrors.basePrice ? 'border-red-300 bg-red-50' : 'border-cream-300'
-                        }`}
+                        className={`w-full pl-8 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500 ${productFormErrors.basePrice ? 'border-red-300 bg-red-50' : 'border-cream-300'
+                          }`}
                         placeholder="0.00000"
                       />
                       {productFormErrors.basePrice && (
@@ -6779,7 +7412,7 @@ const AdminDashboard: React.FC = () => {
                       onChange={async (value) => {
                         const newType = value as string;
                         setSelectedType(newType);
-                        
+
                         // Clear category and subcategory when type changes
                         setSelectedCategoryPath([]);
                         setCategoryChildrenMap({});
@@ -6789,7 +7422,7 @@ const AdminDashboard: React.FC = () => {
                           subcategory: "",
                         });
                         setCategoryProducts([]);
-                        
+
                         // Filter categories by type
                         if (newType) {
                           const filtered = categories.filter(cat => cat.type === newType && !cat.parent);
@@ -6833,15 +7466,15 @@ const AdminDashboard: React.FC = () => {
                               category: String(value),
                               subcategory: "", // Reset subcategory when category changes
                             });
-                            
+
                             // Clear error when user selects a category
                             if (productFormErrors.category) {
                               setProductFormErrors({ ...productFormErrors, category: undefined });
                             }
-                            
+
                             // Immediately fetch children for this category
                             await fetchCategoryChildren(String(value));
-                            
+
                             // Clear products - will show subcategories instead
                             setCategoryProducts([]);
                           } else {
@@ -6882,7 +7515,7 @@ const AdminDashboard: React.FC = () => {
                     </div>
                   )}
                 </div>
-                
+
                 {/* Subcategory Selection - Only Level 1 */}
                 {productForm.category && selectedCategoryPath.length > 0 && (() => {
                   const children = categoryChildrenMap[String(selectedCategoryPath[0] || "")] || [];
@@ -6907,21 +7540,21 @@ const AdminDashboard: React.FC = () => {
                             if (value) {
                               // Update path to include subcategory
                               setSelectedCategoryPath([String(selectedCategoryPath[0]), String(value)]);
-                              
+
                               // Update product form
                               setProductForm({
                                 ...productForm,
                                 category: String(selectedCategoryPath[0]),
                                 subcategory: String(value),
                               });
-                              
+
                               // Fetch products for the selected subcategory
                               try {
                                 setLoadingCategoryProducts(true);
                                 const productsResponse = await fetch(`${API_BASE_URL}/products/category/${value}`, {
                                   headers: getAuthHeaders(),
                                 });
-                                
+
                                 if (productsResponse.ok) {
                                   const productsData = await handleNgrokResponse(productsResponse);
                                   setCategoryProducts(productsData || []);
@@ -6940,14 +7573,14 @@ const AdminDashboard: React.FC = () => {
                                 category: selectedCategoryPath[0],
                                 subcategory: "",
                               });
-                              
+
                               // Fetch products for the category
                               try {
                                 setLoadingCategoryProducts(true);
                                 const productsResponse = await fetch(`${API_BASE_URL}/products/category/${selectedCategoryPath[0]}`, {
                                   headers: getAuthHeaders(),
                                 });
-                                
+
                                 if (productsResponse.ok) {
                                   const productsData = await handleNgrokResponse(productsResponse);
                                   setCategoryProducts(productsData || []);
@@ -6975,184 +7608,192 @@ const AdminDashboard: React.FC = () => {
                     </div>
                   );
                 })()}
-                
+
                 {/* Display categories, subcategories, or products based on selection */}
                 {selectedType && (
-                    <div className="mt-4 p-4 bg-cream-50 border border-cream-200 rounded-lg">
-                      <div className="flex items-center justify-between mb-3">
-                        <h4 className="text-sm font-semibold text-cream-900">
-                          Existing Products in this Category
-                        </h4>
-                        {loadingCategoryProducts && (
-                          <Loader className="animate-spin text-cream-600" size={16} />
+                  <div className="mt-4 p-4 bg-cream-50 border border-cream-200 rounded-lg">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="text-sm font-semibold text-cream-900">
+                        Existing Products in this Category
+                      </h4>
+                      {loadingCategoryProducts && (
+                        <Loader className="animate-spin text-cream-600" size={16} />
+                      )}
+                    </div>
+
+                    {loadingCategoryProducts ? (
+                      <div className="text-center py-4">
+                        <p className="text-sm text-cream-600">Loading...</p>
+                      </div>
+                    ) : !productForm.category ? (
+                      // Show all categories under selected type
+                      <div className="space-y-2 max-h-60 overflow-y-auto">
+                        {filteredCategoriesByType
+                          .filter(cat => !cat.parent)
+                          .map((category) => (
+                            <div
+                              key={category._id}
+                              className="flex items-center justify-between p-3 bg-white border border-cream-200 rounded-lg hover:border-cream-300 transition-colors cursor-pointer"
+                              onClick={async () => {
+                                setProductForm({
+                                  ...productForm,
+                                  category: category._id,
+                                  subcategory: "",
+                                });
+                                setSelectedCategoryPath([category._id]);
+                                setCategoryProducts([]);
+                                await fetchCategoryChildren(category._id);
+                              }}
+                            >
+                              <div className="flex items-center gap-3 flex-1">
+                                {category.image && category.image.trim() !== "" && (
+                                  <img
+                                    src={category.image}
+                                    alt={category.name}
+                                    className="w-12 h-12 object-cover rounded-lg"
+                                  />
+                                )}
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-medium text-cream-900 text-sm truncate">
+                                    {category.name}
+                                  </p>
+                                  <p className="text-xs text-cream-600">
+                                    {category.type} Category
+                                  </p>
+                                </div>
+                              </div>
+                              <ChevronRight className="text-cream-600" size={16} />
+                            </div>
+                          ))}
+                        {filteredCategoriesByType.filter(cat => !cat.parent).length === 0 && (
+                          <div className="text-center py-4">
+                            <p className="text-sm text-cream-600">
+                              No categories found for this type.
+                            </p>
+                          </div>
                         )}
                       </div>
-                      
-                      {loadingCategoryProducts ? (
-                        <div className="text-center py-4">
-                          <p className="text-sm text-cream-600">Loading...</p>
-                        </div>
-                      ) : !productForm.category ? (
-                        // Show all categories under selected type
-                        <div className="space-y-2 max-h-60 overflow-y-auto">
-                          {filteredCategoriesByType
-                            .filter(cat => !cat.parent)
-                            .map((category) => (
+                    ) : !productForm.subcategory ? (
+                      // Show all subcategories under selected category
+                      <div className="space-y-2 max-h-60 overflow-y-auto">
+                        {(categoryChildrenMap[productForm.category] || []).length > 0 ? (
+                          (categoryChildrenMap[productForm.category] || [])
+                            .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
+                            .map((subcategory) => (
                               <div
-                                key={category._id}
+                                key={subcategory._id}
                                 className="flex items-center justify-between p-3 bg-white border border-cream-200 rounded-lg hover:border-cream-300 transition-colors cursor-pointer"
                                 onClick={async () => {
                                   setProductForm({
                                     ...productForm,
-                                    category: category._id,
-                                    subcategory: "",
+                                    subcategory: subcategory._id,
                                   });
-                                  setSelectedCategoryPath([category._id]);
-                                  setCategoryProducts([]);
-                                  await fetchCategoryChildren(category._id);
+                                  // Build path including parent subcategories if nested
+                                  const path = [productForm.category];
+                                  if (subcategory.parent) {
+                                    // If nested, we need to find parent chain
+                                    const parentId = typeof subcategory.parent === 'object' && subcategory.parent !== null ? subcategory.parent._id : subcategory.parent;
+                                    path.push(parentId);
+                                  }
+                                  path.push(subcategory._id);
+                                  setSelectedCategoryPath(path);
+                                  // Fetch products for this subcategory
+                                  try {
+                                    setLoadingCategoryProducts(true);
+                                    const response = await fetch(`${API_BASE_URL}/products/subcategory/${subcategory._id}`, {
+                                      headers: getAuthHeaders(),
+                                    });
+                                    if (response.ok) {
+                                      const data = await handleNgrokResponse(response);
+                                      setCategoryProducts(data || []);
+                                    } else {
+                                      setCategoryProducts([]);
+                                    }
+                                  } catch (err) {
+                                    console.error("Error fetching products:", err);
+                                    setCategoryProducts([]);
+                                  } finally {
+                                    setLoadingCategoryProducts(false);
+                                  }
                                 }}
                               >
                                 <div className="flex items-center gap-3 flex-1">
-                                  {category.image && category.image.trim() !== "" && (
+                                  {subcategory.image && subcategory.image.trim() !== "" && (
                                     <img
-                                      src={category.image}
-                                      alt={category.name}
+                                      src={subcategory.image}
+                                      alt={subcategory.name}
                                       className="w-12 h-12 object-cover rounded-lg"
                                     />
                                   )}
                                   <div className="flex-1 min-w-0">
                                     <p className="font-medium text-cream-900 text-sm truncate">
-                                      {category.name}
+                                      {subcategory.name}
                                     </p>
                                     <p className="text-xs text-cream-600">
-                                      {category.type} Category
+                                      {subcategory.parent ? 'Nested Subcategory' : 'Subcategory'}
                                     </p>
                                   </div>
                                 </div>
                                 <ChevronRight className="text-cream-600" size={16} />
                               </div>
-                            ))}
-                          {filteredCategoriesByType.filter(cat => !cat.parent).length === 0 && (
-                            <div className="text-center py-4">
-                              <p className="text-sm text-cream-600">
-                                No categories found for this type.
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      ) : !productForm.subcategory ? (
-                        // Show all subcategories under selected category
-                        <div className="space-y-2 max-h-60 overflow-y-auto">
-                          {(categoryChildrenMap[productForm.category] || []).length > 0 ? (
-                            (categoryChildrenMap[productForm.category] || [])
-                              .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
-                              .map((subcategory) => (
-                                <div
-                                  key={subcategory._id}
-                                  className="flex items-center justify-between p-3 bg-white border border-cream-200 rounded-lg hover:border-cream-300 transition-colors cursor-pointer"
-                                  onClick={async () => {
-                                    setProductForm({
-                                      ...productForm,
-                                      subcategory: subcategory._id,
-                                    });
-                                    setSelectedCategoryPath([productForm.category, subcategory._id]);
-                                    // Fetch products for this subcategory
-                                    try {
-                                      setLoadingCategoryProducts(true);
-                                      const response = await fetch(`${API_BASE_URL}/products/category/${subcategory._id}`, {
-                                        headers: getAuthHeaders(),
-                                      });
-                                      if (response.ok) {
-                                        const data = await handleNgrokResponse(response);
-                                        setCategoryProducts(data || []);
-                                      } else {
-                                        setCategoryProducts([]);
-                                      }
-                                    } catch (err) {
-                                      console.error("Error fetching products:", err);
-                                      setCategoryProducts([]);
-                                    } finally {
-                                      setLoadingCategoryProducts(false);
-                                    }
-                                  }}
-                                >
-                                  <div className="flex items-center gap-3 flex-1">
-                                    {subcategory.image && subcategory.image.trim() !== "" && (
-                                      <img
-                                        src={subcategory.image}
-                                        alt={subcategory.name}
-                                        className="w-12 h-12 object-cover rounded-lg"
-                                      />
-                                    )}
-                                    <div className="flex-1 min-w-0">
-                                      <p className="font-medium text-cream-900 text-sm truncate">
-                                        {subcategory.name}
-                                      </p>
-                                      <p className="text-xs text-cream-600">
-                                        Subcategory
-                                      </p>
-                                    </div>
-                                  </div>
-                                  <ChevronRight className="text-cream-600" size={16} />
-                                </div>
-                              ))
-                          ) : (
-                            <div className="text-center py-4">
-                              <p className="text-sm text-cream-600">
-                                No subcategories found. Product will be created directly under this category.
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        // Show all products under selected subcategory
-                        categoryProducts.length === 0 ? (
+                            ))
+                        ) : (
                           <div className="text-center py-4">
                             <p className="text-sm text-cream-600">
-                              No products found in this subcategory. This will be the first product.
+                              No subcategories found. Product will be created directly under this category.
                             </p>
                           </div>
-                        ) : (
-                          <div className="space-y-2 max-h-60 overflow-y-auto">
-                            {categoryProducts.map((product) => {
-                              return (
-                                <div
-                                  key={product._id}
-                                  className="flex items-center justify-between p-3 bg-white border border-cream-200 rounded-lg hover:border-cream-300 transition-colors"
-                                >
-                                  <div className="flex items-center gap-3 flex-1">
-                                    {product.image && product.image.trim() !== "" && (
-                                      <img
-                                        src={product.image}
-                                        alt={product.name}
-                                        className="w-12 h-12 object-cover rounded-lg"
-                                      />
-                                    )}
-                                    <div className="flex-1 min-w-0">
-                                      <p className="font-medium text-cream-900 text-sm truncate">
-                                        {product.name}
-                                      </p>
-                                      <p className="text-xs text-cream-600">
-                                        ₹{product.basePrice} per unit
-                                      </p>
-                                    </div>
+                        )}
+                      </div>
+                    ) : (
+                      // Show all products under selected subcategory
+                      categoryProducts.length === 0 ? (
+                        <div className="text-center py-4">
+                          <p className="text-sm text-cream-600">
+                            No products found in this subcategory. This will be the first product.
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="space-y-2 max-h-60 overflow-y-auto">
+                          {categoryProducts.map((product) => {
+                            return (
+                              <div
+                                key={product._id}
+                                className="flex items-center justify-between p-3 bg-white border border-cream-200 rounded-lg hover:border-cream-300 transition-colors"
+                              >
+                                <div className="flex items-center gap-3 flex-1">
+                                  {product.image && product.image.trim() !== "" && (
+                                    <img
+                                      src={product.image}
+                                      alt={product.name}
+                                      className="w-12 h-12 object-cover rounded-lg"
+                                    />
+                                  )}
+                                  <div className="flex-1 min-w-0">
+                                    <p className="font-medium text-cream-900 text-sm truncate">
+                                      {product.name}
+                                    </p>
+                                    <p className="text-xs text-cream-600">
+                                      ₹{product.basePrice} per unit
+                                    </p>
                                   </div>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleEditProduct(product._id)}
-                                    className="px-3 py-1.5 text-xs bg-cream-200 text-cream-900 rounded-lg hover:bg-cream-300 transition-colors flex items-center gap-1 whitespace-nowrap"
-                                  >
-                                    <Eye size={14} />
-                                    View
-                                  </button>
                                 </div>
-                              );
-                            })}
-                          </div>
-                        )
-                      )}
-                    </div>
-                  )}
+                                <button
+                                  type="button"
+                                  onClick={() => handleEditProduct(product._id)}
+                                  className="px-3 py-1.5 text-xs bg-cream-200 text-cream-900 rounded-lg hover:bg-cream-300 transition-colors flex items-center gap-1 whitespace-nowrap"
+                                >
+                                  <Eye size={14} />
+                                  View
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )
+                    )}
+                  </div>
+                )}
               </div>
 
               <div>
@@ -7357,7 +7998,7 @@ const AdminDashboard: React.FC = () => {
               {/* File Upload Constraints & Additional Settings */}
               <div className="border border-cream-300 rounded-lg p-4 bg-purple-50">
                 <h3 className="text-lg font-semibold text-cream-900 mb-4">File Upload Constraints & Additional Settings</h3>
-                
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                   {/* Maximum File Size */}
                   <div>
@@ -7534,9 +8175,8 @@ const AdminDashboard: React.FC = () => {
                           setProductFormErrors({ ...productFormErrors, gstPercentage: undefined });
                         }
                       }}
-                      className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500 ${
-                        productFormErrors.gstPercentage ? 'border-red-300 bg-red-50' : 'border-cream-300'
-                      }`}
+                      className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500 ${productFormErrors.gstPercentage ? 'border-red-300 bg-red-50' : 'border-cream-300'
+                        }`}
                       placeholder="e.g., 18"
                     />
                     {productFormErrors.gstPercentage && (
@@ -7570,7 +8210,7 @@ const AdminDashboard: React.FC = () => {
                         Show Prices Including GST
                       </span>
                       <p className="text-xs text-cream-600 mt-1">
-                        {productForm.showPriceIncludingGst 
+                        {productForm.showPriceIncludingGst
                           ? "Prices will be displayed including GST on the product page. (Not recommended - industry standard is to show excluding GST)"
                           : "Prices will be displayed excluding GST on the product page. GST will be added at checkout. (Recommended - industry standard)"}
                       </p>
@@ -7606,9 +8246,8 @@ const AdminDashboard: React.FC = () => {
                         }
                       }}
                       rows={6}
-                      className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500 ${
-                        productFormErrors.instructions ? 'border-red-300 bg-red-50' : 'border-cream-300'
-                      }`}
+                      className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500 ${productFormErrors.instructions ? 'border-red-300 bg-red-50' : 'border-cream-300'
+                        }`}
                       placeholder="Example: Maximum file size: 10 MB. Files must be in PNG or PDF format only. CDR and JPG files are not accepted. Required dimensions: 3000 × 2000 pixels. Please ensure all text is converted to outlines before uploading."
                     />
                     {productFormErrors.instructions && (
@@ -7634,28 +8273,28 @@ const AdminDashboard: React.FC = () => {
                   <p className="text-sm text-cream-600 mb-4">
                     Select a sequence or customize it for this specific product. If not set, the default department sequence will be used.
                   </p>
-                  
+
                   {(() => {
                     // Check if we have any way to show the sequence UI
                     const hasDepartments = departments.length > 0;
                     const hasProductionSequence = productForm.productionSequence && productForm.productionSequence.length > 0;
                     const hasSelectedSequence = selectedSequenceId !== null;
                     const hasSequences = sequences.length > 0;
-                    
+
                     // Check if selected sequence has departments
-                    const selectedSequence = hasSelectedSequence 
+                    const selectedSequence = hasSelectedSequence
                       ? sequences.find((s: any) => s._id === selectedSequenceId)
                       : null;
-                    const selectedSequenceHasDepts = selectedSequence && 
-                      selectedSequence.departments && 
+                    const selectedSequenceHasDepts = selectedSequence &&
+                      selectedSequence.departments &&
                       selectedSequence.departments.length > 0;
-                    
+
                     // Show error only if we have no way to display sequences
-                    const shouldShowError = !hasDepartments && 
-                      !hasProductionSequence && 
-                      !hasSelectedSequence && 
+                    const shouldShowError = !hasDepartments &&
+                      !hasProductionSequence &&
+                      !hasSelectedSequence &&
                       !hasSequences;
-                    
+
                     return shouldShowError ? (
                       <div className="p-4 bg-cream-50 border border-cream-200 rounded-lg">
                         <p className="text-sm text-cream-600 text-center">
@@ -7663,363 +8302,361 @@ const AdminDashboard: React.FC = () => {
                         </p>
                       </div>
                     ) : (
-                    <div className="space-y-4">
-                      {/* Sequence List - Clickable to expand/collapse */}
-                      {sequences.length > 0 && (
-                        <div className="border border-cream-300 rounded-lg p-4 bg-white">
-                          <h4 className="text-sm font-medium text-cream-900 mb-3">Available Sequences:</h4>
-                          <div className="space-y-2">
-                            {sequences.map((seq: any) => {
-                              const isExpanded = selectedSequenceId === seq._id;
-                              const seqDepts = (seq.departments || []).map((d: any) => {
-                                if (!d || !d.department) return null;
-                                return typeof d.department === 'object' && d.department !== null 
-                                  ? d.department._id 
-                                  : d.department;
-                              }).filter((id: any) => id !== null);
-                              
-                              return (
-                                <div key={seq._id} className="border border-cream-200 rounded-lg overflow-hidden">
-                                  <div
-                                    onClick={() => {
-                                      // Toggle: if same sequence, close; if different, open new one
-                                      if (selectedSequenceId === seq._id) {
-                                        // Close current
-                                        setSelectedSequenceId(null);
-                                        setProductForm({
-                                          ...productForm,
-                                          productionSequence: [],
-                                        });
-                                      } else {
-                                        // Open new sequence
-                                        setSelectedSequenceId(seq._id);
-                                        // Load sequence departments into product form
-                                        setProductForm({
-                                          ...productForm,
-                                          productionSequence: seqDepts,
-                                        });
-                                        
-                                        // Load sequence attributes into selectedAttributeTypes
-                                        if (seq.attributes && Array.isArray(seq.attributes) && seq.attributes.length > 0) {
-                                          const loadedAttributes = seq.attributes
-                                            .map((attr: any, index: number) => {
-                                              if (!attr) return null;
-                                              const attrId = typeof attr === 'object' && attr !== null ? attr._id : attr;
-                                              if (!attrId) return null;
-                                              return {
-                                                attributeTypeId: attrId,
-                                                isEnabled: true,
-                                                isRequired: false,
-                                                displayOrder: index,
-                                              };
-                                            })
-                                            .filter((attr: any) => attr !== null);
-                                          setSelectedAttributeTypes(loadedAttributes);
+                      <div className="space-y-4">
+                        {/* Sequence List - Clickable to expand/collapse */}
+                        {sequences.length > 0 && (
+                          <div className="border border-cream-300 rounded-lg p-4 bg-white">
+                            <h4 className="text-sm font-medium text-cream-900 mb-3">Available Sequences:</h4>
+                            <div className="space-y-2">
+                              {sequences.map((seq: any) => {
+                                const isExpanded = selectedSequenceId === seq._id;
+                                const seqDepts = (seq.departments || []).map((d: any) => {
+                                  if (!d || !d.department) return null;
+                                  return typeof d.department === 'object' && d.department !== null
+                                    ? d.department._id
+                                    : d.department;
+                                }).filter((id: any) => id !== null);
+
+                                return (
+                                  <div key={seq._id} className="border border-cream-200 rounded-lg overflow-hidden">
+                                    <div
+                                      onClick={() => {
+                                        // Toggle: if same sequence, close; if different, open new one
+                                        if (selectedSequenceId === seq._id) {
+                                          // Close current
+                                          setSelectedSequenceId(null);
+                                          setProductForm({
+                                            ...productForm,
+                                            productionSequence: [],
+                                          });
+                                        } else {
+                                          // Open new sequence
+                                          setSelectedSequenceId(seq._id);
+                                          // Load sequence departments into product form
+                                          setProductForm({
+                                            ...productForm,
+                                            productionSequence: seqDepts,
+                                          });
+
+                                          // Load sequence attributes into selectedAttributeTypes
+                                          if (seq.attributes && Array.isArray(seq.attributes) && seq.attributes.length > 0) {
+                                            const loadedAttributes = seq.attributes
+                                              .map((attr: any, index: number) => {
+                                                if (!attr) return null;
+                                                const attrId = typeof attr === 'object' && attr !== null ? attr._id : attr;
+                                                if (!attrId) return null;
+                                                return {
+                                                  attributeTypeId: attrId,
+                                                  isEnabled: true,
+                                                  isRequired: false,
+                                                  displayOrder: index,
+                                                };
+                                              })
+                                              .filter((attr: any) => attr !== null);
+                                            setSelectedAttributeTypes(loadedAttributes);
+                                          }
                                         }
-                                      }
-                                    }}
-                                    className={`p-3 cursor-pointer transition-colors flex items-center justify-between ${
-                                      isExpanded
+                                      }}
+                                      className={`p-3 cursor-pointer transition-colors flex items-center justify-between ${isExpanded
                                         ? "bg-cream-100 border-cream-900"
                                         : "bg-cream-50 hover:bg-cream-100"
-                                    }`}
-                                  >
-                                    <p className="font-medium text-cream-900">{seq.name}</p>
-                                    <ChevronRight 
-                                      size={18} 
-                                      className={`text-cream-600 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
-                                    />
-                                  </div>
-                                  
-                                  {/* Expanded Sequence Details */}
-                                  <AnimatePresence>
-                                    {isExpanded && (
-                                      <motion.div
-                                        initial={{ opacity: 0, height: 0 }}
-                                        animate={{ opacity: 1, height: "auto" }}
-                                        exit={{ opacity: 0, height: 0 }}
-                                        transition={{ duration: 0.3 }}
-                                        className="border-t border-cream-200 bg-white"
-                                      >
-                                        <div className="p-4 space-y-2">
-                                          <h5 className="text-xs font-semibold text-cream-700 mb-2">Sequence Departments:</h5>
-                                          <AnimatePresence>
-                                            {productForm.productionSequence.map((deptId, index) => {
-                                              const dept = departments.find((d: any) => d._id === deptId);
-                                              if (!dept) return null;
-                                              return (
-                                                <motion.div
-                                                  key={deptId}
-                                                  initial={{ opacity: 0, x: -20 }}
-                                                  animate={{ opacity: 1, x: 0 }}
-                                                  exit={{ opacity: 0, x: -20 }}
-                                                  transition={{ 
-                                                    duration: 0.4,
-                                                    delay: index * 0.1,
-                                                    ease: "easeOut"
-                                                  }}
-                                                  className="flex items-center gap-3 p-3 bg-cream-50 border border-cream-200 rounded-lg"
-                                                >
-                                                  <motion.span
-                                                    initial={{ scale: 0 }}
-                                                    animate={{ scale: 1 }}
-                                                    transition={{ 
-                                                      duration: 0.3,
-                                                      delay: index * 0.1 + 0.2,
-                                                      type: "spring",
-                                                      stiffness: 200
-                                                    }}
-                                                    className="flex items-center justify-center w-8 h-8 bg-cream-900 text-white rounded-full text-sm font-medium"
-                                                  >
-                                                    {index + 1}
-                                                  </motion.span>
-                                                  <div className="flex-1">
-                                                    <p className="font-medium text-cream-900">{dept.name}</p>
-                                                    <AnimatePresence>
-                                                      {dept.description && (
-                                                        <motion.p
-                                                          initial={{ opacity: 0, height: 0, y: -10 }}
-                                                          animate={{ opacity: 1, height: "auto", y: 0 }}
-                                                          exit={{ opacity: 0, height: 0, y: -10 }}
-                                                          transition={{ 
-                                                            duration: 0.5,
-                                                            delay: index * 0.1 + 0.3,
-                                                            ease: "easeOut"
-                                                          }}
-                                                          className="text-xs text-cream-600 mt-1 overflow-hidden"
-                                                        >
-                                                          {dept.description}
-                                                        </motion.p>
-                                                      )}
-                                                    </AnimatePresence>
-                                                  </div>
-                                                </motion.div>
-                                              );
-                                            })}
-                                          </AnimatePresence>
-                                        </div>
-                                      </motion.div>
-                                    )}
-                                  </AnimatePresence>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
+                                        }`}
+                                    >
+                                      <p className="font-medium text-cream-900">{seq.name}</p>
+                                      <ChevronRight
+                                        size={18}
+                                        className={`text-cream-600 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+                                      />
+                                    </div>
 
-                      {/* Custom Sequence Button - Appears after sequences */}
-                      {!isCustomizingSequence && (
-                        <div className="flex justify-center">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setIsCustomizingSequence(true);
-                              // Clear selected sequence when going to custom
-                              setSelectedSequenceId(null);
-                            }}
-                            className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
-                          >
-                            <Settings size={16} />
-                            Create Custom Sequence
-                          </button>
-                        </div>
-                      )}
-
-                      {/* Custom Sequence Editor - Appears after sequences section */}
-                      {isCustomizingSequence && (
-                        <>
-                          <div className="border-t-2 border-cream-300 pt-4 mt-4">
-                            <div className="flex items-center justify-between mb-4">
-                              <div>
-                                <h4 className="text-lg font-semibold text-cream-900">Create Custom Sequence</h4>
-                                <p className="text-sm text-cream-600 mt-1">
-                                  Select departments in order to create a custom sequence for this product
-                                </p>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setIsCustomizingSequence(false);
-                                  // Reset production sequence when going back
-                                  setProductForm({
-                                    ...productForm,
-                                    productionSequence: [],
-                                  });
-                                }}
-                                className="px-3 py-1 text-sm bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center gap-2"
-                              >
-                                <ChevronLeft size={14} />
-                                Back
-                              </button>
-                            </div>
-                          
-                          {/* Selected Departments (in order) - Only show in custom mode */}
-                          <AnimatePresence>
-                            {productForm.productionSequence && productForm.productionSequence.length > 0 && (
-                              <motion.div
-                                initial={{ opacity: 0, y: -10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, y: -10 }}
-                                transition={{ duration: 0.3 }}
-                                className="border border-cream-300 rounded-lg p-4 bg-white"
-                              >
-                                <h4 className="text-sm font-medium text-cream-900 mb-3">Custom Production Sequence:</h4>
-                                <div className="space-y-2">
-                                  <AnimatePresence>
-                                    {(productForm.productionSequence || []).map((deptId, index) => {
-                                      const dept = departments.find((d: any) => d._id === deptId);
-                                      if (!dept) return null;
-                                      return (
+                                    {/* Expanded Sequence Details */}
+                                    <AnimatePresence>
+                                      {isExpanded && (
                                         <motion.div
-                                          key={deptId}
-                                          initial={{ opacity: 0, x: -20 }}
-                                          animate={{ opacity: 1, x: 0 }}
-                                          exit={{ opacity: 0, x: 20, scale: 0.9 }}
-                                          transition={{ 
-                                            duration: 0.4,
-                                            delay: index * 0.1,
-                                            ease: "easeOut"
-                                          }}
-                                          className="flex items-center justify-between p-3 bg-cream-50 border border-cream-200 rounded-lg"
+                                          initial={{ opacity: 0, height: 0 }}
+                                          animate={{ opacity: 1, height: "auto" }}
+                                          exit={{ opacity: 0, height: 0 }}
+                                          transition={{ duration: 0.3 }}
+                                          className="border-t border-cream-200 bg-white"
                                         >
-                                          <div className="flex items-center gap-3 flex-1">
-                                            <motion.span
-                                              initial={{ scale: 0, rotate: -180 }}
-                                              animate={{ scale: 1, rotate: 0 }}
-                                              transition={{ 
-                                                duration: 0.4,
-                                                delay: index * 0.1 + 0.2,
-                                                type: "spring",
-                                                stiffness: 200
-                                              }}
-                                              className="flex items-center justify-center w-8 h-8 bg-cream-900 text-white rounded-full text-sm font-medium"
-                                            >
-                                              {index + 1}
-                                            </motion.span>
-                                            <div className="flex-1">
-                                              <p className="font-medium text-cream-900">{dept.name}</p>
-                                              <AnimatePresence>
-                                                {dept.description && (
-                                                  <motion.p
-                                                    initial={{ opacity: 0, height: 0, y: -10 }}
-                                                    animate={{ opacity: 1, height: "auto", y: 0 }}
-                                                    exit={{ opacity: 0, height: 0, y: -10 }}
-                                                    transition={{ 
-                                                      duration: 0.5,
-                                                      delay: index * 0.1 + 0.3,
+                                          <div className="p-4 space-y-2">
+                                            <h5 className="text-xs font-semibold text-cream-700 mb-2">Sequence Departments:</h5>
+                                            <AnimatePresence>
+                                              {productForm.productionSequence.map((deptId, index) => {
+                                                const dept = departments.find((d: any) => d._id === deptId);
+                                                if (!dept) return null;
+                                                return (
+                                                  <motion.div
+                                                    key={deptId}
+                                                    initial={{ opacity: 0, x: -20 }}
+                                                    animate={{ opacity: 1, x: 0 }}
+                                                    exit={{ opacity: 0, x: -20 }}
+                                                    transition={{
+                                                      duration: 0.4,
+                                                      delay: index * 0.1,
                                                       ease: "easeOut"
                                                     }}
-                                                    className="text-xs text-cream-600 mt-1 overflow-hidden"
+                                                    className="flex items-center gap-3 p-3 bg-cream-50 border border-cream-200 rounded-lg"
                                                   >
-                                                    {dept.description}
-                                                  </motion.p>
-                                                )}
-                                              </AnimatePresence>
-                                            </div>
+                                                    <motion.span
+                                                      initial={{ scale: 0 }}
+                                                      animate={{ scale: 1 }}
+                                                      transition={{
+                                                        duration: 0.3,
+                                                        delay: index * 0.1 + 0.2,
+                                                        type: "spring",
+                                                        stiffness: 200
+                                                      }}
+                                                      className="flex items-center justify-center w-8 h-8 bg-cream-900 text-white rounded-full text-sm font-medium"
+                                                    >
+                                                      {index + 1}
+                                                    </motion.span>
+                                                    <div className="flex-1">
+                                                      <p className="font-medium text-cream-900">{dept.name}</p>
+                                                      <AnimatePresence>
+                                                        {dept.description && (
+                                                          <motion.p
+                                                            initial={{ opacity: 0, height: 0, y: -10 }}
+                                                            animate={{ opacity: 1, height: "auto", y: 0 }}
+                                                            exit={{ opacity: 0, height: 0, y: -10 }}
+                                                            transition={{
+                                                              duration: 0.5,
+                                                              delay: index * 0.1 + 0.3,
+                                                              ease: "easeOut"
+                                                            }}
+                                                            className="text-xs text-cream-600 mt-1 overflow-hidden"
+                                                          >
+                                                            {dept.description}
+                                                          </motion.p>
+                                                        )}
+                                                      </AnimatePresence>
+                                                    </div>
+                                                  </motion.div>
+                                                );
+                                              })}
+                                            </AnimatePresence>
                                           </div>
-                                          <motion.button
-                                            whileHover={{ scale: 1.1 }}
-                                            whileTap={{ scale: 0.9 }}
-                                            type="button"
-                                            onClick={() => {
-                                              const updated = (productForm.productionSequence || []).filter((id) => id !== deptId);
-                                              setProductForm({
-                                                ...productForm,
-                                                productionSequence: updated,
-                                              });
-                                            }}
-                                            className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
-                                          >
-                                            <Trash2 size={16} />
-                                          </motion.button>
                                         </motion.div>
-                                      );
-                                    })}
-                                  </AnimatePresence>
-                                </div>
-                              </motion.div>
-                            )}
-                          </AnimatePresence>
-
-                          {/* Available Departments to Add - Only show in custom mode */}
-                          <div className="border border-cream-300 rounded-lg p-4 bg-white">
-                            <h4 className="text-sm font-medium text-cream-900 mb-3">Available Departments:</h4>
-                            <div className="space-y-2 max-h-60 overflow-y-auto">
-                              {departments
-                                .filter((d: any) => d.isEnabled && !(productForm.productionSequence || []).includes(d._id))
-                                .sort((a: any, b: any) => (a.sequence || 0) - (b.sequence || 0))
-                                .map((dept: any) => (
-                                  <div
-                                    key={dept._id}
-                                    className="flex items-center justify-between p-3 bg-cream-50 border border-cream-200 rounded-lg hover:bg-cream-100 transition-colors"
-                                  >
-                                    <div>
-                                      <p className="font-medium text-cream-900">{dept.name}</p>
-                                      {dept.description && (
-                                        <p className="text-xs text-cream-600">{dept.description}</p>
                                       )}
-                                    </div>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setProductForm({
-                                          ...productForm,
-                                          productionSequence: [...(productForm.productionSequence || []), dept._id],
-                                        });
-                                      }}
-                                      className="px-3 py-1 text-sm bg-cream-900 text-white rounded-lg hover:bg-cream-800 transition-colors flex items-center gap-2"
-                                    >
-                                      <Plus size={14} />
-                                      Add
-                                    </button>
+                                    </AnimatePresence>
                                   </div>
-                                ))}
+                                );
+                              })}
                             </div>
-                            {departments.filter((d: any) => d.isEnabled && !(productForm.productionSequence || []).includes(d._id)).length === 0 && (
-                              <p className="text-sm text-cream-600 text-center py-4">
-                                All available departments have been added to the sequence.
-                              </p>
-                            )}
                           </div>
+                        )}
 
-                          {/* Save Button */}
-                          <div className="mt-4 flex items-center justify-end gap-3">
+                        {/* Custom Sequence Button - Appears after sequences */}
+                        {!isCustomizingSequence && (
+                          <div className="flex justify-center">
                             <button
                               type="button"
                               onClick={() => {
-                                // Save the custom sequence (it's already in productForm.productionSequence)
-                                // Exit custom mode
-                                setIsCustomizingSequence(false);
-                                // Clear selected sequence ID since we're using a custom sequence now
+                                setIsCustomizingSequence(true);
+                                // Clear selected sequence when going to custom
                                 setSelectedSequenceId(null);
-                                // Show success message
-                                setSuccess("Custom sequence saved for this product. The original sequence template remains unchanged.");
-                                setTimeout(() => setSuccess(null), 3000);
                               }}
-                              disabled={!productForm.productionSequence || productForm.productionSequence.length === 0}
-                              className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 ${
-                                productForm.productionSequence && productForm.productionSequence.length > 0
-                                  ? "bg-green-600 text-white hover:bg-green-700 cursor-pointer"
-                                  : "bg-gray-400 text-gray-200 cursor-not-allowed"
-                              }`}
+                              className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
                             >
-                              <CheckCircle size={16} />
-                              Save Custom Sequence
+                              <Settings size={16} />
+                              Create Custom Sequence
                             </button>
                           </div>
-                          </div>
-                        </>
-                      )}
+                        )}
 
-                      {(!productForm.productionSequence || productForm.productionSequence.length === 0) && (
-                        <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                          <p className="text-sm text-blue-800">
-                            <strong>Note:</strong> If no custom sequence is set, the default department sequence will be used when orders are created for this product.
-                          </p>
-                        </div>
-                      )}
-                    </div>
+                        {/* Custom Sequence Editor - Appears after sequences section */}
+                        {isCustomizingSequence && (
+                          <>
+                            <div className="border-t-2 border-cream-300 pt-4 mt-4">
+                              <div className="flex items-center justify-between mb-4">
+                                <div>
+                                  <h4 className="text-lg font-semibold text-cream-900">Create Custom Sequence</h4>
+                                  <p className="text-sm text-cream-600 mt-1">
+                                    Select departments in order to create a custom sequence for this product
+                                  </p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setIsCustomizingSequence(false);
+                                    // Reset production sequence when going back
+                                    setProductForm({
+                                      ...productForm,
+                                      productionSequence: [],
+                                    });
+                                  }}
+                                  className="px-3 py-1 text-sm bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center gap-2"
+                                >
+                                  <ChevronLeft size={14} />
+                                  Back
+                                </button>
+                              </div>
+
+                              {/* Selected Departments (in order) - Only show in custom mode */}
+                              <AnimatePresence>
+                                {productForm.productionSequence && productForm.productionSequence.length > 0 && (
+                                  <motion.div
+                                    initial={{ opacity: 0, y: -10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: -10 }}
+                                    transition={{ duration: 0.3 }}
+                                    className="border border-cream-300 rounded-lg p-4 bg-white"
+                                  >
+                                    <h4 className="text-sm font-medium text-cream-900 mb-3">Custom Production Sequence:</h4>
+                                    <div className="space-y-2">
+                                      <AnimatePresence>
+                                        {(productForm.productionSequence || []).map((deptId, index) => {
+                                          const dept = departments.find((d: any) => d._id === deptId);
+                                          if (!dept) return null;
+                                          return (
+                                            <motion.div
+                                              key={deptId}
+                                              initial={{ opacity: 0, x: -20 }}
+                                              animate={{ opacity: 1, x: 0 }}
+                                              exit={{ opacity: 0, x: 20, scale: 0.9 }}
+                                              transition={{
+                                                duration: 0.4,
+                                                delay: index * 0.1,
+                                                ease: "easeOut"
+                                              }}
+                                              className="flex items-center justify-between p-3 bg-cream-50 border border-cream-200 rounded-lg"
+                                            >
+                                              <div className="flex items-center gap-3 flex-1">
+                                                <motion.span
+                                                  initial={{ scale: 0, rotate: -180 }}
+                                                  animate={{ scale: 1, rotate: 0 }}
+                                                  transition={{
+                                                    duration: 0.4,
+                                                    delay: index * 0.1 + 0.2,
+                                                    type: "spring",
+                                                    stiffness: 200
+                                                  }}
+                                                  className="flex items-center justify-center w-8 h-8 bg-cream-900 text-white rounded-full text-sm font-medium"
+                                                >
+                                                  {index + 1}
+                                                </motion.span>
+                                                <div className="flex-1">
+                                                  <p className="font-medium text-cream-900">{dept.name}</p>
+                                                  <AnimatePresence>
+                                                    {dept.description && (
+                                                      <motion.p
+                                                        initial={{ opacity: 0, height: 0, y: -10 }}
+                                                        animate={{ opacity: 1, height: "auto", y: 0 }}
+                                                        exit={{ opacity: 0, height: 0, y: -10 }}
+                                                        transition={{
+                                                          duration: 0.5,
+                                                          delay: index * 0.1 + 0.3,
+                                                          ease: "easeOut"
+                                                        }}
+                                                        className="text-xs text-cream-600 mt-1 overflow-hidden"
+                                                      >
+                                                        {dept.description}
+                                                      </motion.p>
+                                                    )}
+                                                  </AnimatePresence>
+                                                </div>
+                                              </div>
+                                              <motion.button
+                                                whileHover={{ scale: 1.1 }}
+                                                whileTap={{ scale: 0.9 }}
+                                                type="button"
+                                                onClick={() => {
+                                                  const updated = (productForm.productionSequence || []).filter((id) => id !== deptId);
+                                                  setProductForm({
+                                                    ...productForm,
+                                                    productionSequence: updated,
+                                                  });
+                                                }}
+                                                className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
+                                              >
+                                                <Trash2 size={16} />
+                                              </motion.button>
+                                            </motion.div>
+                                          );
+                                        })}
+                                      </AnimatePresence>
+                                    </div>
+                                  </motion.div>
+                                )}
+                              </AnimatePresence>
+
+                              {/* Available Departments to Add - Only show in custom mode */}
+                              <div className="border border-cream-300 rounded-lg p-4 bg-white">
+                                <h4 className="text-sm font-medium text-cream-900 mb-3">Available Departments:</h4>
+                                <div className="space-y-2 max-h-60 overflow-y-auto">
+                                  {departments
+                                    .filter((d: any) => d.isEnabled && !(productForm.productionSequence || []).includes(d._id))
+                                    .sort((a: any, b: any) => (a.sequence || 0) - (b.sequence || 0))
+                                    .map((dept: any) => (
+                                      <div
+                                        key={dept._id}
+                                        className="flex items-center justify-between p-3 bg-cream-50 border border-cream-200 rounded-lg hover:bg-cream-100 transition-colors"
+                                      >
+                                        <div>
+                                          <p className="font-medium text-cream-900">{dept.name}</p>
+                                          {dept.description && (
+                                            <p className="text-xs text-cream-600">{dept.description}</p>
+                                          )}
+                                        </div>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setProductForm({
+                                              ...productForm,
+                                              productionSequence: [...(productForm.productionSequence || []), dept._id],
+                                            });
+                                          }}
+                                          className="px-3 py-1 text-sm bg-cream-900 text-white rounded-lg hover:bg-cream-800 transition-colors flex items-center gap-2"
+                                        >
+                                          <Plus size={14} />
+                                          Add
+                                        </button>
+                                      </div>
+                                    ))}
+                                </div>
+                                {departments.filter((d: any) => d.isEnabled && !(productForm.productionSequence || []).includes(d._id)).length === 0 && (
+                                  <p className="text-sm text-cream-600 text-center py-4">
+                                    All available departments have been added to the sequence.
+                                  </p>
+                                )}
+                              </div>
+
+                              {/* Save Button */}
+                              <div className="mt-4 flex items-center justify-end gap-3">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    // Save the custom sequence (it's already in productForm.productionSequence)
+                                    // Exit custom mode
+                                    setIsCustomizingSequence(false);
+                                    // Clear selected sequence ID since we're using a custom sequence now
+                                    setSelectedSequenceId(null);
+                                    // Show success message
+                                    setSuccess("Custom sequence saved for this product. The original sequence template remains unchanged.");
+                                    setTimeout(() => setSuccess(null), 3000);
+                                  }}
+                                  disabled={!productForm.productionSequence || productForm.productionSequence.length === 0}
+                                  className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 ${productForm.productionSequence && productForm.productionSequence.length > 0
+                                    ? "bg-green-600 text-white hover:bg-green-700 cursor-pointer"
+                                    : "bg-gray-400 text-gray-200 cursor-not-allowed"
+                                    }`}
+                                >
+                                  <CheckCircle size={16} />
+                                  Save Custom Sequence
+                                </button>
+                              </div>
+                            </div>
+                          </>
+                        )}
+
+                        {(!productForm.productionSequence || productForm.productionSequence.length === 0) && (
+                          <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                            <p className="text-sm text-blue-800">
+                              <strong>Note:</strong> If no custom sequence is set, the default department sequence will be used when orders are created for this product.
+                            </p>
+                          </div>
+                        )}
+                      </div>
                     );
                   })()}
                 </div>
@@ -8094,11 +8731,10 @@ const AdminDashboard: React.FC = () => {
                         return (
                           <div
                             key={attrType._id}
-                            className={`border rounded-lg p-3 ${
-                              isSelected
-                                ? "border-green-500 bg-green-50"
-                                : "border-cream-300 bg-white"
-                            }`}
+                            className={`border rounded-lg p-3 ${isSelected
+                              ? "border-green-500 bg-green-50"
+                              : "border-cream-300 bg-white"
+                              }`}
                           >
                             <div className="flex items-start gap-3">
                               <input
@@ -8179,7 +8815,7 @@ const AdminDashboard: React.FC = () => {
 
               {/* Create Attribute Modal - Full Form */}
               {showCreateAttributeModal && (
-                <div 
+                <div
                   data-modal="true"
                   className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4"
                   onClick={(e) => {
@@ -8193,7 +8829,7 @@ const AdminDashboard: React.FC = () => {
                     }
                   }}
                 >
-                  <div 
+                  <div
                     data-modal="true"
                     className="bg-white rounded-lg p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl"
                     onClick={(e) => {
@@ -8256,12 +8892,12 @@ const AdminDashboard: React.FC = () => {
                         <X size={24} />
                       </button>
                     </div>
-                    <form 
+                    <form
                       onSubmit={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
                         handleAttributeTypeSubmit(e);
-                      }} 
+                      }}
                       className="space-y-6"
                     >
                       {/* Step 1: Basic Information */}
@@ -8283,9 +8919,8 @@ const AdminDashboard: React.FC = () => {
                                   setAttributeFormErrors({ ...attributeFormErrors, attributeName: undefined });
                                 }
                               }}
-                              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cream-900 focus:border-transparent ${
-                                attributeFormErrors.attributeName ? 'border-red-300 bg-red-50' : 'border-cream-300'
-                              }`}
+                              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cream-900 focus:border-transparent ${attributeFormErrors.attributeName ? 'border-red-300 bg-red-50' : 'border-cream-300'
+                                }`}
                               placeholder="e.g., Printing Option, Paper Type"
                               required
                             />
@@ -8382,10 +9017,10 @@ const AdminDashboard: React.FC = () => {
                         <div className="mt-6 border-t border-cream-200 pt-4">
                           <h3 className="text-lg font-semibold text-cream-900 mb-4">Cascading Attributes (Optional)</h3>
                           <p className="text-sm text-cream-600 mb-4">
-                            Make this attribute appear only when a parent attribute has specific values. 
+                            Make this attribute appear only when a parent attribute has specific values.
                             For example, show "Material" options only when "Card Type" is "Glossy".
                           </p>
-                          
+
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                               <label className="block text-sm font-medium text-cream-900 mb-2">
@@ -8394,8 +9029,8 @@ const AdminDashboard: React.FC = () => {
                               <select
                                 value={attributeTypeForm.parentAttribute}
                                 onChange={(e) => {
-                                  setAttributeTypeForm({ 
-                                    ...attributeTypeForm, 
+                                  setAttributeTypeForm({
+                                    ...attributeTypeForm,
                                     parentAttribute: e.target.value,
                                     // Clear show/hide values when parent changes
                                     showWhenParentValue: [],
@@ -8421,7 +9056,7 @@ const AdminDashboard: React.FC = () => {
                             {attributeTypeForm.parentAttribute && (() => {
                               const parentAttr = attributeTypes.find(a => a._id === attributeTypeForm.parentAttribute);
                               const parentValues = parentAttr?.attributeValues || [];
-                              
+
                               return (
                                 <>
                                   <div>
@@ -8527,7 +9162,15 @@ const AdminDashboard: React.FC = () => {
                               onClick={() => {
                                 setAttributeTypeForm({
                                   ...attributeTypeForm,
-                                  attributeOptionsTable: [...attributeTypeForm.attributeOptionsTable, { name: "", priceImpactPer1000: "", image: undefined }],
+                                  attributeOptionsTable: [...attributeTypeForm.attributeOptionsTable, {
+                                    name: "",
+                                    priceImpactPer1000: "",
+                                    image: undefined,
+                                    optionUsage: { price: false, image: false, listing: false },
+                                    priceImpact: "",
+                                    numberOfImagesRequired: 0,
+                                    listingFilters: ""
+                                  }],
                                 });
                               }}
                               className="px-3 py-1 text-sm bg-cream-900 text-white rounded-lg hover:bg-cream-800 transition-colors flex items-center gap-2"
@@ -8550,8 +9193,23 @@ const AdminDashboard: React.FC = () => {
                                         Option Name *
                                       </th>
                                       <th className="border border-cream-300 px-3 py-2 text-left text-sm font-medium text-cream-900">
-                                        Price Impact (₹ per 1000 units)
+                                        Option Usage *
                                       </th>
+                                      {attributeTypeForm.attributeOptionsTable.some(opt => opt.optionUsage?.price) && (
+                                        <th className="border border-cream-300 px-3 py-2 text-left text-sm font-medium text-cream-900">
+                                          Price Impact
+                                        </th>
+                                      )}
+                                      {attributeTypeForm.attributeOptionsTable.some(opt => opt.optionUsage?.image) && (
+                                        <th className="border border-cream-300 px-3 py-2 text-left text-sm font-medium text-cream-900">
+                                          Number of Images Required
+                                        </th>
+                                      )}
+                                      {attributeTypeForm.attributeOptionsTable.some(opt => opt.optionUsage?.listing) && (
+                                        <th className="border border-cream-300 px-3 py-2 text-left text-sm font-medium text-cream-900">
+                                          Listing Filters
+                                        </th>
+                                      )}
                                       <th className="border border-cream-300 px-3 py-2 text-left text-sm font-medium text-cream-900">
                                         Image (Optional)
                                       </th>
@@ -8578,24 +9236,138 @@ const AdminDashboard: React.FC = () => {
                                           />
                                         </td>
                                         <td className="border border-cream-300 px-3 py-2">
-                                          <div className="flex items-center gap-2">
-                                            <span className="text-sm text-cream-700">₹</span>
-                                            <input
-                                              type="number"
-                                              value={option.priceImpactPer1000}
-                                              onChange={(e) => {
-                                                const updated = [...attributeTypeForm.attributeOptionsTable];
-                                                updated[index].priceImpactPer1000 = e.target.value;
-                                                setAttributeTypeForm({ ...attributeTypeForm, attributeOptionsTable: updated });
-                                              }}
-                                              className="w-full px-2 py-2.5 border border-cream-200 rounded text-sm"
-                                              placeholder="0.00000"
-                                              step="0.00001"
-                                              min="0"
-                                            />
-                                            <span className="text-xs text-cream-600 whitespace-nowrap">per 1000</span>
+                                          <div className="space-y-2">
+                                            <label className="flex items-center gap-2 cursor-pointer">
+                                              <input
+                                                type="checkbox"
+                                                checked={option.optionUsage?.price || false}
+                                                onChange={(e) => {
+                                                  const updated = [...attributeTypeForm.attributeOptionsTable];
+                                                  if (!updated[index].optionUsage) {
+                                                    updated[index].optionUsage = { price: false, image: false, listing: false };
+                                                  }
+                                                  updated[index].optionUsage.price = e.target.checked;
+                                                  // Ensure at least one checkbox is checked
+                                                  if (!e.target.checked && !updated[index].optionUsage.image && !updated[index].optionUsage.listing) {
+                                                    setError("At least one option usage must be selected (Price, Image, or Listing)");
+                                                    return;
+                                                  }
+                                                  setAttributeTypeForm({ ...attributeTypeForm, attributeOptionsTable: updated });
+                                                  setError(null);
+                                                }}
+                                                className="w-4 h-4 text-cream-900 border-cream-300 rounded focus:ring-cream-500"
+                                              />
+                                              <span className="text-sm text-cream-900">Price</span>
+                                            </label>
+                                            <label className="flex items-center gap-2 cursor-pointer">
+                                              <input
+                                                type="checkbox"
+                                                checked={option.optionUsage?.image || false}
+                                                onChange={(e) => {
+                                                  const updated = [...attributeTypeForm.attributeOptionsTable];
+                                                  if (!updated[index].optionUsage) {
+                                                    updated[index].optionUsage = { price: false, image: false, listing: false };
+                                                  }
+                                                  updated[index].optionUsage.image = e.target.checked;
+                                                  // Ensure at least one checkbox is checked
+                                                  if (!e.target.checked && !updated[index].optionUsage.price && !updated[index].optionUsage.listing) {
+                                                    setError("At least one option usage must be selected (Price, Image, or Listing)");
+                                                    return;
+                                                  }
+                                                  setAttributeTypeForm({ ...attributeTypeForm, attributeOptionsTable: updated });
+                                                  setError(null);
+                                                }}
+                                                className="w-4 h-4 text-cream-900 border-cream-300 rounded focus:ring-cream-500"
+                                              />
+                                              <span className="text-sm text-cream-900">Image</span>
+                                            </label>
+                                            <label className="flex items-center gap-2 cursor-pointer">
+                                              <input
+                                                type="checkbox"
+                                                checked={option.optionUsage?.listing || false}
+                                                onChange={(e) => {
+                                                  const updated = [...attributeTypeForm.attributeOptionsTable];
+                                                  if (!updated[index].optionUsage) {
+                                                    updated[index].optionUsage = { price: false, image: false, listing: false };
+                                                  }
+                                                  updated[index].optionUsage.listing = e.target.checked;
+                                                  // Ensure at least one checkbox is checked
+                                                  if (!e.target.checked && !updated[index].optionUsage.price && !updated[index].optionUsage.image) {
+                                                    setError("At least one option usage must be selected (Price, Image, or Listing)");
+                                                    return;
+                                                  }
+                                                  setAttributeTypeForm({ ...attributeTypeForm, attributeOptionsTable: updated });
+                                                  setError(null);
+                                                }}
+                                                className="w-4 h-4 text-cream-900 border-cream-300 rounded focus:ring-cream-500"
+                                              />
+                                              <span className="text-sm text-cream-900">Listing</span>
+                                            </label>
                                           </div>
                                         </td>
+                                        {attributeTypeForm.attributeOptionsTable.some(opt => opt.optionUsage?.price) && (
+                                          <td className="border border-cream-300 px-3 py-2">
+                                            {option.optionUsage?.price ? (
+                                              <div className="flex items-center gap-2">
+                                                <span className="text-sm text-cream-700">₹</span>
+                                                <input
+                                                  type="number"
+                                                  value={option.priceImpact || ""}
+                                                  onChange={(e) => {
+                                                    const updated = [...attributeTypeForm.attributeOptionsTable];
+                                                    updated[index].priceImpact = e.target.value;
+                                                    setAttributeTypeForm({ ...attributeTypeForm, attributeOptionsTable: updated });
+                                                  }}
+                                                  className="w-full px-2 py-2.5 border border-cream-200 rounded text-sm"
+                                                  placeholder="Enter amount"
+                                                  step="0.01"
+                                                  min="0"
+                                                />
+                                              </div>
+                                            ) : (
+                                              <span className="text-sm text-cream-500">-</span>
+                                            )}
+                                          </td>
+                                        )}
+                                        {attributeTypeForm.attributeOptionsTable.some(opt => opt.optionUsage?.image) && (
+                                          <td className="border border-cream-300 px-3 py-2">
+                                            {option.optionUsage?.image ? (
+                                              <input
+                                                type="number"
+                                                value={option.numberOfImagesRequired || 0}
+                                                onChange={(e) => {
+                                                  const updated = [...attributeTypeForm.attributeOptionsTable];
+                                                  updated[index].numberOfImagesRequired = parseInt(e.target.value) || 0;
+                                                  setAttributeTypeForm({ ...attributeTypeForm, attributeOptionsTable: updated });
+                                                }}
+                                                className="w-full px-2 py-2.5 border border-cream-200 rounded text-sm"
+                                                placeholder="Number of images"
+                                                min="0"
+                                              />
+                                            ) : (
+                                              <span className="text-sm text-cream-500">-</span>
+                                            )}
+                                          </td>
+                                        )}
+                                        {attributeTypeForm.attributeOptionsTable.some(opt => opt.optionUsage?.listing) && (
+                                          <td className="border border-cream-300 px-3 py-2">
+                                            {option.optionUsage?.listing ? (
+                                              <input
+                                                type="text"
+                                                value={option.listingFilters || ""}
+                                                onChange={(e) => {
+                                                  const updated = [...attributeTypeForm.attributeOptionsTable];
+                                                  updated[index].listingFilters = e.target.value;
+                                                  setAttributeTypeForm({ ...attributeTypeForm, attributeOptionsTable: updated });
+                                                }}
+                                                className="w-full px-2 py-2.5 border border-cream-200 rounded text-sm"
+                                                placeholder="Enter filters (comma-separated)"
+                                              />
+                                            ) : (
+                                              <span className="text-sm text-cream-500">-</span>
+                                            )}
+                                          </td>
+                                        )}
                                         <td className="border border-cream-300 px-3 py-2">
                                           <input
                                             type="file"
@@ -8614,31 +9386,31 @@ const AdminDashboard: React.FC = () => {
                                                   setError("Image size must be less than 5MB.");
                                                   return;
                                                 }
-                                                
+
                                                 // Upload to backend API (which uploads to Cloudinary)
                                                 try {
                                                   setLoading(true);
                                                   const formData = new FormData();
                                                   formData.append('image', file);
-                                                  
+
                                                   const uploadResponse = await fetch(`${API_BASE_URL}/upload-image`, {
                                                     method: 'POST',
                                                     headers: getAuthHeaders(),
                                                     body: formData,
                                                   });
-                                                  
+
                                                   if (!uploadResponse.ok) {
                                                     const errorData = await uploadResponse.json().catch(() => ({}));
                                                     throw new Error(errorData.error || 'Failed to upload image');
                                                   }
-                                                  
+
                                                   const uploadData = await uploadResponse.json();
                                                   const imageUrl = uploadData.url || uploadData.secure_url;
-                                                  
+
                                                   if (!imageUrl) {
                                                     throw new Error('No image URL returned from server');
                                                   }
-                                                  
+
                                                   const updated = [...attributeTypeForm.attributeOptionsTable];
                                                   updated[index].image = imageUrl;
                                                   setAttributeTypeForm({ ...attributeTypeForm, attributeOptionsTable: updated });
@@ -9095,23 +9867,26 @@ const AdminDashboard: React.FC = () => {
                 Category Level *
               </label>
               <div className="space-y-3">
-                <label className="flex items-center gap-3 p-4 bg-white rounded-lg border-2 cursor-pointer hover:border-cream-400 transition-all hover:shadow-sm" style={{ borderColor: !categoryForm.parent ? '#d97706' : '#e5e7eb' }}>
+                <label className="flex items-center gap-3 p-4 bg-white rounded-lg border-2 cursor-pointer hover:border-cream-400 transition-all hover:shadow-sm" style={{ borderColor: !categoryForm.parent && !isNestedSubcategoryMode ? '#d97706' : '#e5e7eb' }}>
                   <input
                     type="radio"
                     name="categoryLevel"
-                    checked={!categoryForm.parent}
+                    checked={!categoryForm.parent && !isNestedSubcategoryMode}
                     onChange={() => {
                       setCategoryForm({ ...categoryForm, parent: "", sortOrder: 0 });
+                      setIsNestedSubcategoryMode(false);
                       // Reset subcategory form when switching back to main category
                       setSubCategoryForm({
                         name: "",
                         description: "",
                         category: "",
+                        parent: "",
                         type: "",
                         slug: "",
                         sortOrder: 0,
                         image: null,
                       });
+                      setAvailableParentSubcategories([]);
                       setError(null);
                     }}
                     className="w-4 h-4 text-cream-600 focus:ring-cream-500"
@@ -9121,27 +9896,30 @@ const AdminDashboard: React.FC = () => {
                     <p className="font-semibold text-cream-900">Main Category</p>
                     <p className="text-xs text-cream-600 mt-0.5">Create a top-level category</p>
                   </div>
-                  {!categoryForm.parent && (
+                  {!categoryForm.parent && !isNestedSubcategoryMode && (
                     <CheckCircle className="text-cream-600" size={20} />
                   )}
                 </label>
-                <label className="flex items-center gap-3 p-4 bg-white rounded-lg border-2 cursor-pointer hover:border-cream-400 transition-all hover:shadow-sm" style={{ borderColor: categoryForm.parent ? '#d97706' : '#e5e7eb' }}>
+                <label className="flex items-center gap-3 p-4 bg-white rounded-lg border-2 cursor-pointer hover:border-cream-400 transition-all hover:shadow-sm" style={{ borderColor: categoryForm.parent && !isNestedSubcategoryMode ? '#d97706' : '#e5e7eb' }}>
                   <input
                     type="radio"
                     name="categoryLevel"
-                    checked={!!categoryForm.parent}
+                    checked={!!categoryForm.parent && !isNestedSubcategoryMode}
                     onChange={() => {
+                      setIsNestedSubcategoryMode(false);
                       // When subcategory is selected, initialize subcategory form to trigger subcategory form display
                       setSubCategoryForm({
                         name: "",
                         description: "",
                         category: "pending", // Set to "pending" to trigger subcategory form display
+                        parent: "",
                         type: categoryForm.type || "",
                         slug: "",
                         sortOrder: 0,
                         image: null,
                       });
                       setCategoryForm({ ...categoryForm, parent: "pending" });
+                      setAvailableParentSubcategories([]);
                       setError(null);
                     }}
                     className="w-4 h-4 text-cream-600 focus:ring-cream-500"
@@ -9151,7 +9929,40 @@ const AdminDashboard: React.FC = () => {
                     <p className="font-semibold text-cream-900">Subcategory</p>
                     <p className="text-xs text-cream-600 mt-0.5">Create under an existing category</p>
                   </div>
-                  {categoryForm.parent && (
+                  {categoryForm.parent && !isNestedSubcategoryMode && (
+                    <CheckCircle className="text-cream-600" size={20} />
+                  )}
+                </label>
+                <label className="flex items-center gap-3 p-4 bg-white rounded-lg border-2 cursor-pointer hover:border-cream-400 transition-all hover:shadow-sm" style={{ borderColor: isNestedSubcategoryMode ? '#d97706' : '#e5e7eb' }}>
+                  <input
+                    type="radio"
+                    name="categoryLevel"
+                    checked={isNestedSubcategoryMode}
+                    onChange={() => {
+                      setIsNestedSubcategoryMode(true);
+                      setCategoryForm({ ...categoryForm, parent: "" });
+                      // Initialize nested subcategory form
+                      setSubCategoryForm({
+                        name: "",
+                        description: "",
+                        category: "",
+                        parent: "pending", // Set to "pending" to indicate we need to select a parent subcategory
+                        type: categoryForm.type || "",
+                        slug: "",
+                        sortOrder: 0,
+                        image: null,
+                      });
+                      setAvailableParentSubcategories([]);
+                      setError(null);
+                    }}
+                    className="w-4 h-4 text-cream-600 focus:ring-cream-500"
+                    value="nestedSubcategory"
+                  />
+                  <div className="flex-1">
+                    <p className="font-semibold text-cream-900">Nested Subcategory</p>
+                    <p className="text-xs text-cream-600 mt-0.5">Create under an existing subcategory</p>
+                  </div>
+                  {isNestedSubcategoryMode && (
                     <CheckCircle className="text-cream-600" size={20} />
                   )}
                 </label>
@@ -9160,7 +9971,7 @@ const AdminDashboard: React.FC = () => {
           )}
 
           {/* Add/Edit Category */}
-          {activeTab === "categories" && !editingSubCategoryId && !subCategoryForm.category && (
+          {activeTab === "categories" && !editingSubCategoryId && !subCategoryForm.category && !isNestedSubcategoryMode && (
             <form onSubmit={handleCategorySubmit} className="space-y-6">
               {editingCategoryId && (
                 <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
@@ -9180,248 +9991,277 @@ const AdminDashboard: React.FC = () => {
               {/* Show main category form only when Main Category is selected */}
               {!categoryForm.parent && (
                 <>
-              <div>
-                <label className="block text-sm font-medium text-cream-900 mb-2">
-                  Category Name *
-                </label>
-                <input
-                  id="category-name"
-                  name="name"
-                  type="text"
-                  required
-                  value={categoryForm.name}
-                  onChange={(e) => {
-                    const newName = e.target.value;
-                    // Auto-generate slug if it hasn't been manually edited
-                    let newSlug = categoryForm.slug;
-                    if (!isSlugManuallyEdited) {
-                      // Generate base slug from the new name
-                      const baseSlug = newName.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-                      
-                      // Only check for uniqueness and add numbers if name doesn't end with space
-                      // This prevents adding numbers while user is still typing
-                      if (baseSlug && !newName.endsWith(' ')) {
-                        newSlug = generateUniqueSlug(baseSlug, editingCategoryId, null);
-                      } else {
-                        // Just use base slug without uniqueness check if name ends with space
-                        newSlug = baseSlug;
-                      }
-                    }
-                    setCategoryForm({ ...categoryForm, name: newName, slug: newSlug });
-                    setError(null); // Clear error when user starts typing
-                  }}
-                  onBlur={() => {
-                    if (!categoryForm.name.trim()) {
-                      setError("Category name is required.");
-                    } else if (!isSlugManuallyEdited) {
-                      // Generate unique slug when user finishes typing (on blur)
-                      const trimmedName = categoryForm.name.trim();
-                      if (trimmedName) {
-                        const baseSlug = trimmedName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-                        if (baseSlug) {
-                          const uniqueSlug = generateUniqueSlug(baseSlug, editingCategoryId, null);
-                          setCategoryForm({ ...categoryForm, slug: uniqueSlug });
+                  <div>
+                    <label className="block text-sm font-medium text-cream-900 mb-2">
+                      Category Name *
+                    </label>
+                    <input
+                      id="category-name"
+                      name="name"
+                      type="text"
+                      required
+                      value={categoryForm.name}
+                      onChange={(e) => {
+                        const newName = e.target.value;
+                        // Auto-generate slug if it hasn't been manually edited
+                        let newSlug = categoryForm.slug;
+                        if (!isSlugManuallyEdited) {
+                          // Generate base slug from the new name
+                          const baseSlug = newName.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+
+                          // Only check for uniqueness and add numbers if name doesn't end with space
+                          // This prevents adding numbers while user is still typing
+                          if (baseSlug && !newName.endsWith(' ')) {
+                            newSlug = generateUniqueSlug(baseSlug, editingCategoryId, null);
+                          } else {
+                            // Just use base slug without uniqueness check if name ends with space
+                            newSlug = baseSlug;
+                          }
                         }
-                      }
-                    }
-                  }}
-                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500 ${
-                    (error && !categoryForm.name.trim()) || (!categoryForm.name.trim() && categoryForm.name !== "") ? 'border-red-300 bg-red-50' : 'border-cream-300'
-                  }`}
-                  placeholder="Enter category name"
-                />
-                {((error && !categoryForm.name.trim()) || (!categoryForm.name.trim() && categoryForm.name !== "")) && (
-                  <p className="mt-1 text-xs text-red-600">Category name is required</p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-cream-900 mb-2">
-                  Description
-                </label>
-                <textarea
-                  value={categoryForm.description}
-                  onChange={(e) =>
-                    setCategoryForm({
-                      ...categoryForm,
-                      description: e.target.value,
-                    })
-                  }
-                  rows={3}
-                  className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-cream-900 mb-2">
-                  Slug (URL-friendly identifier)
-                </label>
-                <input
-                  type="text"
-                  value={categoryForm.slug}
-                  onChange={(e) => {
-                    setIsSlugManuallyEdited(true);
-                    setCategoryForm({ ...categoryForm, slug: e.target.value });
-                  }}
-                  className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
-                  placeholder="e.g., visiting-cards (auto-generated from name)"
-                />
-                <p className="mt-1 text-xs text-cream-600">
-                  Auto-generated from category name. You can customize it if needed.
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-cream-900 mb-2">
-                  Type *
-                </label>
-                <ReviewFilterDropdown
-                  id="category-type"
-                  label="Select Type"
-                  value={categoryForm.type}
-                  onChange={(value) => {
-                    const newType = value as string;
-                    setCategoryForm({ 
-                      ...categoryForm, 
-                      type: newType,
-                      // Reset parent when type changes to ensure parent matches type
-                      parent: ""
-                    });
-                    setError(null); // Clear error when user selects type
-                    // Refresh available parent categories filtered by type
-                    // Use setTimeout to ensure state is updated before fetching
-                    setTimeout(() => {
-                      if (editingCategoryId) {
-                        fetchAvailableParentCategories(editingCategoryId);
-                      } else {
-                        fetchAvailableParentCategories();
-                      }
-                    }, 0);
-                  }}
-                  options={[
-                    { value: "Digital", label: "Digital" },
-                    { value: "Bulk", label: "Bulk" },
-                  ]}
-                  className="w-full"
-                />
-                {error && !categoryForm.type && (
-                  <p className="mt-1 text-xs text-red-600">Category type is required</p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-cream-900 mb-2">
-                  Category Image * 
-                  {editingCategoryId && <span className="text-xs text-cream-500 font-normal ml-2">(Leave empty to keep current)</span>}
-                  {!editingCategoryId && <span className="text-xs text-red-600 font-normal ml-2">(Required - JPG, PNG, WebP, max 5MB)</span>}
-                </label>
-                <input
-                  type="file"
-                  accept="image/jpeg,image/jpg,image/png,image/webp"
-                  required={!editingCategoryId}
-                  onChange={(e) => {
-                    const file = e.target.files?.[0] || null;
-                    if (file) {
-                      // Validate file type
-                      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-                      if (!allowedTypes.includes(file.type)) {
-                        setError("Invalid image format. Please upload JPG, PNG, or WebP image.");
-                        e.target.value = '';
-                        setCategoryForm({ ...categoryForm, image: null });
-                        return;
-                      }
-                      // Validate file size (max 5MB)
-                      const maxSize = 5 * 1024 * 1024;
-                      if (file.size > maxSize) {
-                        setError("Image size must be less than 5MB. Please compress the image and try again.");
-                        e.target.value = '';
-                        setCategoryForm({ ...categoryForm, image: null });
-                        return;
-                      }
-                      setError(null);
-                    } else if (!editingCategoryId) {
-                      setError("Category image is required. Please upload an image.");
-                    }
-                    setCategoryForm({
-                      ...categoryForm,
-                      image: file,
-                    });
-                  }}
-                  onBlur={() => {
-                    if (!editingCategoryId && !categoryForm.image) {
-                      setError("Category image is required. Please upload an image.");
-                    }
-                  }}
-                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500 ${
-                    error && !editingCategoryId && !categoryForm.image ? 'border-red-300 bg-red-50' : 'border-cream-300'
-                  }`}
-                />
-                {editingCategoryId && editingCategoryImage && !categoryForm.image && (
-                  <div className="mt-3">
-                    <p className="text-sm text-cream-700 mb-2">Current Image:</p>
-                    <img
-                      src={editingCategoryImage}
-                      alt="Current category"
-                      className="w-32 h-32 object-cover rounded-lg border border-cream-300"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        target.src = "/Glossy.png";
+                        setCategoryForm({ ...categoryForm, name: newName, slug: newSlug });
+                        setError(null); // Clear error when user starts typing
                       }}
+                      onBlur={() => {
+                        if (!categoryForm.name.trim()) {
+                          setError("Category name is required.");
+                        } else if (!isSlugManuallyEdited) {
+                          // Generate unique slug when user finishes typing (on blur)
+                          const trimmedName = categoryForm.name.trim();
+                          if (trimmedName) {
+                            const baseSlug = trimmedName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+                            if (baseSlug) {
+                              const uniqueSlug = generateUniqueSlug(baseSlug, editingCategoryId, null);
+                              setCategoryForm({ ...categoryForm, slug: uniqueSlug });
+                            }
+                          }
+                        }
+                      }}
+                      className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500 ${(error && !categoryForm.name.trim()) || (!categoryForm.name.trim() && categoryForm.name !== "") ? 'border-red-300 bg-red-50' : 'border-cream-300'
+                        }`}
+                      placeholder="Enter category name"
+                    />
+                    {((error && !categoryForm.name.trim()) || (!categoryForm.name.trim() && categoryForm.name !== "")) && (
+                      <p className="mt-1 text-xs text-red-600">Category name is required</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-cream-900 mb-2">
+                      Description
+                    </label>
+                    <textarea
+                      value={categoryForm.description}
+                      onChange={(e) =>
+                        setCategoryForm({
+                          ...categoryForm,
+                          description: e.target.value,
+                        })
+                      }
+                      rows={3}
+                      className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
                     />
                   </div>
-                )}
-                {categoryForm.image && (
-                  <div className="mt-3">
-                    <p className="text-sm text-green-700 mb-2 font-medium flex items-center gap-1">
-                      <CheckCircle size={14} />
-                      New Image Preview:
-                    </p>
-                    <img
-                      src={URL.createObjectURL(categoryForm.image)}
-                      alt="New category preview"
-                      className="w-32 h-32 object-cover rounded-lg border-2 border-green-400"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        target.src = "/Glossy.png";
+
+                  <div>
+                    <label className="block text-sm font-medium text-cream-900 mb-2">
+                      Slug (URL-friendly identifier)
+                    </label>
+                    <input
+                      type="text"
+                      value={categoryForm.slug}
+                      onChange={(e) => {
+                        setIsSlugManuallyEdited(true);
+                        setCategoryForm({ ...categoryForm, slug: e.target.value });
                       }}
+                      className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
+                      placeholder="e.g., visiting-cards (auto-generated from name)"
                     />
-                    <p className="mt-2 text-xs text-green-600">
-                      {categoryForm.image.name} ({(categoryForm.image.size / 1024).toFixed(2)} KB)
+                    <p className="mt-1 text-xs text-cream-600">
+                      Auto-generated from category name. You can customize it if needed.
                     </p>
                   </div>
-                )}
-                {error && !editingCategoryId && !categoryForm.image && (
-                  <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
-                    <AlertCircle size={12} />
-                    Category image is required
-                  </p>
-                )}
-              </div>
 
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-cream-900 text-white px-6 py-3 rounded-lg font-medium hover:bg-cream-800 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {loading ? (
-                  <>
-                    <Loader className="animate-spin" size={20} />
-                    Creating...
-                  </>
-                ) : (
-                  <>
-                    <Plus size={20} />
-                    {editingCategoryId ? "Update Category" : "Create Category"}
-                  </>
-                )}
-              </button>
+                  <div>
+                    <label className="block text-sm font-medium text-cream-900 mb-2">
+                      Type *
+                    </label>
+                    <ReviewFilterDropdown
+                      id="category-type"
+                      label="Select Type"
+                      value={categoryForm.type}
+                      onChange={(value) => {
+                        const newType = value as string;
+                        setCategoryForm({
+                          ...categoryForm,
+                          type: newType,
+                          // Reset parent when type changes to ensure parent matches type
+                          parent: ""
+                        });
+                        setError(null); // Clear error when user selects type
+                        // Refresh available parent categories filtered by type
+                        // Use setTimeout to ensure state is updated before fetching
+                        setTimeout(() => {
+                          if (editingCategoryId) {
+                            fetchAvailableParentCategories(editingCategoryId);
+                          } else {
+                            fetchAvailableParentCategories();
+                          }
+                        }, 0);
+                      }}
+                      options={[
+                        { value: "Digital", label: "Digital" },
+                        { value: "Bulk", label: "Bulk" },
+                      ]}
+                      className="w-full"
+                    />
+                    {error && !categoryForm.type && (
+                      <p className="mt-1 text-xs text-red-600">Category type is required</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-cream-900 mb-2">
+                      Sort Order
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={categoryForm.sortOrder}
+                      onChange={(e) => {
+                        setCategoryForm({
+                          ...categoryForm,
+                          sortOrder: parseInt(e.target.value) || 0,
+                        });
+                        // Clear error when user changes sort order
+                        if (categoryFormErrors.sortOrder) {
+                          setCategoryFormErrors({ ...categoryFormErrors, sortOrder: undefined });
+                        }
+                      }}
+                      className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500 ${categoryFormErrors.sortOrder ? 'border-red-300 bg-red-50' : 'border-cream-300'
+                        }`}
+                      placeholder="Enter sort order (0 = first)"
+                    />
+                    {categoryFormErrors.sortOrder ? (
+                      <p className="mt-1 text-xs text-red-600">{categoryFormErrors.sortOrder}</p>
+                    ) : (
+                      <p className="mt-1 text-xs text-cream-600">
+                        Lower numbers appear first. Sort order must be unique within the same type (Digital or Bulk).
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-cream-900 mb-2">
+                      Category Image *
+                      {editingCategoryId && <span className="text-xs text-cream-500 font-normal ml-2">(Leave empty to keep current)</span>}
+                      {!editingCategoryId && <span className="text-xs text-red-600 font-normal ml-2">(Required - JPG, PNG, WebP, max 5MB)</span>}
+                    </label>
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/jpg,image/png,image/webp"
+                      required={!editingCategoryId}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] || null;
+                        if (file) {
+                          // Validate file type
+                          const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+                          if (!allowedTypes.includes(file.type)) {
+                            setError("Invalid image format. Please upload JPG, PNG, or WebP image.");
+                            e.target.value = '';
+                            setCategoryForm({ ...categoryForm, image: null });
+                            return;
+                          }
+                          // Validate file size (max 5MB)
+                          const maxSize = 5 * 1024 * 1024;
+                          if (file.size > maxSize) {
+                            setError("Image size must be less than 5MB. Please compress the image and try again.");
+                            e.target.value = '';
+                            setCategoryForm({ ...categoryForm, image: null });
+                            return;
+                          }
+                          setError(null);
+                        } else if (!editingCategoryId) {
+                          setError("Category image is required. Please upload an image.");
+                        }
+                        setCategoryForm({
+                          ...categoryForm,
+                          image: file,
+                        });
+                      }}
+                      onBlur={() => {
+                        if (!editingCategoryId && !categoryForm.image) {
+                          setError("Category image is required. Please upload an image.");
+                        }
+                      }}
+                      className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500 ${error && !editingCategoryId && !categoryForm.image ? 'border-red-300 bg-red-50' : 'border-cream-300'
+                        }`}
+                    />
+                    {editingCategoryId && editingCategoryImage && !categoryForm.image && (
+                      <div className="mt-3">
+                        <p className="text-sm text-cream-700 mb-2">Current Image:</p>
+                        <img
+                          src={editingCategoryImage}
+                          alt="Current category"
+                          className="w-32 h-32 object-cover rounded-lg border border-cream-300"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.src = "/Glossy.png";
+                          }}
+                        />
+                      </div>
+                    )}
+                    {categoryForm.image && (
+                      <div className="mt-3">
+                        <p className="text-sm text-green-700 mb-2 font-medium flex items-center gap-1">
+                          <CheckCircle size={14} />
+                          New Image Preview:
+                        </p>
+                        <img
+                          src={URL.createObjectURL(categoryForm.image)}
+                          alt="New category preview"
+                          className="w-32 h-32 object-cover rounded-lg border-2 border-green-400"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.src = "/Glossy.png";
+                          }}
+                        />
+                        <p className="mt-2 text-xs text-green-600">
+                          {categoryForm.image.name} ({(categoryForm.image.size / 1024).toFixed(2)} KB)
+                        </p>
+                      </div>
+                    )}
+                    {error && !editingCategoryId && !categoryForm.image && (
+                      <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+                        <AlertCircle size={12} />
+                        Category image is required
+                      </p>
+                    )}
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full bg-cream-900 text-white px-6 py-3 rounded-lg font-medium hover:bg-cream-800 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {loading ? (
+                      <>
+                        <Loader className="animate-spin" size={20} />
+                        Creating...
+                      </>
+                    ) : (
+                      <>
+                        <Plus size={20} />
+                        {editingCategoryId ? "Update Category" : "Create Category"}
+                      </>
+                    )}
+                  </button>
                 </>
               )}
             </form>
           )}
 
-          {/* Subcategory Form - Show when editing subcategory or when subcategory is selected in Category Level */}
-          {activeTab === "categories" && (editingSubCategoryId || (subCategoryForm.category && subCategoryForm.category !== "")) && (
+          {/* Subcategory Form - Show when editing subcategory, when subcategory is selected in Category Level, or when nested subcategory mode is active */}
+          {activeTab === "categories" && (editingSubCategoryId || (subCategoryForm.category && subCategoryForm.category !== "" && !isNestedSubcategoryMode) || isNestedSubcategoryMode) && (
             <form onSubmit={handleSubCategorySubmit} className="space-y-6 mt-8 border-t border-cream-200 pt-8">
               {editingSubCategoryId && (
                 <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
@@ -9437,7 +10277,7 @@ const AdminDashboard: React.FC = () => {
                   </button>
                 </div>
               )}
-              {!editingSubCategoryId && subCategoryForm.category && subCategoryForm.category !== "pending" && (
+              {!editingSubCategoryId && subCategoryForm.category && subCategoryForm.category !== "pending" && !isNestedSubcategoryMode && (
                 <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg flex items-center justify-between">
                   <p className="text-sm text-green-800 font-medium">
                     Adding Subcategory to: {categories.find(c => c._id === subCategoryForm.category)?.name || "Category"}
@@ -9449,6 +10289,7 @@ const AdminDashboard: React.FC = () => {
                         name: "",
                         description: "",
                         category: "",
+                        parent: "",
                         type: "",
                         slug: "",
                         sortOrder: 0,
@@ -9456,11 +10297,213 @@ const AdminDashboard: React.FC = () => {
                       });
                       setIsSubCategorySlugManuallyEdited(false);
                       setCategoryForm({ ...categoryForm, parent: "" });
+                      setAvailableParentSubcategories([]);
                       setError(null);
                     }}
                     className="px-3 py-1 text-sm bg-green-100 text-green-800 rounded-lg hover:bg-green-200 transition-colors"
                   >
                     Cancel
+                  </button>
+                </div>
+              )}
+
+              {/* Nested Subcategory Mode - Show parent subcategory selector first */}
+              {isNestedSubcategoryMode && (!subCategoryForm.parent || subCategoryForm.parent === "pending") && (
+                <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <h3 className="text-sm font-semibold text-blue-900 mb-3">Step 1: Select Parent Subcategory</h3>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-cream-900 mb-2">
+                        Type <span className="text-red-500">*</span>
+                      </label>
+                      <ReviewFilterDropdown
+                        label="Select Type"
+                        value={subCategoryForm.type || ""}
+                        onChange={(value) => {
+                          const newType = value as string;
+                          setSubCategoryForm({
+                            ...subCategoryForm,
+                            type: newType,
+                            category: "",
+                            parent: "pending"
+                          });
+                          setAvailableParentSubcategories([]);
+                          setError(null);
+                        }}
+                        options={[
+                          { value: "", label: "Select Type" },
+                          { value: "Digital", label: "Digital" },
+                          { value: "Bulk", label: "Bulk" },
+                        ]}
+                        className="w-full"
+                      />
+                    </div>
+
+                    {subCategoryForm.type && (
+                      <div>
+                        <label className="block text-sm font-medium text-cream-900 mb-2">
+                          Category <span className="text-red-500">*</span>
+                        </label>
+                        <ReviewFilterDropdown
+                          id="nested-subcategory-category"
+                          label="Select Category"
+                          value={subCategoryForm.category || ""}
+                          onChange={async (value) => {
+                            const categoryId = (value || "") as string;
+                            setSubCategoryForm({
+                              ...subCategoryForm,
+                              category: categoryId,
+                              parent: "pending",
+                            });
+
+                            // Fetch subcategories for the selected category (with nested children)
+                            if (categoryId) {
+                              setLoadingParentSubcategories(true);
+                              try {
+                                const response = await fetch(`${API_BASE_URL}/subcategories/category/${categoryId}?includeChildren=true`);
+                                if (response.ok) {
+                                  const data = await response.json();
+                                  // Flatten nested subcategories recursively for parent selection
+                                  const flattenSubcategories = (subcats: any[], level: number = 0): any[] => {
+                                    let result: any[] = [];
+                                    subcats.forEach((subcat) => {
+                                      result.push({ ...subcat, _displayLevel: level });
+                                      if (subcat.children && subcat.children.length > 0) {
+                                        result = result.concat(flattenSubcategories(subcat.children, level + 1));
+                                      }
+                                    });
+                                    return result;
+                                  };
+                                  const flattened = flattenSubcategories(Array.isArray(data) ? data : (data?.data || []));
+                                  setAvailableParentSubcategories(flattened || []);
+                                } else {
+                                  setAvailableParentSubcategories([]);
+                                }
+                              } catch (err) {
+                                console.error("Error fetching parent subcategories:", err);
+                                setAvailableParentSubcategories([]);
+                              } finally {
+                                setLoadingParentSubcategories(false);
+                              }
+                            } else {
+                              setAvailableParentSubcategories([]);
+                            }
+                          }}
+                          options={[
+                            { value: "", label: "Select Category" },
+                            ...categories
+                              .filter(cat => cat.type === subCategoryForm.type)
+                              .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
+                              .map((cat) => {
+                                const categoryType = cat.type === "Digital" ? "Digital Print" : "Bulk Print";
+                                return {
+                                  value: cat._id,
+                                  label: `${cat.name} (${categoryType})`,
+                                };
+                              }),
+                          ]}
+                          className="w-full"
+                        />
+                      </div>
+                    )}
+
+                    {subCategoryForm.category && subCategoryForm.category !== "" && (
+                      <div>
+                        <label className="block text-sm font-medium text-cream-900 mb-2">
+                          Subcategory <span className="text-red-500">*</span>
+                        </label>
+                        {loadingParentSubcategories ? (
+                          <div className="w-full px-4 py-2 border border-cream-300 rounded-lg bg-cream-50 flex items-center gap-2">
+                            <Loader className="animate-spin" size={16} />
+                            <span className="text-sm text-cream-600">Loading subcategories...</span>
+                          </div>
+                        ) : (
+                          <ReviewFilterDropdown
+                            id="nested-subcategory-parent"
+                            label="Select Subcategory (Parent for nested subcategory)"
+                            value={subCategoryForm.parent === "pending" ? "" : (subCategoryForm.parent || "")}
+                            onChange={async (value) => {
+                              const parentId = (value || "") as string;
+                              if (parentId) {
+                                // Find the selected parent subcategory to get its category
+                                const selectedParentSubcategory = availableParentSubcategories.find(sc => sc._id === parentId);
+                                const parentCategoryId = selectedParentSubcategory?.category
+                                  ? (typeof selectedParentSubcategory.category === 'object' && selectedParentSubcategory.category !== null
+                                    ? selectedParentSubcategory.category._id
+                                    : selectedParentSubcategory.category)
+                                  : subCategoryForm.category;
+
+                                setSubCategoryForm({
+                                  ...subCategoryForm,
+                                  parent: parentId,
+                                  category: parentCategoryId || subCategoryForm.category, // Set category from parent subcategory
+                                });
+                              }
+                            }}
+                            options={[
+                              { value: "", label: "Select Subcategory" },
+                              ...availableParentSubcategories
+                                .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
+                                .map((sub) => ({
+                                  value: sub._id,
+                                  label: `${'  '.repeat(sub._displayLevel || 0)}${sub.name}${sub._displayLevel > 0 ? ' (nested)' : ''}`,
+                                })),
+                            ]}
+                            className="w-full"
+                          />
+                        )}
+                        {availableParentSubcategories.length === 0 && subCategoryForm.category && !loadingParentSubcategories && (
+                          <p className="mt-2 text-xs text-red-600">
+                            No subcategories found for this category. Please create a subcategory first.
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-end gap-3 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsNestedSubcategoryMode(false);
+                          setSubCategoryForm({
+                            name: "",
+                            description: "",
+                            category: "",
+                            parent: "",
+                            type: "",
+                            slug: "",
+                            sortOrder: 0,
+                            image: null,
+                          });
+                          setAvailableParentSubcategories([]);
+                          setError(null);
+                        }}
+                        className="px-4 py-2 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Show nested subcategory form when parent is selected */}
+              {isNestedSubcategoryMode && subCategoryForm.parent && subCategoryForm.parent !== "pending" && (
+                <div className="mb-4 p-3 bg-purple-50 border border-purple-200 rounded-lg flex items-center justify-between">
+                  <p className="text-sm text-purple-800 font-medium">
+                    Adding Nested Subcategory under: {availableParentSubcategories.find(sc => sc._id === subCategoryForm.parent)?.name || "Subcategory"}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSubCategoryForm({
+                        ...subCategoryForm,
+                        parent: "pending",
+                      });
+                    }}
+                    className="px-3 py-1 text-sm bg-purple-100 text-purple-800 rounded-lg hover:bg-purple-200 transition-colors"
+                  >
+                    Change Parent
                   </button>
                 </div>
               )}
@@ -9481,7 +10524,7 @@ const AdminDashboard: React.FC = () => {
                     if (!isSubCategorySlugManuallyEdited) {
                       // Generate base slug from the new name
                       const baseSlug = newName.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-                      
+
                       // Only check for uniqueness and add numbers if name doesn't end with space
                       // This prevents adding numbers while user is still typing
                       if (baseSlug && !newName.endsWith(' ')) {
@@ -9497,9 +10540,8 @@ const AdminDashboard: React.FC = () => {
                       setSubCategoryFormErrors({ ...subCategoryFormErrors, name: undefined });
                     }
                   }}
-                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500 ${
-                    subCategoryFormErrors.name ? 'border-red-300 bg-red-50' : 'border-cream-300'
-                  }`}
+                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500 ${subCategoryFormErrors.name ? 'border-red-300 bg-red-50' : 'border-cream-300'
+                    }`}
                   placeholder="Enter subcategory name"
                   onBlur={() => {
                     if (!subCategoryForm.name.trim()) {
@@ -9542,74 +10584,79 @@ const AdminDashboard: React.FC = () => {
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-cream-900 mb-2">
-                  Type <span className="text-red-500">*</span>
-                </label>
-                <ReviewFilterDropdown
-                  label="Select Type"
-                  value={subCategoryForm.type || ""}
-                  onChange={(value) => {
-                    const newType = value as string;
-                    setSubCategoryForm({ 
-                      ...subCategoryForm, 
-                      type: newType,
-                      // Reset category when type changes to ensure category matches type
-                      // But keep "pending" if we're in add subcategory mode
-                      category: subCategoryForm.category === "pending" ? "pending" : ""
-                    });
-                    setError(null);
-                  }}
-                  options={[
-                    { value: "", label: "Select Type" },
-                    { value: "Digital", label: "Digital" },
-                    { value: "Bulk", label: "Bulk" },
-                  ]}
-                  className="w-full"
-                />
-                {error && !subCategoryForm.type && (
-                  <p className="mt-1 text-xs text-red-600">Type is required to select parent category</p>
-                )}
-              </div>
-
-              {subCategoryForm.type && (
-                <div>
-                  <label className="block text-sm font-medium text-cream-900 mb-2">
-                    Parent Category <span className="text-red-500">*</span>
-                  </label>
+              {/* Type and Category fields - Only show when NOT in nested subcategory mode, or when in nested mode but parent not selected yet */}
+              {!isNestedSubcategoryMode && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-cream-900 mb-2">
+                      Type <span className="text-red-500">*</span>
+                    </label>
                     <ReviewFilterDropdown
-                      id="subcategory-category"
-                      label="Select Category"
-                      value={subCategoryForm.category === "pending" ? "" : (subCategoryForm.category || "")}
+                      label="Select Type"
+                      value={subCategoryForm.type || ""}
                       onChange={(value) => {
+                        const newType = value as string;
                         setSubCategoryForm({
                           ...subCategoryForm,
-                          category: (value || "") as string,
+                          type: newType,
+                          // Reset category when type changes to ensure category matches type
+                          // But keep "pending" if we're in add subcategory mode
+                          category: subCategoryForm.category === "pending" ? "pending" : ""
                         });
                         setError(null);
-                        if (subCategoryFormErrors.category) {
-                          setSubCategoryFormErrors({ ...subCategoryFormErrors, category: undefined });
-                        }
                       }}
-                    options={[
-                      { value: "", label: "Select Category" },
-                      ...categories
-                        .filter(cat => cat.type === subCategoryForm.type)
-                        .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
-                        .map((cat) => {
-                          const categoryType = cat.type === "Digital" ? "Digital Print" : "Bulk Print";
-                          return {
-                            value: cat._id,
-                            label: `${cat.name} (${categoryType})`,
-                          };
-                        }),
-                    ]}
-                    className="w-full"
-                  />
-                  {error && (!subCategoryForm.category || subCategoryForm.category === "pending") && subCategoryForm.type && (
-                    <p className="mt-1 text-xs text-red-600">Parent category is required</p>
+                      options={[
+                        { value: "", label: "Select Type" },
+                        { value: "Digital", label: "Digital" },
+                        { value: "Bulk", label: "Bulk" },
+                      ]}
+                      className="w-full"
+                    />
+                    {error && !subCategoryForm.type && (
+                      <p className="mt-1 text-xs text-red-600">Type is required to select parent category</p>
+                    )}
+                  </div>
+
+                  {subCategoryForm.type && (
+                    <div>
+                      <label className="block text-sm font-medium text-cream-900 mb-2">
+                        Parent Category <span className="text-red-500">*</span>
+                      </label>
+                      <ReviewFilterDropdown
+                        id="subcategory-category"
+                        label="Select Category"
+                        value={subCategoryForm.category === "pending" ? "" : (subCategoryForm.category || "")}
+                        onChange={(value) => {
+                          setSubCategoryForm({
+                            ...subCategoryForm,
+                            category: (value || "") as string,
+                          });
+                          setError(null);
+                          if (subCategoryFormErrors.category) {
+                            setSubCategoryFormErrors({ ...subCategoryFormErrors, category: undefined });
+                          }
+                        }}
+                        options={[
+                          { value: "", label: "Select Category" },
+                          ...categories
+                            .filter(cat => cat.type === subCategoryForm.type)
+                            .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
+                            .map((cat) => {
+                              const categoryType = cat.type === "Digital" ? "Digital Print" : "Bulk Print";
+                              return {
+                                value: cat._id,
+                                label: `${cat.name} (${categoryType})`,
+                              };
+                            }),
+                        ]}
+                        className="w-full"
+                      />
+                      {error && (!subCategoryForm.category || subCategoryForm.category === "pending") && subCategoryForm.type && (
+                        <p className="mt-1 text-xs text-red-600">Parent category is required</p>
+                      )}
+                    </div>
                   )}
-                </div>
+                </>
               )}
 
               <div>
@@ -9637,15 +10684,27 @@ const AdminDashboard: React.FC = () => {
                 </label>
                 <input
                   type="number"
+                  min="0"
                   value={subCategoryForm.sortOrder}
                   onChange={(e) => {
                     const value = parseInt(e.target.value, 10) || 0;
                     setSubCategoryForm({ ...subCategoryForm, sortOrder: value });
+                    // Clear error when user changes sort order
+                    if (subCategoryFormErrors.sortOrder) {
+                      setSubCategoryFormErrors({ ...subCategoryFormErrors, sortOrder: undefined });
+                    }
                   }}
-                  className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
+                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500 ${subCategoryFormErrors.sortOrder ? 'border-red-300 bg-red-50' : 'border-cream-300'
+                    }`}
                   placeholder="0"
                 />
-                <p className="mt-1 text-xs text-cream-600">Lower numbers appear first. Default: 0</p>
+                {subCategoryFormErrors.sortOrder ? (
+                  <p className="mt-1 text-xs text-red-600">{subCategoryFormErrors.sortOrder}</p>
+                ) : (
+                  <p className="mt-1 text-xs text-cream-600">
+                    Lower numbers appear first. Sort order must be unique within the same parent category.
+                  </p>
+                )}
               </div>
 
               <div>
@@ -9779,7 +10838,7 @@ const AdminDashboard: React.FC = () => {
                         </div>
                       );
                     }
-                    
+
                     return (
                       <div
                         key={order._id}
@@ -9801,194 +10860,193 @@ const AdminDashboard: React.FC = () => {
                               <p className="text-sm text-cream-600 font-semibold">Order #{order.orderNumber}</p>
                               <p className="text-xs text-cream-500 mt-1">
                                 {order.user?.name || "Unknown"} ({order.user?.email || "Unknown"})
-                            </p>
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <div className={`px-4 py-2 rounded-full border-2 flex items-center gap-2 ${order.status === "completed" ? "bg-green-100 text-green-800 border-green-200" :
+                              order.status === "processing" ? "bg-blue-100 text-blue-800 border-blue-200" :
+                                order.status === "approved" ? "bg-purple-100 text-purple-800 border-purple-200" :
+                                  order.status === "production_ready" ? "bg-orange-100 text-orange-800 border-orange-200" :
+                                    order.status === "request" ? "bg-yellow-100 text-yellow-800 border-yellow-200" :
+                                      order.status === "rejected" ? "bg-red-100 text-red-800 border-red-200" :
+                                        "bg-gray-100 text-gray-800 border-gray-200"
+                              }`}>
+                              <span className="text-sm font-semibold capitalize">{order.status}</span>
+                            </div>
+                            {order.currentDepartment && typeof order.currentDepartment === "object" && (
+                              <div className="px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-lg border border-indigo-200 flex items-center gap-2">
+                                <Building2 size={14} />
+                                <span className="text-xs font-medium">
+                                  Current: {order.currentDepartment.name}
+                                  {order.currentDepartmentIndex !== null && order.currentDepartmentIndex !== undefined && (
+                                    <span className="ml-1 text-indigo-500">(#{order.currentDepartmentIndex + 1})</span>
+                                  )}
+                                </span>
+                              </div>
+                            )}
                           </div>
                         </div>
-                        <div className="flex items-center gap-3">
-                          <div className={`px-4 py-2 rounded-full border-2 flex items-center gap-2 ${
-                            order.status === "completed" ? "bg-green-100 text-green-800 border-green-200" :
-                            order.status === "processing" ? "bg-blue-100 text-blue-800 border-blue-200" :
-                            order.status === "approved" ? "bg-purple-100 text-purple-800 border-purple-200" :
-                            order.status === "production_ready" ? "bg-orange-100 text-orange-800 border-orange-200" :
-                            order.status === "request" ? "bg-yellow-100 text-yellow-800 border-yellow-200" :
-                            order.status === "rejected" ? "bg-red-100 text-red-800 border-red-200" :
-                            "bg-gray-100 text-gray-800 border-gray-200"
-                          }`}>
-                            <span className="text-sm font-semibold capitalize">{order.status}</span>
+
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-4">
+                          <div className="bg-cream-50 rounded-lg p-3">
+                            <p className="text-xs text-cream-600 mb-1">Quantity</p>
+                            <p className="font-bold text-cream-900">{order.quantity} units</p>
                           </div>
-                          {order.currentDepartment && typeof order.currentDepartment === "object" && (
-                            <div className="px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-lg border border-indigo-200 flex items-center gap-2">
-                              <Building2 size={14} />
-                              <span className="text-xs font-medium">
-                                Current: {order.currentDepartment.name}
-                                {order.currentDepartmentIndex !== null && order.currentDepartmentIndex !== undefined && (
-                                  <span className="ml-1 text-indigo-500">(#{order.currentDepartmentIndex + 1})</span>
-                                )}
-                              </span>
+                          <div className="bg-cream-50 rounded-lg p-3">
+                            <p className="text-xs text-cream-600 mb-1">Finish</p>
+                            <p className="font-bold text-cream-900">{order.finish}</p>
+                          </div>
+                          <div className="bg-cream-50 rounded-lg p-3">
+                            <p className="text-xs text-cream-600 mb-1">Shape</p>
+                            <p className="font-bold text-cream-900">{order.shape}</p>
+                          </div>
+                          <div className="bg-cream-50 rounded-lg p-3">
+                            <p className="text-xs text-cream-600 mb-1">Total Price</p>
+                            <p className="font-bold text-cream-900">₹{order.totalPrice.toFixed(2)}</p>
+                          </div>
+                          <div className="bg-cream-50 rounded-lg p-3">
+                            <p className="text-xs text-cream-600 mb-1">Mobile</p>
+                            <p className="font-bold text-cream-900 text-xs">{order.mobileNumber || "N/A"}</p>
+                          </div>
+                        </div>
+
+                        {order.selectedOptions && order.selectedOptions.length > 0 && (
+                          <div className="mb-4">
+                            <p className="text-xs font-medium text-cream-600 mb-2">Selected Options</p>
+                            <div className="flex flex-wrap gap-2">
+                              {order.selectedOptions.map((option, idx) => (
+                                <span
+                                  key={idx}
+                                  className="px-2 py-1 bg-cream-100 text-cream-800 rounded text-xs"
+                                >
+                                  {typeof option === "string" ? option : option.optionName}
+                                </span>
+                              ))}
                             </div>
+                          </div>
+                        )}
+
+                        {/* Uploaded Front Image Display */}
+                        {order.uploadedDesign?.frontImage && (
+                          <div className="mb-4 p-3 bg-cream-50 rounded-lg border border-cream-200">
+                            <p className="text-xs font-medium text-cream-700 mb-2 flex items-center gap-2">
+                              <ImageIcon size={14} />
+                              Uploaded Front Design
+                            </p>
+                            <img
+                              src={order.uploadedDesign.frontImage.data || PLACEHOLDER_IMAGE}
+                              alt="Front design"
+                              className="w-full max-h-48 object-contain rounded border border-cream-300 bg-white"
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement;
+                                target.style.display = "none";
+                                const errorDiv = document.createElement("div");
+                                errorDiv.className = "w-full h-48 flex items-center justify-center bg-red-50 text-red-600 rounded border border-red-200 text-sm";
+                                errorDiv.textContent = "Failed to load image";
+                                target.parentElement?.appendChild(errorDiv);
+                              }}
+                            />
+                          </div>
+                        )}
+
+                        {/* Customer Notes - Small Display */}
+                        {order.notes && (
+                          <div className="mb-4 p-2 bg-blue-50 rounded-lg border border-blue-200">
+                            <p className="text-xs font-semibold text-blue-700 mb-1">Customer Notes:</p>
+                            <p className="text-xs text-blue-900 line-clamp-2">{order.notes}</p>
+                          </div>
+                        )}
+
+                        <div className="flex flex-col sm:flex-row gap-2 mb-4">
+                          <button
+                            onClick={() => {
+                              setSelectedOrder(order);
+                              setOrderStatusUpdate({
+                                status: order.status,
+                                deliveryDate: order.deliveryDate ? new Date(order.deliveryDate).toISOString().split('T')[0] : "",
+                                adminNotes: order.adminNotes || "",
+                              });
+                              setShowOrderModal(true);
+                            }}
+                            className="flex-1 px-4 py-2.5 bg-cream-900 text-white rounded-lg hover:bg-cream-800 transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 font-medium"
+                          >
+                            <Eye size={16} />
+                            {order.status !== "cancelled" ? "View & Manage" : "View Details"}
+                          </button>
+                          {order.status === "request" && (
+                            <>
+                              <button
+                                onClick={() => handleUpdateOrderStatus(order._id, "production_ready")}
+                                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
+                              >
+                                <Check size={16} />
+                                Production Ready
+                              </button>
+                              <button
+                                onClick={() => handleRejectOrder(order._id)}
+                                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center gap-2"
+                              >
+                                <XCircle size={16} />
+                                Reject
+                              </button>
+                            </>
+                          )}
+                          {order.status === "production_ready" && (
+                            <>
+                              <div className="flex flex-col gap-2">
+                                <input
+                                  type="date"
+                                  value={order.deliveryDate ? new Date(order.deliveryDate).toISOString().split('T')[0] : ''}
+                                  onChange={(e) => {
+                                    const newDate = e.target.value;
+                                    if (newDate) {
+                                      handleUpdateOrderStatus(order._id, undefined, undefined, newDate);
+                                    }
+                                  }}
+                                  className="px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 text-sm"
+                                  placeholder="Delivery Date"
+                                />
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={() => handleUpdateOrderStatus(order._id, undefined, "start_production")}
+                                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+                                  >
+                                    <Play size={16} />
+                                    Start
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      if (window.confirm("Are you sure you want to cancel this order?")) {
+                                        handleUpdateOrderStatus(order._id, "cancelled");
+                                      }
+                                    }}
+                                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center gap-2"
+                                  >
+                                    <XCircle size={16} />
+                                    Cancel
+                                  </button>
+                                </div>
+                              </div>
+                            </>
+                          )}
+                        </div>
+
+                        <div className="text-xs text-cream-500 pt-2 border-t border-cream-100">
+                          Ordered: {!isClient
+                            ? 'Loading...'
+                            : new Date(order.createdAt).toLocaleString()
+                          }
+                          {order.deliveryDate && (
+                            <span className="ml-4">
+                              Delivery: {!isClient
+                                ? 'Loading...'
+                                : new Date(order.deliveryDate).toLocaleDateString()
+                              }
+                            </span>
                           )}
                         </div>
                       </div>
-
-                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-4">
-                        <div className="bg-cream-50 rounded-lg p-3">
-                          <p className="text-xs text-cream-600 mb-1">Quantity</p>
-                          <p className="font-bold text-cream-900">{order.quantity} units</p>
-                        </div>
-                        <div className="bg-cream-50 rounded-lg p-3">
-                          <p className="text-xs text-cream-600 mb-1">Finish</p>
-                          <p className="font-bold text-cream-900">{order.finish}</p>
-                        </div>
-                        <div className="bg-cream-50 rounded-lg p-3">
-                          <p className="text-xs text-cream-600 mb-1">Shape</p>
-                          <p className="font-bold text-cream-900">{order.shape}</p>
-                        </div>
-                        <div className="bg-cream-50 rounded-lg p-3">
-                          <p className="text-xs text-cream-600 mb-1">Total Price</p>
-                          <p className="font-bold text-cream-900">₹{order.totalPrice.toFixed(2)}</p>
-                        </div>
-                        <div className="bg-cream-50 rounded-lg p-3">
-                          <p className="text-xs text-cream-600 mb-1">Mobile</p>
-                          <p className="font-bold text-cream-900 text-xs">{order.mobileNumber || "N/A"}</p>
-                        </div>
-                      </div>
-
-                      {order.selectedOptions && order.selectedOptions.length > 0 && (
-                        <div className="mb-4">
-                          <p className="text-xs font-medium text-cream-600 mb-2">Selected Options</p>
-                          <div className="flex flex-wrap gap-2">
-                            {order.selectedOptions.map((option, idx) => (
-                              <span
-                                key={idx}
-                                className="px-2 py-1 bg-cream-100 text-cream-800 rounded text-xs"
-                              >
-                                {typeof option === "string" ? option : option.optionName}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Uploaded Front Image Display */}
-                      {order.uploadedDesign?.frontImage && (
-                        <div className="mb-4 p-3 bg-cream-50 rounded-lg border border-cream-200">
-                          <p className="text-xs font-medium text-cream-700 mb-2 flex items-center gap-2">
-                            <ImageIcon size={14} />
-                            Uploaded Front Design
-                          </p>
-                          <img
-                            src={order.uploadedDesign.frontImage.data || PLACEHOLDER_IMAGE}
-                            alt="Front design"
-                            className="w-full max-h-48 object-contain rounded border border-cream-300 bg-white"
-                            onError={(e) => {
-                              const target = e.target as HTMLImageElement;
-                              target.style.display = "none";
-                              const errorDiv = document.createElement("div");
-                              errorDiv.className = "w-full h-48 flex items-center justify-center bg-red-50 text-red-600 rounded border border-red-200 text-sm";
-                              errorDiv.textContent = "Failed to load image";
-                              target.parentElement?.appendChild(errorDiv);
-                            }}
-                          />
-                        </div>
-                      )}
-
-                      {/* Customer Notes - Small Display */}
-                      {order.notes && (
-                        <div className="mb-4 p-2 bg-blue-50 rounded-lg border border-blue-200">
-                          <p className="text-xs font-semibold text-blue-700 mb-1">Customer Notes:</p>
-                          <p className="text-xs text-blue-900 line-clamp-2">{order.notes}</p>
-                        </div>
-                      )}
-
-                      <div className="flex flex-col sm:flex-row gap-2 mb-4">
-                        <button
-                          onClick={() => {
-                            setSelectedOrder(order);
-                            setOrderStatusUpdate({
-                              status: order.status,
-                              deliveryDate: order.deliveryDate ? new Date(order.deliveryDate).toISOString().split('T')[0] : "",
-                              adminNotes: order.adminNotes || "",
-                            });
-                            setShowOrderModal(true);
-                          }}
-                          className="flex-1 px-4 py-2.5 bg-cream-900 text-white rounded-lg hover:bg-cream-800 transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 font-medium"
-                        >
-                          <Eye size={16} />
-                          {order.status !== "cancelled" ? "View & Manage" : "View Details"}
-                        </button>
-                        {order.status === "request" && (
-                          <>
-                            <button
-                              onClick={() => handleUpdateOrderStatus(order._id, "production_ready")}
-                              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
-                            >
-                              <Check size={16} />
-                              Production Ready
-                            </button>
-                            <button
-                              onClick={() => handleRejectOrder(order._id)}
-                              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center gap-2"
-                            >
-                              <XCircle size={16} />
-                              Reject
-                            </button>
-                          </>
-                        )}
-                        {order.status === "production_ready" && (
-                          <>
-                            <div className="flex flex-col gap-2">
-                              <input
-                                type="date"
-                                value={order.deliveryDate ? new Date(order.deliveryDate).toISOString().split('T')[0] : ''}
-                                onChange={(e) => {
-                                  const newDate = e.target.value;
-                                  if (newDate) {
-                                    handleUpdateOrderStatus(order._id, undefined, undefined, newDate);
-                                  }
-                                }}
-                                className="px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 text-sm"
-                                placeholder="Delivery Date"
-                              />
-                              <div className="flex gap-2">
-                                <button
-                                  onClick={() => handleUpdateOrderStatus(order._id, undefined, "start_production")}
-                                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
-                                >
-                                  <Play size={16} />
-                                  Start
-                                </button>
-                                <button
-                                  onClick={() => {
-                                    if (window.confirm("Are you sure you want to cancel this order?")) {
-                                      handleUpdateOrderStatus(order._id, "cancelled");
-                                    }
-                                  }}
-                                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center gap-2"
-                                >
-                                  <XCircle size={16} />
-                                  Cancel
-                                </button>
-                              </div>
-                            </div>
-                          </>
-                        )}
-                      </div>
-
-                      <div className="text-xs text-cream-500 pt-2 border-t border-cream-100">
-                        Ordered: {!isClient 
-                          ? 'Loading...' 
-                          : new Date(order.createdAt).toLocaleString()
-                        }
-                        {order.deliveryDate && (
-                          <span className="ml-4">
-                            Delivery: {!isClient 
-                              ? 'Loading...' 
-                              : new Date(order.deliveryDate).toLocaleDateString()
-                            }
-                          </span>
-                        )}
-                      </div>
-                    </div>
                     );
                   })}
                 </div>
@@ -10043,48 +11101,48 @@ const AdminDashboard: React.FC = () => {
                           setShowUploadModal(true);
                         }}
                       >
-                      {upload.frontImage ? (
-                        <div className="aspect-video bg-cream-100 relative group">
-                          {imageLoading[`front-${upload._id}`] && (
-                            <div className="absolute inset-0 flex items-center justify-center bg-cream-100 z-10">
-                              <Loader className="animate-spin text-cream-600" size={24} />
-                            </div>
-                          )}
-                          <img
-                            src={getImageUrl(upload.frontImage.data, upload.frontImage.contentType) || PLACEHOLDER_IMAGE}
-                            alt={upload.frontImage.filename}
-                            className={`w-full h-full object-cover ${imageLoading[`front-${upload._id}`] ? "opacity-0" : "opacity-100"} transition-opacity`}
-                            onLoad={() => setImageLoading(prev => ({ ...prev, [`front-${upload._id}`]: false }))}
-                            onError={(e) => {
-                              setImageLoading(prev => ({ ...prev, [`front-${upload._id}`]: false }));
-                              const target = e.target as HTMLImageElement;
-                              target.style.display = "none";
-                              const errorDiv = document.createElement("div");
-                              errorDiv.className = "absolute inset-0 flex items-center justify-center bg-red-50 text-red-600 text-xs p-2";
-                              errorDiv.textContent = "Failed to load image";
-                              target.parentElement?.appendChild(errorDiv);
-                            }}
-                            onLoadStart={() => setImageLoading(prev => ({ ...prev, [`front-${upload._id}`]: true }))}
-                          />
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDownloadImage(
-                                upload.frontImage!.data,
-                                upload.frontImage!.filename || "image.jpg"
-                              );
-                            }}
-                            className="absolute top-2 left-2 p-2 bg-cream-900/80 text-white rounded-lg hover:bg-cream-900 transition-colors opacity-0 group-hover:opacity-100 flex items-center gap-1 shadow-md z-20"
-                            title="Download image"
-                          >
-                            <Download size={14} />
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="aspect-video bg-cream-100 flex items-center justify-center">
-                          <p className="text-cream-400 text-sm">No image</p>
-                        </div>
-                      )}
+                        {upload.frontImage ? (
+                          <div className="aspect-video bg-cream-100 relative group">
+                            {imageLoading[`front-${upload._id}`] && (
+                              <div className="absolute inset-0 flex items-center justify-center bg-cream-100 z-10">
+                                <Loader className="animate-spin text-cream-600" size={24} />
+                              </div>
+                            )}
+                            <img
+                              src={getImageUrl(upload.frontImage.data, upload.frontImage.contentType) || PLACEHOLDER_IMAGE}
+                              alt={upload.frontImage.filename}
+                              className={`w-full h-full object-cover ${imageLoading[`front-${upload._id}`] ? "opacity-0" : "opacity-100"} transition-opacity`}
+                              onLoad={() => setImageLoading(prev => ({ ...prev, [`front-${upload._id}`]: false }))}
+                              onError={(e) => {
+                                setImageLoading(prev => ({ ...prev, [`front-${upload._id}`]: false }));
+                                const target = e.target as HTMLImageElement;
+                                target.style.display = "none";
+                                const errorDiv = document.createElement("div");
+                                errorDiv.className = "absolute inset-0 flex items-center justify-center bg-red-50 text-red-600 text-xs p-2";
+                                errorDiv.textContent = "Failed to load image";
+                                target.parentElement?.appendChild(errorDiv);
+                              }}
+                              onLoadStart={() => setImageLoading(prev => ({ ...prev, [`front-${upload._id}`]: true }))}
+                            />
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDownloadImage(
+                                  upload.frontImage!.data,
+                                  upload.frontImage!.filename || "image.jpg"
+                                );
+                              }}
+                              className="absolute top-2 left-2 p-2 bg-cream-900/80 text-white rounded-lg hover:bg-cream-900 transition-colors opacity-0 group-hover:opacity-100 flex items-center gap-1 shadow-md z-20"
+                              title="Download image"
+                            >
+                              <Download size={14} />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="aspect-video bg-cream-100 flex items-center justify-center">
+                            <p className="text-cream-400 text-sm">No image</p>
+                          </div>
+                        )}
                         <div className="p-3 sm:p-4">
                           <p className="font-semibold text-sm sm:text-base text-cream-900 truncate">
                             {upload.user.name}
@@ -10096,8 +11154,8 @@ const AdminDashboard: React.FC = () => {
                             {upload.width} × {upload.height}px
                           </p>
                           <p className="text-xs text-cream-500">
-                            {!isClient 
-                              ? 'Loading...' 
+                            {!isClient
+                              ? 'Loading...'
                               : new Date(upload.createdAt).toLocaleDateString()
                             }
                           </p>
@@ -10169,16 +11227,16 @@ const AdminDashboard: React.FC = () => {
                               if (!category.parent) {
                                 return [category.name, ...path];
                               }
-                              const parent = categories.find(c => c._id === (typeof category.parent === 'object' ? category.parent._id : category.parent));
+                              const parent = categories.find(c => c._id === (typeof category.parent === 'object' && category.parent !== null ? category.parent._id : category.parent));
                               if (parent) {
                                 return getCategoryPath(parent, [category.name, ...path]);
                               }
                               return [category.name, ...path];
                             };
-                            
+
                             const path = getCategoryPath(cat);
                             const displayName = path.join(" > ");
-                            
+
                             return {
                               value: cat._id,
                               label: `${displayName} (${cat.type})`,
@@ -10241,24 +11299,24 @@ const AdminDashboard: React.FC = () => {
                     let categoryName = "No Category";
                     let subcategoryName = "";
                     let categoryType = "";
-                    
+
                     // Check if product has a subcategory
                     if (product.subcategory) {
-                      const subcategoryId = product.subcategory && typeof product.subcategory === "object" 
-                        ? product.subcategory._id 
+                      const subcategoryId = product.subcategory && typeof product.subcategory === "object"
+                        ? product.subcategory._id
                         : product.subcategory;
-                      
+
                       // Find subcategory in subCategories state
                       const productSubcategory = subCategories.find((sc: any) => sc._id === subcategoryId);
-                      
+
                       if (productSubcategory) {
                         subcategoryName = productSubcategory.name || "";
-                        
+
                         // Get parent category from subcategory
-                        const parentCategoryId = typeof productSubcategory.category === "object"
+                        const parentCategoryId = typeof productSubcategory.category === "object" && productSubcategory.category !== null
                           ? productSubcategory.category._id
                           : productSubcategory.category;
-                        
+
                         if (parentCategoryId) {
                           const parentCategory = categories.find((c: Category) => {
                             const catId = typeof parentCategoryId === 'string' ? parentCategoryId : (typeof parentCategoryId === 'object' && parentCategoryId?._id ? parentCategoryId._id : '');
@@ -10269,16 +11327,16 @@ const AdminDashboard: React.FC = () => {
                             categoryType = parentCategory.type || "";
                           }
                         }
-                      } else if (typeof product.subcategory === "object" && product.subcategory.name) {
+                      } else if (product.subcategory && typeof product.subcategory === "object" && (product.subcategory as any).name) {
                         // If subcategory is populated in the product object
-                        subcategoryName = product.subcategory.name;
-                        if (typeof product.subcategory === "object" && product.subcategory.category) {
-                          const categoryRef = product.subcategory.category;
-                          const parentCategory = typeof categoryRef === "object" && '_id' in categoryRef
+                        subcategoryName = (product.subcategory as any).name;
+                        if (product.subcategory && typeof product.subcategory === "object" && (product.subcategory as any).category) {
+                          const categoryRef = (product.subcategory as any).category;
+                          const parentCategory = categoryRef && typeof categoryRef === "object" && '_id' in (categoryRef as any)
                             ? categoryRef
-                            : (typeof categoryRef === 'string' 
-                                ? categories.find((c: Category) => c._id === categoryRef)
-                                : null);
+                            : (typeof categoryRef === 'string'
+                              ? categories.find((c: Category) => c._id === categoryRef)
+                              : null);
                           if (parentCategory && typeof parentCategory === "object" && '_id' in parentCategory) {
                             categoryName = parentCategory.name || "No Category";
                             categoryType = ('type' in parentCategory && typeof parentCategory.type === 'string' ? parentCategory.type : "") || "";
@@ -10287,26 +11345,26 @@ const AdminDashboard: React.FC = () => {
                       }
                     } else if (product.category) {
                       // Product has direct category (no subcategory)
-                      const categoryId = product.category && typeof product.category === "object" 
-                        ? product.category._id 
+                      const categoryId = product.category && typeof product.category === "object"
+                        ? product.category._id
                         : (typeof product.category === 'string' ? product.category : '');
-                      
+
                       const productCategory = categories.find((c: Category) => c._id === String(categoryId));
                       if (productCategory) {
                         categoryName = productCategory.name || "No Category";
                         categoryType = productCategory.type || "";
-                      } else if (typeof product.category === "object" && '_id' in product.category && 'name' in product.category) {
+                      } else if (product.category && typeof product.category === "object" && '_id' in (product.category as any) && 'name' in (product.category as any)) {
                         // If category is populated in the product object
                         categoryName = product.category.name || "No Category";
                         categoryType = ('type' in product.category && typeof product.category.type === 'string' ? product.category.type : "") || "";
                       }
                     }
-                    
+
                     // Build display text - show "Direct" if no subcategory
-                    const categoryDisplay = subcategoryName 
+                    const categoryDisplay = subcategoryName
                       ? `${categoryName} > ${subcategoryName}`
                       : `${categoryName} (Direct)`;
-                    
+
                     return (
                       <div
                         key={product._id}
@@ -10504,7 +11562,7 @@ const AdminDashboard: React.FC = () => {
                   </button>
                 </div>
               ) : (
-                <div 
+                <div
                   ref={categoryListRef}
                   className="space-y-4 max-h-[600px] overflow-y-auto pr-2 scroll-smooth"
                   style={{ scrollBehavior: 'auto' }} // Use auto for programmatic scrolling
@@ -10539,214 +11597,213 @@ const AdminDashboard: React.FC = () => {
                     const indentClass = displayLevel > 0 ? `ml-${displayLevel * 6}` : '';
                     // Check if this is a subcategory (has parent or isSubcategory flag)
                     const isSubcategory = (category as any).isSubcategory || (displayLevel > 0);
-                    
+
                     // Get parent category name for display
                     let parentName = '';
                     if (isSubcategory) {
                       // For subcategories, get parent from category field or parent field
-                      const parentId = (category as any).parent || 
-                        ((category as any).category && typeof (category as any).category === 'object' 
-                          ? (category as any).category._id 
+                      const parentId = (category as any).parent ||
+                        ((category as any).category && typeof (category as any).category === 'object'
+                          ? (category as any).category._id
                           : (category as any).category);
                       if (parentId) {
                         const parentCat = categories.find(c => c._id === parentId);
                         parentName = parentCat ? parentCat.name : 'Unknown';
                       }
                     }
-                    
+
                     return (
-                    <div key={category._id} className="space-y-3">
-                      <div
-                        draggable
-                        onDragStart={(e) => {
-                          setDraggedCategoryId(category._id);
-                          e.dataTransfer.effectAllowed = "move";
-                          e.dataTransfer.setData("text/plain", category._id);
-                        }}
-                        onDragOver={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation(); // Prevent event from bubbling to container
-                          e.dataTransfer.dropEffect = "move";
-                          const target = e.currentTarget;
-                          if (draggedCategoryId !== category._id) {
-                            target.style.opacity = "0.5";
-                          }
-                          // Trigger auto-scroll when dragging over items
-                          if (draggedCategoryId) {
-                            handleAutoScroll(e, categoryListRef.current);
-                          }
-                        }}
-                        onDragLeave={(e) => {
-                          e.currentTarget.style.opacity = "1";
-                        }}
-                        onDrop={(e) => {
-                          e.preventDefault();
-                          e.currentTarget.style.opacity = "1";
-                          const draggedId = e.dataTransfer.getData("text/plain");
-                          if (draggedId && draggedId !== category._id) {
-                            // Check if either item is a subcategory - if so, use subcategory reorder
-                            const draggedItem = filteredCategories.find(c => c._id === draggedId);
-                            const targetItem = category;
-                            const isDraggedSubcategory = draggedItem && ((draggedItem as any).isSubcategory || (draggedItem as any).displayLevel > 0);
-                            const isTargetSubcategory = (targetItem as any).isSubcategory || (targetItem as any).displayLevel > 0;
-                            
-                            if (isDraggedSubcategory || isTargetSubcategory) {
-                              // Handle subcategory reorder in the main list
-                              handleSubCategoryReorder(draggedId, category._id);
-                              return;
+                      <div key={category._id} className="space-y-3">
+                        <div
+                          draggable
+                          onDragStart={(e) => {
+                            setDraggedCategoryId(category._id);
+                            e.dataTransfer.effectAllowed = "move";
+                            e.dataTransfer.setData("text/plain", category._id);
+                          }}
+                          onDragOver={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation(); // Prevent event from bubbling to container
+                            e.dataTransfer.dropEffect = "move";
+                            const target = e.currentTarget;
+                            if (draggedCategoryId !== category._id) {
+                              target.style.opacity = "0.5";
                             }
-                            
-                            handleCategoryReorder(draggedId, category._id, index);
-                          }
-                        }}
-                        onDragEnd={(e) => {
-                          e.currentTarget.style.opacity = "1";
-                          stopAutoScroll();
-                          // Small delay to ensure drag end is processed
-                          setTimeout(() => {
-                            setDraggedCategoryId(null);
-                          }, 100);
-                        }}
-                        className={`border border-cream-300 rounded-lg p-4 flex items-center justify-between hover:shadow-md transition-shadow cursor-move ${
-                          draggedCategoryId === category._id ? "opacity-50" : ""
-                        } ${displayLevel > 0 ? 'bg-cream-50' : 'bg-white'}`}
-                        style={{ marginLeft: `${displayLevel * 24}px` }}
-                        onClick={(e) => {
-                          // Only handle click if not dragging
-                          if (!draggedCategoryId) {
-                            handleCategoryClick(category._id);
-                          }
-                        }}
-                      >
-                        <div className="flex items-center gap-4 flex-1">
-                          {displayLevel > 0 && (
-                            <div className="flex items-center">
-                              <ChevronRight size={16} className="text-cream-400" />
-                            </div>
-                          )}
-                          <div className="cursor-move text-cream-400 hover:text-cream-600">
-                            <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-                              <path d="M7 2a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 2zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 8zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 14zm6-8a2 2 0 1 1-.001-4.001A2 2 0 0 1 13 6zm0 2a2 2 0 1 1 .001 4.001A2 2 0 0 1 13 8zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 13 14z"/>
-                            </svg>
-                          </div>
+                            // Trigger auto-scroll when dragging over items
+                            if (draggedCategoryId) {
+                              handleAutoScroll(e, categoryListRef.current);
+                            }
+                          }}
+                          onDragLeave={(e) => {
+                            e.currentTarget.style.opacity = "1";
+                          }}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            e.currentTarget.style.opacity = "1";
+                            const draggedId = e.dataTransfer.getData("text/plain");
+                            if (draggedId && draggedId !== category._id) {
+                              // Check if either item is a subcategory - if so, use subcategory reorder
+                              const draggedItem = filteredCategories.find(c => c._id === draggedId);
+                              const targetItem = category;
+                              const isDraggedSubcategory = draggedItem && ((draggedItem as any).isSubcategory || (draggedItem as any).displayLevel > 0);
+                              const isTargetSubcategory = (targetItem as any).isSubcategory || (targetItem as any).displayLevel > 0;
+
+                              if (isDraggedSubcategory || isTargetSubcategory) {
+                                // Handle subcategory reorder in the main list
+                                handleSubCategoryReorder(draggedId, category._id);
+                                return;
+                              }
+
+                              handleCategoryReorder(draggedId, category._id, index);
+                            }
+                          }}
+                          onDragEnd={(e) => {
+                            e.currentTarget.style.opacity = "1";
+                            stopAutoScroll();
+                            // Small delay to ensure drag end is processed
+                            setTimeout(() => {
+                              setDraggedCategoryId(null);
+                            }, 100);
+                          }}
+                          className={`border border-cream-300 rounded-lg p-4 flex items-center justify-between hover:shadow-md transition-shadow cursor-move ${draggedCategoryId === category._id ? "opacity-50" : ""
+                            } ${displayLevel > 0 ? 'bg-cream-50' : 'bg-white'}`}
+                          style={{ marginLeft: `${displayLevel * 24}px` }}
+                          onClick={(e) => {
+                            // Only handle click if not dragging
+                            if (!draggedCategoryId) {
+                              handleCategoryClick(category._id);
+                            }
+                          }}
+                        >
                           <div className="flex items-center gap-4 flex-1">
-                          {category.image && category.image.trim() !== "" && (
-                            <img
-                              src={category.image}
-                              alt={category.name}
-                              className="w-16 h-16 object-cover rounded-lg"
-                            />
-                          )}
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <h3 className="font-semibold text-cream-900">
-                                {category.name}
-                              </h3>
-                              {isSubcategory && (
-                                <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
-                                  Subcategory
-                                </span>
-                              )}
-                              {!isSubcategory && (
-                                <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
-                                  Top-level
-                                </span>
-                              )}
-                              {selectedCategory === category._id && (
-                                <span className="text-xs bg-cream-200 text-cream-900 px-2 py-1 rounded-full">
-                                  {categorySubcategories.length} child categor{categorySubcategories.length === 1 ? 'y' : 'ies'}
-                                </span>
-                              )}
+                            {displayLevel > 0 && (
+                              <div className="flex items-center">
+                                <ChevronRight size={16} className="text-cream-400" />
+                              </div>
+                            )}
+                            <div className="cursor-move text-cream-400 hover:text-cream-600">
+                              <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                                <path d="M7 2a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 2zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 8zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 14zm6-8a2 2 0 1 1-.001-4.001A2 2 0 0 1 13 6zm0 2a2 2 0 1 1 .001 4.001A2 2 0 0 1 13 8zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 13 14z" />
+                              </svg>
                             </div>
-                            {isSubcategory && parentName && (
-                              <p className="text-xs text-cream-500 mt-1">
-                                Parent: {parentName}
-                              </p>
-                            )}
-                            <p className="text-xs text-cream-500">
-                              Type: {category.type} | Sort Order: {category.sortOrder || 0}
-                            </p>
-                            {category.slug && (
-                              <p className="text-xs text-cream-500">
-                                Slug: {category.slug}
-                              </p>
-                            )}
-                            <p className="text-xs text-cream-600 mt-1">
-                              Click to view products | Drag handle to reorder
-                            </p>
+                            <div className="flex items-center gap-4 flex-1">
+                              {category.image && category.image.trim() !== "" && (
+                                <img
+                                  src={category.image}
+                                  alt={category.name}
+                                  className="w-16 h-16 object-cover rounded-lg"
+                                />
+                              )}
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <h3 className="font-semibold text-cream-900">
+                                    {category.name}
+                                  </h3>
+                                  {isSubcategory && (
+                                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                                      Subcategory
+                                    </span>
+                                  )}
+                                  {!isSubcategory && (
+                                    <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
+                                      Top-level
+                                    </span>
+                                  )}
+                                  {selectedCategory === category._id && (
+                                    <span className="text-xs bg-cream-200 text-cream-900 px-2 py-1 rounded-full">
+                                      {categorySubcategories.length} child categor{categorySubcategories.length === 1 ? 'y' : 'ies'}
+                                    </span>
+                                  )}
+                                </div>
+                                {isSubcategory && parentName && (
+                                  <p className="text-xs text-cream-500 mt-1">
+                                    Parent: {parentName}
+                                  </p>
+                                )}
+                                <p className="text-xs text-cream-500">
+                                  Type: {category.type} | Sort Order: {category.sortOrder || 0}
+                                </p>
+                                {category.slug && (
+                                  <p className="text-xs text-cream-500">
+                                    Slug: {category.slug}
+                                  </p>
+                                )}
+                                <p className="text-xs text-cream-600 mt-1">
+                                  Click to view products | Drag handle to reorder
+                                </p>
+                              </div>
+                            </div>
                           </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setViewDescriptionModal({
+                                  isOpen: true,
+                                  type: 'category',
+                                  name: category.name,
+                                  description: category.description || 'No description available.',
+                                });
+                              }}
+                              disabled={loading}
+                              className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors disabled:opacity-50 flex items-center gap-2"
+                            >
+                              <Eye size={18} />
+                              View
+                            </button>
+                            {isSubcategory ? (
+                              <>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleEditSubCategory(category._id);
+                                  }}
+                                  disabled={loading}
+                                  className="px-4 py-2 bg-cream-200 text-cream-900 rounded-lg hover:bg-cream-300 transition-colors disabled:opacity-50 flex items-center gap-2"
+                                >
+                                  <Edit size={18} />
+                                  Edit
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteSubCategory(category._id);
+                                  }}
+                                  disabled={loading}
+                                  className="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors disabled:opacity-50 flex items-center gap-2"
+                                >
+                                  <Trash2 size={18} />
+                                  Delete
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleEditCategory(category._id);
+                                  }}
+                                  disabled={loading}
+                                  className="px-4 py-2 bg-cream-200 text-cream-900 rounded-lg hover:bg-cream-300 transition-colors disabled:opacity-50 flex items-center gap-2"
+                                >
+                                  <Edit size={18} />
+                                  Edit
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteCategory(category._id);
+                                  }}
+                                  disabled={loading}
+                                  className="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors disabled:opacity-50 flex items-center gap-2"
+                                >
+                                  <Trash2 size={18} />
+                                  Delete
+                                </button>
+                              </>
+                            )}
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setViewDescriptionModal({
-                                isOpen: true,
-                                type: 'category',
-                                name: category.name,
-                                description: category.description || 'No description available.',
-                              });
-                            }}
-                            disabled={loading}
-                            className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors disabled:opacity-50 flex items-center gap-2"
-                          >
-                            <Eye size={18} />
-                            View
-                          </button>
-                          {isSubcategory ? (
-                            <>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleEditSubCategory(category._id);
-                                }}
-                                disabled={loading}
-                                className="px-4 py-2 bg-cream-200 text-cream-900 rounded-lg hover:bg-cream-300 transition-colors disabled:opacity-50 flex items-center gap-2"
-                              >
-                                <Edit size={18} />
-                                Edit
-                              </button>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDeleteSubCategory(category._id);
-                                }}
-                                disabled={loading}
-                                className="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors disabled:opacity-50 flex items-center gap-2"
-                              >
-                                <Trash2 size={18} />
-                                Delete
-                              </button>
-                            </>
-                          ) : (
-                            <>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleEditCategory(category._id);
-                                }}
-                                disabled={loading}
-                                className="px-4 py-2 bg-cream-200 text-cream-900 rounded-lg hover:bg-cream-300 transition-colors disabled:opacity-50 flex items-center gap-2"
-                              >
-                                <Edit size={18} />
-                                Edit
-                              </button>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDeleteCategory(category._id);
-                                }}
-                                disabled={loading}
-                                className="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors disabled:opacity-50 flex items-center gap-2"
-                              >
-                                <Trash2 size={18} />
-                                Delete
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </div>
                       </div>
                     );
                   })}
@@ -10755,7 +11812,7 @@ const AdminDashboard: React.FC = () => {
                   {selectedCategory && (() => {
                     const selectedCat = categories.find(c => c._id === selectedCategory);
                     if (!selectedCat) return null;
-                    
+
                     return (
                       <div className="mt-6 space-y-3 border-t-2 border-cream-300 pt-6 bg-cream-50 rounded-lg p-4">
                         <div className="flex items-center justify-between mb-4">
@@ -10769,7 +11826,7 @@ const AdminDashboard: React.FC = () => {
                             <X size={20} />
                           </button>
                         </div>
-                        
+
                         {/* Add Product and Subcategory Buttons */}
                         <div className="mb-4 flex gap-3">
                           <button
@@ -10784,7 +11841,7 @@ const AdminDashboard: React.FC = () => {
                             className="px-4 py-2 bg-cream-900 text-white rounded-lg hover:bg-cream-800 transition-colors flex items-center gap-2"
                           >
                             <Plus size={18} />
-                            {selectedSubCategoryForView 
+                            {selectedSubCategoryForView
                               ? `Add Product to ${categorySubcategories.find(sc => sc._id === selectedSubCategoryForView)?.name || 'Subcategory'}`
                               : "Add Product to this Category"}
                           </button>
@@ -10849,7 +11906,7 @@ const AdminDashboard: React.FC = () => {
                               <>
                                 <p>No products found directly in this category</p>
                                 <p className="text-xs text-cream-500 mt-1">
-                                  {selectedSubCategoryForView 
+                                  {selectedSubCategoryForView
                                     ? "No products found in this subcategory. Click 'Add Product to this Category' to create one."
                                     : "Click on a subcategory above to view its products, or click 'Add Product to this Category' to add products directly to this category."}
                                 </p>
@@ -10914,137 +11971,285 @@ const AdminDashboard: React.FC = () => {
                               Subcategories ({categorySubcategories.length}) - Drag to reorder, click to view products:
                             </p>
                             <div className="space-y-2">
-                              {categorySubcategories
-                                .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
-                                .map((subCat, index) => (
-                                <div
-                                  key={subCat._id}
-                                  draggable
-                                  onDragStart={(e) => {
-                                    setDraggedSubCategoryId(subCat._id);
-                                    e.dataTransfer.effectAllowed = "move";
-                                    e.dataTransfer.setData("text/plain", subCat._id);
-                                  }}
-                                  onDragOver={(e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    e.dataTransfer.dropEffect = "move";
-                                    const target = e.currentTarget;
-                                    if (draggedSubCategoryId && draggedSubCategoryId !== subCat._id) {
-                                      target.style.opacity = "0.5";
-                                      target.style.borderColor = "#d97706"; // Highlight border
-                                    }
-                                  }}
-                                  onDragEnter={(e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    if (draggedSubCategoryId && draggedSubCategoryId !== subCat._id) {
-                                      e.currentTarget.style.borderColor = "#d97706";
-                                    }
-                                  }}
-                                  onDragLeave={(e) => {
-                                    e.currentTarget.style.opacity = "1";
-                                    e.currentTarget.style.borderColor = "";
-                                  }}
-                                  onDrop={(e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    e.currentTarget.style.opacity = "1";
-                                    e.currentTarget.style.borderColor = "";
-                                    const draggedId = e.dataTransfer.getData("text/plain");
-                                    if (draggedId && draggedId !== subCat._id) {
-                                      handleSubCategoryReorder(draggedId, subCat._id);
-                                    }
-                                  }}
-                                  onDragEnd={(e) => {
-                                    e.currentTarget.style.opacity = "1";
-                                    setDraggedSubCategoryId(null);
-                                  }}
-                                  className={`text-sm pl-3 py-2 rounded-lg border transition-colors cursor-move ${
-                                    selectedSubCategoryForView === subCat._id
-                                      ? 'bg-cream-200 border-cream-400 text-cream-900 font-medium'
-                                      : 'bg-white border-cream-200 text-cream-700 hover:bg-cream-100 hover:border-cream-300'
-                                  } ${draggedSubCategoryId === subCat._id ? "opacity-50" : ""}`}
-                                >
-                                  <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2 flex-1">
-                                      <div className="cursor-move text-cream-400 hover:text-cream-600">
-                                        <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
-                                          <path d="M7 2a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 2zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 8zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 14zm6-8a2 2 0 1 1-.001-4.001A2 2 0 0 1 13 6zm0 2a2 2 0 1 1 .001 4.001A2 2 0 0 1 13 8zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 13 14z"/>
-                                        </svg>
-                                      </div>
-                                      <div 
-                                        onClick={(e) => handleSubCategoryClick(subCat._id, e)}
-                                        className="flex items-center gap-2 flex-1 cursor-pointer"
-                                      >
-                                        <ChevronRight
-                                          size={14}
-                                          className={`transition-transform ${
-                                            selectedSubCategoryForView === subCat._id ? 'rotate-90' : ''
-                                          }`}
-                                        />
-                                        <span>{subCat.name}</span>
-                                        {subCat.sortOrder !== undefined && subCat.sortOrder !== null && (
-                                          <span className="text-xs text-cream-500">
-                                            (Order: {subCat.sortOrder})
-                                          </span>
-                                        )}
-                                      </div>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                      {selectedSubCategoryForView === subCat._id && (
-                                        <span className="text-xs text-cream-600 mr-2">
-                                          {categoryProducts.length} product{categoryProducts.length !== 1 ? 's' : ''}
-                                        </span>
-                                      )}
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setViewDescriptionModal({
-                                            isOpen: true,
-                                            type: 'subcategory',
-                                            name: subCat.name,
-                                            description: subCat.description || 'No description available.',
-                                          });
+                              {/* Recursive component to render nested subcategories */}
+                              {(() => {
+                                const renderSubCategory = (subCat: any, level: number = 0): React.ReactElement => {
+                                  const hasChildren = subCat.children && subCat.children.length > 0;
+                                  return (
+                                    <div key={subCat._id}>
+                                      <div
+                                        draggable
+                                        onDragStart={(e) => {
+                                          setDraggedSubCategoryId(subCat._id);
+                                          e.dataTransfer.effectAllowed = "move";
+                                          e.dataTransfer.setData("text/plain", subCat._id);
                                         }}
-                                        disabled={loading}
-                                        className="px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors disabled:opacity-50 flex items-center gap-1"
-                                        title="View Description"
-                                      >
-                                        <Eye size={14} />
-                                      </button>
-                                      <button
-                                        onClick={async (e) => {
-                                          e.stopPropagation();
+                                        onDragOver={(e) => {
                                           e.preventDefault();
-                                          try {
-                                            await handleEditSubCategory(subCat._id);
-                                          } catch (err) {
-                                            console.error("Error editing subcategory:", err);
-                                            setError("Failed to load subcategory for editing");
+                                          e.stopPropagation();
+                                          e.dataTransfer.dropEffect = "move";
+                                          const target = e.currentTarget;
+                                          if (draggedSubCategoryId && draggedSubCategoryId !== subCat._id) {
+                                            target.style.opacity = "0.5";
+                                            target.style.borderColor = "#d97706";
                                           }
                                         }}
-                                        disabled={loading}
-                                        className="px-2 py-1 bg-cream-200 text-cream-900 rounded hover:bg-cream-300 transition-colors disabled:opacity-50 flex items-center gap-1"
-                                        title="Edit Subcategory"
-                                      >
-                                        <Edit size={14} />
-                                      </button>
-                                      <button
-                                        onClick={(e) => {
+                                        onDragEnter={(e) => {
+                                          e.preventDefault();
                                           e.stopPropagation();
-                                          handleDeleteSubCategory(subCat._id);
+                                          if (draggedSubCategoryId && draggedSubCategoryId !== subCat._id) {
+                                            e.currentTarget.style.borderColor = "#d97706";
+                                          }
                                         }}
-                                        disabled={loading}
-                                        className="px-2 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200 transition-colors disabled:opacity-50 flex items-center gap-1"
-                                        title="Delete Subcategory"
+                                        onDragLeave={(e) => {
+                                          e.currentTarget.style.opacity = "1";
+                                          e.currentTarget.style.borderColor = "";
+                                        }}
+                                        onDrop={(e) => {
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          e.currentTarget.style.opacity = "1";
+                                          e.currentTarget.style.borderColor = "";
+                                          const draggedId = e.dataTransfer.getData("text/plain");
+                                          if (draggedId && draggedId !== subCat._id) {
+                                            handleSubCategoryReorder(draggedId, subCat._id);
+                                          }
+                                        }}
+                                        onDragEnd={(e) => {
+                                          e.currentTarget.style.opacity = "1";
+                                          setDraggedSubCategoryId(null);
+                                        }}
+                                        className={`text-sm pl-3 py-2 rounded-lg border transition-colors cursor-move ${selectedSubCategoryForView === subCat._id
+                                          ? 'bg-cream-200 border-cream-400 text-cream-900 font-medium'
+                                          : 'bg-white border-cream-200 text-cream-700 hover:bg-cream-100 hover:border-cream-300'
+                                          } ${draggedSubCategoryId === subCat._id ? "opacity-50" : ""}`}
+                                        style={{ marginLeft: `${level * 20}px` }}
                                       >
-                                        <Trash2 size={14} />
-                                      </button>
+                                        <div className="flex items-center justify-between">
+                                          <div className="flex items-center gap-2 flex-1">
+                                            <div className="cursor-move text-cream-400 hover:text-cream-600">
+                                              <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+                                                <path d="M7 2a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 2zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 8zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 14zm6-8a2 2 0 1 1-.001-4.001A2 2 0 0 1 13 6zm0 2a2 2 0 1 1 .001 4.001A2 2 0 0 1 13 8zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 13 14z" />
+                                              </svg>
+                                            </div>
+                                            <div
+                                              onClick={(e) => handleSubCategoryClick(subCat._id, e)}
+                                              className="flex items-center gap-2 flex-1 cursor-pointer"
+                                            >
+                                              <ChevronRight
+                                                size={14}
+                                                className={`transition-transform ${selectedSubCategoryForView === subCat._id ? 'rotate-90' : ''
+                                                  }`}
+                                              />
+                                              <span>{subCat.name}</span>
+                                              {level > 0 && (
+                                                <span className="text-xs text-purple-600 font-medium">(nested)</span>
+                                              )}
+                                              {subCat.sortOrder !== undefined && subCat.sortOrder !== null && (
+                                                <span className="text-xs text-cream-500">
+                                                  (Order: {subCat.sortOrder})
+                                                </span>
+                                              )}
+                                            </div>
+                                          </div>
+                                          <div className="flex items-center gap-2">
+                                            {selectedSubCategoryForView === subCat._id && (
+                                              <span className="text-xs text-cream-600 mr-2">
+                                                {categoryProducts.length} product{categoryProducts.length !== 1 ? 's' : ''}
+                                              </span>
+                                            )}
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                setViewDescriptionModal({
+                                                  isOpen: true,
+                                                  type: 'subcategory',
+                                                  name: subCat.name,
+                                                  description: subCat.description || 'No description available.',
+                                                });
+                                              }}
+                                              disabled={loading}
+                                              className="px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors disabled:opacity-50 flex items-center gap-1"
+                                              title="View Description"
+                                            >
+                                              <Eye size={14} />
+                                            </button>
+                                            <button
+                                              onClick={async (e) => {
+                                                e.stopPropagation();
+                                                e.preventDefault();
+                                                try {
+                                                  await handleEditSubCategory(subCat._id);
+                                                } catch (err) {
+                                                  console.error("Error editing subcategory:", err);
+                                                  setError("Failed to load subcategory for editing");
+                                                }
+                                              }}
+                                              disabled={loading}
+                                              className="px-2 py-1 bg-cream-200 text-cream-900 rounded hover:bg-cream-300 transition-colors disabled:opacity-50 flex items-center gap-1"
+                                              title="Edit Subcategory"
+                                            >
+                                              <Edit size={14} />
+                                            </button>
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleDeleteSubCategory(subCat._id);
+                                              }}
+                                              disabled={loading}
+                                              className="px-2 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200 transition-colors disabled:opacity-50 flex items-center gap-1"
+                                              title="Delete Subcategory"
+                                            >
+                                              <Trash2 size={14} />
+                                            </button>
+                                          </div>
+                                        </div>
+                                      </div>
+                                      {hasChildren && (
+                                        <div className="mt-1">
+                                          {subCat.children
+                                            .sort((a: any, b: any) => (a.sortOrder || 0) - (b.sortOrder || 0))
+                                            .map((child: any) => renderSubCategory(child, level + 1))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                };
+
+                                return categorySubcategories
+                                  .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
+                                  .map((subCat) => renderSubCategory(subCat, 0));
+                              })()}
+                              {/* Legacy flat rendering - keeping for backward compatibility if needed */}
+                              {false && categorySubcategories
+                                .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
+                                .map((subCat, index) => (
+                                  <div
+                                    key={subCat._id}
+                                    draggable
+                                    onDragStart={(e) => {
+                                      setDraggedSubCategoryId(subCat._id);
+                                      e.dataTransfer.effectAllowed = "move";
+                                      e.dataTransfer.setData("text/plain", subCat._id);
+                                    }}
+                                    onDragOver={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      e.dataTransfer.dropEffect = "move";
+                                      const target = e.currentTarget;
+                                      if (draggedSubCategoryId && draggedSubCategoryId !== subCat._id) {
+                                        target.style.opacity = "0.5";
+                                        target.style.borderColor = "#d97706"; // Highlight border
+                                      }
+                                    }}
+                                    onDragEnter={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      if (draggedSubCategoryId && draggedSubCategoryId !== subCat._id) {
+                                        e.currentTarget.style.borderColor = "#d97706";
+                                      }
+                                    }}
+                                    onDragLeave={(e) => {
+                                      e.currentTarget.style.opacity = "1";
+                                      e.currentTarget.style.borderColor = "";
+                                    }}
+                                    onDrop={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      e.currentTarget.style.opacity = "1";
+                                      e.currentTarget.style.borderColor = "";
+                                      const draggedId = e.dataTransfer.getData("text/plain");
+                                      if (draggedId && draggedId !== subCat._id) {
+                                        handleSubCategoryReorder(draggedId, subCat._id);
+                                      }
+                                    }}
+                                    onDragEnd={(e) => {
+                                      e.currentTarget.style.opacity = "1";
+                                      setDraggedSubCategoryId(null);
+                                    }}
+                                    className={`text-sm pl-3 py-2 rounded-lg border transition-colors cursor-move ${selectedSubCategoryForView === subCat._id
+                                      ? 'bg-cream-200 border-cream-400 text-cream-900 font-medium'
+                                      : 'bg-white border-cream-200 text-cream-700 hover:bg-cream-100 hover:border-cream-300'
+                                      } ${draggedSubCategoryId === subCat._id ? "opacity-50" : ""}`}
+                                  >
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex items-center gap-2 flex-1">
+                                        <div className="cursor-move text-cream-400 hover:text-cream-600">
+                                          <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+                                            <path d="M7 2a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 2zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 8zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 14zm6-8a2 2 0 1 1-.001-4.001A2 2 0 0 1 13 6zm0 2a2 2 0 1 1 .001 4.001A2 2 0 0 1 13 8zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 13 14z" />
+                                          </svg>
+                                        </div>
+                                        <div
+                                          onClick={(e) => handleSubCategoryClick(subCat._id, e)}
+                                          className="flex items-center gap-2 flex-1 cursor-pointer"
+                                        >
+                                          <ChevronRight
+                                            size={14}
+                                            className={`transition-transform ${selectedSubCategoryForView === subCat._id ? 'rotate-90' : ''
+                                              }`}
+                                          />
+                                          <span>{subCat.name}</span>
+                                          {subCat.sortOrder !== undefined && subCat.sortOrder !== null && (
+                                            <span className="text-xs text-cream-500">
+                                              (Order: {subCat.sortOrder})
+                                            </span>
+                                          )}
+                                        </div>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        {selectedSubCategoryForView === subCat._id && (
+                                          <span className="text-xs text-cream-600 mr-2">
+                                            {categoryProducts.length} product{categoryProducts.length !== 1 ? 's' : ''}
+                                          </span>
+                                        )}
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setViewDescriptionModal({
+                                              isOpen: true,
+                                              type: 'subcategory',
+                                              name: subCat.name,
+                                              description: subCat.description || 'No description available.',
+                                            });
+                                          }}
+                                          disabled={loading}
+                                          className="px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors disabled:opacity-50 flex items-center gap-1"
+                                          title="View Description"
+                                        >
+                                          <Eye size={14} />
+                                        </button>
+                                        <button
+                                          onClick={async (e) => {
+                                            e.stopPropagation();
+                                            e.preventDefault();
+                                            try {
+                                              await handleEditSubCategory(subCat._id);
+                                            } catch (err) {
+                                              console.error("Error editing subcategory:", err);
+                                              setError("Failed to load subcategory for editing");
+                                            }
+                                          }}
+                                          disabled={loading}
+                                          className="px-2 py-1 bg-cream-200 text-cream-900 rounded hover:bg-cream-300 transition-colors disabled:opacity-50 flex items-center gap-1"
+                                          title="Edit Subcategory"
+                                        >
+                                          <Edit size={14} />
+                                        </button>
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleDeleteSubCategory(subCat._id);
+                                          }}
+                                          disabled={loading}
+                                          className="px-2 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200 transition-colors disabled:opacity-50 flex items-center gap-1"
+                                          title="Delete Subcategory"
+                                        >
+                                          <Trash2 size={14} />
+                                        </button>
+                                      </div>
                                     </div>
                                   </div>
-                                </div>
-                              ))}
+                                ))}
                             </div>
                           </div>
                         )}
@@ -11094,9 +12299,8 @@ const AdminDashboard: React.FC = () => {
                               setAttributeFormErrors({ ...attributeFormErrors, attributeName: undefined });
                             }
                           }}
-                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cream-900 focus:border-transparent ${
-                            attributeFormErrors.attributeName ? 'border-red-300 bg-red-50' : 'border-cream-300'
-                          }`}
+                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cream-900 focus:border-transparent ${attributeFormErrors.attributeName ? 'border-red-300 bg-red-50' : 'border-cream-300'
+                            }`}
                           placeholder="e.g., Printing Option, Paper Type"
                           required
                         />
@@ -11117,9 +12321,8 @@ const AdminDashboard: React.FC = () => {
                               setAttributeFormErrors({ ...attributeFormErrors, inputStyle: undefined });
                             }
                           }}
-                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cream-900 focus:border-transparent ${
-                            attributeFormErrors.inputStyle ? 'border-red-300 bg-red-50' : 'border-cream-300'
-                          }`}
+                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cream-900 focus:border-transparent ${attributeFormErrors.inputStyle ? 'border-red-300 bg-red-50' : 'border-cream-300'
+                            }`}
                           required
                         >
                           <option value="DROPDOWN">Dropdown Menu</option>
@@ -11193,9 +12396,8 @@ const AdminDashboard: React.FC = () => {
                             setAttributeFormErrors({ ...attributeFormErrors, primaryEffectType: undefined });
                           }
                         }}
-                        className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cream-900 focus:border-transparent ${
-                          attributeFormErrors.primaryEffectType ? 'border-red-300 bg-red-50' : 'border-cream-300'
-                        }`}
+                        className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cream-900 focus:border-transparent ${attributeFormErrors.primaryEffectType ? 'border-red-300 bg-red-50' : 'border-cream-300'
+                          }`}
                         rows={3}
                         placeholder="e.g., Changes the product price, Requires customer to upload a file, Creates different product versions, Just displays information"
                         required
@@ -11217,7 +12419,15 @@ const AdminDashboard: React.FC = () => {
                           onClick={() => {
                             setAttributeTypeForm({
                               ...attributeTypeForm,
-                              attributeOptionsTable: [...attributeTypeForm.attributeOptionsTable, { name: "", priceImpactPer1000: "", image: undefined }],
+                              attributeOptionsTable: [...attributeTypeForm.attributeOptionsTable, {
+                                name: "",
+                                priceImpactPer1000: "",
+                                image: undefined,
+                                optionUsage: { price: false, image: false, listing: false },
+                                priceImpact: "",
+                                numberOfImagesRequired: 0,
+                                listingFilters: ""
+                              }],
                             });
                           }}
                           className="px-3 py-1 text-sm bg-cream-900 text-white rounded-lg hover:bg-cream-800 transition-colors flex items-center gap-2"
@@ -11245,8 +12455,23 @@ const AdminDashboard: React.FC = () => {
                                     Option Name *
                                   </th>
                                   <th className="border border-cream-300 px-3 py-2 text-left text-sm font-medium text-cream-900">
-                                    Price Impact (₹ per 1000 units)
+                                    Option Usage *
                                   </th>
+                                  {attributeTypeForm.attributeOptionsTable.some(opt => opt.optionUsage?.price) && (
+                                    <th className="border border-cream-300 px-3 py-2 text-left text-sm font-medium text-cream-900">
+                                      Price Impact
+                                    </th>
+                                  )}
+                                  {attributeTypeForm.attributeOptionsTable.some(opt => opt.optionUsage?.image) && (
+                                    <th className="border border-cream-300 px-3 py-2 text-left text-sm font-medium text-cream-900">
+                                      Number of Images Required
+                                    </th>
+                                  )}
+                                  {attributeTypeForm.attributeOptionsTable.some(opt => opt.optionUsage?.listing) && (
+                                    <th className="border border-cream-300 px-3 py-2 text-left text-sm font-medium text-cream-900">
+                                      Listing Filters
+                                    </th>
+                                  )}
                                   <th className="border border-cream-300 px-3 py-2 text-left text-sm font-medium text-cream-900">
                                     Image (Optional)
                                   </th>
@@ -11273,24 +12498,138 @@ const AdminDashboard: React.FC = () => {
                                       />
                                     </td>
                                     <td className="border border-cream-300 px-3 py-2">
-                                      <div className="flex items-center gap-2">
-                                        <span className="text-sm text-cream-700">₹</span>
-                                        <input
-                                          type="number"
-                                          value={option.priceImpactPer1000}
-                                          onChange={(e) => {
-                                            const updated = [...attributeTypeForm.attributeOptionsTable];
-                                            updated[index].priceImpactPer1000 = e.target.value;
-                                            setAttributeTypeForm({ ...attributeTypeForm, attributeOptionsTable: updated });
-                                          }}
-                                          className="w-full px-2 py-2.5 border border-cream-200 rounded text-sm"
-                                          placeholder="0.00000"
-                                          step="0.00001"
-                                          min="0"
-                                        />
-                                        <span className="text-xs text-cream-600 whitespace-nowrap">per 1000</span>
+                                      <div className="space-y-2">
+                                        <label className="flex items-center gap-2 cursor-pointer">
+                                          <input
+                                            type="checkbox"
+                                            checked={option.optionUsage?.price || false}
+                                            onChange={(e) => {
+                                              const updated = [...attributeTypeForm.attributeOptionsTable];
+                                              if (!updated[index].optionUsage) {
+                                                updated[index].optionUsage = { price: false, image: false, listing: false };
+                                              }
+                                              updated[index].optionUsage.price = e.target.checked;
+                                              // Ensure at least one checkbox is checked
+                                              if (!e.target.checked && !updated[index].optionUsage.image && !updated[index].optionUsage.listing) {
+                                                setError("At least one option usage must be selected (Price, Image, or Listing)");
+                                                return;
+                                              }
+                                              setAttributeTypeForm({ ...attributeTypeForm, attributeOptionsTable: updated });
+                                              setError(null);
+                                            }}
+                                            className="w-4 h-4 text-cream-900 border-cream-300 rounded focus:ring-cream-500"
+                                          />
+                                          <span className="text-sm text-cream-900">Price</span>
+                                        </label>
+                                        <label className="flex items-center gap-2 cursor-pointer">
+                                          <input
+                                            type="checkbox"
+                                            checked={option.optionUsage?.image || false}
+                                            onChange={(e) => {
+                                              const updated = [...attributeTypeForm.attributeOptionsTable];
+                                              if (!updated[index].optionUsage) {
+                                                updated[index].optionUsage = { price: false, image: false, listing: false };
+                                              }
+                                              updated[index].optionUsage.image = e.target.checked;
+                                              // Ensure at least one checkbox is checked
+                                              if (!e.target.checked && !updated[index].optionUsage.price && !updated[index].optionUsage.listing) {
+                                                setError("At least one option usage must be selected (Price, Image, or Listing)");
+                                                return;
+                                              }
+                                              setAttributeTypeForm({ ...attributeTypeForm, attributeOptionsTable: updated });
+                                              setError(null);
+                                            }}
+                                            className="w-4 h-4 text-cream-900 border-cream-300 rounded focus:ring-cream-500"
+                                          />
+                                          <span className="text-sm text-cream-900">Image</span>
+                                        </label>
+                                        <label className="flex items-center gap-2 cursor-pointer">
+                                          <input
+                                            type="checkbox"
+                                            checked={option.optionUsage?.listing || false}
+                                            onChange={(e) => {
+                                              const updated = [...attributeTypeForm.attributeOptionsTable];
+                                              if (!updated[index].optionUsage) {
+                                                updated[index].optionUsage = { price: false, image: false, listing: false };
+                                              }
+                                              updated[index].optionUsage.listing = e.target.checked;
+                                              // Ensure at least one checkbox is checked
+                                              if (!e.target.checked && !updated[index].optionUsage.price && !updated[index].optionUsage.image) {
+                                                setError("At least one option usage must be selected (Price, Image, or Listing)");
+                                                return;
+                                              }
+                                              setAttributeTypeForm({ ...attributeTypeForm, attributeOptionsTable: updated });
+                                              setError(null);
+                                            }}
+                                            className="w-4 h-4 text-cream-900 border-cream-300 rounded focus:ring-cream-500"
+                                          />
+                                          <span className="text-sm text-cream-900">Listing</span>
+                                        </label>
                                       </div>
                                     </td>
+                                    {attributeTypeForm.attributeOptionsTable.some(opt => opt.optionUsage?.price) && (
+                                      <td className="border border-cream-300 px-3 py-2">
+                                        {option.optionUsage?.price ? (
+                                          <div className="flex items-center gap-2">
+                                            <span className="text-sm text-cream-700">₹</span>
+                                            <input
+                                              type="number"
+                                              value={option.priceImpact || ""}
+                                              onChange={(e) => {
+                                                const updated = [...attributeTypeForm.attributeOptionsTable];
+                                                updated[index].priceImpact = e.target.value;
+                                                setAttributeTypeForm({ ...attributeTypeForm, attributeOptionsTable: updated });
+                                              }}
+                                              className="w-full px-2 py-2.5 border border-cream-200 rounded text-sm"
+                                              placeholder="Enter amount"
+                                              step="0.01"
+                                              min="0"
+                                            />
+                                          </div>
+                                        ) : (
+                                          <span className="text-sm text-cream-500">-</span>
+                                        )}
+                                      </td>
+                                    )}
+                                    {attributeTypeForm.attributeOptionsTable.some(opt => opt.optionUsage?.image) && (
+                                      <td className="border border-cream-300 px-3 py-2">
+                                        {option.optionUsage?.image ? (
+                                          <input
+                                            type="number"
+                                            value={option.numberOfImagesRequired || 0}
+                                            onChange={(e) => {
+                                              const updated = [...attributeTypeForm.attributeOptionsTable];
+                                              updated[index].numberOfImagesRequired = parseInt(e.target.value) || 0;
+                                              setAttributeTypeForm({ ...attributeTypeForm, attributeOptionsTable: updated });
+                                            }}
+                                            className="w-full px-2 py-2.5 border border-cream-200 rounded text-sm"
+                                            placeholder="Number of images"
+                                            min="0"
+                                          />
+                                        ) : (
+                                          <span className="text-sm text-cream-500">-</span>
+                                        )}
+                                      </td>
+                                    )}
+                                    {attributeTypeForm.attributeOptionsTable.some(opt => opt.optionUsage?.listing) && (
+                                      <td className="border border-cream-300 px-3 py-2">
+                                        {option.optionUsage?.listing ? (
+                                          <input
+                                            type="text"
+                                            value={option.listingFilters || ""}
+                                            onChange={(e) => {
+                                              const updated = [...attributeTypeForm.attributeOptionsTable];
+                                              updated[index].listingFilters = e.target.value;
+                                              setAttributeTypeForm({ ...attributeTypeForm, attributeOptionsTable: updated });
+                                            }}
+                                            className="w-full px-2 py-2.5 border border-cream-200 rounded text-sm"
+                                            placeholder="Enter filters (comma-separated)"
+                                          />
+                                        ) : (
+                                          <span className="text-sm text-cream-500">-</span>
+                                        )}
+                                      </td>
+                                    )}
                                     <td className="border border-cream-300 px-3 py-2">
                                       <input
                                         type="file"
@@ -11309,31 +12648,31 @@ const AdminDashboard: React.FC = () => {
                                               setError("Image size must be less than 5MB.");
                                               return;
                                             }
-                                            
+
                                             // Upload to backend API (which uploads to Cloudinary)
                                             try {
                                               setLoading(true);
                                               const formData = new FormData();
                                               formData.append('image', file);
-                                              
+
                                               const uploadResponse = await fetch(`${API_BASE_URL}/upload-image`, {
                                                 method: 'POST',
                                                 headers: getAuthHeaders(),
                                                 body: formData,
                                               });
-                                              
+
                                               if (!uploadResponse.ok) {
                                                 const errorData = await uploadResponse.json().catch(() => ({}));
                                                 throw new Error(errorData.error || 'Failed to upload image');
                                               }
-                                              
+
                                               const uploadData = await uploadResponse.json();
                                               const imageUrl = uploadData.url || uploadData.secure_url;
-                                              
+
                                               if (!imageUrl) {
                                                 throw new Error('No image URL returned from server');
                                               }
-                                              
+
                                               const updated = [...attributeTypeForm.attributeOptionsTable];
                                               updated[index].image = imageUrl;
                                               setAttributeTypeForm({ ...attributeTypeForm, attributeOptionsTable: updated });
@@ -11719,41 +13058,41 @@ const AdminDashboard: React.FC = () => {
                         type="button"
                         onClick={() => {
                           setEditingAttributeTypeId(null);
-      setAttributeTypeForm({
-        attributeName: "",
-        inputStyle: "DROPDOWN",
-        attributeImage: null,
-        effectDescription: "",
-        simpleOptions: "",
-        isPriceEffect: false,
-        isStepQuantity: false,
-        isRangeQuantity: false,
-        isFixedQuantity: false,
-        priceEffectAmount: "",
-        stepQuantities: [],
-        rangeQuantities: [],
-        fixedQuantityMin: "",
-        fixedQuantityMax: "",
-        primaryEffectType: "INFORMATIONAL",
-        priceImpactPer1000: "",
-        fileRequirements: "",
-        attributeOptionsTable: [],
-        // Reset auto-set fields
-        functionType: "GENERAL",
-        isPricingAttribute: false,
-        isFixedQuantityNeeded: false,
-        isFilterable: false,
-        attributeValues: [],
-        defaultValue: "",
-        isRequired: false,
-        displayOrder: 0,
-        isCommonAttribute: true,
-        applicableCategories: [],
-        applicableSubCategories: [],
-        parentAttribute: "",
-        showWhenParentValue: [],
-        hideWhenParentValue: [],
-      });
+                          setAttributeTypeForm({
+                            attributeName: "",
+                            inputStyle: "DROPDOWN",
+                            attributeImage: null,
+                            effectDescription: "",
+                            simpleOptions: "",
+                            isPriceEffect: false,
+                            isStepQuantity: false,
+                            isRangeQuantity: false,
+                            isFixedQuantity: false,
+                            priceEffectAmount: "",
+                            stepQuantities: [],
+                            rangeQuantities: [],
+                            fixedQuantityMin: "",
+                            fixedQuantityMax: "",
+                            primaryEffectType: "INFORMATIONAL",
+                            priceImpactPer1000: "",
+                            fileRequirements: "",
+                            attributeOptionsTable: [],
+                            // Reset auto-set fields
+                            functionType: "GENERAL",
+                            isPricingAttribute: false,
+                            isFixedQuantityNeeded: false,
+                            isFilterable: false,
+                            attributeValues: [],
+                            defaultValue: "",
+                            isRequired: false,
+                            displayOrder: 0,
+                            isCommonAttribute: true,
+                            applicableCategories: [],
+                            applicableSubCategories: [],
+                            parentAttribute: "",
+                            showWhenParentValue: [],
+                            hideWhenParentValue: [],
+                          });
                         }}
                         className="px-6 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600"
                       >
@@ -11822,30 +13161,30 @@ const AdminDashboard: React.FC = () => {
                               at.primaryEffectType?.toLowerCase().includes(attributeTypeSearch.toLowerCase())
                             )
                             .map((at) => (
-                            <tr key={at._id} className="hover:bg-cream-50">
-                              <td className="px-4 py-3 text-sm text-cream-900">{at.attributeName}</td>
-                              <td className="px-4 py-3 text-sm text-cream-600">{at.inputStyle}</td>
-                              <td className="px-4 py-3 text-sm text-cream-600">{at.primaryEffectType}</td>
-                              <td className="px-4 py-3 text-sm text-cream-600">{at.isPricingAttribute ? "Yes" : "No"}</td>
-                              <td className="px-4 py-3 text-sm text-cream-600">{at.isCommonAttribute ? "Yes" : "No"}</td>
-                              <td className="px-4 py-3 text-center">
-                                <div className="flex items-center justify-center gap-2">
-                                  <button
-                                    onClick={() => handleEditAttributeType(at._id)}
-                                    className="p-2 text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                                  >
-                                    <Edit size={16} />
-                                  </button>
-                                  <button
-                                    onClick={() => handleDeleteAttributeType(at._id)}
-                                    className="p-2 text-red-600 hover:bg-red-50 rounded transition-colors"
-                                  >
-                                    <Trash2 size={16} />
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
+                              <tr key={at._id} className="hover:bg-cream-50">
+                                <td className="px-4 py-3 text-sm text-cream-900">{at.attributeName}</td>
+                                <td className="px-4 py-3 text-sm text-cream-600">{at.inputStyle}</td>
+                                <td className="px-4 py-3 text-sm text-cream-600">{at.primaryEffectType}</td>
+                                <td className="px-4 py-3 text-sm text-cream-600">{at.isPricingAttribute ? "Yes" : "No"}</td>
+                                <td className="px-4 py-3 text-sm text-cream-600">{at.isCommonAttribute ? "Yes" : "No"}</td>
+                                <td className="px-4 py-3 text-center">
+                                  <div className="flex items-center justify-center gap-2">
+                                    <button
+                                      onClick={() => handleEditAttributeType(at._id)}
+                                      className="p-2 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                    >
+                                      <Edit size={16} />
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteAttributeType(at._id)}
+                                      className="p-2 text-red-600 hover:bg-red-50 rounded transition-colors"
+                                    >
+                                      <Trash2 size={16} />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
                         </tbody>
                       </table>
                     </div>
@@ -11880,9 +13219,8 @@ const AdminDashboard: React.FC = () => {
                             setDepartmentFormErrors({ ...departmentFormErrors, name: undefined });
                           }
                         }}
-                        className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500 ${
-                          departmentFormErrors.name ? 'border-red-300 bg-red-50' : 'border-cream-300'
-                        }`}
+                        className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500 ${departmentFormErrors.name ? 'border-red-300 bg-red-50' : 'border-cream-300'
+                          }`}
                         placeholder="e.g., Prepress, Digital Printing"
                       />
                       {departmentFormErrors.name && (
@@ -11925,9 +13263,19 @@ const AdminDashboard: React.FC = () => {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-cream-900 mb-2">
-                      Assign Operators (Optional)
-                    </label>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block text-sm font-medium text-cream-900">
+                        Assign Operators (Optional)
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setShowCreateEmployeeModal(true)}
+                        className="px-3 py-1.5 text-xs bg-cream-900 text-white rounded-lg hover:bg-cream-800 transition-colors flex items-center gap-1.5"
+                      >
+                        <UserPlus size={14} />
+                        Create Employee
+                      </button>
+                    </div>
                     <p className="text-xs text-cream-600 mb-2">
                       Select employees who can perform actions for this department. Only employees can be assigned. Leave empty to allow all authenticated users.
                     </p>
@@ -11937,10 +13285,10 @@ const AdminDashboard: React.FC = () => {
                       ) : (
                         employees.map((employee) => {
                           // Ensure proper ID comparison (handle both string and ObjectId formats)
-                          const isAssigned = departmentForm.operators.some((opId: any) => 
+                          const isAssigned = departmentForm.operators.some((opId: any) =>
                             String(opId) === String(employee._id)
                           );
-                          
+
                           // Find all departments where this employee is assigned as operator
                           const assignedDepartments = departments
                             .filter((dept: any) => {
@@ -11951,7 +13299,7 @@ const AdminDashboard: React.FC = () => {
                               });
                             })
                             .map((dept: any) => dept.name);
-                          
+
                           return (
                             <label key={employee._id} className="flex items-center gap-3 p-3 bg-cream-50 border border-cream-200 rounded-lg hover:bg-cream-100 transition-colors cursor-pointer">
                               <input
@@ -12052,41 +13400,40 @@ const AdminDashboard: React.FC = () => {
                           {departments
                             .sort((a, b) => (a.name || "").localeCompare(b.name || ""))
                             .map((dept) => (
-                            <tr key={dept._id} className="hover:bg-cream-50">
-                              <td className="px-4 py-3 text-sm text-cream-900 font-semibold">{dept.name}</td>
-                              <td className="px-4 py-3 text-sm text-cream-600">{dept.description || "-"}</td>
-                              <td className="px-4 py-3">
-                                <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${
-                                  dept.isEnabled
+                              <tr key={dept._id} className="hover:bg-cream-50">
+                                <td className="px-4 py-3 text-sm text-cream-900 font-semibold">{dept.name}</td>
+                                <td className="px-4 py-3 text-sm text-cream-600">{dept.description || "-"}</td>
+                                <td className="px-4 py-3">
+                                  <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${dept.isEnabled
                                     ? "bg-green-100 text-green-800"
                                     : "bg-red-100 text-red-800"
-                                }`}>
-                                  {dept.isEnabled ? "Enabled" : "Disabled"}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3 text-sm text-cream-600">
-                                {dept.operators && dept.operators.length > 0
-                                  ? `${dept.operators.length} operator(s)`
-                                  : "All users"}
-                              </td>
-                              <td className="px-4 py-3 text-center">
-                                <div className="flex items-center justify-center gap-2">
-                                  <button
-                                    onClick={() => handleEditDepartment(dept._id)}
-                                    className="p-2 text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                                  >
-                                    <Edit size={16} />
-                                  </button>
-                                  <button
-                                    onClick={() => handleDeleteDepartment(dept._id)}
-                                    className="p-2 text-red-600 hover:bg-red-50 rounded transition-colors"
-                                  >
-                                    <Trash2 size={16} />
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
+                                    }`}>
+                                    {dept.isEnabled ? "Enabled" : "Disabled"}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 text-sm text-cream-600">
+                                  {dept.operators && dept.operators.length > 0
+                                    ? `${dept.operators.length} operator(s)`
+                                    : "All users"}
+                                </td>
+                                <td className="px-4 py-3 text-center">
+                                  <div className="flex items-center justify-center gap-2">
+                                    <button
+                                      onClick={() => handleEditDepartment(dept._id)}
+                                      className="p-2 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                    >
+                                      <Edit size={16} />
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteDepartment(dept._id)}
+                                      className="p-2 text-red-600 hover:bg-red-50 rounded transition-colors"
+                                    >
+                                      <Trash2 size={16} />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
                         </tbody>
                       </table>
                     </div>
@@ -12147,9 +13494,8 @@ const AdminDashboard: React.FC = () => {
                           setSequenceFormErrors({ ...sequenceFormErrors, name: undefined });
                         }
                       }}
-                      className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500 ${
-                        sequenceFormErrors.name ? 'border-red-300 bg-red-50' : 'border-cream-300'
-                      }`}
+                      className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500 ${sequenceFormErrors.name ? 'border-red-300 bg-red-50' : 'border-cream-300'
+                        }`}
                       placeholder="e.g., Standard Printing Sequence"
                     />
                     {sequenceFormErrors.name && (
@@ -12219,7 +13565,7 @@ const AdminDashboard: React.FC = () => {
                                   // Only show top-level categories (no parent)
                                   const isTopLevel = !cat.parent || cat.parent === null || (typeof cat.parent === 'object' && !cat.parent._id);
                                   if (!isTopLevel) return false;
-                                  
+
                                   if (sequenceForm.printType === "digital") {
                                     return cat.type === "Digital" || cat.type === "digital";
                                   } else if (sequenceForm.printType === "bulk") {
@@ -12251,8 +13597,8 @@ const AdminDashboard: React.FC = () => {
                               ...subCategories
                                 .filter((subCat) => {
                                   if (!sequenceForm.category) return false;
-                                  const categoryId = subCat.category 
-                                    ? (typeof subCat.category === 'object' ? subCat.category._id : subCat.category)
+                                  const categoryId = subCat.category
+                                    ? (typeof subCat.category === 'object' && subCat.category !== null ? subCat.category._id : subCat.category)
                                     : null;
                                   return String(categoryId) === String(sequenceForm.category);
                                 })
@@ -12270,9 +13616,19 @@ const AdminDashboard: React.FC = () => {
                   )}
 
                   <div id="sequence-departments">
-                    <label className="block text-sm font-medium text-cream-900 mb-2">
-                      Select Departments (in order) *
-                    </label>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block text-sm font-medium text-cream-900">
+                        Select Departments (in order) *
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setShowCreateDepartmentModal(true)}
+                        className="px-3 py-1.5 text-xs bg-cream-900 text-white rounded-lg hover:bg-cream-800 transition-colors flex items-center gap-1.5"
+                      >
+                        <Building2 size={14} />
+                        Create Department
+                      </button>
+                    </div>
                     <p className="text-xs text-cream-600 mb-3">
                       Check departments in the order they should process. First checked = Sequence 1, second = Sequence 2, etc.
                     </p>
@@ -12294,11 +13650,10 @@ const AdminDashboard: React.FC = () => {
                               return (
                                 <div
                                   key={dept._id}
-                                  className={`flex items-center gap-3 p-3 border rounded-lg transition-colors ${
-                                    isSelected
-                                      ? "border-green-500 bg-green-50"
-                                      : "border-cream-200 bg-white hover:bg-cream-50"
-                                  }`}
+                                  className={`flex items-center gap-3 p-3 border rounded-lg transition-colors ${isSelected
+                                    ? "border-green-500 bg-green-50"
+                                    : "border-cream-200 bg-white hover:bg-cream-50"
+                                    }`}
                                 >
                                   <input
                                     type="checkbox"
@@ -12385,11 +13740,10 @@ const AdminDashboard: React.FC = () => {
                             return (
                               <div
                                 key={attrType._id}
-                                className={`flex items-center gap-3 p-3 border rounded-lg transition-colors ${
-                                  isSelected
-                                    ? "border-green-500 bg-green-50"
-                                    : "border-cream-200 bg-white hover:bg-cream-50"
-                                }`}
+                                className={`flex items-center gap-3 p-3 border rounded-lg transition-colors ${isSelected
+                                  ? "border-green-500 bg-green-50"
+                                  : "border-cream-200 bg-white hover:bg-cream-50"
+                                  }`}
                               >
                                 <input
                                   type="checkbox"
@@ -12493,10 +13847,10 @@ const AdminDashboard: React.FC = () => {
                           <div className="flex-1">
                             <h3 className="font-semibold text-cream-900 mb-1">{sequence.name}</h3>
                             <p className="text-xs text-cream-600 mb-1">
-                              Category: {sequence.category && typeof sequence.category === 'object' ? sequence.category.name : 'N/A'}
+                              Category: {sequence.category && typeof sequence.category === 'object' && sequence.category !== null ? (sequence.category as any).name : 'N/A'}
                             </p>
                             <p className="text-xs text-cream-600 mb-2">
-                              Subcategory: {sequence.subcategory && typeof sequence.subcategory === 'object' ? sequence.subcategory.name : 'N/A'}
+                              Subcategory: {sequence.subcategory && typeof sequence.subcategory === 'object' && sequence.subcategory !== null ? (sequence.subcategory as any).name : 'N/A'}
                             </p>
                           </div>
                         </div>
@@ -12506,8 +13860,8 @@ const AdminDashboard: React.FC = () => {
                             {(sequence.departments || [])
                               .sort((a: any, b: any) => (a.order || 0) - (b.order || 0))
                               .map((deptEntry: any, index: number) => {
-                                const dept = typeof deptEntry.department === 'object' 
-                                  ? deptEntry.department 
+                                const dept = typeof deptEntry.department === 'object'
+                                  ? deptEntry.department
                                   : departments.find((d: any) => d._id === deptEntry.department);
                                 return dept ? (
                                   <div key={index} className="text-xs mb-2">
@@ -12613,16 +13967,16 @@ const AdminDashboard: React.FC = () => {
                         .map((rule) => {
                           // Safety check: ensure rule.then is an array
                           const validActions = (rule.then || []).filter((action: any) => action && action.targetAttribute);
-                          
+
                           const whenAttr = typeof rule.when?.attribute === 'object' && rule.when.attribute !== null
-                            ? rule.when.attribute.attributeName 
+                            ? rule.when.attribute.attributeName
                             : attributeTypes.find(attr => attr._id === rule.when?.attribute)?.attributeName || 'Unknown';
-                          
-                          const scopeLabel = rule.applicableProduct 
+
+                          const scopeLabel = rule.applicableProduct
                             ? `Product: ${typeof rule.applicableProduct === 'object' && rule.applicableProduct !== null && rule.applicableProduct.name ? rule.applicableProduct.name : (products.find(p => p._id === (typeof rule.applicableProduct === 'object' && rule.applicableProduct !== null ? rule.applicableProduct._id : rule.applicableProduct))?.name || 'N/A')}`
                             : rule.applicableCategory
-                            ? `Category: ${typeof rule.applicableCategory === 'object' && rule.applicableCategory !== null && rule.applicableCategory.name ? rule.applicableCategory.name : (categories.find(c => c._id === (typeof rule.applicableCategory === 'object' && rule.applicableCategory !== null ? rule.applicableCategory._id : rule.applicableCategory))?.name || 'N/A')}`
-                            : 'Global';
+                              ? `Category: ${typeof rule.applicableCategory === 'object' && rule.applicableCategory !== null && rule.applicableCategory.name ? rule.applicableCategory.name : (categories.find(c => c._id === (typeof rule.applicableCategory === 'object' && rule.applicableCategory !== null ? rule.applicableCategory._id : rule.applicableCategory))?.name || 'N/A')}`
+                              : 'Global';
 
                           return (
                             <tr key={rule._id} className="border-b border-cream-200 hover:bg-cream-50">
@@ -12635,11 +13989,10 @@ const AdminDashboard: React.FC = () => {
                                 {validActions.length} action{validActions.length !== 1 ? 's' : ''}
                               </td>
                               <td className="px-4 py-3">
-                                <span className={`px-2 py-1 rounded text-xs font-medium ${
-                                  rule.isActive 
-                                    ? 'bg-green-100 text-green-800' 
-                                    : 'bg-gray-100 text-gray-800'
-                                }`}>
+                                <span className={`px-2 py-1 rounded text-xs font-medium ${rule.isActive
+                                  ? 'bg-green-100 text-green-800'
+                                  : 'bg-gray-100 text-gray-800'
+                                  }`}>
                                   {rule.isActive ? 'Active' : 'Disabled'}
                                 </span>
                               </td>
@@ -13169,11 +14522,10 @@ const AdminDashboard: React.FC = () => {
                               </td>
                               <td className="px-4 py-3 text-sm text-cream-700">₹{subAttr.priceAdd || 0}/piece</td>
                               <td className="px-4 py-3">
-                                <span className={`px-2 py-1 rounded text-xs font-medium ${
-                                  subAttr.isEnabled 
-                                    ? 'bg-green-100 text-green-800' 
-                                    : 'bg-gray-100 text-gray-800'
-                                }`}>
+                                <span className={`px-2 py-1 rounded text-xs font-medium ${subAttr.isEnabled
+                                  ? 'bg-green-100 text-green-800'
+                                  : 'bg-gray-100 text-gray-800'
+                                  }`}>
                                   {subAttr.isEnabled ? 'Enabled' : 'Disabled'}
                                 </span>
                               </td>
@@ -13325,10 +14677,10 @@ const AdminDashboard: React.FC = () => {
                                 {subAttributeForm.image && (
                                   <div className="mt-2">
                                     <p className="text-xs text-cream-600 mb-1">New image preview:</p>
-                                    <img 
-                                      src={URL.createObjectURL(subAttributeForm.image)} 
-                                      alt="Preview" 
-                                      className="w-32 h-32 object-cover rounded border border-cream-300" 
+                                    <img
+                                      src={URL.createObjectURL(subAttributeForm.image)}
+                                      alt="Preview"
+                                      className="w-32 h-32 object-cover rounded border border-cream-300"
                                     />
                                   </div>
                                 )}
@@ -13437,10 +14789,10 @@ const AdminDashboard: React.FC = () => {
                                       />
                                       {subAttr.image && (
                                         <div className="mt-2">
-                                          <img 
-                                            src={URL.createObjectURL(subAttr.image)} 
-                                            alt="Preview" 
-                                            className="w-24 h-24 object-cover rounded border border-cream-300" 
+                                          <img
+                                            src={URL.createObjectURL(subAttr.image)}
+                                            alt="Preview"
+                                            className="w-24 h-24 object-cover rounded border border-cream-300"
                                           />
                                         </div>
                                       )}
@@ -13552,10 +14904,10 @@ const AdminDashboard: React.FC = () => {
                                     />
                                     {subAttr.image && (
                                       <div className="mt-2">
-                                        <img 
-                                          src={URL.createObjectURL(subAttr.image)} 
-                                          alt="Preview" 
-                                          className="w-24 h-24 object-cover rounded border border-cream-300" 
+                                        <img
+                                          src={URL.createObjectURL(subAttr.image)}
+                                          alt="Preview"
+                                          className="w-24 h-24 object-cover rounded border border-cream-300"
                                         />
                                       </div>
                                     )}
@@ -13606,11 +14958,11 @@ const AdminDashboard: React.FC = () => {
                             className="px-4 py-2 bg-cream-900 text-white rounded-lg hover:bg-cream-800 transition-colors disabled:opacity-50 flex items-center gap-2"
                           >
                             {loading && <Loader className="animate-spin" size={16} />}
-                            {editingSubAttributeId 
-                            ? (multipleSubAttributes.some(sa => sa.value.trim() && sa.label.trim()) 
-                                ? "Update & Add New Sub-Attributes" 
+                            {editingSubAttributeId
+                              ? (multipleSubAttributes.some(sa => sa.value.trim() && sa.label.trim())
+                                ? "Update & Add New Sub-Attributes"
                                 : "Update Sub-Attribute")
-                            : "Create Sub-Attributes"}
+                              : "Create Sub-Attributes"}
                           </button>
                         </div>
                       </form>
@@ -13626,50 +14978,66 @@ const AdminDashboard: React.FC = () => {
             <div className="space-y-6">
               <div>
                 <h2 className="text-xl font-bold text-cream-900 mb-4">
-                  Update User Role
+                  Create Employee
                 </h2>
                 <p className="text-sm text-cream-600 mb-4">
-                  Users are created through the signup page. Use this form to update existing users' roles to admin or employee.
+                  Create a new employee account. Employees can access the employee dashboard to manage orders assigned to their departments.
                 </p>
-                <form onSubmit={handleUpdateUserRole} className="space-y-4">
+                <form onSubmit={handleCreateEmployee} className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-cream-900 mb-2">
-                      Username (Name) *
+                      Name *
                     </label>
                     <input
                       type="text"
                       required
-                      value={userRoleForm.username}
+                      value={createEmployeeForm.name}
                       onChange={(e) =>
-                        setUserRoleForm({
-                          ...userRoleForm,
-                          username: e.target.value,
+                        setCreateEmployeeForm({
+                          ...createEmployeeForm,
+                          name: e.target.value,
                         })
                       }
-                      placeholder="Enter user's name"
+                      placeholder="Enter employee name"
                       className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
                     />
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium text-cream-900 mb-2">
-                      Role *
+                      Email *
                     </label>
-                    <ReviewFilterDropdown
-                      label="Select Role"
-                      value={userRoleForm.role}
-                      onChange={(value) =>
-                        setUserRoleForm({
-                          ...userRoleForm,
-                          role: value as string,
+                    <input
+                      type="email"
+                      required
+                      value={createEmployeeForm.email}
+                      onChange={(e) =>
+                        setCreateEmployeeForm({
+                          ...createEmployeeForm,
+                          email: e.target.value,
                         })
                       }
-                      options={[
-                        { value: "user", label: "User" },
-                        { value: "admin", label: "Admin" },
-                        { value: "emp", label: "Employee" },
-                      ]}
-                      className="w-full"
+                      placeholder="Enter employee email"
+                      className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-cream-900 mb-2">
+                      Password *
+                    </label>
+                    <input
+                      type="password"
+                      required
+                      value={createEmployeeForm.password}
+                      onChange={(e) =>
+                        setCreateEmployeeForm({
+                          ...createEmployeeForm,
+                          password: e.target.value,
+                        })
+                      }
+                      placeholder="Enter password"
+                      className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
                     />
                   </div>
 
@@ -13681,16 +15049,87 @@ const AdminDashboard: React.FC = () => {
                     {loading ? (
                       <>
                         <Loader className="animate-spin" size={20} />
-                        Updating...
+                        Creating...
                       </>
                     ) : (
                       <>
-                        <Settings size={20} />
-                        Update Role
+                        <UserPlus size={20} />
+                        Create Employee
                       </>
                     )}
                   </button>
                 </form>
+              </div>
+
+              <div className="border-t border-cream-300 pt-6">
+                <div>
+                  <h2 className="text-xl font-bold text-cream-900 mb-4">
+                    Update User Role
+                  </h2>
+                  <p className="text-sm text-cream-600 mb-4">
+                    Users are created through the signup page. Use this form to update existing users' roles to admin or employee.
+                  </p>
+                  <form onSubmit={handleUpdateUserRole} className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-cream-900 mb-2">
+                        Username (Name) *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={userRoleForm.username}
+                        onChange={(e) =>
+                          setUserRoleForm({
+                            ...userRoleForm,
+                            username: e.target.value,
+                          })
+                        }
+                        placeholder="Enter user's name"
+                        className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-cream-900 mb-2">
+                        Role *
+                      </label>
+                      <ReviewFilterDropdown
+                        label="Select Role"
+                        value={userRoleForm.role}
+                        onChange={(value) =>
+                          setUserRoleForm({
+                            ...userRoleForm,
+                            role: value as string,
+                          })
+                        }
+                        options={[
+                          { value: "user", label: "User" },
+                          { value: "admin", label: "Admin" },
+                          { value: "emp", label: "Employee" },
+                        ]}
+                        className="w-full"
+                      />
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="w-full bg-cream-900 text-white px-6 py-3 rounded-lg font-medium hover:bg-cream-800 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      {loading ? (
+                        <>
+                          <Loader className="animate-spin" size={20} />
+                          Updating...
+                        </>
+                      ) : (
+                        <>
+                          <Settings size={20} />
+                          Update Role
+                        </>
+                      )}
+                    </button>
+                  </form>
+                </div>
               </div>
 
               <div className="border-t border-cream-300 pt-6">
@@ -13725,11 +15164,10 @@ const AdminDashboard: React.FC = () => {
                           <p className="text-sm text-cream-600">{user.email}</p>
                           <div className="flex items-center gap-2 mt-2">
                             <span
-                              className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${
-                                user.role === "admin"
-                                  ? "bg-cream-900 text-white"
-                                  : "bg-cream-200 text-cream-900"
-                              }`}
+                              className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${user.role === "admin"
+                                ? "bg-cream-900 text-white"
+                                : "bg-cream-200 text-cream-900"
+                                }`}
                             >
                               {user.role}
                             </span>
@@ -13741,9 +15179,9 @@ const AdminDashboard: React.FC = () => {
                           </div>
                         </div>
                         <div className="text-xs text-cream-500">
-                          {!isClient 
-                            ? 'Loading...' 
-                            : new Date(user.createdAt).toLocaleDateString()
+                          {user.createdAt
+                            ? new Date(user.createdAt).toLocaleDateString()
+                            : 'N/A'
                           }
                         </div>
                       </div>
@@ -13753,6 +15191,228 @@ const AdminDashboard: React.FC = () => {
               </div>
             </div>
           )}
+
+          {/* Print Partner Requests Tab */}
+          {activeTab === "print-partner-requests" && (
+            <div className="bg-white rounded-xl shadow-md border border-cream-200 p-6">
+              <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                  <h2 className="text-2xl font-bold text-cream-900 mb-2">
+                    Print Partner Requests
+                  </h2>
+                  <p className="text-sm text-cream-600">
+                    Review and approve print partner registration requests
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <select
+                    value={printPartnerRequestFilter}
+                    onChange={(e) => {
+                      setPrintPartnerRequestFilter(e.target.value as typeof printPartnerRequestFilter);
+                      fetchPrintPartnerRequests();
+                    }}
+                    className="px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500 text-sm"
+                  >
+                    <option value="all">All Requests</option>
+                    <option value="pending">Pending</option>
+                    <option value="approved">Approved</option>
+                    <option value="rejected">Rejected</option>
+                  </select>
+                  <button
+                    onClick={fetchPrintPartnerRequests}
+                    className="px-4 py-2 bg-cream-200 text-cream-900 rounded-lg hover:bg-cream-300 transition-colors text-sm"
+                  >
+                    Refresh
+                  </button>
+                </div>
+              </div>
+
+              {printPartnerRequests.length === 0 ? (
+                <div className="text-center py-12 text-cream-600">
+                  <Briefcase size={48} className="mx-auto mb-4 opacity-50" />
+                  <p>No print partner requests found</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {printPartnerRequests.map((request) => (
+                    <div
+                      key={request._id}
+                      className={`border-2 rounded-lg p-5 transition-all ${request.status === "pending"
+                        ? "border-yellow-300 bg-yellow-50"
+                        : request.status === "approved"
+                          ? "border-green-300 bg-green-50"
+                          : "border-red-300 bg-red-50"
+                        }`}
+                    >
+                      <div className="flex flex-col lg:flex-row gap-4">
+                        <div className="flex-1">
+                          <div className="flex items-start justify-between mb-3">
+                            <div>
+                              <h3 className="text-lg font-bold text-cream-900 mb-1">
+                                {request.businessName}
+                              </h3>
+                              <p className="text-sm text-cream-600">
+                                Owner: {request.ownerName}
+                              </p>
+                            </div>
+                            <span
+                              className={`px-3 py-1 rounded-full text-xs font-semibold ${request.status === "pending"
+                                ? "bg-yellow-200 text-yellow-800"
+                                : request.status === "approved"
+                                  ? "bg-green-200 text-green-800"
+                                  : "bg-red-200 text-red-800"
+                                }`}
+                            >
+                              {request.status.toUpperCase()}
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                            <div>
+                              <p className="text-xs text-cream-600 mb-1">Email</p>
+                              <p className="text-sm font-medium text-cream-900">{request.emailAddress}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-cream-600 mb-1">Mobile</p>
+                              <p className="text-sm font-medium text-cream-900">+91 {request.mobileNumber}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-cream-600 mb-1">WhatsApp</p>
+                              <p className="text-sm font-medium text-cream-900">+91 {request.whatsappNumber}</p>
+                            </div>
+                            {request.gstNumber && (
+                              <div>
+                                <p className="text-xs text-cream-600 mb-1">GST Number</p>
+                                <p className="text-sm font-medium text-cream-900">{request.gstNumber}</p>
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="mb-3">
+                            <p className="text-xs text-cream-600 mb-1">Business Address</p>
+                            <p className="text-sm text-cream-900">
+                              {request.fullBusinessAddress}, {request.city}, {request.state} - {request.pincode}
+                            </p>
+                          </div>
+
+                          {request.proofFileUrl && (
+                            <div className="mb-3">
+                              <p className="text-xs text-cream-600 mb-2">Proof Document</p>
+                              <img
+                                src={request.proofFileUrl}
+                                alt="Proof"
+                                className="max-w-xs h-auto rounded-lg border border-cream-200 cursor-pointer hover:opacity-80 transition-opacity"
+                                onClick={() => window.open(request.proofFileUrl, "_blank")}
+                              />
+                            </div>
+                          )}
+
+                          {request.status === "approved" && request.userId && (
+                            <div className="mt-3 p-3 bg-green-100 rounded-lg">
+                              <p className="text-xs text-green-700 mb-1">User Account Created</p>
+                              <p className="text-sm font-medium text-green-900">
+                                {request.userId.name} ({request.userId.email})
+                              </p>
+                            </div>
+                          )}
+
+                          {request.status === "rejected" && request.rejectionReason && (
+                            <div className="mt-3 p-3 bg-red-100 rounded-lg">
+                              <p className="text-xs text-red-700 mb-1">Rejection Reason</p>
+                              <p className="text-sm text-red-900">{request.rejectionReason}</p>
+                            </div>
+                          )}
+
+                          <div className="text-xs text-cream-500 mt-3">
+                            Submitted: {new Date(request.createdAt).toLocaleString()}
+                            {request.approvedAt && (
+                              <> | {request.status === "approved" ? "Approved" : "Rejected"}: {new Date(request.approvedAt).toLocaleString()}</>
+                            )}
+                          </div>
+                        </div>
+
+                        {request.status === "pending" && (
+                          <div className="flex flex-col gap-2 lg:w-48">
+                            <button
+                              onClick={() => handleApprovePrintPartnerRequest(request._id)}
+                              className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium flex items-center justify-center gap-2"
+                            >
+                              <CheckCircle size={18} />
+                              Approve
+                            </button>
+                            <button
+                              onClick={() => setSelectedRequestId(request._id)}
+                              className="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium flex items-center justify-center gap-2"
+                            >
+                              <XCircle size={18} />
+                              Reject
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Rejection Modal */}
+          <AnimatePresence>
+            {selectedRequestId && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
+                onClick={() => {
+                  setSelectedRequestId(null);
+                  setRejectionReason("");
+                }}
+              >
+                <motion.div
+                  initial={{ scale: 0.9, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.9, opacity: 0 }}
+                  onClick={(e) => e.stopPropagation()}
+                  className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6"
+                >
+                  <h3 className="text-xl font-bold text-cream-900 mb-4">
+                    Reject Print Partner Request
+                  </h3>
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-cream-700 mb-2">
+                      Reason for Rejection <span className="text-red-500">*</span>
+                    </label>
+                    <textarea
+                      value={rejectionReason}
+                      onChange={(e) => setRejectionReason(e.target.value)}
+                      rows={4}
+                      className="w-full px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500 resize-none"
+                      placeholder="Please provide a reason for rejection..."
+                    />
+                  </div>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => {
+                        setSelectedRequestId(null);
+                        setRejectionReason("");
+                      }}
+                      className="flex-1 px-4 py-2 border border-cream-300 text-cream-900 rounded-lg hover:bg-cream-50 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => handleRejectPrintPartnerRequest(selectedRequestId)}
+                      className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
+                    >
+                      Confirm Rejection
+                    </button>
+                  </div>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
 
@@ -13772,8 +15432,8 @@ const AdminDashboard: React.FC = () => {
                     Order #{selectedOrder.orderNumber}
                   </h2>
                   <p className="text-sm text-cream-600 mt-1">
-                    {!isClient 
-                      ? 'Loading...' 
+                    {!isClient
+                      ? 'Loading...'
                       : new Date(selectedOrder.createdAt).toLocaleString()
                     }
                   </p>
@@ -13795,14 +15455,13 @@ const AdminDashboard: React.FC = () => {
                 {/* Order Status */}
                 <div className="flex items-center gap-4">
                   <span className="text-sm font-medium text-cream-700">Status:</span>
-                  <div className={`px-4 py-2 rounded-full border-2 ${
-                    selectedOrder.status === "completed" ? "bg-green-100 text-green-800 border-green-200" :
+                  <div className={`px-4 py-2 rounded-full border-2 ${selectedOrder.status === "completed" ? "bg-green-100 text-green-800 border-green-200" :
                     selectedOrder.status === "processing" ? "bg-blue-100 text-blue-800 border-blue-200" :
-                    selectedOrder.status === "production_ready" ? "bg-orange-100 text-orange-800 border-orange-200" :
-                    selectedOrder.status === "request" ? "bg-yellow-100 text-yellow-800 border-yellow-200" :
-                    selectedOrder.status === "rejected" ? "bg-red-100 text-red-800 border-red-200" :
-                    "bg-gray-100 text-gray-800 border-gray-200"
-                  }`}>
+                      selectedOrder.status === "production_ready" ? "bg-orange-100 text-orange-800 border-orange-200" :
+                        selectedOrder.status === "request" ? "bg-yellow-100 text-yellow-800 border-yellow-200" :
+                          selectedOrder.status === "rejected" ? "bg-red-100 text-red-800 border-red-200" :
+                            "bg-gray-100 text-gray-800 border-gray-200"
+                    }`}>
                     <span className="text-sm font-semibold capitalize">{selectedOrder.status}</span>
                   </div>
                 </div>
@@ -13879,7 +15538,7 @@ const AdminDashboard: React.FC = () => {
                       <p className="font-bold text-cream-900">₹{selectedOrder.totalPrice.toFixed(2)}</p>
                     </div>
                   </div>
-                  
+
                   {selectedOrder.selectedOptions && selectedOrder.selectedOptions.length > 0 && (
                     <div className="mt-4 pt-4 border-t border-cream-200">
                       <p className="text-xs text-cream-600 mb-2 font-semibold">Selected Options</p>
@@ -13929,6 +15588,35 @@ const AdminDashboard: React.FC = () => {
                                     ×{attr.priceMultiplier.toFixed(2)}
                                   </span>
                                 )}
+                              </div>
+                            )}
+                            {/* Display uploaded images if any */}
+                            {attr.uploadedImages && attr.uploadedImages.length > 0 && (
+                              <div className="mt-2 pt-2 border-t border-cream-200 w-full">
+                                <p className="text-xs text-cream-600 mb-2 font-semibold">Uploaded Images:</p>
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                  {attr.uploadedImages.map((img, imgIdx) => {
+                                    // Convert buffer to base64 data URL for display
+                                    let imageUrl = '';
+                                    if (img.data) {
+                                      if (typeof img.data === 'string') {
+                                        imageUrl = `data:${img.contentType || 'image/jpeg'};base64,${img.data}`;
+                                      } else if (Buffer.isBuffer(img.data)) {
+                                        imageUrl = `data:${img.contentType || 'image/jpeg'};base64,${img.data.toString('base64')}`;
+                                      }
+                                    }
+                                    return imageUrl ? (
+                                      <div key={imgIdx} className="relative">
+                                        <img
+                                          src={imageUrl}
+                                          alt={img.filename || `Image ${imgIdx + 1}`}
+                                          className="w-full h-24 object-cover rounded border border-cream-200"
+                                        />
+                                        <p className="text-xs text-cream-500 mt-1 truncate">{img.filename}</p>
+                                      </div>
+                                    ) : null;
+                                  })}
+                                </div>
                               </div>
                             )}
                           </div>
@@ -14023,9 +15711,9 @@ const AdminDashboard: React.FC = () => {
                                   pricePerUnit = basePrice * (attr.priceMultiplier - 1);
                                   attributeCost = pricePerUnit * selectedOrder.quantity;
                                 }
-                                
+
                                 if (attributeCost === 0) return null;
-                                
+
                                 return (
                                   <div key={`attr-${idx}`} className="flex justify-between items-center text-cream-600">
                                     <span>
@@ -14063,11 +15751,10 @@ const AdminDashboard: React.FC = () => {
                           <div className="flex justify-between items-center">
                             <span className="text-cream-600 text-xs">Balance Due</span>
                             <span
-                              className={`font-bold ${
-                                selectedOrder.totalPrice - (selectedOrder.advancePaid || 0) > 0
-                                  ? 'text-red-600'
-                                  : 'text-cream-500'
-                              }`}
+                              className={`font-bold ${selectedOrder.totalPrice - (selectedOrder.advancePaid || 0) > 0
+                                ? 'text-red-600'
+                                : 'text-cream-500'
+                                }`}
                             >
                               {formatCurrency(selectedOrder.totalPrice - (selectedOrder.advancePaid || 0))}
                             </span>
@@ -14101,14 +15788,14 @@ const AdminDashboard: React.FC = () => {
                       <div>
                         <p className="text-xs text-cream-600 mb-1">Delivery Date</p>
                         <p className="font-semibold text-cream-900">
-                          {selectedOrder.deliveryDate 
-                            ? (!isClient 
-                                ? 'Loading...' 
-                                : new Date(selectedOrder.deliveryDate).toLocaleDateString('en-US', {
-                                    year: 'numeric',
-                                    month: 'long',
-                                    day: 'numeric'
-                                  }))
+                          {selectedOrder.deliveryDate
+                            ? (!isClient
+                              ? 'Loading...'
+                              : new Date(selectedOrder.deliveryDate).toLocaleDateString('en-US', {
+                                year: 'numeric',
+                                month: 'long',
+                                day: 'numeric'
+                              }))
                             : "Not set"}
                         </p>
                       </div>
@@ -14128,7 +15815,7 @@ const AdminDashboard: React.FC = () => {
                         <p className="text-xs text-indigo-600 mb-1">Currently Working On</p>
                         <p className="text-lg font-bold text-indigo-900">
                           {typeof selectedOrder.currentDepartment === "object" && selectedOrder.currentDepartment !== null
-                            ? (selectedOrder.currentDepartment as { _id: string; name: string; sequence: number }).name 
+                            ? (selectedOrder.currentDepartment as { _id: string; name: string; sequence: number }).name
                             : "Department"}
                         </p>
                         {selectedOrder.currentDepartmentIndex !== null && selectedOrder.currentDepartmentIndex !== undefined && (
@@ -14153,7 +15840,7 @@ const AdminDashboard: React.FC = () => {
                         const totalStages = selectedOrder.departmentStatuses.length;
                         const completedStages = selectedOrder.departmentStatuses.filter(ds => ds.status === "completed").length;
                         const inProgressStages = selectedOrder.departmentStatuses.filter(ds => ds.status === "in_progress").length;
-                        
+
                         return (
                           <div className="text-xs text-blue-700 font-medium">
                             {completedStages}/{totalStages} Stages Completed
@@ -14162,17 +15849,17 @@ const AdminDashboard: React.FC = () => {
                         );
                       })()}
                     </div>
-                    
+
                     {/* Progress Bar */}
                     {(() => {
                       const totalStages = selectedOrder.departmentStatuses.length;
                       const completedStages = selectedOrder.departmentStatuses.filter(ds => ds.status === "completed").length;
                       const progressPercent = Math.round((completedStages / totalStages) * 100);
-                      
+
                       return (
                         <div className="mb-4">
                           <div className="w-full bg-blue-200 rounded-full h-2.5 mb-1">
-                            <div 
+                            <div
                               className="bg-blue-600 h-2.5 rounded-full transition-all duration-500"
                               style={{ width: `${progressPercent}%` }}
                             />
@@ -14181,7 +15868,7 @@ const AdminDashboard: React.FC = () => {
                         </div>
                       );
                     })()}
-                    
+
                     <div className="space-y-2">
                       {selectedOrder.departmentStatuses
                         .sort((a, b) => {
@@ -14190,11 +15877,11 @@ const AdminDashboard: React.FC = () => {
                           return seqA - seqB;
                         })
                         .map((deptStatus, idx) => {
-                          const deptName = typeof deptStatus.department === "object" 
-                            ? deptStatus.department.name 
+                          const deptName = typeof deptStatus.department === "object"
+                            ? deptStatus.department.name
                             : "Department";
                           const status = deptStatus.status;
-                          
+
                           // Calculate duration if started and completed
                           let durationText = "";
                           if (deptStatus.startedAt && deptStatus.completedAt) {
@@ -14209,30 +15896,28 @@ const AdminDashboard: React.FC = () => {
                               durationText = `${minutes}m`;
                             }
                           }
-                          
+
                           return (
                             <div key={idx} className="flex items-start gap-3 p-3 bg-white rounded-lg border border-blue-100">
-                              <div className={`w-4 h-4 rounded-full mt-0.5 flex-shrink-0 ${
-                                status === "completed" ? "bg-green-500" :
+                              <div className={`w-4 h-4 rounded-full mt-0.5 flex-shrink-0 ${status === "completed" ? "bg-green-500" :
                                 status === "in_progress" ? "bg-blue-500 animate-pulse" :
-                                status === "paused" ? "bg-yellow-500" :
-                                status === "stopped" ? "bg-red-500" :
-                                "bg-gray-300"
-                              }`} />
+                                  status === "paused" ? "bg-yellow-500" :
+                                    status === "stopped" ? "bg-red-500" :
+                                      "bg-gray-300"
+                                }`} />
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center justify-between mb-1">
                                   <span className="text-sm font-semibold text-blue-900">{deptName}</span>
-                                  <span className={`text-xs px-2 py-1 rounded-full font-medium ${
-                                    status === "completed" ? "bg-green-100 text-green-800" :
+                                  <span className={`text-xs px-2 py-1 rounded-full font-medium ${status === "completed" ? "bg-green-100 text-green-800" :
                                     status === "in_progress" ? "bg-blue-100 text-blue-800" :
-                                    status === "paused" ? "bg-yellow-100 text-yellow-800" :
-                                    status === "stopped" ? "bg-red-100 text-red-800" :
-                                    "bg-gray-100 text-gray-800"
-                                  }`}>
+                                      status === "paused" ? "bg-yellow-100 text-yellow-800" :
+                                        status === "stopped" ? "bg-red-100 text-red-800" :
+                                          "bg-gray-100 text-gray-800"
+                                    }`}>
                                     {status.replace("_", " ").toUpperCase()}
                                   </span>
                                 </div>
-                                
+
                                 {/* Timestamps */}
                                 <div className="space-y-1 mt-2">
                                   {deptStatus.whenAssigned && (
@@ -14311,15 +15996,15 @@ const AdminDashboard: React.FC = () => {
                       {Array.isArray(selectedOrder.productionTimeline) && selectedOrder.productionTimeline
                         .sort((a: any, b: any) => (new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime()))
                         .map((timelineItem: any, idx: number) => {
-                          const deptName = typeof timelineItem.department === "object" 
-                            ? timelineItem.department.name 
+                          const deptName = typeof timelineItem.department === "object"
+                            ? timelineItem.department.name
                             : "Department";
-                          const operatorName = timelineItem.operator 
-                            ? (typeof timelineItem.operator === "object" 
-                                ? `${timelineItem.operator.name} (${timelineItem.operator.email})`
-                                : timelineItem.operator)
+                          const operatorName = timelineItem.operator
+                            ? (typeof timelineItem.operator === "object"
+                              ? `${timelineItem.operator.name} (${timelineItem.operator.email})`
+                              : timelineItem.operator)
                             : "System";
-                          
+
                           const actionColors: { [key: string]: string } = {
                             started: "bg-blue-100 text-blue-800 border-blue-300",
                             paused: "bg-yellow-100 text-yellow-800 border-yellow-300",
@@ -14327,25 +16012,23 @@ const AdminDashboard: React.FC = () => {
                             completed: "bg-green-100 text-green-800 border-green-300",
                             stopped: "bg-red-100 text-red-800 border-red-300",
                           };
-                          
+
                           return (
-                            <div 
-                              key={idx} 
+                            <div
+                              key={idx}
                               className="flex items-start gap-3 p-3 bg-white rounded-lg border border-purple-100 shadow-sm hover:shadow-md transition-shadow"
                             >
-                              <div className={`w-2 h-2 rounded-full mt-2 flex-shrink-0 ${
-                                timelineItem.action === "completed" ? "bg-green-500" :
+                              <div className={`w-2 h-2 rounded-full mt-2 flex-shrink-0 ${timelineItem.action === "completed" ? "bg-green-500" :
                                 timelineItem.action === "started" ? "bg-blue-500" :
-                                timelineItem.action === "paused" ? "bg-yellow-500" :
-                                timelineItem.action === "stopped" ? "bg-red-500" :
-                                "bg-gray-400"
-                              }`} />
+                                  timelineItem.action === "paused" ? "bg-yellow-500" :
+                                    timelineItem.action === "stopped" ? "bg-red-500" :
+                                      "bg-gray-400"
+                                }`} />
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center justify-between mb-1 flex-wrap gap-2">
                                   <span className="text-sm font-semibold text-purple-900">{deptName}</span>
-                                  <span className={`text-xs px-2 py-1 rounded-full font-medium border ${
-                                    actionColors[timelineItem.action] || "bg-gray-100 text-gray-800 border-gray-300"
-                                  }`}>
+                                  <span className={`text-xs px-2 py-1 rounded-full font-medium border ${actionColors[timelineItem.action] || "bg-gray-100 text-gray-800 border-gray-300"
+                                    }`}>
                                     {timelineItem.action.toUpperCase()}
                                   </span>
                                 </div>
@@ -14516,83 +16199,83 @@ const AdminDashboard: React.FC = () => {
                     Manage Order
                   </h3>
                   <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-cream-900 mb-2">
-                    Order Status
-                  </label>
-                  <ReviewFilterDropdown
-                    label="Select Status"
-                    value={orderStatusUpdate.status}
-                    onChange={(value) =>
-                      setOrderStatusUpdate({ ...orderStatusUpdate, status: value as string })
-                    }
-                    options={[
-                      { value: "request", label: "Request" },
-                      { value: "processing", label: "Processing" },
-                      { value: "completed", label: "Completed" },
-                      { value: "rejected", label: "Rejected" },
-                    ]}
-                    className="w-full"
-                  />
-                </div>
+                    <div>
+                      <label className="block text-sm font-medium text-cream-900 mb-2">
+                        Order Status
+                      </label>
+                      <ReviewFilterDropdown
+                        label="Select Status"
+                        value={orderStatusUpdate.status}
+                        onChange={(value) =>
+                          setOrderStatusUpdate({ ...orderStatusUpdate, status: value as string })
+                        }
+                        options={[
+                          { value: "request", label: "Request" },
+                          { value: "processing", label: "Processing" },
+                          { value: "completed", label: "Completed" },
+                          { value: "rejected", label: "Rejected" },
+                        ]}
+                        className="w-full"
+                      />
+                    </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-cream-900 mb-2">
-                    Delivery Date
-                  </label>
-                  <input
-                    type="date"
-                    value={orderStatusUpdate.deliveryDate}
-                    onChange={(e) =>
-                      setOrderStatusUpdate({ ...orderStatusUpdate, deliveryDate: e.target.value })
-                    }
-                    className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
-                  />
-                </div>
+                    <div>
+                      <label className="block text-sm font-medium text-cream-900 mb-2">
+                        Delivery Date
+                      </label>
+                      <input
+                        type="date"
+                        value={orderStatusUpdate.deliveryDate}
+                        onChange={(e) =>
+                          setOrderStatusUpdate({ ...orderStatusUpdate, deliveryDate: e.target.value })
+                        }
+                        className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
+                      />
+                    </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-cream-900 mb-2">
-                    Admin Notes
-                  </label>
-                  <textarea
-                    value={orderStatusUpdate.adminNotes}
-                    onChange={(e) =>
-                      setOrderStatusUpdate({ ...orderStatusUpdate, adminNotes: e.target.value })
-                    }
-                    rows={4}
-                    className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
-                    placeholder="Add notes for this order..."
-                  />
-                </div>
+                    <div>
+                      <label className="block text-sm font-medium text-cream-900 mb-2">
+                        Admin Notes
+                      </label>
+                      <textarea
+                        value={orderStatusUpdate.adminNotes}
+                        onChange={(e) =>
+                          setOrderStatusUpdate({ ...orderStatusUpdate, adminNotes: e.target.value })
+                        }
+                        rows={4}
+                        className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
+                        placeholder="Add notes for this order..."
+                      />
+                    </div>
 
                     <div className="flex gap-3 pt-4">
-                  <button
-                    onClick={() => handleUpdateOrderStatus(selectedOrder._id)}
-                    disabled={loading}
-                    className="flex-1 bg-cream-900 text-white px-6 py-3 rounded-lg font-medium hover:bg-cream-800 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-                  >
-                    {loading ? (
-                      <>
-                        <Loader className="animate-spin" size={20} />
-                        Updating...
-                      </>
-                    ) : (
-                      <>
-                        <Check size={20} />
-                        Update Order
-                      </>
-                    )}
-                  </button>
-                  <button
-                    onClick={() => {
-                      setShowOrderModal(false);
-                      setSelectedOrder(null);
-                      setOrderStatusUpdate({ status: "", deliveryDate: "", adminNotes: "" });
-                    }}
-                    className="px-6 py-3 border border-cream-300 rounded-lg hover:bg-cream-50 transition-colors"
-                  >
-                    Cancel
-                  </button>
+                      <button
+                        onClick={() => handleUpdateOrderStatus(selectedOrder._id)}
+                        disabled={loading}
+                        className="flex-1 bg-cream-900 text-white px-6 py-3 rounded-lg font-medium hover:bg-cream-800 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                      >
+                        {loading ? (
+                          <>
+                            <Loader className="animate-spin" size={20} />
+                            Updating...
+                          </>
+                        ) : (
+                          <>
+                            <Check size={20} />
+                            Update Order
+                          </>
+                        )}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowOrderModal(false);
+                          setSelectedOrder(null);
+                          setOrderStatusUpdate({ status: "", deliveryDate: "", adminNotes: "" });
+                        }}
+                        className="px-6 py-3 border border-cream-300 rounded-lg hover:bg-cream-50 transition-colors"
+                      >
+                        Cancel
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -14676,7 +16359,7 @@ const AdminDashboard: React.FC = () => {
                             handleDownloadImage(
                               selectedUpload.frontImage!.data,
                               selectedUpload.frontImage!.filename ||
-                                "front-image.jpg"
+                              "front-image.jpg"
                             )
                           }
                           className="px-3 py-1 text-xs bg-cream-900 text-white rounded-lg hover:bg-cream-800 transition-colors flex items-center gap-2"
@@ -14717,7 +16400,7 @@ const AdminDashboard: React.FC = () => {
                             handleDownloadImage(
                               selectedUpload.backImage!.data,
                               selectedUpload.backImage!.filename ||
-                                "back-image.jpg"
+                              "back-image.jpg"
                             )
                           }
                           className="px-3 py-1 text-xs bg-cream-900 text-white rounded-lg hover:bg-cream-800 transition-colors flex items-center gap-2"
@@ -14750,8 +16433,8 @@ const AdminDashboard: React.FC = () => {
                   <div>
                     <p className="text-sm text-cream-600">Uploaded</p>
                     <p className="text-cream-900">
-                      {!isClient 
-                        ? 'Loading...' 
+                      {!isClient
+                        ? 'Loading...'
                         : new Date(selectedUpload.createdAt).toLocaleString()
                       }
                     </p>
@@ -14902,6 +16585,317 @@ const AdminDashboard: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Create Employee Modal (for Department Section) */}
+      <AnimatePresence>
+        {showCreateEmployeeModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="bg-white rounded-lg max-w-md w-full p-6"
+            >
+              <div className="flex justify-between items-center mb-6 pb-4 border-b border-cream-200">
+                <h2 className="text-xl font-bold text-cream-900">
+                  Create Employee
+                </h2>
+                <button
+                  onClick={() => {
+                    setShowCreateEmployeeModal(false);
+                    setCreateEmployeeModalForm({
+                      name: "",
+                      email: "",
+                      password: "",
+                    });
+                  }}
+                  className="p-2 hover:bg-cream-100 rounded-lg transition-colors"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+
+              <form onSubmit={handleCreateEmployeeFromModal} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-cream-900 mb-2">
+                    Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={createEmployeeModalForm.name}
+                    onChange={(e) =>
+                      setCreateEmployeeModalForm({
+                        ...createEmployeeModalForm,
+                        name: e.target.value,
+                      })
+                    }
+                    placeholder="Enter employee name"
+                    className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-cream-900 mb-2">
+                    Email *
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    value={createEmployeeModalForm.email}
+                    onChange={(e) =>
+                      setCreateEmployeeModalForm({
+                        ...createEmployeeModalForm,
+                        email: e.target.value,
+                      })
+                    }
+                    placeholder="Enter employee email"
+                    className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-cream-900 mb-2">
+                    Password *
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    value={createEmployeeModalForm.password}
+                    onChange={(e) =>
+                      setCreateEmployeeModalForm({
+                        ...createEmployeeModalForm,
+                        password: e.target.value,
+                      })
+                    }
+                    placeholder="Enter password"
+                    className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowCreateEmployeeModal(false);
+                      setCreateEmployeeModalForm({
+                        name: "",
+                        email: "",
+                        password: "",
+                      });
+                    }}
+                    className="flex-1 px-4 py-2 border border-cream-300 text-cream-700 rounded-lg hover:bg-cream-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="flex-1 px-4 py-2 bg-cream-900 text-white rounded-lg hover:bg-cream-800 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {loading ? (
+                      <>
+                        <Loader className="animate-spin" size={20} />
+                        Creating...
+                      </>
+                    ) : (
+                      <>
+                        <UserPlus size={20} />
+                        Create Employee
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Create Department Modal (for Sequence Section) */}
+      <AnimatePresence>
+        {showCreateDepartmentModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6"
+            >
+              <div className="flex justify-between items-center mb-6 pb-4 border-b border-cream-200">
+                <h2 className="text-xl font-bold text-cream-900">
+                  Create Department
+                </h2>
+                <button
+                  onClick={() => {
+                    setShowCreateDepartmentModal(false);
+                    setCreateDepartmentModalForm({
+                      name: "",
+                      description: "",
+                      isEnabled: true,
+                      operators: [],
+                    });
+                  }}
+                  className="p-2 hover:bg-cream-100 rounded-lg transition-colors"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+
+              <form onSubmit={handleCreateDepartmentFromModal} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-cream-900 mb-2">
+                    Department Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={createDepartmentModalForm.name}
+                    onChange={(e) =>
+                      setCreateDepartmentModalForm({
+                        ...createDepartmentModalForm,
+                        name: e.target.value,
+                      })
+                    }
+                    placeholder="Enter department name"
+                    className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-cream-900 mb-2">
+                    Description (Optional)
+                  </label>
+                  <textarea
+                    value={createDepartmentModalForm.description}
+                    onChange={(e) =>
+                      setCreateDepartmentModalForm({
+                        ...createDepartmentModalForm,
+                        description: e.target.value,
+                      })
+                    }
+                    placeholder="Enter department description"
+                    rows={3}
+                    className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="flex items-center gap-2 text-sm font-medium text-cream-900 mb-2">
+                    <input
+                      type="checkbox"
+                      checked={createDepartmentModalForm.isEnabled}
+                      onChange={(e) =>
+                        setCreateDepartmentModalForm({
+                          ...createDepartmentModalForm,
+                          isEnabled: e.target.checked,
+                        })
+                      }
+                      className="w-4 h-4 text-cream-900 border-cream-300 rounded focus:ring-cream-500"
+                    />
+                    <span>Enabled</span>
+                  </label>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-medium text-cream-900">
+                      Assign Operators (Optional)
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setShowCreateEmployeeModal(true)}
+                      className="px-3 py-1.5 text-xs bg-cream-900 text-white rounded-lg hover:bg-cream-800 transition-colors flex items-center gap-1.5"
+                    >
+                      <UserPlus size={14} />
+                      Create Employee
+                    </button>
+                  </div>
+                  <p className="text-xs text-cream-600 mb-2">
+                    Select employees who can perform actions for this department. Only employees can be assigned.
+                  </p>
+                  <div className="space-y-2 max-h-40 overflow-y-auto border border-cream-200 rounded-lg p-3">
+                    {employees.length === 0 ? (
+                      <p className="text-sm text-cream-600">No employees available. Create employees first.</p>
+                    ) : (
+                      employees.map((employee) => {
+                        const isAssigned = createDepartmentModalForm.operators.some((opId: any) =>
+                          String(opId) === String(employee._id)
+                        );
+
+                        return (
+                          <label key={employee._id} className="flex items-center gap-3 p-3 bg-cream-50 border border-cream-200 rounded-lg hover:bg-cream-100 transition-colors cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={isAssigned}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setCreateDepartmentModalForm({
+                                    ...createDepartmentModalForm,
+                                    operators: [...createDepartmentModalForm.operators, employee._id],
+                                  });
+                                } else {
+                                  setCreateDepartmentModalForm({
+                                    ...createDepartmentModalForm,
+                                    operators: createDepartmentModalForm.operators.filter((id: any) => String(id) !== String(employee._id)),
+                                  });
+                                }
+                              }}
+                              className="w-4 h-4 text-cream-900 border-cream-300 rounded focus:ring-cream-500 focus:ring-2"
+                            />
+                            <div className="flex-1">
+                              <p className="font-medium text-cream-900">{employee.name}</p>
+                              <p className="text-xs text-cream-600">{employee.email}</p>
+                            </div>
+                            {isAssigned && (
+                              <Check className="text-cream-900" size={20} />
+                            )}
+                          </label>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex gap-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowCreateDepartmentModal(false);
+                      setCreateDepartmentModalForm({
+                        name: "",
+                        description: "",
+                        isEnabled: true,
+                        operators: [],
+                      });
+                    }}
+                    className="flex-1 px-4 py-2 border border-cream-300 text-cream-700 rounded-lg hover:bg-cream-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="flex-1 px-4 py-2 bg-cream-900 text-white rounded-lg hover:bg-cream-800 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {loading ? (
+                      <>
+                        <Loader className="animate-spin" size={20} />
+                        Creating...
+                      </>
+                    ) : (
+                      <>
+                        <Building2 size={20} />
+                        Create Department
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

@@ -15,37 +15,42 @@ export const getProductDetail = async (req, res) => {
       return res.status(400).json({ error: "Product ID is required" });
     }
 
-    // Validate MongoDB ObjectId format
-    if (!/^[0-9a-fA-F]{24}$/.test(productId)) {
+    // Check if identifier is a MongoDB ObjectId (24 hex characters)
+    const isObjectId = /^[0-9a-fA-F]{24}$/.test(productId);
+    
+    let product;
+    if (isObjectId) {
+      // Try to find by ID first
+      product = await Product.findById(productId)
+        .populate({
+          path: "category",
+          select: "_id name description image type parent slug",
+          populate: {
+            path: "parent",
+            select: "_id name type",
+          },
+        })
+        .populate({
+          path: "subcategory",
+          select: "_id name description image slug category",
+          populate: {
+            path: "category",
+            model: "Category",
+            select: "_id name description type image",
+          },
+        })
+        .populate({
+          path: "dynamicAttributes.attributeType",
+          model: "AttributeType",
+        })
+        .lean();
+    } else {
+      // Not a valid ObjectId format
       return res.status(400).json({
         error: "Invalid product ID format. Expected MongoDB ObjectId (24 hex characters).",
+        received: productId,
       });
     }
-
-    // Fetch product with populated category, subcategory, and dynamicAttributes
-    const product = await Product.findById(productId)
-      .populate({
-        path: "category",
-        select: "_id name description image type parent slug",
-        populate: {
-          path: "parent",
-          select: "_id name type",
-        },
-      })
-      .populate({
-        path: "subcategory",
-        select: "_id name description image slug category",
-        populate: {
-          path: "category",
-          model: "Category",
-          select: "_id name description type image",
-        },
-      })
-      .populate({
-        path: "dynamicAttributes.attributeType",
-        model: "AttributeType",
-      })
-      .lean();
 
     if (!product) {
       return res.status(404).json({ error: "Product not found" });
@@ -145,6 +150,11 @@ export const getProductDetail = async (req, res) => {
           defaultValue: attrType.defaultValue,
           attributeValues: attrType.attributeValues || [],
           customValues: da.customValues || [],
+          // Step and Range quantity settings
+          isStepQuantity: attrType.isStepQuantity || false,
+          isRangeQuantity: attrType.isRangeQuantity || false,
+          stepQuantities: attrType.stepQuantities || [],
+          rangeQuantities: attrType.rangeQuantities || [],
           // Product-specific overrides
           productConfig: {
             isEnabled: da.isEnabled,

@@ -96,7 +96,7 @@ This runs the Express server on `http://localhost:5000`
 
 1. Build the client: `cd client && npm run build`
 2. Start the server: `cd server && npm start`
-3. Access the app at `http://localhost:5000`
+3. Access the app at `https://kelsi-kimonoed-corene.ngrok-free.dev`
 
 ## SSR Features
 

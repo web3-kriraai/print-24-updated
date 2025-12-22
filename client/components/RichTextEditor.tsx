@@ -135,24 +135,24 @@ const ClientEditor: React.FC<{
         formats={formats}
         style={editorStyle}
       />
-      <style jsx>{`
+      <style>{`
         .rich-text-editor-wrapper {
           width: 100%;
         }
-        .rich-text-editor-wrapper :global(.p-editor-container) {
+        .rich-text-editor-wrapper .p-editor-container {
           border: 1px solid #d1d5db;
           border-radius: 0.5rem;
           overflow: hidden;
         }
-        .rich-text-editor-wrapper :global(.p-editor-toolbar) {
+        .rich-text-editor-wrapper .p-editor-toolbar {
           border-bottom: 1px solid #d1d5db;
           background: #f9fafb;
           padding: 0.5rem;
         }
-        .rich-text-editor-wrapper :global(.ql-editor) {
+        .rich-text-editor-wrapper .ql-editor {
           min-height: 200px;
         }
-        .rich-text-editor-wrapper :global(.ql-editor.ql-blank::before) {
+        .rich-text-editor-wrapper .ql-editor.ql-blank::before {
           color: #9ca3af;
           font-style: italic;
         }

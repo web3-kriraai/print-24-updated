@@ -68,13 +68,16 @@ const Layout: React.FC = () => {
     return () => clearTimeout(timer);
   }, []);
 
+  // Always show navbar, but Navbar component will handle the minimal view for login/signup
+  const hideNavbar = false;
+
   // CRITICAL: Always render the EXACT same structure on server and client
   // Both render: <div key={path}><div><Outlet /></div></div>
   // The structure must be identical - no conditional wrappers that change DOM
   return (
     <div className="min-h-screen flex flex-col font-sans text-cream-900 bg-cream-50">
-      <Navbar />
-      <main className="flex-grow pt-16">
+      {!hideNavbar && <Navbar />}
+      <main className={`flex-grow ${hideNavbar ? '' : 'pt-16'}`}>
         {/* CRITICAL: Always render same structure - server and client must match exactly */}
         {/* This structure is identical on both server and client */}
         <div key={location.pathname}>
@@ -83,7 +86,7 @@ const Layout: React.FC = () => {
           </div>
         </div>
       </main>
-      <Footer />
+      {!hideNavbar && <Footer />}
       {/* Render Toaster only on client to avoid SSR hook errors */}
       <ClientOnlyToaster />
     </div>

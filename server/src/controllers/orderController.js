@@ -159,16 +159,57 @@ export const createOrder = async (req, res) => {
     // Process selected dynamic attributes
     let processedDynamicAttributes = [];
     if (req.body.selectedDynamicAttributes && Array.isArray(req.body.selectedDynamicAttributes)) {
-      processedDynamicAttributes = req.body.selectedDynamicAttributes.map((attr) => ({
-        attributeTypeId: attr.attributeTypeId || attr.attributeType?._id || null,
-        attributeName: attr.attributeName || attr.attributeType?.attributeName || "Attribute",
-        attributeValue: attr.attributeValue !== undefined ? attr.attributeValue : null,
-        label: attr.label || attr.attributeValue?.toString() || null,
-        priceMultiplier: attr.priceMultiplier || null,
-        priceAdd: attr.priceAdd || 0,
-        description: attr.description || null,
-        image: attr.image || null,
-      }));
+      // Process each attribute, including uploaded images
+      for (const attr of req.body.selectedDynamicAttributes) {
+        // Process uploaded images if any
+        let processedUploadedImages = [];
+        if (attr.uploadedImages && Array.isArray(attr.uploadedImages) && attr.uploadedImages.length > 0) {
+          for (const img of attr.uploadedImages) {
+            try {
+              let base64Data = img.data;
+              if (typeof base64Data === 'string') {
+                if (base64Data.includes(',')) {
+                  base64Data = base64Data.split(',')[1];
+                }
+                if (base64Data && base64Data.trim().length > 0) {
+                  // Convert base64 to Buffer
+                  const imageBuffer = Buffer.from(base64Data, "base64");
+                  
+                  // Convert image to CMYK format using sharp (same as design images)
+                  const cmykBuffer = await sharp(imageBuffer)
+                    .toColourspace("cmyk")
+                    .jpeg({
+                      quality: 90,
+                      chromaSubsampling: '4:4:4'
+                    })
+                    .toBuffer();
+                  
+                  processedUploadedImages.push({
+                    data: cmykBuffer,
+                    contentType: "image/jpeg",
+                    filename: (img.filename || "attribute-image.png").replace(/\.(png|gif|webp)$/i, ".jpg"),
+                  });
+                }
+              }
+            } catch (err) {
+              console.error("Error processing attribute image:", err);
+              // Continue with other images even if one fails
+            }
+          }
+        }
+        
+        processedDynamicAttributes.push({
+          attributeTypeId: attr.attributeTypeId || attr.attributeType?._id || null,
+          attributeName: attr.attributeName || attr.attributeType?.attributeName || "Attribute",
+          attributeValue: attr.attributeValue !== undefined ? attr.attributeValue : null,
+          label: attr.label || attr.attributeValue?.toString() || null,
+          priceMultiplier: attr.priceMultiplier || null,
+          priceAdd: attr.priceAdd || 0,
+          description: attr.description || null,
+          image: attr.image || null,
+          uploadedImages: processedUploadedImages.length > 0 ? processedUploadedImages : undefined,
+        });
+      }
     } else if (req.body.selectedDynamicAttributes && typeof req.body.selectedDynamicAttributes === 'object') {
       // Handle case where it's an object with attributeTypeId as keys
       // This is the format from the frontend where selectedDynamicAttributes is { [attributeTypeId]: value }
@@ -181,9 +222,17 @@ export const createOrder = async (req, res) => {
         .lean();
 
       if (productWithAttrs && productWithAttrs.dynamicAttributes) {
-        Object.keys(req.body.selectedDynamicAttributes).forEach((attrTypeId) => {
+        // Convert forEach to for...of to support async operations
+        for (const attrTypeId of Object.keys(req.body.selectedDynamicAttributes)) {
           const value = req.body.selectedDynamicAttributes[attrTypeId];
           if (value !== null && value !== undefined && value !== "") {
+            // Check if this is an object with uploadedImages (new format from frontend)
+            const attrData = typeof value === 'object' && value !== null && !Array.isArray(value) 
+              ? value 
+              : { attributeValue: value };
+            
+            const actualValue = attrData.attributeValue !== undefined ? attrData.attributeValue : value;
+            
             // Find the attribute in product
             const productAttr = productWithAttrs.dynamicAttributes.find(
               (attr) => attr.attributeType?._id?.toString() === attrTypeId
@@ -197,12 +246,49 @@ export const createOrder = async (req, res) => {
 
               // Find the selected value details
               let selectedValueDetails = null;
-              if (Array.isArray(value)) {
+              if (Array.isArray(actualValue)) {
                 // Multiple selection
-                selectedValueDetails = allValues.filter((av) => value.includes(av.value));
+                selectedValueDetails = allValues.filter((av) => actualValue.includes(av.value));
               } else {
                 // Single selection
-                selectedValueDetails = allValues.find((av) => av.value === value || av.value === value.toString());
+                selectedValueDetails = allValues.find((av) => av.value === actualValue || av.value === actualValue.toString());
+              }
+
+              // Process uploaded images if any
+              let processedUploadedImages = [];
+              if (attrData.uploadedImages && Array.isArray(attrData.uploadedImages) && attrData.uploadedImages.length > 0) {
+                for (const img of attrData.uploadedImages) {
+                  try {
+                    let base64Data = img.data;
+                    if (typeof base64Data === 'string') {
+                      if (base64Data.includes(',')) {
+                        base64Data = base64Data.split(',')[1];
+                      }
+                      if (base64Data && base64Data.trim().length > 0) {
+                        // Convert base64 to Buffer
+                        const imageBuffer = Buffer.from(base64Data, "base64");
+                        
+                        // Convert image to CMYK format using sharp (same as design images)
+                        const cmykBuffer = await sharp(imageBuffer)
+                          .toColourspace("cmyk")
+                          .jpeg({
+                            quality: 90,
+                            chromaSubsampling: '4:4:4'
+                          })
+                          .toBuffer();
+                        
+                        processedUploadedImages.push({
+                          data: cmykBuffer,
+                          contentType: "image/jpeg",
+                          filename: (img.filename || "attribute-image.png").replace(/\.(png|gif|webp)$/i, ".jpg"),
+                        });
+                      }
+                    }
+                  } catch (err) {
+                    console.error("Error processing attribute image:", err);
+                    // Continue with other images even if one fails
+                  }
+                }
               }
 
               if (selectedValueDetails) {
@@ -213,24 +299,26 @@ export const createOrder = async (req, res) => {
                   processedDynamicAttributes.push({
                     attributeTypeId: attrTypeId,
                     attributeName: attrType.attributeName || "Attribute",
-                    attributeValue: value,
+                    attributeValue: actualValue,
                     label: labels,
                     priceMultiplier: totalPriceMultiplier || null,
-                    priceAdd: 0, // Will be calculated based on multiplier
+                    priceAdd: attrData.priceAdd || 0,
                     description: selectedValueDetails.map((sv) => sv.description).filter(Boolean).join("; ") || null,
                     image: selectedValueDetails[0]?.image || null,
+                    uploadedImages: processedUploadedImages.length > 0 ? processedUploadedImages : undefined,
                   });
                 } else {
                   // Single value selected
                   processedDynamicAttributes.push({
                     attributeTypeId: attrTypeId,
                     attributeName: attrType.attributeName || "Attribute",
-                    attributeValue: value,
-                    label: selectedValueDetails.label || value?.toString() || null,
+                    attributeValue: actualValue,
+                    label: selectedValueDetails.label || actualValue?.toString() || null,
                     priceMultiplier: selectedValueDetails.priceMultiplier || null,
-                    priceAdd: 0,
+                    priceAdd: attrData.priceAdd || 0,
                     description: selectedValueDetails.description || null,
                     image: selectedValueDetails.image || null,
+                    uploadedImages: processedUploadedImages.length > 0 ? processedUploadedImages : undefined,
                   });
                 }
               } else {
@@ -238,17 +326,18 @@ export const createOrder = async (req, res) => {
                 processedDynamicAttributes.push({
                   attributeTypeId: attrTypeId,
                   attributeName: attrType.attributeName || "Attribute",
-                  attributeValue: value,
-                  label: value?.toString() || null,
+                  attributeValue: actualValue,
+                  label: actualValue?.toString() || null,
                   priceMultiplier: null,
-                  priceAdd: 0,
+                  priceAdd: attrData.priceAdd || 0,
                   description: null,
                   image: null,
+                  uploadedImages: processedUploadedImages.length > 0 ? processedUploadedImages : undefined,
                 });
               }
             }
           }
-        });
+        }
       }
     }
 
@@ -528,7 +617,7 @@ export const createOrderWithAccount = async (req, res) => {
       });
 
       if (productWithAttrs && productWithAttrs.dynamicAttributes) {
-        selectedDynamicAttributes.forEach((attr) => {
+        for (const attr of selectedDynamicAttributes) {
           const attrTypeId = attr.attributeTypeId;
           const value = attr.attributeValue;
 
@@ -556,6 +645,43 @@ export const createOrderWithAccount = async (req, res) => {
               }
 
               if (selectedValueDetails) {
+                // Process uploaded images if any
+                let processedUploadedImages = [];
+                if (attr.uploadedImages && Array.isArray(attr.uploadedImages) && attr.uploadedImages.length > 0) {
+                  for (const img of attr.uploadedImages) {
+                    try {
+                      let base64Data = img.data;
+                      if (typeof base64Data === 'string') {
+                        if (base64Data.includes(',')) {
+                          base64Data = base64Data.split(',')[1];
+                        }
+                        if (base64Data && base64Data.trim().length > 0) {
+                          // Convert base64 to Buffer
+                          const imageBuffer = Buffer.from(base64Data, "base64");
+                          
+                          // Convert image to CMYK format using sharp (same as design images)
+                          const cmykBuffer = await sharp(imageBuffer)
+                            .toColourspace("cmyk")
+                            .jpeg({
+                              quality: 90,
+                              chromaSubsampling: '4:4:4'
+                            })
+                            .toBuffer();
+                          
+                          processedUploadedImages.push({
+                            data: cmykBuffer,
+                            contentType: "image/jpeg",
+                            filename: (img.filename || "attribute-image.png").replace(/\.(png|gif|webp)$/i, ".jpg"),
+                          });
+                        }
+                      }
+                    } catch (err) {
+                      console.error("Error processing attribute image:", err);
+                      // Continue with other images even if one fails
+                    }
+                  }
+                }
+                
                 if (Array.isArray(selectedValueDetails)) {
                   const labels = selectedValueDetails.map((sv) => sv.label || sv.value).join(", ");
                   const totalPriceMultiplier = selectedValueDetails.reduce((sum, sv) => sum + (sv.priceMultiplier || 0), 0);
@@ -565,9 +691,10 @@ export const createOrderWithAccount = async (req, res) => {
                     attributeValue: value,
                     label: labels,
                     priceMultiplier: totalPriceMultiplier || undefined,
-                    priceAdd: 0,
+                    priceAdd: attr.priceAdd || 0,
                     description: selectedValueDetails.map((sv) => sv.description).filter(Boolean).join("; ") || undefined,
                     image: selectedValueDetails[0]?.image || undefined,
+                    uploadedImages: processedUploadedImages.length > 0 ? processedUploadedImages : undefined,
                   });
                 } else {
                   processedDynamicAttributes.push({
@@ -576,9 +703,10 @@ export const createOrderWithAccount = async (req, res) => {
                     attributeValue: value,
                     label: selectedValueDetails.label || value?.toString() || "",
                     priceMultiplier: selectedValueDetails.priceMultiplier || undefined,
-                    priceAdd: 0,
+                    priceAdd: attr.priceAdd || 0,
                     description: selectedValueDetails.description || undefined,
                     image: selectedValueDetails.image || undefined,
+                    uploadedImages: processedUploadedImages.length > 0 ? processedUploadedImages : undefined,
                   });
                 }
               } else {
@@ -595,7 +723,7 @@ export const createOrderWithAccount = async (req, res) => {
               }
             }
           }
-        });
+        }
       }
     }
 

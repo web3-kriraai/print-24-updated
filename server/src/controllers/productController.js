@@ -6,17 +6,17 @@ import streamifier from "streamifier";
 
 export const createProduct = async (req, res) => {
   try {
-    const { 
-      name, 
-      basePrice, 
+    const {
+      name,
+      basePrice,
       category,
-      subcategory, 
-      description, 
-      descriptionArray, 
-      productType, 
-      options, 
-      filters, 
-      dynamicAttributes, 
+      subcategory,
+      description,
+      descriptionArray,
+      productType,
+      options,
+      filters,
+      dynamicAttributes,
       quantityDiscounts,
       maxFileSizeMB,
       minFileWidth,
@@ -59,23 +59,23 @@ export const createProduct = async (req, res) => {
       if (!/^[0-9a-fA-F]{24}$/.test(subcategoryStr)) {
         return res.status(400).json({ error: "Invalid subcategory ID format. Expected MongoDB ObjectId." });
       }
-      
+
       // Check if subcategory exists in SubCategory collection
       const subcategoryExists = await SubCategory.findById(subcategoryStr).populate('category');
       if (!subcategoryExists) {
         return res.status(400).json({ error: "Subcategory not found. Please select a valid subcategory." });
       }
-      
+
       // Validate that subcategory belongs to the selected category
-      const subcategoryCategoryId = subcategoryExists.category 
-        ? (typeof subcategoryExists.category === 'object' 
-          ? subcategoryExists.category._id.toString() 
+      const subcategoryCategoryId = subcategoryExists.category
+        ? (typeof subcategoryExists.category === 'object'
+          ? subcategoryExists.category._id.toString()
           : subcategoryExists.category.toString())
         : null;
-      
+
       if (subcategoryCategoryId !== categoryId) {
-        return res.status(400).json({ 
-          error: "Selected subcategory does not belong to the selected category. Please select a valid subcategory." 
+        return res.status(400).json({
+          error: "Selected subcategory does not belong to the selected category. Please select a valid subcategory."
         });
       }
     }
@@ -95,7 +95,7 @@ export const createProduct = async (req, res) => {
     if (filters) {
       try {
         parsedFilters = typeof filters === 'string' ? JSON.parse(filters) : filters;
-        
+
         // Ensure filter prices are properly structured
         if (parsedFilters) {
           // Ensure filterPricesEnabled is a boolean
@@ -104,7 +104,7 @@ export const createProduct = async (req, res) => {
           } else {
             parsedFilters.filterPricesEnabled = false;
           }
-          
+
           // Ensure price arrays are properly formatted
           if (parsedFilters.printingOptionPrices && Array.isArray(parsedFilters.printingOptionPrices)) {
             parsedFilters.printingOptionPrices = parsedFilters.printingOptionPrices.map((p) => ({
@@ -114,7 +114,7 @@ export const createProduct = async (req, res) => {
           } else if (parsedFilters.filterPricesEnabled) {
             parsedFilters.printingOptionPrices = [];
           }
-          
+
           if (parsedFilters.deliverySpeedPrices && Array.isArray(parsedFilters.deliverySpeedPrices)) {
             parsedFilters.deliverySpeedPrices = parsedFilters.deliverySpeedPrices.map((p) => ({
               name: String(p.name || '').trim(),
@@ -123,7 +123,7 @@ export const createProduct = async (req, res) => {
           } else if (parsedFilters.filterPricesEnabled) {
             parsedFilters.deliverySpeedPrices = [];
           }
-          
+
           if (parsedFilters.textureTypePrices && Array.isArray(parsedFilters.textureTypePrices)) {
             parsedFilters.textureTypePrices = parsedFilters.textureTypePrices.map((p) => ({
               name: String(p.name || '').trim(),
@@ -132,7 +132,7 @@ export const createProduct = async (req, res) => {
           } else if (parsedFilters.filterPricesEnabled) {
             parsedFilters.textureTypePrices = [];
           }
-          
+
           console.log("Parsed filters with prices (create):", JSON.stringify(parsedFilters, null, 2));
         }
       } catch (err) {
@@ -181,10 +181,10 @@ export const createProduct = async (req, res) => {
     let parsedDynamicAttributes = [];
     if (dynamicAttributes) {
       try {
-        parsedDynamicAttributes = typeof dynamicAttributes === 'string' 
-          ? JSON.parse(dynamicAttributes) 
+        parsedDynamicAttributes = typeof dynamicAttributes === 'string'
+          ? JSON.parse(dynamicAttributes)
           : dynamicAttributes;
-        
+
         // Validate and filter dynamicAttributes
         if (Array.isArray(parsedDynamicAttributes)) {
           parsedDynamicAttributes = parsedDynamicAttributes
@@ -204,7 +204,7 @@ export const createProduct = async (req, res) => {
         return res.status(400).json({ error: "Invalid JSON in dynamicAttributes" });
       }
     }
-    
+
     console.log("Parsed dynamicAttributes for product creation:", JSON.stringify(parsedDynamicAttributes, null, 2));
 
     // Parse quantityDiscounts JSON
@@ -236,8 +236,8 @@ export const createProduct = async (req, res) => {
     let parsedProductionSequence = [];
     if (productionSequence) {
       try {
-        parsedProductionSequence = typeof productionSequence === 'string' 
-          ? JSON.parse(productionSequence) 
+        parsedProductionSequence = typeof productionSequence === 'string'
+          ? JSON.parse(productionSequence)
           : productionSequence;
         // Ensure it's an array of valid ObjectIds
         if (Array.isArray(parsedProductionSequence)) {
@@ -256,7 +256,7 @@ export const createProduct = async (req, res) => {
     const subcategoryValue = subcategoryStr && subcategoryStr !== '' && subcategoryStr !== 'null' ? subcategoryStr : null;
     // If subcategory is provided, category should be the parent category; otherwise use categoryId
     const finalCategoryId = subcategoryValue ? categoryId : categoryId;
-    
+
     const data = await Product.create({
       name,
       basePrice: price,
@@ -306,7 +306,7 @@ export const createProduct = async (req, res) => {
       .populate({
         path: "dynamicAttributes.attributeType",
         model: "AttributeType",
-        select: "_id attributeName inputStyle primaryEffectType isPricingAttribute attributeValues defaultValue isRequired isFilterable displayOrder"
+        select: "_id attributeName inputStyle primaryEffectType isPricingAttribute attributeValues defaultValue isRequired isFilterable displayOrder isStepQuantity isRangeQuantity stepQuantities rangeQuantities"
       });
 
     console.log("Product created with subcategory ID:", subcategory);
@@ -359,7 +359,7 @@ export const getAllProducts = async (req, res) => {
         model: "AttributeType"
       })
       .sort({ createdAt: -1 });
-    
+
     console.log(`Fetched ${list.length} product(s) total`);
     console.log("=== ALL PRODUCTS DATA ===");
     console.log(JSON.stringify(list, null, 2));
@@ -374,49 +374,53 @@ export const getAllProducts = async (req, res) => {
 export const getSingleProduct = async (req, res) => {
   try {
     const productId = req.params.id;
-    
+
     if (!productId) {
       return res.status(400).json({ error: "Product ID is required" });
     }
 
-    // Validate MongoDB ObjectId format
-    if (!/^[0-9a-fA-F]{24}$/.test(productId)) {
-      return res.status(400).json({ 
+    // Check if identifier is a MongoDB ObjectId (24 hex characters)
+    const isObjectId = /^[0-9a-fA-F]{24}$/.test(productId);
+
+    let item;
+    if (isObjectId) {
+      // Try to find by ID first
+      console.log("Fetching product with ID:", productId);
+      item = await Product.findById(productId)
+        .populate({
+          path: "category",
+          select: "_id name description image type parent slug",
+          populate: {
+            path: "parent",
+            select: "_id name type",
+            options: { recursive: true }
+          }
+        })
+        .populate({
+          path: "subcategory",
+          select: "_id name description image slug category",
+          populate: {
+            path: "category",
+            model: "Category",
+            select: "_id name description type image"
+          }
+        })
+        .populate({
+          path: "dynamicAttributes.attributeType",
+          model: "AttributeType"
+        })
+        .populate({
+          path: "productionSequence",
+          model: "Department",
+          select: "_id name description sequence isEnabled"
+        });
+    } else {
+      // Not a valid ObjectId format
+      return res.status(400).json({
         error: "Invalid product ID format. Expected MongoDB ObjectId (24 hex characters).",
         received: productId
       });
     }
-
-    console.log("Fetching product with ID:", productId);
-
-    const item = await Product.findById(productId)
-      .populate({
-        path: "category",
-        select: "_id name description image type parent slug",
-        populate: {
-          path: "parent",
-          select: "_id name type",
-          options: { recursive: true }
-        }
-      })
-      .populate({
-        path: "subcategory",
-        select: "_id name description image slug category",
-        populate: {
-          path: "category",
-          model: "Category",
-          select: "_id name description type image"
-        }
-      })
-      .populate({
-        path: "dynamicAttributes.attributeType",
-        model: "AttributeType"
-      })
-      .populate({
-        path: "productionSequence",
-        model: "Department",
-        select: "_id name description sequence isEnabled"
-      });
 
     if (!item) {
       return res.status(404).json({ error: "Product not found" });
@@ -439,16 +443,16 @@ export const getSingleProduct = async (req, res) => {
 export const getProductsByCategory = async (req, res) => {
   try {
     const categoryIdentifier = req.params.categoryId;
-    
+
     if (!categoryIdentifier) {
       return res.status(400).json({ error: "Category ID or slug is required" });
     }
 
     // Check if identifier is a MongoDB ObjectId (24 hex characters)
     const isObjectId = /^[0-9a-fA-F]{24}$/.test(categoryIdentifier);
-    
+
     let categoryId = categoryIdentifier;
-    
+
     // If not an ObjectId, try to find category by slug
     if (!isObjectId) {
       const Category = (await import("../models/categoryModal.js")).default;
@@ -471,9 +475,9 @@ export const getProductsByCategory = async (req, res) => {
     // First check if it's a subcategory in SubCategory collection
     const SubCategory = (await import("../models/subcategoryModal.js")).default;
     const Category = (await import("../models/categoryModal.js")).default;
-    
+
     const isSubcategory = await SubCategory.findById(categoryId);
-    
+
     // If it's not a subcategory, verify it's a valid category
     if (!isSubcategory) {
       const categoryExists = await Category.findById(categoryId);
@@ -481,60 +485,109 @@ export const getProductsByCategory = async (req, res) => {
         return res.status(404).json({ error: "Category not found" });
       }
     }
-    
+
     // Find products by category or subcategory
     // If categoryId is a subcategory, find products where subcategory = categoryId
     // If categoryId is a category, find products where:
     //   - category = categoryId (direct category products)
     //   - subcategory.category = categoryId (products in subcategories of this category)
     let query;
-    
+
     if (isSubcategory) {
       // It's a subcategory - find products with this subcategory
       query = { subcategory: categoryId };
     } else {
-      // It's a category - find products directly under this category OR in its subcategories
-      const subcategories = await SubCategory.find({ category: categoryId }).select('_id');
-      const subcategoryIds = subcategories.map(sc => sc._id);
-      
-      query = {
-        $or: [
-          { 
-            category: categoryId,
-            $or: [
-              { subcategory: null },
-              { subcategory: { $exists: false } }
-            ]
-          }, // Direct category products (without subcategory)
-          { subcategory: { $in: subcategoryIds } } // Products in subcategories of this category
-        ]
+      // It's a category - find products directly under this category OR in its subcategories (including nested)
+      // Helper function to recursively get all subcategory IDs (including nested ones)
+      const getAllSubcategoryIds = async (parentCategoryId) => {
+        const allIds = [];
+        const topLevelSubcategories = await SubCategory.find({
+          category: parentCategoryId,
+          $or: [
+            { parent: null },
+            { parent: { $exists: false } }
+          ]
+        }).select('_id');
+
+        const processSubcategory = async (subcategoryId) => {
+          allIds.push(subcategoryId);
+          // Find nested subcategories (children of this subcategory)
+          const nestedSubcategories = await SubCategory.find({ parent: subcategoryId }).select('_id');
+          for (const nested of nestedSubcategories) {
+            await processSubcategory(nested._id);
+          }
+        };
+
+        for (const subcat of topLevelSubcategories) {
+          await processSubcategory(subcat._id);
+        }
+
+        return allIds;
       };
+
+      const subcategoryIds = await getAllSubcategoryIds(categoryId);
+
+      // Build query: products directly under category OR products in subcategories (including nested)
+      if (subcategoryIds.length > 0) {
+        query = {
+          $or: [
+            // Direct category products: category matches AND subcategory is null/undefined
+            {
+              category: categoryId,
+              $or: [
+                { subcategory: null },
+                { subcategory: { $exists: false } }
+              ]
+            },
+            // Products in subcategories of this category (including nested subcategories)
+            { subcategory: { $in: subcategoryIds } }
+          ]
+        };
+      } else {
+        // No subcategories exist, so only look for direct category products
+        // Products where category matches AND subcategory is null or doesn't exist
+        query = {
+          category: categoryId,
+          $or: [
+            { subcategory: null },
+            { subcategory: { $exists: false } }
+          ]
+        };
+      }
     }
-    
+
+    console.log("Query for category products:", JSON.stringify(query, null, 2));
     const list = await Product.find(query)
-    .populate({
-      path: "category",
-      select: "_id name description image type parent slug",
-      populate: {
-        path: "parent",
-        select: "_id name type",
-        options: { recursive: true }
-      }
-    })
-    .populate({
-      path: "subcategory",
-      select: "_id name description image slug category",
-      populate: {
+      .populate({
         path: "category",
-        model: "Category",
-        select: "_id name description type image"
-      }
-    })
-    .populate({
-      path: "dynamicAttributes.attributeType",
-      model: "AttributeType"
-    })
-    .sort({ createdAt: -1 });
+        select: "_id name description image type parent slug",
+        populate: {
+          path: "parent",
+          select: "_id name type",
+          options: { recursive: true }
+        }
+      })
+      .populate({
+        path: "subcategory",
+        select: "_id name description image slug category parent",
+        populate: [
+          {
+            path: "category",
+            model: "Category",
+            select: "_id name description type image"
+          },
+          {
+            path: "parent",
+            model: "SubCategory",
+            select: "_id name"
+          }
+        ]
+      })
+      .populate({
+        path: "dynamicAttributes.attributeType",
+        model: "AttributeType"
+      })
+      .sort({ createdAt: -1 });
 
     console.log(`=== PRODUCTS BY CATEGORY (${categoryId}) ===`);
     console.log(`Fetched ${list.length} product(s)`);
@@ -558,16 +611,16 @@ export const getProductsByCategory = async (req, res) => {
 export const getProductsBySubcategory = async (req, res) => {
   try {
     const subcategoryIdentifier = req.params.subcategoryId;
-    
+
     if (!subcategoryIdentifier) {
       return res.status(400).json({ error: "Subcategory ID or slug is required" });
     }
 
     // Check if identifier is a MongoDB ObjectId (24 hex characters)
     const isObjectId = /^[0-9a-fA-F]{24}$/.test(subcategoryIdentifier);
-    
+
     let subcategoryId = subcategoryIdentifier;
-    
+
     // If not an ObjectId, try to find subcategory by slug
     if (!isObjectId) {
       const SubCategory = (await import("../models/subcategoryModal.js")).default;
@@ -580,33 +633,54 @@ export const getProductsBySubcategory = async (req, res) => {
 
     console.log("Fetching products for subcategory ID:", subcategoryId);
 
-    // First priority: Find products where subcategory matches the provided ID
+    // Helper function to recursively get all nested subcategory IDs
+    const getAllNestedSubcategoryIds = async (parentSubcategoryId) => {
+      const allIds = [parentSubcategoryId];
+      const nestedSubcategories = await SubCategory.find({ parent: parentSubcategoryId }).select('_id');
+      for (const nested of nestedSubcategories) {
+        const nestedIds = await getAllNestedSubcategoryIds(nested._id);
+        allIds.push(...nestedIds);
+      }
+      return allIds;
+    };
+
+    // Get all nested subcategory IDs (including the current one)
+    const allSubcategoryIds = await getAllNestedSubcategoryIds(subcategoryId);
+
+    // First priority: Find products where subcategory matches the provided ID or any nested subcategory
     let list = await Product.find({
-      subcategory: subcategoryId,
+      subcategory: { $in: allSubcategoryIds },
     })
-    .populate({
-      path: "category",
-      select: "_id name description image type parent slug",
-      populate: {
-        path: "parent",
-        select: "_id name type",
-        options: { recursive: true }
-      }
-    })
-    .populate({
-      path: "subcategory",
-      select: "_id name description image slug category",
-      populate: {
+      .populate({
         path: "category",
-        model: "Category",
-        select: "_id name description type image"
-      }
-    })
-    .populate({
-      path: "dynamicAttributes.attributeType",
-      model: "AttributeType"
-    })
-    .sort({ createdAt: -1 });
+        select: "_id name description image type parent slug",
+        populate: {
+          path: "parent",
+          select: "_id name type",
+          options: { recursive: true }
+        }
+      })
+      .populate({
+        path: "subcategory",
+        select: "_id name description image slug category parent",
+        populate: [
+          {
+            path: "category",
+            model: "Category",
+            select: "_id name description type image"
+          },
+          {
+            path: "parent",
+            model: "SubCategory",
+            select: "_id name"
+          }
+        ]
+      })
+      .populate({
+        path: "dynamicAttributes.attributeType",
+        model: "AttributeType"
+      })
+      .sort({ createdAt: -1 });
 
     console.log(`Found ${list.length} product(s) with subcategory ${subcategoryId}`);
 
@@ -615,14 +689,14 @@ export const getProductsBySubcategory = async (req, res) => {
       // Get the parent category ID from the subcategory
       const SubCategory = (await import("../models/subcategoryModal.js")).default;
       const subcategory = await SubCategory.findById(subcategoryId).populate('category');
-      
+
       if (subcategory && subcategory.category) {
-        const categoryId = typeof subcategory.category === 'object' 
-          ? subcategory.category._id 
+        const categoryId = typeof subcategory.category === 'object'
+          ? subcategory.category._id
           : subcategory.category;
-        
+
         console.log(`No products found with subcategory, falling back to category ${categoryId}`);
-        
+
         // Find products directly under the parent category
         list = await Product.find({
           category: categoryId,
@@ -631,30 +705,30 @@ export const getProductsBySubcategory = async (req, res) => {
             { subcategory: { $exists: false } }
           ]
         })
-        .populate({
-          path: "category",
-          select: "_id name description image type parent slug",
-          populate: {
-            path: "parent",
-            select: "_id name type",
-            options: { recursive: true }
-          }
-        })
-        .populate({
-          path: "subcategory",
-          select: "_id name description image slug category",
-          populate: {
+          .populate({
             path: "category",
-            model: "Category",
-            select: "_id name description type image"
-          }
-        })
-        .populate({
-          path: "dynamicAttributes.attributeType",
-          model: "AttributeType"
-        })
-        .sort({ createdAt: -1 });
-        
+            select: "_id name description image type parent slug",
+            populate: {
+              path: "parent",
+              select: "_id name type",
+              options: { recursive: true }
+            }
+          })
+          .populate({
+            path: "subcategory",
+            select: "_id name description image slug category",
+            populate: {
+              path: "category",
+              model: "Category",
+              select: "_id name description type image"
+            }
+          })
+          .populate({
+            path: "dynamicAttributes.attributeType",
+            model: "AttributeType"
+          })
+          .sort({ createdAt: -1 });
+
         console.log(`Found ${list.length} product(s) in parent category ${categoryId}`);
       }
     }
@@ -676,16 +750,16 @@ export const getProductsBySubcategory = async (req, res) => {
 // UPDATE product
 export const updateProduct = async (req, res) => {
   try {
-    const { 
-      name, 
-      basePrice, 
+    const {
+      name,
+      basePrice,
       category,
-      subcategory, 
-      description, 
-      descriptionArray, 
-      productType, 
-      options, 
-      filters, 
+      subcategory,
+      description,
+      descriptionArray,
+      productType,
+      options,
+      filters,
       dynamicAttributes,
       quantityDiscounts,
       maxFileSizeMB,
@@ -707,7 +781,7 @@ export const updateProduct = async (req, res) => {
     }
 
     const product = await Product.findById(productId);
-    
+
     if (!product) {
       return res.status(404).json({ error: "Product not found" });
     }
@@ -727,7 +801,7 @@ export const updateProduct = async (req, res) => {
     if (filters !== undefined) {
       try {
         parsedFilters = typeof filters === 'string' ? JSON.parse(filters) : filters;
-        
+
         // Ensure filter prices are properly structured
         if (parsedFilters) {
           // Ensure filterPricesEnabled is a boolean
@@ -736,7 +810,7 @@ export const updateProduct = async (req, res) => {
           } else {
             parsedFilters.filterPricesEnabled = false;
           }
-          
+
           // Ensure price arrays are properly formatted
           if (parsedFilters.printingOptionPrices && Array.isArray(parsedFilters.printingOptionPrices)) {
             parsedFilters.printingOptionPrices = parsedFilters.printingOptionPrices.map((p) => ({
@@ -746,7 +820,7 @@ export const updateProduct = async (req, res) => {
           } else if (parsedFilters.filterPricesEnabled) {
             parsedFilters.printingOptionPrices = [];
           }
-          
+
           if (parsedFilters.deliverySpeedPrices && Array.isArray(parsedFilters.deliverySpeedPrices)) {
             parsedFilters.deliverySpeedPrices = parsedFilters.deliverySpeedPrices.map((p) => ({
               name: String(p.name || '').trim(),
@@ -755,7 +829,7 @@ export const updateProduct = async (req, res) => {
           } else if (parsedFilters.filterPricesEnabled) {
             parsedFilters.deliverySpeedPrices = [];
           }
-          
+
           if (parsedFilters.textureTypePrices && Array.isArray(parsedFilters.textureTypePrices)) {
             parsedFilters.textureTypePrices = parsedFilters.textureTypePrices.map((p) => ({
               name: String(p.name || '').trim(),
@@ -823,7 +897,7 @@ export const updateProduct = async (req, res) => {
         parsedDynamicAttributes = typeof dynamicAttributes === 'string'
           ? JSON.parse(dynamicAttributes)
           : dynamicAttributes;
-        
+
         // Validate and filter dynamicAttributes
         if (Array.isArray(parsedDynamicAttributes)) {
           parsedDynamicAttributes = parsedDynamicAttributes
@@ -843,7 +917,7 @@ export const updateProduct = async (req, res) => {
         return res.status(400).json({ error: "Invalid JSON in dynamicAttributes" });
       }
     }
-    
+
     console.log("Parsed dynamicAttributes for product update:", JSON.stringify(parsedDynamicAttributes, null, 2));
 
     // Parse quantityDiscounts JSON
@@ -875,8 +949,8 @@ export const updateProduct = async (req, res) => {
     let parsedProductionSequence = product.productionSequence || [];
     if (productionSequence !== undefined) {
       try {
-        parsedProductionSequence = typeof productionSequence === 'string' 
-          ? JSON.parse(productionSequence) 
+        parsedProductionSequence = typeof productionSequence === 'string'
+          ? JSON.parse(productionSequence)
           : productionSequence;
         // Ensure it's an array of valid ObjectIds
         if (Array.isArray(parsedProductionSequence)) {
@@ -893,23 +967,23 @@ export const updateProduct = async (req, res) => {
     // Handle category and subcategory updates
     let categoryUpdate = product.category;
     let subcategoryUpdate = product.subcategory;
-    
+
     // Validate category if provided
     if (category) {
       // Validate category ID format
       if (!/^[0-9a-fA-F]{24}$/.test(category)) {
         return res.status(400).json({ error: "Invalid category ID format. Expected MongoDB ObjectId." });
       }
-      
+
       // Validate that the category exists
       const categoryExists = await Category.findById(category);
       if (!categoryExists) {
         return res.status(400).json({ error: "Category not found. Please select a valid category." });
       }
-      
+
       categoryUpdate = category;
     }
-    
+
     // Always update subcategory if provided (even if empty string, set to null)
     if (subcategory !== undefined) {
       const subcategoryStr = subcategory ? String(subcategory).trim() : '';
@@ -918,36 +992,36 @@ export const updateProduct = async (req, res) => {
         if (!/^[0-9a-fA-F]{24}$/.test(subcategoryStr)) {
           return res.status(400).json({ error: "Invalid subcategory ID format. Expected MongoDB ObjectId." });
         }
-        
+
         // Validate that subcategory exists in SubCategory collection
         const SubCategory = (await import("../models/subcategoryModal.js")).default;
         const subcategoryExists = await SubCategory.findById(subcategoryStr).populate('category');
         if (!subcategoryExists) {
           return res.status(400).json({ error: "Subcategory not found. Please select a valid subcategory." });
         }
-        
+
         // Validate that subcategory belongs to the category (if category is also being updated or already set)
         const finalCategoryId = categoryUpdate || product.category;
         if (finalCategoryId) {
           // Get the parent category from the subcategory
-          const subcategoryCategoryId = subcategoryExists.category 
+          const subcategoryCategoryId = subcategoryExists.category
             ? (typeof subcategoryExists.category === 'object' ? subcategoryExists.category._id : subcategoryExists.category)
             : null;
-          
+
           if (!subcategoryCategoryId || subcategoryCategoryId.toString() !== finalCategoryId.toString()) {
-            return res.status(400).json({ 
-              error: "Selected subcategory does not belong to the selected category. Please select a valid subcategory." 
+            return res.status(400).json({
+              error: "Selected subcategory does not belong to the selected category. Please select a valid subcategory."
             });
           }
         }
-        
+
         subcategoryUpdate = subcategoryStr;
       } else {
         // Empty subcategory - product will be directly under category
         subcategoryUpdate = null;
       }
     }
-    
+
     const updatedProduct = await Product.findByIdAndUpdate(
       productId,
       {
@@ -978,29 +1052,36 @@ export const updateProduct = async (req, res) => {
       },
       { new: true }
     )
-    .populate({
-      path: "category",
-      select: "_id name description image type parent slug",
-      populate: {
-        path: "parent",
-        select: "_id name type",
-        options: { recursive: true }
-      }
-    })
-    .populate({
-      path: "subcategory",
-      select: "_id name description image slug category",
-      populate: {
+      .populate({
         path: "category",
-        model: "Category",
-        select: "_id name description type image"
-      }
-    })
-    .populate({
-      path: "dynamicAttributes.attributeType",
-      model: "AttributeType",
-      select: "_id attributeName inputStyle primaryEffectType isPricingAttribute attributeValues"
-    });
+        select: "_id name description image type parent slug",
+        populate: {
+          path: "parent",
+          select: "_id name type",
+          options: { recursive: true }
+        }
+      })
+      .populate({
+        path: "subcategory",
+        select: "_id name description image slug category parent",
+        populate: [
+          {
+            path: "category",
+            model: "Category",
+            select: "_id name description type image"
+          },
+          {
+            path: "parent",
+            model: "SubCategory",
+            select: "_id name"
+          }
+        ]
+      })
+      .populate({
+        path: "dynamicAttributes.attributeType",
+        model: "AttributeType",
+        select: "_id attributeName inputStyle primaryEffectType isPricingAttribute attributeValues"
+      });
 
     return res.json({
       success: true,
@@ -1020,7 +1101,7 @@ export const updateProduct = async (req, res) => {
 export const deleteProduct = async (req, res) => {
   try {
     const product = await Product.findById(req.params.id);
-    
+
     if (!product) {
       return res.status(404).json({ error: "Product not found" });
     }

@@ -38,6 +38,27 @@ const AttributeTypeSchema = new mongoose.Schema(
       default: false,
     },
 
+    // Step quantity settings - restricts quantity to specific steps
+    isStepQuantity: {
+      type: Boolean,
+      default: false,
+    },
+    stepQuantities: [{
+      quantity: { type: Number, required: true },
+      price: { type: Number, default: 0 },
+    }],
+
+    // Range quantity settings - restricts quantity to specific ranges
+    isRangeQuantity: {
+      type: Boolean,
+      default: false,
+    },
+    rangeQuantities: [{
+      min: { type: Number, required: true },
+      max: { type: Number }, // null means no upper limit
+      price: { type: Number, default: 0 },
+    }],
+
     // Quantity configuration for QUANTITY_PRICING attributes
     quantityConfig: {
       // Quantity configuration type: "SIMPLE" (min/max/multiples), "STEP_WISE", "RANGE_WISE"

@@ -36,8 +36,8 @@ app.set("trust proxy", true);
 
 // CORS - Configure allowed origins
 // Normalize FRONTEND_URL (remove trailing slash if present)
-const frontendUrl = process.env.FRONTEND_URL 
-  ? process.env.FRONTEND_URL.replace(/\/$/, '') 
+const frontendUrl = process.env.FRONTEND_URL
+  ? process.env.FRONTEND_URL.replace(/\/$/, '')
   : null;
 
 // CORS Configuration - Must be before all routes
@@ -65,10 +65,12 @@ app.use(
         allowedOrigins.push(frontendUrl);
       }
 
-      // Allow if origin is in the list or if it's a localhost/127.0.0.1 origin
+      // Allow if origin is in the list or if it's a localhost/127.0.0.1 origin or ngrok
       if (allowedOrigins.includes(origin) ||
         origin.startsWith("http://localhost:") ||
-        origin.startsWith("http://127.0.0.1:")) {
+        origin.startsWith("http://127.0.0.1:") ||
+        origin.includes("ngrok-free.dev") ||
+        origin.includes("ngrok.io")) {
         callback(null, true);
       } else {
         // For development, allow all origins
@@ -475,7 +477,7 @@ async function startServer() {
       app.listen(port, () => {
         console.log(`========================================`);
         console.log(`🚀 Backend Server running on port ${port}`);
-        console.log(`📦 SSR Enabled - Access: http://localhost:5000`);
+        console.log(`📦 SSR Enabled - Access: https://kelsi-kimonoed-corene.ngrok-free.dev`);
         console.log(`📦 Local Access: http://localhost:${port}`);
         console.log(`⚠️  DO NOT use http://localhost:3000 (Vite dev server)`);
         console.log(`========================================`);
