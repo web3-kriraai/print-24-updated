@@ -10,7 +10,7 @@
  * - Have at least one category in the database
  */
 
-const API_BASE_URL = 'https://kelsi-kimonoed-corene.ngrok-free.dev/api'; // Update this to match your server URL
+const API_BASE_URL = 'http://localhost:5000/api'; // Update this to match your server URL
 
 // Test configuration
 const testConfig = {

@@ -63,12 +63,12 @@ const DigitalPrint: React.FC = () => {
     onScroll: (container) => {
       const maxScroll = container.scrollWidth - container.clientWidth;
       const currentScroll = container.scrollLeft;
-      
+
       // Calculate width of 1 item based on responsive visible items
       const screenWidth = window.innerWidth;
       const visibleItems = getVisibleItems(screenWidth);
       const oneItemWidth = screenWidth / visibleItems;
-      
+
       if (currentScroll >= maxScroll - 10) {
         container.scrollTo({ left: 0, behavior: "smooth" });
       } else {
@@ -98,12 +98,12 @@ const DigitalPrint: React.FC = () => {
     onScroll: (container) => {
       const maxScroll = container.scrollWidth - container.clientWidth;
       const currentScroll = container.scrollLeft;
-      
+
       // Calculate width of 1 item based on responsive visible items
       const screenWidth = window.innerWidth;
       const visibleItems = getVisibleItems(screenWidth);
       const oneItemWidth = screenWidth / visibleItems;
-      
+
       if (currentScroll >= maxScroll - 10) {
         container.scrollTo({ left: 0, behavior: "smooth" });
       } else {
@@ -161,7 +161,7 @@ const DigitalPrint: React.FC = () => {
 
         const digitalData = JSON.parse(digitalText);
         // Sort digital categories by sortOrder
-        const sortedDigital = Array.isArray(digitalData) 
+        const sortedDigital = Array.isArray(digitalData)
           ? digitalData.sort((a: Category, b: Category) => (a.sortOrder || 0) - (b.sortOrder || 0))
           : digitalData;
         setDigitalCategories(sortedDigital);
@@ -191,7 +191,7 @@ const DigitalPrint: React.FC = () => {
 
         const bulkData = JSON.parse(bulkText);
         // Sort bulk categories by sortOrder
-        const sortedBulk = Array.isArray(bulkData) 
+        const sortedBulk = Array.isArray(bulkData)
           ? bulkData.sort((a: Category, b: Category) => (a.sortOrder || 0) - (b.sortOrder || 0))
           : bulkData;
         setBulkCategories(sortedBulk);
@@ -234,7 +234,7 @@ const DigitalPrint: React.FC = () => {
           if (!text.trim().startsWith("<!DOCTYPE") && !text.trim().startsWith("<html")) {
             const data = JSON.parse(text);
             const subcategories = Array.isArray(data) ? data : (data?.data || []);
-            
+
             // Flatten nested subcategories for display (but keep hierarchy info)
             const flattenSubcategories = (subcats: any[]): any[] => {
               let result: any[] = [];
@@ -251,7 +251,7 @@ const DigitalPrint: React.FC = () => {
               });
               return result;
             };
-            
+
             const flattened = flattenSubcategories(subcategories);
             // Sort by sortOrder
             flattened.sort((a: any, b: any) => (a.sortOrder || 0) - (b.sortOrder || 0));
@@ -312,16 +312,16 @@ const DigitalPrint: React.FC = () => {
   ];
 
   // Determine which sections to show
-  const selectedCategoryData = selectedCategory 
+  const selectedCategoryData = selectedCategory
     ? allCategories.find(c => c._id === selectedCategory)
     : null;
-  
+
   // If a category is selected, determine its type and show only that section
   const shouldShowDigital = !selectedType || selectedType === "Digital";
   const shouldShowBulk = !selectedType || selectedType === "Bulk";
-  
+
   // If a specific category is selected, show only its type section
-  const showDigitalSection = selectedCategoryData 
+  const showDigitalSection = selectedCategoryData
     ? selectedCategoryData.type === "Digital"
     : shouldShowDigital;
   const showBulkSection = selectedCategoryData
@@ -332,26 +332,26 @@ const DigitalPrint: React.FC = () => {
   const filteredDigitalCategories = digitalCategories.filter(category => {
     // Type filter - if type is selected and it's not Digital, hide
     if (selectedType && selectedType !== "Digital") return false;
-    
+
     // Category filter - if a category is selected, show only that category
     if (selectedCategory && category._id !== selectedCategory) return false;
-    
+
     // Search filter
     if (searchQuery && !category.name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
-    
+
     return true;
   });
 
   const filteredBulkCategories = bulkCategories.filter(category => {
     // Type filter - if type is selected and it's not Bulk, hide
     if (selectedType && selectedType !== "Bulk") return false;
-    
+
     // Category filter - if a category is selected, show only that category
     if (selectedCategory && category._id !== selectedCategory) return false;
-    
+
     // Search filter
     if (searchQuery && !category.name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
-    
+
     return true;
   });
 
@@ -365,7 +365,7 @@ const DigitalPrint: React.FC = () => {
   return (
     <div className="min-h-screen bg-cream-50">
       <div className="container mx-auto px-2 xs:px-3 sm:px-4 md:px-6 lg:px-8 pt-4 xs:pt-5 sm:pt-6 md:pt-8 lg:pt-10 pb-8 xs:pb-10 sm:pb-12 md:pb-16 lg:pb-20">
-        
+
         {/* Enhanced Filters Section */}
         <div className="mb-6 sm:mb-8">
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
@@ -557,268 +557,266 @@ const DigitalPrint: React.FC = () => {
 
         {/* Digital Print Category Slider */}
         {showDigitalSection && (
-        <div className="mb-8 xs:mb-10 sm:mb-12 md:mb-16 lg:mb-20">
-          <div className="flex items-center gap-2 xs:gap-2.5 sm:gap-3 mb-4 xs:mb-5 sm:mb-6 md:mb-8">
-            <div className="flex items-center justify-center w-8 h-8 xs:w-9 xs:h-9 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-lg sm:rounded-xl" style={{ backgroundColor: '#588157' }}>
-              <Zap className="text-white w-4 h-4 xs:w-5 xs:h-5 sm:w-5 sm:h-5 md:w-6 md:h-6" />
+          <div className="mb-8 xs:mb-10 sm:mb-12 md:mb-16 lg:mb-20">
+            <div className="flex items-center gap-2 xs:gap-2.5 sm:gap-3 mb-4 xs:mb-5 sm:mb-6 md:mb-8">
+              <div className="flex items-center justify-center w-8 h-8 xs:w-9 xs:h-9 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-lg sm:rounded-xl" style={{ backgroundColor: '#588157' }}>
+                <Zap className="text-white w-4 h-4 xs:w-5 xs:h-5 sm:w-5 sm:h-5 md:w-6 md:h-6" />
+              </div>
+              <div>
+                <h2 className="font-serif text-lg xs:text-xl sm:text-2xl md:text-3xl font-bold text-cream-900">
+                  Digital Print
+                </h2>
+                <p className="text-cream-600 text-xs xs:text-sm sm:text-base font-medium">Fast & small batches</p>
+              </div>
             </div>
-            <div>
-              <h2 className="font-serif text-lg xs:text-xl sm:text-2xl md:text-3xl font-bold text-cream-900">
-                Digital Print
-              </h2>
-              <p className="text-cream-600 text-xs xs:text-sm sm:text-base font-medium">Fast & small batches</p>
+
+            <div
+              className="relative group/slider overflow-hidden"
+            >
+              {/* Left Arrow Button - Scroll left to show items from left */}
+              <button
+                onClick={() => {
+                  const container = document.getElementById("digital-scroll-container");
+                  if (container) {
+                    const screenWidth = window.innerWidth;
+                    const visibleItems = getVisibleItems(screenWidth);
+                    const itemWidth = screenWidth / visibleItems;
+
+                    const currentScroll = container.scrollLeft;
+
+                    if (currentScroll <= 0) {
+                      // If at the start, wrap to the end
+                      container.scrollTo({ left: container.scrollWidth - container.clientWidth, behavior: "smooth" });
+                    } else {
+                      // Scroll left by 1 item
+                      container.scrollTo({ left: currentScroll - itemWidth, behavior: "smooth" });
+                    }
+                  }
+                  if ((window as any).digitalUpdateFromArrow) {
+                    (window as any).digitalUpdateFromArrow();
+                  }
+                }}
+                className="absolute left-2 sm:left-3 md:left-4 z-10 w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 bg-white/95 hover:bg-white active:bg-white shadow-md sm:shadow-lg rounded-full flex items-center justify-center text-cream-900 hover:text-cream-600 active:scale-95 transition-all opacity-100 sm:opacity-0 sm:group-hover/slider:opacity-100 touch-manipulation"
+                style={{ top: 'calc(50% - 1rem)' }}
+              >
+                <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6" />
+              </button>
+
+              {/* Right Arrow Button - Scroll right to show items from right */}
+              <button
+                onClick={() => {
+                  const container = document.getElementById("digital-scroll-container");
+                  if (container) {
+                    const screenWidth = window.innerWidth;
+                    const visibleItems = getVisibleItems(screenWidth);
+                    const itemWidth = screenWidth / visibleItems;
+
+                    const currentScroll = container.scrollLeft;
+                    const maxScroll = container.scrollWidth - container.clientWidth;
+                    const newScrollLeft = currentScroll + itemWidth;
+
+                    // Check if we're already at or very close to the end
+                    if (currentScroll >= maxScroll - 1) {
+                      // If at the end, wrap to the start
+                      container.scrollTo({ left: 0, behavior: "smooth" });
+                    } else if (newScrollLeft >= maxScroll) {
+                      // If the new scroll would go past the end, scroll to the maximum to show last item
+                      container.scrollTo({ left: maxScroll, behavior: "smooth" });
+                    } else {
+                      // Scroll right by 1 item
+                      container.scrollTo({ left: newScrollLeft, behavior: "smooth" });
+                    }
+                  }
+                  if ((window as any).digitalUpdateFromArrow) {
+                    (window as any).digitalUpdateFromArrow();
+                  }
+                }}
+                className="absolute right-2 sm:right-3 md:right-4 z-10 w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 bg-white/95 hover:bg-white active:bg-white shadow-md sm:shadow-lg rounded-full flex items-center justify-center text-cream-900 hover:text-cream-600 active:scale-95 transition-all opacity-100 sm:opacity-0 sm:group-hover/slider:opacity-100 touch-manipulation"
+                style={{ top: 'calc(50% - 1rem)' }}
+              >
+                <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6" />
+              </button>
+
+              <div
+                id="digital-scroll-container"
+                className="flex overflow-x-auto overflow-y-hidden pb-2 sm:pb-3 md:pb-4 snap-x snap-mandatory scroll-smooth touch-pan-x"
+                style={{
+                  scrollbarWidth: 'none',
+                  msOverflowStyle: 'none',
+                  scrollBehavior: 'smooth'
+                }}
+              >
+                {filteredDigitalCategories.length === 0 ? (
+                  <div className="w-full text-center py-8 text-cream-600">
+                    No digital print categories found matching your filters.
+                  </div>
+                ) : (
+                  filteredDigitalCategories.map((category, index) => (
+                    <motion.div
+                      key={category._id}
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: index * 0.03 }}
+                      className="flex-shrink-0 snap-start transition-all duration-500 ease-in-out w-1/2 sm:w-1/3 md:w-1/4 lg:w-1/5 xl:w-1/6 px-1 sm:px-1.5 md:px-2"
+                    >
+                      <Link to={`/digital-print/${category._id}`} className="block">
+                        <div className="group flex flex-col items-center gap-1.5 sm:gap-2 p-2 sm:p-2.5 rounded-lg transition-all duration-300 bg-cream-50">
+                          {/* Reduced circle sizes for better mobile compatibility */}
+                          <div className="w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 lg:w-32 lg:h-32 xl:w-36 xl:h-36 rounded-full overflow-hidden bg-white group-hover:bg-[#f5faf0] transition-all duration-300 shadow-sm sm:shadow-md group-hover:shadow-lg group-hover:scale-105 flex items-center justify-center">
+                            <img
+                              src={category.image}
+                              alt={category.name}
+                              className={`${category.name.toLowerCase().includes('visiting card')
+                                  ? 'w-full h-full object-cover'
+                                  : category.name.toLowerCase().includes('card holder')
+                                    ? 'w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 lg:w-16 lg:h-16 xl:w-18 xl:h-18 object-contain'
+                                    : 'w-14 h-14 sm:w-16 sm:h-16 md:w-18 md:h-18 lg:w-20 lg:h-20 xl:w-22 xl:h-22 object-contain'
+                                }`}
+                            />
+                          </div>
+                          <span className="text-xs sm:text-sm font-semibold text-cream-900 text-center max-w-[80px] sm:max-w-[100px] md:max-w-[120px] line-clamp-2 leading-tight mt-0.5">
+                            {category.name}
+                          </span>
+                        </div>
+                      </Link>
+                    </motion.div>
+                  ))
+                )}
+              </div>
             </div>
           </div>
-
-          <div 
-            className="relative group/slider overflow-hidden"
-          >
-            {/* Left Arrow Button - Scroll left to show items from left */}
-            <button
-              onClick={() => {
-                const container = document.getElementById("digital-scroll-container");
-                if (container) {
-                  const screenWidth = window.innerWidth;
-                  const visibleItems = getVisibleItems(screenWidth);
-                  const itemWidth = screenWidth / visibleItems;
-                  
-                  const currentScroll = container.scrollLeft;
-                  
-                  if (currentScroll <= 0) {
-                    // If at the start, wrap to the end
-                    container.scrollTo({ left: container.scrollWidth - container.clientWidth, behavior: "smooth" });
-                  } else {
-                    // Scroll left by 1 item
-                    container.scrollTo({ left: currentScroll - itemWidth, behavior: "smooth" });
-                  }
-                }
-                if ((window as any).digitalUpdateFromArrow) {
-                  (window as any).digitalUpdateFromArrow();
-                }
-              }}
-              className="absolute left-2 sm:left-3 md:left-4 z-10 w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 bg-white/95 hover:bg-white active:bg-white shadow-md sm:shadow-lg rounded-full flex items-center justify-center text-cream-900 hover:text-cream-600 active:scale-95 transition-all opacity-100 sm:opacity-0 sm:group-hover/slider:opacity-100 touch-manipulation"
-              style={{ top: 'calc(50% - 1rem)' }}
-            >
-              <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6" />
-            </button>
-
-            {/* Right Arrow Button - Scroll right to show items from right */}
-            <button
-              onClick={() => {
-                const container = document.getElementById("digital-scroll-container");
-                if (container) {
-                  const screenWidth = window.innerWidth;
-                  const visibleItems = getVisibleItems(screenWidth);
-                  const itemWidth = screenWidth / visibleItems;
-                  
-                  const currentScroll = container.scrollLeft;
-                  const maxScroll = container.scrollWidth - container.clientWidth;
-                  const newScrollLeft = currentScroll + itemWidth;
-                  
-                  // Check if we're already at or very close to the end
-                  if (currentScroll >= maxScroll - 1) {
-                    // If at the end, wrap to the start
-                    container.scrollTo({ left: 0, behavior: "smooth" });
-                  } else if (newScrollLeft >= maxScroll) {
-                    // If the new scroll would go past the end, scroll to the maximum to show last item
-                    container.scrollTo({ left: maxScroll, behavior: "smooth" });
-                  } else {
-                    // Scroll right by 1 item
-                    container.scrollTo({ left: newScrollLeft, behavior: "smooth" });
-                  }
-                }
-                if ((window as any).digitalUpdateFromArrow) {
-                  (window as any).digitalUpdateFromArrow();
-                }
-              }}
-              className="absolute right-2 sm:right-3 md:right-4 z-10 w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 bg-white/95 hover:bg-white active:bg-white shadow-md sm:shadow-lg rounded-full flex items-center justify-center text-cream-900 hover:text-cream-600 active:scale-95 transition-all opacity-100 sm:opacity-0 sm:group-hover/slider:opacity-100 touch-manipulation"
-              style={{ top: 'calc(50% - 1rem)' }}
-            >
-              <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6" />
-            </button>
-
-            <div 
-              id="digital-scroll-container"
-              className="flex overflow-x-auto overflow-y-hidden pb-2 sm:pb-3 md:pb-4 snap-x snap-mandatory scroll-smooth touch-pan-x"
-              style={{ 
-                scrollbarWidth: 'none', 
-                msOverflowStyle: 'none', 
-                scrollBehavior: 'smooth'
-              }}
-            >
-              {filteredDigitalCategories.length === 0 ? (
-                <div className="w-full text-center py-8 text-cream-600">
-                  No digital print categories found matching your filters.
-                </div>
-              ) : (
-                filteredDigitalCategories.map((category, index) => (
-                <motion.div
-                  key={category._id}
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: index * 0.03 }}
-                  className="flex-shrink-0 snap-start transition-all duration-500 ease-in-out w-1/2 sm:w-1/3 md:w-1/4 lg:w-1/5 xl:w-1/6 px-1 sm:px-1.5 md:px-2"
-                >
-                  <Link to={`/digital-print/${category._id}`} className="block">
-                    <div className="group flex flex-col items-center gap-1.5 sm:gap-2 p-2 sm:p-2.5 rounded-lg transition-all duration-300 bg-cream-50">
-                      {/* Reduced circle sizes for better mobile compatibility */}
-                      <div className="w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 lg:w-32 lg:h-32 xl:w-36 xl:h-36 rounded-full overflow-hidden bg-white group-hover:bg-[#f5faf0] transition-all duration-300 shadow-sm sm:shadow-md group-hover:shadow-lg group-hover:scale-105 flex items-center justify-center">
-                        <img
-                          src={category.image}
-                          alt={category.name}
-                          className={`${
-                            category.name.toLowerCase().includes('visiting card') 
-                              ? 'w-full h-full object-cover' 
-                              : category.name.toLowerCase().includes('card holder')
-                              ? 'w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 lg:w-16 lg:h-16 xl:w-18 xl:h-18 object-contain'
-                              : 'w-14 h-14 sm:w-16 sm:h-16 md:w-18 md:h-18 lg:w-20 lg:h-20 xl:w-22 xl:h-22 object-contain'
-                          }`}
-                        />
-                      </div>
-                      <span className="text-xs sm:text-sm font-semibold text-cream-900 text-center max-w-[80px] sm:max-w-[100px] md:max-w-[120px] line-clamp-2 leading-tight mt-0.5">
-                        {category.name}
-                      </span>
-                    </div>
-                  </Link>
-                </motion.div>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
         )}
 
         {/* Bulk Print Category Slider */}
         {showBulkSection && (
-        <div className="mb-0">
-          <div className="flex items-center gap-2 xs:gap-2.5 sm:gap-3 mb-4 xs:mb-5 sm:mb-6 md:mb-8">
-            <div className="flex items-center justify-center w-8 h-8 xs:w-9 xs:h-9 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-lg sm:rounded-xl" style={{ backgroundColor: '#003049' }}>
-              <Shield className="text-white w-4 h-4 xs:w-5 xs:h-5 sm:w-5 sm:h-5 md:w-6 md:h-6" />
+          <div className="mb-0">
+            <div className="flex items-center gap-2 xs:gap-2.5 sm:gap-3 mb-4 xs:mb-5 sm:mb-6 md:mb-8">
+              <div className="flex items-center justify-center w-8 h-8 xs:w-9 xs:h-9 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-lg sm:rounded-xl" style={{ backgroundColor: '#003049' }}>
+                <Shield className="text-white w-4 h-4 xs:w-5 xs:h-5 sm:w-5 sm:h-5 md:w-6 md:h-6" />
+              </div>
+              <div>
+                <h2 className="font-serif text-lg xs:text-xl sm:text-2xl md:text-3xl font-bold text-cream-900">
+                  Bulk & Offset Print
+                </h2>
+                <p className="text-cream-600 text-xs xs:text-sm sm:text-base font-medium">Quality & large orders</p>
+              </div>
             </div>
-            <div>
-              <h2 className="font-serif text-lg xs:text-xl sm:text-2xl md:text-3xl font-bold text-cream-900">
-                Bulk & Offset Print
-              </h2>
-              <p className="text-cream-600 text-xs xs:text-sm sm:text-base font-medium">Quality & large orders</p>
+
+            <div
+              className="relative group/slider overflow-hidden"
+            >
+              {/* Left Arrow Button - Scroll left to show items from left */}
+              <button
+                onClick={() => {
+                  const container = document.getElementById("bulk-scroll-container");
+                  if (container) {
+                    const screenWidth = window.innerWidth;
+                    const visibleItems = getVisibleItems(screenWidth);
+                    const itemWidth = screenWidth / visibleItems;
+
+                    const currentScroll = container.scrollLeft;
+
+                    if (currentScroll <= 0) {
+                      // If at the start, wrap to the end
+                      container.scrollTo({ left: container.scrollWidth - container.clientWidth, behavior: "smooth" });
+                    } else {
+                      // Scroll left by 1 item
+                      container.scrollTo({ left: currentScroll - itemWidth, behavior: "smooth" });
+                    }
+                  }
+                  if ((window as any).bulkUpdateFromArrow) {
+                    (window as any).bulkUpdateFromArrow();
+                  }
+                }}
+                className="absolute left-2 sm:left-3 md:left-4 z-10 w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 bg-white/95 hover:bg-white active:bg-white shadow-md sm:shadow-lg rounded-full flex items-center justify-center text-cream-900 hover:text-cream-600 active:scale-95 transition-all opacity-100 sm:opacity-0 sm:group-hover/slider:opacity-100 touch-manipulation"
+                style={{ top: 'calc(50% - 1rem)' }}
+              >
+                <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6" />
+              </button>
+
+              {/* Right Arrow Button - Scroll right to show items from right */}
+              <button
+                onClick={() => {
+                  const container = document.getElementById("bulk-scroll-container");
+                  if (container) {
+                    const screenWidth = window.innerWidth;
+                    const visibleItems = getVisibleItems(screenWidth);
+                    const itemWidth = screenWidth / visibleItems;
+
+                    const currentScroll = container.scrollLeft;
+                    const maxScroll = container.scrollWidth - container.clientWidth;
+                    const newScrollLeft = currentScroll + itemWidth;
+
+                    // Check if we're already at or very close to the end
+                    if (currentScroll >= maxScroll - 1) {
+                      // If at the end, wrap to the start
+                      container.scrollTo({ left: 0, behavior: "smooth" });
+                    } else if (newScrollLeft >= maxScroll) {
+                      // If the new scroll would go past the end, scroll to the maximum to show last item
+                      container.scrollTo({ left: maxScroll, behavior: "smooth" });
+                    } else {
+                      // Scroll right by 1 item
+                      container.scrollTo({ left: newScrollLeft, behavior: "smooth" });
+                    }
+                  }
+                  if ((window as any).bulkUpdateFromArrow) {
+                    (window as any).bulkUpdateFromArrow();
+                  }
+                }}
+                className="absolute right-2 sm:right-3 md:right-4 z-10 w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 bg-white/95 hover:bg-white active:bg-white shadow-md sm:shadow-lg rounded-full flex items-center justify-center text-cream-900 hover:text-cream-600 active:scale-95 transition-all opacity-100 sm:opacity-0 sm:group-hover/slider:opacity-100 touch-manipulation"
+                style={{ top: 'calc(50% - 1rem)' }}
+              >
+                <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6" />
+              </button>
+
+              <div
+                id="bulk-scroll-container"
+                className="flex overflow-x-auto overflow-y-hidden pb-2 sm:pb-3 md:pb-4 snap-x snap-mandatory scroll-smooth touch-pan-x"
+                style={{
+                  scrollbarWidth: 'none',
+                  msOverflowStyle: 'none',
+                  scrollBehavior: 'smooth'
+                }}
+              >
+                {filteredBulkCategories.length === 0 ? (
+                  <div className="w-full text-center py-8 text-cream-600">
+                    No bulk print categories found matching your filters.
+                  </div>
+                ) : (
+                  filteredBulkCategories.map((category, index) => (
+                    <motion.div
+                      key={category._id}
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: index * 0.03 }}
+                      className="flex-shrink-0 snap-start transition-all duration-500 ease-in-out w-1/2 sm:w-1/3 md:w-1/4 lg:w-1/5 xl:w-1/6 px-1 sm:px-1.5 md:px-2"
+                    >
+                      <Link to={`/digital-print/${category._id}`} className="block">
+                        <div className="group flex flex-col items-center gap-1.5 sm:gap-2 p-2 sm:p-2.5 rounded-lg transition-all duration-300 bg-cream-50">
+                          {/* Reduced circle sizes for better mobile compatibility */}
+                          <div className="w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 lg:w-32 lg:h-32 xl:w-36 xl:h-36 rounded-full overflow-hidden bg-white group-hover:bg-[#f5fbff] transition-all duration-300 shadow-sm sm:shadow-md group-hover:shadow-lg group-hover:scale-105 flex items-center justify-center">
+                            <img
+                              src={category.image}
+                              alt={category.name}
+                              className={`${category.name.toLowerCase().includes('visiting card')
+                                  ? 'w-full h-full object-cover'
+                                  : category.name.toLowerCase().includes('card holder')
+                                    ? 'w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 lg:w-16 lg:h-16 xl:w-18 xl:h-18 object-contain'
+                                    : 'w-14 h-14 sm:w-16 sm:h-16 md:w-18 md:h-18 lg:w-20 lg:h-20 xl:w-22 xl:h-22 object-contain'
+                                }`}
+                            />
+                          </div>
+                          <span className="text-xs sm:text-sm font-semibold text-cream-900 text-center max-w-[80px] sm:max-w-[100px] md:max-w-[120px] line-clamp-2 leading-tight mt-0.5">
+                            {category.name}
+                          </span>
+                        </div>
+                      </Link>
+                    </motion.div>
+                  ))
+                )}
+              </div>
             </div>
           </div>
-
-          <div 
-            className="relative group/slider overflow-hidden"
-          >
-            {/* Left Arrow Button - Scroll left to show items from left */}
-            <button
-              onClick={() => {
-                const container = document.getElementById("bulk-scroll-container");
-                if (container) {
-                  const screenWidth = window.innerWidth;
-                  const visibleItems = getVisibleItems(screenWidth);
-                  const itemWidth = screenWidth / visibleItems;
-                  
-                  const currentScroll = container.scrollLeft;
-                  
-                  if (currentScroll <= 0) {
-                    // If at the start, wrap to the end
-                    container.scrollTo({ left: container.scrollWidth - container.clientWidth, behavior: "smooth" });
-                  } else {
-                    // Scroll left by 1 item
-                    container.scrollTo({ left: currentScroll - itemWidth, behavior: "smooth" });
-                  }
-                }
-                if ((window as any).bulkUpdateFromArrow) {
-                  (window as any).bulkUpdateFromArrow();
-                }
-              }}
-              className="absolute left-2 sm:left-3 md:left-4 z-10 w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 bg-white/95 hover:bg-white active:bg-white shadow-md sm:shadow-lg rounded-full flex items-center justify-center text-cream-900 hover:text-cream-600 active:scale-95 transition-all opacity-100 sm:opacity-0 sm:group-hover/slider:opacity-100 touch-manipulation"
-              style={{ top: 'calc(50% - 1rem)' }}
-            >
-              <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6" />
-            </button>
-
-            {/* Right Arrow Button - Scroll right to show items from right */}
-            <button
-              onClick={() => {
-                const container = document.getElementById("bulk-scroll-container");
-                if (container) {
-                  const screenWidth = window.innerWidth;
-                  const visibleItems = getVisibleItems(screenWidth);
-                  const itemWidth = screenWidth / visibleItems;
-                  
-                  const currentScroll = container.scrollLeft;
-                  const maxScroll = container.scrollWidth - container.clientWidth;
-                  const newScrollLeft = currentScroll + itemWidth;
-                  
-                  // Check if we're already at or very close to the end
-                  if (currentScroll >= maxScroll - 1) {
-                    // If at the end, wrap to the start
-                    container.scrollTo({ left: 0, behavior: "smooth" });
-                  } else if (newScrollLeft >= maxScroll) {
-                    // If the new scroll would go past the end, scroll to the maximum to show last item
-                    container.scrollTo({ left: maxScroll, behavior: "smooth" });
-                  } else {
-                    // Scroll right by 1 item
-                    container.scrollTo({ left: newScrollLeft, behavior: "smooth" });
-                  }
-                }
-                if ((window as any).bulkUpdateFromArrow) {
-                  (window as any).bulkUpdateFromArrow();
-                }
-              }}
-              className="absolute right-2 sm:right-3 md:right-4 z-10 w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 bg-white/95 hover:bg-white active:bg-white shadow-md sm:shadow-lg rounded-full flex items-center justify-center text-cream-900 hover:text-cream-600 active:scale-95 transition-all opacity-100 sm:opacity-0 sm:group-hover/slider:opacity-100 touch-manipulation"
-              style={{ top: 'calc(50% - 1rem)' }}
-            >
-              <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6" />
-            </button>
-
-            <div 
-              id="bulk-scroll-container"
-              className="flex overflow-x-auto overflow-y-hidden pb-2 sm:pb-3 md:pb-4 snap-x snap-mandatory scroll-smooth touch-pan-x"
-              style={{ 
-                scrollbarWidth: 'none', 
-                msOverflowStyle: 'none', 
-                scrollBehavior: 'smooth'
-              }}
-            >
-              {filteredBulkCategories.length === 0 ? (
-                <div className="w-full text-center py-8 text-cream-600">
-                  No bulk print categories found matching your filters.
-                </div>
-              ) : (
-                filteredBulkCategories.map((category, index) => (
-                <motion.div
-                  key={category._id}
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: index * 0.03 }}
-                  className="flex-shrink-0 snap-start transition-all duration-500 ease-in-out w-1/2 sm:w-1/3 md:w-1/4 lg:w-1/5 xl:w-1/6 px-1 sm:px-1.5 md:px-2"
-                >
-                  <Link to={`/digital-print/${category._id}`} className="block">
-                    <div className="group flex flex-col items-center gap-1.5 sm:gap-2 p-2 sm:p-2.5 rounded-lg transition-all duration-300 bg-cream-50">
-                      {/* Reduced circle sizes for better mobile compatibility */}
-                      <div className="w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 lg:w-32 lg:h-32 xl:w-36 xl:h-36 rounded-full overflow-hidden bg-white group-hover:bg-[#f5fbff] transition-all duration-300 shadow-sm sm:shadow-md group-hover:shadow-lg group-hover:scale-105 flex items-center justify-center">
-                        <img
-                          src={category.image}
-                          alt={category.name}
-                          className={`${
-                            category.name.toLowerCase().includes('visiting card') 
-                              ? 'w-full h-full object-cover' 
-                              : category.name.toLowerCase().includes('card holder')
-                              ? 'w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 lg:w-16 lg:h-16 xl:w-18 xl:h-18 object-contain'
-                              : 'w-14 h-14 sm:w-16 sm:h-16 md:w-18 md:h-18 lg:w-20 lg:h-20 xl:w-22 xl:h-22 object-contain'
-                          }`}
-                        />
-                      </div>
-                      <span className="text-xs sm:text-sm font-semibold text-cream-900 text-center max-w-[80px] sm:max-w-[100px] md:max-w-[120px] line-clamp-2 leading-tight mt-0.5">
-                        {category.name}
-                      </span>
-                    </div>
-                  </Link>
-                </motion.div>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
         )}
       </div>
     </div>

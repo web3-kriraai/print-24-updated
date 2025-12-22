@@ -931,47 +931,40 @@ const AdminDashboard: React.FC = () => {
       categoryMap.set(cat._id, { ...cat, children: [] });
     });
 
+    // Helper function to recursively map subcategories
+    const mapSubcategoriesRecursive = (subcategories: any[], parentId: string, parentType: string): any[] => {
+      return subcategories.map((sub: any) => ({
+        _id: sub._id,
+        name: sub.name,
+        description: sub.description,
+        image: sub.image,
+        slug: sub.slug,
+        type: sub.category && typeof sub.category === 'object' ? sub.category.type : parentType,
+        parent: parentId,
+        sortOrder: sub.sortOrder || 0,
+        category: sub.category,
+        isSubcategory: true,
+        createdAt: sub.createdAt,
+        updatedAt: sub.updatedAt,
+        children: sub.children ? mapSubcategoriesRecursive(sub.children, sub._id, parentType) : []
+      }));
+    };
+
     // Fetch subcategories for each category and add them as children
     const rootCategories: CategoryWithChildren[] = [];
     for (const cat of cats) {
       const category = categoryMap.get(cat._id)!;
 
-      // Fetch subcategories for this category
+      // Fetch subcategories for this category with all nested children
       try {
-        const response = await fetch(`${API_BASE_URL}/subcategories/category/${cat._id}`, {
+        const response = await fetch(`${API_BASE_URL}/subcategories/category/${cat._id}?includeChildren=true`, {
           headers: getAuthHeaders(),
         });
 
         if (response.ok) {
           const subcategoriesData = await handleNgrokResponse(response);
           const subcategories = Array.isArray(subcategoriesData) ? subcategoriesData : [];
-
-          // Map subcategories to category-like structure for display
-          // Sort subcategories by sortOrder before mapping
-          const sortedSubcategories = subcategories.sort((a: any, b: any) => {
-            const sortOrderA = a.sortOrder || 0;
-            const sortOrderB = b.sortOrder || 0;
-            if (sortOrderA !== sortOrderB) {
-              return sortOrderA - sortOrderB;
-            }
-            // If same sortOrder, sort by createdAt (newer first)
-            return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
-          });
-
-          category.children = sortedSubcategories.map((sub: any) => ({
-            _id: sub._id,
-            name: sub.name,
-            description: sub.description,
-            image: sub.image,
-            slug: sub.slug,
-            type: sub.category && typeof sub.category === 'object' ? sub.category.type : cat.type,
-            parent: cat._id, // For compatibility
-            sortOrder: sub.sortOrder || 0,
-            category: sub.category,
-            isSubcategory: true,
-            createdAt: sub.createdAt,
-            updatedAt: sub.updatedAt
-          }));
+          category.children = mapSubcategoriesRecursive(subcategories, cat._id, cat.type);
         }
       } catch (err) {
         console.error(`Error fetching subcategories for category ${cat._id}:`, err);
@@ -981,12 +974,16 @@ const AdminDashboard: React.FC = () => {
       rootCategories.push(category);
     }
 
-    // Sort by sortOrder
+    // Sort by sortOrder recursively
     const sortCategories = (cats: CategoryWithChildren[]): CategoryWithChildren[] => {
-      return cats.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)).map(cat => ({
-        ...cat,
-        children: cat.children ? sortCategories(cat.children) : []
-      }));
+      return Array.isArray(cats)
+        ? [...cats]
+          .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
+          .map(cat => ({
+            ...cat,
+            children: cat.children ? sortCategories(cat.children) : []
+          }))
+        : [];
     };
 
     return sortCategories(rootCategories);
@@ -6046,6 +6043,9 @@ const AdminDashboard: React.FC = () => {
       });
       setIsSubCategorySlugManuallyEdited(!!subCategory.slug); // If subcategory has a slug, consider it manually set
 
+      // Set nested mode based on whether it has a parent subcategory
+      setIsNestedSubcategoryMode(!!parentId);
+
       // Fetch available parent subcategories for the category (with nested children)
       if (categoryId) {
         setLoadingParentSubcategories(true);
@@ -6057,7 +6057,7 @@ const AdminDashboard: React.FC = () => {
             const flattenSubcategories = (subcats: any[], level: number = 0): any[] => {
               let result: any[] = [];
               subcats.forEach((subcat) => {
-                // Filter out the current subcategory and its descendants from parent options
+                // Filter out the current subcategory and its descendants from parent options to avoid circular references
                 if (subcat._id !== subCategoryId) {
                   result.push({ ...subcat, _displayLevel: level });
                   if (subcat.children && subcat.children.length > 0) {
@@ -7692,8 +7692,10 @@ const AdminDashboard: React.FC = () => {
                                   const path = [productForm.category];
                                   if (subcategory.parent) {
                                     // If nested, we need to find parent chain
-                                    const parentId = typeof subcategory.parent === 'object' && subcategory.parent !== null ? subcategory.parent._id : subcategory.parent;
-                                    path.push(parentId);
+                                    const parentId = typeof subcategory.parent === 'object' && subcategory.parent !== null
+                                      ? subcategory.parent._id
+                                      : String(subcategory.parent);
+                                    if (parentId) path.push(parentId);
                                   }
                                   path.push(subcategory._id);
                                   setSelectedCategoryPath(path);

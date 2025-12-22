@@ -9,14 +9,14 @@ import streamifier from "streamifier";
 const generateUniqueSubCategorySlug = async (baseSlug, excludeId = null) => {
   let uniqueSlug = baseSlug;
   let counter = 1;
-  
+
   // Check if slug exists (excluding current subcategory if updating)
   let existingSubCategory = await SubCategory.findOne({ slug: uniqueSlug });
   if (excludeId && existingSubCategory && existingSubCategory._id.toString() === excludeId) {
     // If it's the same subcategory being updated, the slug is already unique
     return uniqueSlug;
   }
-  
+
   // Keep incrementing until we find a unique slug
   while (existingSubCategory) {
     uniqueSlug = `${baseSlug}-${counter}`;
@@ -27,7 +27,7 @@ const generateUniqueSubCategorySlug = async (baseSlug, excludeId = null) => {
     }
     counter++;
   }
-  
+
   return uniqueSlug;
 };
 
@@ -43,7 +43,7 @@ export const createSubCategory = async (req, res) => {
     // Validate parent subcategory if provided
     let parentSubcategory = null;
     let categoryId;
-    
+
     if (parent && parent !== "" && parent !== "null") {
       // If parent is provided, validate it exists and get its category
       parentSubcategory = await SubCategory.findById(parent).populate("category");
@@ -51,8 +51,8 @@ export const createSubCategory = async (req, res) => {
         return res.status(400).json({ error: "Parent subcategory not found." });
       }
       // Use the parent subcategory's category
-      categoryId = typeof parentSubcategory.category === 'object' 
-        ? parentSubcategory.category._id 
+      categoryId = typeof parentSubcategory.category === 'object'
+        ? parentSubcategory.category._id
         : parentSubcategory.category;
     } else {
       // No parent - validate category directly
@@ -69,16 +69,16 @@ export const createSubCategory = async (req, res) => {
 
     // Image is required for subcategory creation
     if (!req.file) {
-      return res.status(400).json({ 
-        error: "Subcategory image is required. Please upload an image." 
+      return res.status(400).json({
+        error: "Subcategory image is required. Please upload an image."
       });
     }
 
     // Validate image file type
     const allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
     if (!allowedMimeTypes.includes(req.file.mimetype)) {
-      return res.status(400).json({ 
-        error: "Invalid image format. Please upload JPG, PNG, or WebP image." 
+      return res.status(400).json({
+        error: "Invalid image format. Please upload JPG, PNG, or WebP image."
       });
     }
 
@@ -114,10 +114,10 @@ export const createSubCategory = async (req, res) => {
     }
 
     // Parse sortOrder (default to 0 if not provided or invalid)
-    const parsedSortOrder = sortOrder !== undefined && sortOrder !== null && sortOrder !== '' 
-      ? parseInt(sortOrder, 10) 
+    const parsedSortOrder = sortOrder !== undefined && sortOrder !== null && sortOrder !== ''
+      ? parseInt(sortOrder, 10)
       : 0;
-    
+
     if (isNaN(parsedSortOrder)) {
       return res.status(400).json({ error: "Sort order must be a valid number." });
     }
@@ -151,7 +151,7 @@ export const getAllSubCategories = async (req, res) => {
       .populate("category")
       .populate("parent")
       .sort({ sortOrder: 1, createdAt: -1 });
-    
+
     // Filter out subcategories with deleted parent categories and add warning
     const validSubCategories = list.map(subCat => {
       if (subCat.category === null || subCat.category === undefined) {
@@ -162,7 +162,7 @@ export const getAllSubCategories = async (req, res) => {
       }
       return subCat;
     });
-    
+
     res.json(validSubCategories);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -172,10 +172,10 @@ export const getAllSubCategories = async (req, res) => {
 export const getSubCategory = async (req, res) => {
   try {
     const identifier = req.params.id;
-    
+
     // Check if identifier is a MongoDB ObjectId (24 hex characters)
     const isObjectId = /^[0-9a-fA-F]{24}$/.test(identifier);
-    
+
     let item;
     if (isObjectId) {
       // Try to find by ID first
@@ -183,18 +183,18 @@ export const getSubCategory = async (req, res) => {
         .populate("category")
         .populate("parent");
     }
-    
+
     // If not found by ID or not an ObjectId, try to find by slug
     if (!item) {
       item = await SubCategory.findOne({ slug: identifier })
         .populate("category")
         .populate("parent");
     }
-    
+
     if (!item) {
       return res.status(404).json({ error: "Subcategory not found" });
     }
-    
+
     res.json(item);
   } catch (err) {
     if (err.name === 'CastError') {
@@ -208,17 +208,17 @@ export const getSubCategoriesByCategory = async (req, res) => {
   try {
     const categoryIdentifier = req.params.categoryId;
     const includeChildren = req.query.includeChildren === 'true';
-    
+
     if (!categoryIdentifier) {
       return res.status(400).json({ error: "Category ID or slug is required" });
     }
 
     // Check if identifier is a MongoDB ObjectId (24 hex characters)
     const isObjectId = /^[0-9a-fA-F]{24}$/.test(categoryIdentifier);
-    
+
     let categoryId = categoryIdentifier;
     let category;
-    
+
     if (isObjectId) {
       category = await Category.findById(categoryId);
     } else {
@@ -228,7 +228,7 @@ export const getSubCategoriesByCategory = async (req, res) => {
         categoryId = category._id.toString();
       }
     }
-    
+
     if (!category) {
       return res.status(404).json({ error: "Parent category not found. It may have been deleted." });
     }
@@ -245,11 +245,11 @@ export const getSubCategoriesByCategory = async (req, res) => {
           { parent: { $exists: false } }
         ]
       })
-      .populate("category")
-      .populate("parent")
-      .sort({ sortOrder: 1, createdAt: -1 });
+        .populate("category")
+        .populate("parent")
+        .sort({ sortOrder: 1, createdAt: -1 });
     }
-    
+
     res.json(list);
   } catch (err) {
     if (err.name === 'CastError') {
@@ -301,17 +301,17 @@ export const getSubCategoriesByParent = async (req, res) => {
   try {
     const parentIdentifier = req.params.parentId;
     const includeChildren = req.query.includeChildren === 'true';
-    
+
     if (!parentIdentifier) {
       return res.status(400).json({ error: "Parent subcategory ID or slug is required" });
     }
 
     // Check if identifier is a MongoDB ObjectId (24 hex characters)
     const isObjectId = /^[0-9a-fA-F]{24}$/.test(parentIdentifier);
-    
+
     let parentId = parentIdentifier;
     let parentSubcategory;
-    
+
     if (isObjectId) {
       parentSubcategory = await SubCategory.findById(parentId);
     } else {
@@ -321,7 +321,7 @@ export const getSubCategoriesByParent = async (req, res) => {
         parentId = parentSubcategory._id.toString();
       }
     }
-    
+
     if (!parentSubcategory) {
       return res.status(404).json({ error: "Parent subcategory not found." });
     }
@@ -334,11 +334,11 @@ export const getSubCategoriesByParent = async (req, res) => {
       list = await SubCategory.find({
         parent: parentSubcategory._id,
       })
-      .populate("category")
-      .populate("parent")
-      .sort({ sortOrder: 1, createdAt: -1 });
+        .populate("category")
+        .populate("parent")
+        .sort({ sortOrder: 1, createdAt: -1 });
     }
-    
+
     res.json(list);
   } catch (err) {
     if (err.name === 'CastError') {
@@ -358,7 +358,7 @@ export const updateSubCategory = async (req, res) => {
     }
 
     const subCategory = await SubCategory.findById(subCategoryId);
-    
+
     if (!subCategory) {
       return res.status(404).json({ error: "Subcategory not found" });
     }
@@ -371,7 +371,7 @@ export const updateSubCategory = async (req, res) => {
     // Validate parent subcategory if provided
     let parentSubcategory = null;
     let categoryId = subCategory.category; // Default to existing category
-    
+
     if (parent !== undefined) {
       if (parent && parent !== "" && parent !== "null") {
         // Parent is provided - validate it exists
@@ -394,8 +394,8 @@ export const updateSubCategory = async (req, res) => {
           currentParent = parentDoc.parent;
         }
         // Use the parent subcategory's category
-        categoryId = typeof parentSubcategory.category === 'object' 
-          ? parentSubcategory.category._id 
+        categoryId = typeof parentSubcategory.category === 'object'
+          ? parentSubcategory.category._id
           : parentSubcategory.category;
       } else {
         // Parent is being removed - use category if provided, otherwise keep existing
@@ -440,8 +440,8 @@ export const updateSubCategory = async (req, res) => {
     if (req.file) {
       const allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
       if (!allowedMimeTypes.includes(req.file.mimetype)) {
-        return res.status(400).json({ 
-          error: "Invalid image format. Please upload JPG, PNG, or WebP image." 
+        return res.status(400).json({
+          error: "Invalid image format. Please upload JPG, PNG, or WebP image."
         });
       }
     }
@@ -495,8 +495,8 @@ export const updateSubCategory = async (req, res) => {
       updateData,
       { new: true }
     )
-    .populate("category")
-    .populate("parent");
+      .populate("category")
+      .populate("parent");
 
     return res.json({
       success: true,
@@ -515,7 +515,7 @@ export const deleteSubCategory = async (req, res) => {
   try {
     const subCategoryId = req.params.id;
     const subCategory = await SubCategory.findById(subCategoryId);
-    
+
     if (!subCategory) {
       return res.status(404).json({ error: "Subcategory not found" });
     }
@@ -523,24 +523,24 @@ export const deleteSubCategory = async (req, res) => {
     // Check for nested subcategories (children)
     const childSubcategories = await SubCategory.find({ parent: subCategoryId });
     if (childSubcategories.length > 0) {
-      return res.status(400).json({ 
-        error: `Cannot delete subcategory. There are ${childSubcategories.length} nested subcategory(ies) under this subcategory. Please delete or reassign the nested subcategories first.` 
+      return res.status(400).json({
+        error: `Cannot delete subcategory. There are ${childSubcategories.length} nested subcategory(ies) under this subcategory. Please delete or reassign the nested subcategories first.`
       });
     }
 
     // Check for related products
     const relatedProducts = await Product.find({ subcategory: subCategoryId });
     if (relatedProducts.length > 0) {
-      return res.status(400).json({ 
-        error: `Cannot delete subcategory. There are ${relatedProducts.length} product(s) associated with this subcategory. Please delete or reassign the products first.` 
+      return res.status(400).json({
+        error: `Cannot delete subcategory. There are ${relatedProducts.length} product(s) associated with this subcategory. Please delete or reassign the products first.`
       });
     }
 
     // Check for related sequences
     const relatedSequences = await Sequence.find({ subcategory: subCategoryId });
     if (relatedSequences.length > 0) {
-      return res.status(400).json({ 
-        error: `Cannot delete subcategory. There are ${relatedSequences.length} production sequence(s) associated with this subcategory. Please delete or reassign the sequences first.` 
+      return res.status(400).json({
+        error: `Cannot delete subcategory. There are ${relatedSequences.length} production sequence(s) associated with this subcategory. Please delete or reassign the sequences first.`
       });
     }
 

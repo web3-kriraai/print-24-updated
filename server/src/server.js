@@ -477,7 +477,7 @@ async function startServer() {
       app.listen(port, () => {
         console.log(`========================================`);
         console.log(`🚀 Backend Server running on port ${port}`);
-        console.log(`📦 SSR Enabled - Access: https://kelsi-kimonoed-corene.ngrok-free.dev`);
+        console.log(`📦 SSR Enabled - Access: http://localhost:5000`);
         console.log(`📦 Local Access: http://localhost:${port}`);
         console.log(`⚠️  DO NOT use http://localhost:3000 (Vite dev server)`);
         console.log(`========================================`);

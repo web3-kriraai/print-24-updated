@@ -35,7 +35,7 @@ export default defineConfig({
     port: 3000,
     proxy: {
       '/api': {
-        target: process.env.VITE_API_BASE_URL || 'https://kelsi-kimonoed-corene.ngrok-free.dev',
+        target: process.env.VITE_API_BASE_URL || 'http://localhost:5000',
         changeOrigin: true,
         secure: true,
         configure: (proxy, _options) => {
