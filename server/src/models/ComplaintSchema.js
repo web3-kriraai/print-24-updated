@@ -2,57 +2,134 @@ import mongoose from "mongoose";
 
 const ComplaintSchema = new mongoose.Schema(
   {
+    /* =====================
+       CORE REFERENCES
+    ====================== */
     order: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Order",
       required: true,
       index: true,
+      unique: true // 🔒 ONE complaint per order (STRICT)
     },
 
     raisedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
+      index: true
     },
 
+    registeredByRole: {
+      type: String,
+      enum: ["CUSTOMER", "ADMIN", "EMP"],
+      required: true
+    },
+
+    /* =====================
+       COMPLAINT DETAILS
+    ====================== */
     type: {
       type: String,
       enum: ["PRICE", "QUALITY", "DELIVERY"],
-      required: true,
+      required: true
     },
 
     description: {
       type: String,
-      required: true,
+      required: true
     },
 
-    // 🔒 IMMUTABLE SNAPSHOT FOR AUDIT
+    /* =====================
+       🔒 IMMUTABLE PRICE SNAPSHOT
+       (Only for PRICE complaints)
+    ====================== */
     priceSnapshot: {
-      type: mongoose.Schema.Types.Mixed,
-      required: false, // only for PRICE complaints
+      type: mongoose.Schema.Types.Mixed
     },
 
+    /* =====================
+       ELIGIBILITY CONTROL
+    ====================== */
+    allowedUntil: {
+      type: Date,
+      required: true,
+      index: true
+    },
+
+    /* =====================
+       RESOLUTION WORKFLOW
+    ====================== */
     resolutionStatus: {
       type: String,
       enum: ["OPEN", "IN_REVIEW", "RESOLVED", "REJECTED"],
       default: "OPEN",
+      index: true
     },
 
     resolutionNotes: {
       type: String,
-      default: "",
+      default: ""
     },
 
     resolvedBy: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
+      ref: "User"
     },
 
     resolvedAt: Date,
+
+    /* =====================
+       REOPEN & ESCALATION
+    ====================== */
+    reopenCount: {
+      type: Number,
+      default: 0
+    },
+
+    lastReopenedAt: Date,
+
+    escalationLevel: {
+      type: Number,
+      default: 0
+    }
   },
   { timestamps: true }
 );
 
-ComplaintSchema.index({ order: 1, type: 1 });
+/* =====================
+   IMMUTABLE PRICE SNAPSHOT
+====================== */
+ComplaintSchema.pre("save", function (next) {
+  if (!this.isNew && this.isModified("priceSnapshot")) {
+    return next(new Error("Price snapshot is immutable once saved"));
+  }
+  next();
+});
+
+/* =====================
+   ORDER STATE VALIDATION
+====================== */
+ComplaintSchema.pre("validate", async function (next) {
+  const Order = mongoose.model("Order");
+  const order = await Order.findById(this.order);
+
+  if (!order) {
+    return next(new Error("Order not found"));
+  }
+
+  if (order.status !== "DELIVERED") {
+    return next(new Error("Complaint allowed only after order delivery"));
+  }
+
+  next();
+});
+
+/* =====================
+   INDEXES
+====================== */
+ComplaintSchema.index({ order: 1 });
+ComplaintSchema.index({ resolutionStatus: 1 });
+ComplaintSchema.index({ raisedBy: 1, createdAt: -1 });
 
 export default mongoose.model("Complaint", ComplaintSchema);
