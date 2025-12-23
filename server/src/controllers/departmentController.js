@@ -1,5 +1,6 @@
 import Department from "../models/departmentModal.js";
 import Order from "../models/orderModal.js";
+import Sequence from "../models/sequenceModal.js";
 
 // Create a new department
 export const createDepartment = async (req, res) => {
@@ -127,6 +128,18 @@ export const deleteDepartment = async (req, res) => {
     
     if (!department) {
       return res.status(404).json({ error: "Department not found" });
+    }
+
+    // Check if department is used in any sequences
+    const sequencesUsingDepartment = await Sequence.find({
+      "departments.department": id
+    });
+
+    if (sequencesUsingDepartment.length > 0) {
+      const sequenceNames = sequencesUsingDepartment.map(seq => seq.name).join(", ");
+      return res.status(400).json({ 
+        error: `Cannot delete department. It is being used in ${sequencesUsingDepartment.length} sequence(s): ${sequenceNames}. Please remove this department from the sequence(s) before deleting.` 
+      });
     }
 
     // Check if department has any active jobs

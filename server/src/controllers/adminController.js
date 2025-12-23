@@ -345,6 +345,59 @@ export const createAdmin = async (req, res) => {
   }
 };
 
+// Create employee user
+export const createEmployee = async (req, res) => {
+  try {
+    const { name, email, password } = req.body;
+
+    // Validate fields
+    if (!name || !email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "Name, email, and password are required.",
+      });
+    }
+
+    // Check existing user
+    const existing = await User.findOne({ email });
+    if (existing) {
+      return res.status(409).json({
+        success: false,
+        message: "Email already registered.",
+      });
+    }
+
+    // Hash password
+    const hashed = await bcrypt.hash(password, 10);
+
+    // Create employee user
+    const newEmployee = await User.create({
+      name,
+      email,
+      password: hashed,
+      role: "emp",
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: "Employee created successfully",
+      user: {
+        id: newEmployee._id,
+        name: newEmployee.name,
+        email: newEmployee.email,
+        role: newEmployee.role,
+      },
+    });
+  } catch (error) {
+    console.error("Create employee error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
 // Get all admins
 export const getAllAdmins = async (req, res) => {
   try {

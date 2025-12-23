@@ -1,6 +1,6 @@
 // API Configuration
-// Using localhost server for API endpoints
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
+// Using ngrok server for API endpoints
+export const API_BASE_URL = (import.meta as any).env.VITE_API_BASE_URL || "http://localhost:5000";
 export const API_BASE_URL_WITH_API = `${API_BASE_URL}/api`;
 
 // Helper function to get base headers
@@ -17,10 +17,10 @@ export const getAuthHeaders = (includeContentType = false) => {
     ...getBaseHeaders(),
     Authorization: `Bearer ${token}`,
   };
-  
+
   if (includeContentType) {
     headers["Content-Type"] = "application/json";
   }
-  
+
   return headers;
 };

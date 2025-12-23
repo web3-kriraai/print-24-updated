@@ -82,6 +82,11 @@ interface Order {
     priceAdd: number;
     description?: string;
     image?: string;
+    uploadedImages?: Array<{
+      data: Buffer | string;
+      contentType: string;
+      filename: string;
+    }>;
   }>;
   totalPrice: number;
   status: 'request' | 'processing' | 'completed' | 'cancelled' | 'rejected';
@@ -521,6 +526,38 @@ const ProductSpecsPanel: React.FC<{ order: Order }> = ({ order }) => {
                                     <span className="text-xs text-slate-500 font-normal ml-1">/unit</span>
                                   </span>
                                 ) : null}
+                              </div>
+                            )}
+                            {/* Display uploaded images if any */}
+                            {attr.uploadedImages && attr.uploadedImages.length > 0 && (
+                              <div className="mt-3 pt-3 border-t border-slate-200">
+                                <p className="text-xs text-slate-500 uppercase tracking-wide font-bold mb-2">
+                                  Uploaded Images
+                                </p>
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                  {attr.uploadedImages.map((img, imgIdx) => {
+                                    // Convert buffer to base64 data URL for display
+                                    let imageUrl = '';
+                                    if (img.data) {
+                                      if (typeof img.data === 'string') {
+                                        imageUrl = `data:${img.contentType || 'image/jpeg'};base64,${img.data}`;
+                                      } else if (Buffer.isBuffer(img.data)) {
+                                        imageUrl = `data:${img.contentType || 'image/jpeg'};base64,${img.data.toString('base64')}`;
+                                      }
+                                    }
+                                    return imageUrl ? (
+                                      <div key={imgIdx} className="relative group">
+                                        <img 
+                                          src={imageUrl} 
+                                          alt={img.filename || `Image ${imgIdx + 1}`}
+                                          className="w-full h-24 object-cover rounded-lg border border-slate-200 cursor-pointer hover:border-brand-400 transition-colors"
+                                          onClick={() => setExpandedImage({ src: imageUrl, alt: img.filename || `Image ${imgIdx + 1}` })}
+                                        />
+                                        <p className="text-xs text-slate-500 mt-1 truncate">{img.filename}</p>
+                                      </div>
+                                    ) : null;
+                                  })}
+                                </div>
                               </div>
                             )}
                           </div>

@@ -25,7 +25,7 @@ export const sendAccountCreationEmail = async (userEmail, userName, tempPassword
     }
 
     const transporter = createTransporter();
-    
+
     const mailOptions = {
       from: `"${process.env.EMAIL_FROM_NAME || 'Print24'}" <${process.env.EMAIL_USER}>`,
       to: userEmail,
@@ -112,7 +112,7 @@ export const sendOrderConfirmationEmail = async (userEmail, userName, orderNumbe
     }
 
     const transporter = createTransporter();
-    
+
     const mailOptions = {
       from: `"${process.env.EMAIL_FROM_NAME || 'Print24'}" <${process.env.EMAIL_USER}>`,
       to: userEmail,

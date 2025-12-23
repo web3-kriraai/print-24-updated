@@ -19,6 +19,10 @@ export const createAttributeType = async (req, res) => {
       isCommonAttribute,
       applicableCategories,
       applicableSubCategories,
+      isStepQuantity,
+      isRangeQuantity,
+      stepQuantities,
+      rangeQuantities,
     } = req.body;
 
     // Debug log to check if effectDescription is received
@@ -102,6 +106,37 @@ export const createAttributeType = async (req, res) => {
       }
     }
 
+    // Parse stepQuantities and rangeQuantities if they're strings
+    let parsedStepQuantities = [];
+    if (stepQuantities !== undefined) {
+      try {
+        parsedStepQuantities = typeof stepQuantities === 'string'
+          ? JSON.parse(stepQuantities)
+          : stepQuantities;
+        if (!Array.isArray(parsedStepQuantities)) {
+          parsedStepQuantities = [];
+        }
+      } catch (err) {
+        console.error("Error parsing stepQuantities:", err);
+        parsedStepQuantities = [];
+      }
+    }
+
+    let parsedRangeQuantities = [];
+    if (rangeQuantities !== undefined) {
+      try {
+        parsedRangeQuantities = typeof rangeQuantities === 'string'
+          ? JSON.parse(rangeQuantities)
+          : rangeQuantities;
+        if (!Array.isArray(parsedRangeQuantities)) {
+          parsedRangeQuantities = [];
+        }
+      } catch (err) {
+        console.error("Error parsing rangeQuantities:", err);
+        parsedRangeQuantities = [];
+      }
+    }
+
     const attributeType = await AttributeType.create({
       attributeName,
       functionType,
@@ -118,6 +153,10 @@ export const createAttributeType = async (req, res) => {
       isCommonAttribute: isCommonAttribute === true || isCommonAttribute === 'true',
       applicableCategories: parsedCategories,
       applicableSubCategories: parsedSubCategories,
+      isStepQuantity: isStepQuantity === true || isStepQuantity === 'true',
+      isRangeQuantity: isRangeQuantity === true || isRangeQuantity === 'true',
+      stepQuantities: parsedStepQuantities,
+      rangeQuantities: parsedRangeQuantities,
     });
 
     console.log("CREATE AttributeType - Saved effectDescription:", attributeType.effectDescription);
@@ -279,6 +318,10 @@ export const updateAttributeType = async (req, res) => {
       isCommonAttribute,
       applicableCategories,
       applicableSubCategories,
+      isStepQuantity,
+      isRangeQuantity,
+      stepQuantities,
+      rangeQuantities,
     } = req.body;
 
     // Debug log to check if effectDescription is received
@@ -347,6 +390,37 @@ export const updateAttributeType = async (req, res) => {
       }
     }
 
+    // Parse stepQuantities and rangeQuantities if they're strings
+    let parsedStepQuantities = attributeType.stepQuantities;
+    if (stepQuantities !== undefined) {
+      try {
+        parsedStepQuantities = typeof stepQuantities === 'string'
+          ? JSON.parse(stepQuantities)
+          : stepQuantities;
+        if (!Array.isArray(parsedStepQuantities)) {
+          parsedStepQuantities = [];
+        }
+      } catch (err) {
+        console.error("Error parsing stepQuantities:", err);
+        parsedStepQuantities = [];
+      }
+    }
+
+    let parsedRangeQuantities = attributeType.rangeQuantities;
+    if (rangeQuantities !== undefined) {
+      try {
+        parsedRangeQuantities = typeof rangeQuantities === 'string'
+          ? JSON.parse(rangeQuantities)
+          : rangeQuantities;
+        if (!Array.isArray(parsedRangeQuantities)) {
+          parsedRangeQuantities = [];
+        }
+      } catch (err) {
+        console.error("Error parsing rangeQuantities:", err);
+        parsedRangeQuantities = [];
+      }
+    }
+
     // Update fields
     if (attributeName !== undefined) attributeType.attributeName = attributeName;
     if (functionType !== undefined) attributeType.functionType = functionType;
@@ -376,6 +450,10 @@ export const updateAttributeType = async (req, res) => {
     if (isCommonAttribute !== undefined) attributeType.isCommonAttribute = isCommonAttribute === true || isCommonAttribute === 'true';
     if (applicableCategories !== undefined) attributeType.applicableCategories = parsedCategories;
     if (applicableSubCategories !== undefined) attributeType.applicableSubCategories = parsedSubCategories;
+    if (isStepQuantity !== undefined) attributeType.isStepQuantity = isStepQuantity === true || isStepQuantity === 'true';
+    if (isRangeQuantity !== undefined) attributeType.isRangeQuantity = isRangeQuantity === true || isRangeQuantity === 'true';
+    if (stepQuantities !== undefined) attributeType.stepQuantities = parsedStepQuantities;
+    if (rangeQuantities !== undefined) attributeType.rangeQuantities = parsedRangeQuantities;
 
     await attributeType.save();
     console.log("UPDATE AttributeType - Saved effectDescription:", attributeType.effectDescription);

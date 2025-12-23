@@ -13,6 +13,11 @@ interface SubCategory {
   description: string;
   image?: string;
   slug?: string;
+  sortOrder?: number;
+  parent?: string | {
+    _id: string;
+    name?: string;
+  } | null;
   category?: {
     _id: string;
     name: string;
@@ -104,11 +109,20 @@ interface GlossProduct {
   instructions?: string;
 }
 
-const GlossProductSelection: React.FC = () => {
-  const { categoryId, subCategoryId, productId } = useParams<{ categoryId: string; subCategoryId?: string; productId?: string }>();
+interface GlossProductSelectionProps {
+  forcedProductId?: string;
+}
+
+const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedProductId }) => {
+  const params = useParams<{ categoryId: string; subCategoryId?: string; nestedSubCategoryId?: string; productId?: string }>();
+  const navigate = useNavigate();
+  const { categoryId, subCategoryId, nestedSubCategoryId } = params;
+  // Use forcedProductId if provided, otherwise fallback to params.productId
+  const productId = forcedProductId || params.productId;
   const [products, setProducts] = useState<GlossProduct[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<GlossProduct | null>(null);
   const [selectedSubCategory, setSelectedSubCategory] = useState<SubCategory | null>(null);
+  const [nestedSubCategories, setNestedSubCategories] = useState<SubCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -167,7 +181,7 @@ const GlossProductSelection: React.FC = () => {
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
-  
+
   // RADIO attribute modal state
   const [radioModalOpen, setRadioModalOpen] = useState(false);
   const [radioModalData, setRadioModalData] = useState<{
@@ -202,7 +216,6 @@ const GlossProductSelection: React.FC = () => {
   } | null>(null);
   const [isGettingLocation, setIsGettingLocation] = useState(false);
 
-  const navigate = useNavigate();
 
   // Close modal on ESC key
   useEffect(() => {
@@ -307,117 +320,138 @@ const GlossProductSelection: React.FC = () => {
         setSelectedProduct(null);
         setProducts([]);
 
-        // Find subcategory by subCategoryId from URL, or by "gloss-finish" slug, or by name containing "gloss"
+        // Find subcategory by subCategoryId or nestedSubCategoryId from URL
+        // Priority: nestedSubCategoryId > subCategoryId
         // If productId is provided, we need to find the product first to get its subcategory
         let subcategoryId: string | null = null;
         let subcategoryData: SubCategory | null = null;
+        const activeSubCategoryId = nestedSubCategoryId || subCategoryId; // Use nested subcategory if present
 
         // If productId is provided, fetch PDP data instead of regular product
         if (productId) {
-          try {
-            setPdpLoading(true);
-            setPdpError(null);
-            const pdpResponse = await fetch(`${API_BASE_URL}/products/${productId}/detail`, {
-              method: "GET",
-              headers: {
-                Accept: "application/json",
-              },
-            });
+          // Validate productId format (MongoDB ObjectId: 24 hex characters)
+          const isValidObjectId = /^[0-9a-fA-F]{24}$/.test(productId);
 
-            if (pdpResponse.ok) {
-              const pdpText = await pdpResponse.text();
-              if (!pdpText.startsWith("<!DOCTYPE") && !pdpText.startsWith("<html")) {
-                const pdpData = JSON.parse(pdpText);
-                
-                // Extract PDP data
-                const productData = pdpData.product;
-                const attributes = pdpData.attributes || [];
-                const subAttributes = pdpData.subAttributes || {};
-                const rules = pdpData.rules || [];
-                const quantityConfig = pdpData.quantityConfig;
-
-                // Get subcategory from product
-                if (productData.subcategory) {
-                  if (typeof productData.subcategory === 'object' && productData.subcategory._id) {
-                    subcategoryId = productData.subcategory._id;
-                    subcategoryData = productData.subcategory;
-                    setSelectedSubCategory(productData.subcategory);
-                  } else if (typeof productData.subcategory === 'string') {
-                    subcategoryId = productData.subcategory;
-                  }
-                }
-
-                // Map product data
-                const mappedProduct: GlossProduct = {
-                  _id: productData._id,
-                  id: productData._id,
-                  name: productData.name || '',
-                  description: productData.description || '',
-                  descriptionArray: productData.descriptionArray || (productData.description ? [productData.description] : []),
-                  filters: {
-                    printingOption: productData.filters?.printingOption || [],
-                    orderQuantity: quantityConfig || productData.filters?.orderQuantity || { min: 1000, max: 72000, multiples: 1000 },
-                    deliverySpeed: productData.filters?.deliverySpeed || [],
-                    textureType: productData.filters?.textureType || undefined,
-                    filterPricesEnabled: productData.filters?.filterPricesEnabled || false,
-                    printingOptionPrices: productData.filters?.printingOptionPrices || [],
-                    deliverySpeedPrices: productData.filters?.deliverySpeedPrices || [],
-                    textureTypePrices: productData.filters?.textureTypePrices || [],
-                  },
-                  basePrice: productData.basePrice || 0,
-                  image: productData.image,
-                  subcategory: productData.subcategory,
-                  options: productData.options || [],
-                  dynamicAttributes: attributes.map((attr: any) => ({
-                    attributeType: {
-                      _id: attr._id,
-                      attributeName: attr.attributeName,
-                      inputStyle: attr.inputStyle,
-                      attributeValues: attr.attributeValues || [],
-                      defaultValue: attr.defaultValue,
-                    },
-                    isEnabled: true,
-                    isRequired: attr.isRequired || false,
-                    displayOrder: attr.displayOrder || 0,
-                    customValues: attr.customValues || [],
-                  })),
-                  quantityDiscounts: productData.quantityDiscounts || [],
-                  maxFileSizeMB: productData.maxFileSizeMB,
-                  minFileWidth: productData.minFileWidth,
-                  maxFileWidth: productData.maxFileWidth,
-                  minFileHeight: productData.minFileHeight,
-                  maxFileHeight: productData.maxFileHeight,
-                  blockCDRandJPG: productData.blockCDRandJPG || false,
-                  additionalDesignCharge: productData.additionalDesignCharge || 0,
-                  gstPercentage: productData.gstPercentage || 0,
-                  showPriceIncludingGst: productData.showPriceIncludingGst || false,
-                  instructions: productData.instructions || "",
-                };
-                
-                setSelectedProduct(mappedProduct);
-
-                // Store PDP data
-                setPdpAttributes(attributes);
-                setPdpSubAttributes(subAttributes);
-                setPdpRules(rules);
-                setPdpQuantityConfig(quantityConfig);
-                setIsInitialized(true);
-              }
-            } else {
-              setPdpError("Failed to fetch product details");
-            }
-          } catch (err) {
-            setPdpError("Error loading product details");
-          } finally {
+          if (!isValidObjectId) {
+            console.warn("Invalid productId format:", productId);
+            setPdpError("Invalid product ID format. Please select a product from the list.");
             setPdpLoading(false);
+            // Don't return here - continue to fetch products list so user can select a valid product
+          } else {
+            try {
+              setPdpLoading(true);
+              setPdpError(null);
+              const pdpResponse = await fetch(`${API_BASE_URL}/products/${productId}/detail`, {
+                method: "GET",
+                headers: {
+                  Accept: "application/json",
+                },
+              });
+
+              if (pdpResponse.ok) {
+                const pdpText = await pdpResponse.text();
+                if (!pdpText.startsWith("<!DOCTYPE") && !pdpText.startsWith("<html")) {
+                  const pdpData = JSON.parse(pdpText);
+
+                  // Extract PDP data
+                  const productData = pdpData.product;
+                  const attributes = pdpData.attributes || [];
+                  const subAttributes = pdpData.subAttributes || {};
+                  const rules = pdpData.rules || [];
+                  const quantityConfig = pdpData.quantityConfig;
+
+                  // Get subcategory from product
+                  if (productData.subcategory) {
+                    if (typeof productData.subcategory === 'object' && productData.subcategory._id) {
+                      subcategoryId = productData.subcategory._id;
+                      subcategoryData = productData.subcategory;
+                      setSelectedSubCategory(productData.subcategory);
+                    } else if (typeof productData.subcategory === 'string') {
+                      subcategoryId = productData.subcategory;
+                    }
+                  }
+
+                  // Map product data
+                  const mappedProduct: GlossProduct = {
+                    _id: productData._id,
+                    id: productData._id,
+                    name: productData.name || '',
+                    description: productData.description || '',
+                    descriptionArray: productData.descriptionArray || (productData.description ? [productData.description] : []),
+                    filters: {
+                      printingOption: productData.filters?.printingOption || [],
+                      orderQuantity: quantityConfig || productData.filters?.orderQuantity || { min: 1000, max: 72000, multiples: 1000 },
+                      deliverySpeed: productData.filters?.deliverySpeed || [],
+                      textureType: productData.filters?.textureType || undefined,
+                      filterPricesEnabled: productData.filters?.filterPricesEnabled || false,
+                      printingOptionPrices: productData.filters?.printingOptionPrices || [],
+                      deliverySpeedPrices: productData.filters?.deliverySpeedPrices || [],
+                      textureTypePrices: productData.filters?.textureTypePrices || [],
+                    },
+                    basePrice: productData.basePrice || 0,
+                    image: productData.image,
+                    subcategory: productData.subcategory,
+                    options: productData.options || [],
+                    dynamicAttributes: attributes.map((attr: any) => ({
+                      attributeType: {
+                        _id: attr._id,
+                        attributeName: attr.attributeName,
+                        inputStyle: attr.inputStyle,
+                        attributeValues: attr.attributeValues || [],
+                        defaultValue: attr.defaultValue,
+                      },
+                      isEnabled: true,
+                      isRequired: attr.isRequired || false,
+                      displayOrder: attr.displayOrder || 0,
+                      customValues: attr.customValues || [],
+                    })),
+                    quantityDiscounts: productData.quantityDiscounts || [],
+                    maxFileSizeMB: productData.maxFileSizeMB,
+                    minFileWidth: productData.minFileWidth,
+                    maxFileWidth: productData.maxFileWidth,
+                    minFileHeight: productData.minFileHeight,
+                    maxFileHeight: productData.maxFileHeight,
+                    blockCDRandJPG: productData.blockCDRandJPG || false,
+                    additionalDesignCharge: productData.additionalDesignCharge || 0,
+                    gstPercentage: productData.gstPercentage || 0,
+                    showPriceIncludingGst: productData.showPriceIncludingGst || false,
+                    instructions: productData.instructions || "",
+                  };
+
+                  setSelectedProduct(mappedProduct);
+
+                  // Store PDP data
+                  setPdpAttributes(attributes);
+                  setPdpSubAttributes(subAttributes);
+                  setPdpRules(rules);
+                  setPdpQuantityConfig(quantityConfig);
+                  setIsInitialized(true);
+                }
+              } else {
+                const errorText = await pdpResponse.text();
+                let errorMessage = "Failed to fetch product details";
+                try {
+                  const errorData = JSON.parse(errorText);
+                  errorMessage = errorData.error || errorMessage;
+                } catch (e) {
+                  // If not JSON, use default message
+                }
+                setPdpError(errorMessage);
+              }
+            } catch (err) {
+              console.error("Error fetching product details:", err);
+              setPdpError("Error loading product details");
+            } finally {
+              setPdpLoading(false);
+            }
           }
         }
 
         // If we don't have subcategory yet, try to find it from subcategories list
         if (!subcategoryId) {
-          // Fetch subcategories for the category
+          // Fetch subcategories for the category (with nested children)
           const subcategoriesUrl = categoryId
-            ? `${API_BASE_URL}/subcategories/category/${categoryId}`
+            ? `${API_BASE_URL}/subcategories/category/${categoryId}?includeChildren=true`
             : `${API_BASE_URL}/subcategories`;
 
           const subcategoriesResponse = await fetch(subcategoriesUrl, {
@@ -432,15 +466,38 @@ const GlossProductSelection: React.FC = () => {
             if (!subcategoriesText.startsWith("<!DOCTYPE") && !subcategoriesText.startsWith("<html")) {
               const subcategoriesData = JSON.parse(subcategoriesText);
 
-              // First try to find by subCategoryId from URL (could be slug, name, or _id)
-              if (subCategoryId) {
-                subcategoryData = subcategoriesData.find(
-                  (sc: SubCategory) =>
-                    sc.slug === subCategoryId ||
-                    sc._id === subCategoryId ||
-                    sc.name?.toLowerCase().replace(/\s+/g, '-') === subCategoryId.toLowerCase().replace(/\s+/g, '-') ||
-                    sc.name?.toLowerCase() === subCategoryId.toLowerCase()
-                );
+              // Flatten nested subcategories for searching
+              const flattenSubcategories = (subcats: any[]): any[] => {
+                let result: any[] = [];
+                subcats.forEach((subcat) => {
+                  result.push(subcat);
+                  if (subcat.children && subcat.children.length > 0) {
+                    result = result.concat(flattenSubcategories(subcat.children));
+                  }
+                });
+                return result;
+              };
+
+              const flattenedData = flattenSubcategories(Array.isArray(subcategoriesData) ? subcategoriesData : []);
+
+              // First try to find by nestedSubCategoryId or subCategoryId from URL (prioritize ObjectId, then slug, then name)
+              const searchId = activeSubCategoryId;
+              if (searchId) {
+                // First check if it's a valid ObjectId - if so, match by _id only
+                const isObjectId = /^[0-9a-fA-F]{24}$/.test(searchId);
+                if (isObjectId) {
+                  subcategoryData = flattenedData.find(
+                    (sc: SubCategory) => sc._id === searchId
+                  );
+                } else {
+                  // It's a slug or name - try to find by slug first, then name
+                  subcategoryData = flattenedData.find(
+                    (sc: SubCategory) =>
+                      sc.slug === searchId ||
+                      sc.name?.toLowerCase().replace(/\s+/g, '-') === searchId.toLowerCase().replace(/\s+/g, '-') ||
+                      sc.name?.toLowerCase() === searchId.toLowerCase()
+                  );
+                }
               }
 
               // If not found and route has "gloss-finish", try that
@@ -456,12 +513,176 @@ const GlossProductSelection: React.FC = () => {
               if (subcategoryData) {
                 subcategoryId = subcategoryData._id;
                 setSelectedSubCategory(subcategoryData);
+
+                // Check if this subcategory has a parent (it's a nested subcategory)
+                const hasParent = subcategoryData.parent &&
+                  (typeof subcategoryData.parent === 'object' ? subcategoryData.parent._id : subcategoryData.parent);
+
+                if (hasParent && !nestedSubCategoryId && categoryId) {
+                  // This is a nested subcategory accessed directly without parent in URL
+                  // Redirect to include parent subcategory in URL
+                  const parentId = typeof subcategoryData.parent === 'object'
+                    ? subcategoryData.parent._id
+                    : subcategoryData.parent;
+                  console.log(`Nested subcategory detected in list, redirecting to include parent: ${parentId}`);
+                  navigate(`/digital-print/${categoryId}/${parentId}/${subcategoryId}${productId ? `/${productId}` : ''}`, { replace: true });
+                  setLoading(false);
+                  return; // Exit early, let the redirect handle the rest
+                }
+
+                // If URL contains slug instead of ObjectId, redirect to use ObjectId
+                const isSlug = activeSubCategoryId && !/^[0-9a-fA-F]{24}$/.test(activeSubCategoryId);
+                if (isSlug && subcategoryId && subcategoryId !== activeSubCategoryId) {
+                  // Replace slug with ObjectId in URL
+                  if (nestedSubCategoryId) {
+                    // This is a nested subcategory case - shouldn't happen here, but handle it
+                    navigate(`/digital-print/${categoryId}/${subcategoryId}${productId ? `/${productId}` : ''}`, { replace: true });
+                  } else if (categoryId) {
+                    // Regular subcategory case
+                    navigate(`/digital-print/${categoryId}/${subcategoryId}${productId ? `/${productId}` : ''}`, { replace: true });
+                  } else {
+                    // No category case
+                    navigate(`/digital-print/${subcategoryId}${productId ? `/${productId}` : ''}`, { replace: true });
+                  }
+                }
+              } else if (activeSubCategoryId) {
+                // If not found in list but activeSubCategoryId exists, try API lookup (supports slug)
+                // This handles cases where subcategory is not in the fetched list
+                try {
+                  const subcategoryResponse = await fetch(`${API_BASE_URL}/subcategories/${activeSubCategoryId}`, {
+                    method: "GET",
+                    headers: {
+                      Accept: "application/json",
+                    },
+                  });
+
+                  if (subcategoryResponse.ok) {
+                    const subcategoryText = await subcategoryResponse.text();
+                    if (!subcategoryText.startsWith("<!DOCTYPE") && !subcategoryText.startsWith("<html")) {
+                      const fetchedSubcategory = JSON.parse(subcategoryText);
+                      if (fetchedSubcategory && fetchedSubcategory._id) {
+                        subcategoryData = fetchedSubcategory;
+                        subcategoryId = fetchedSubcategory._id;
+                        setSelectedSubCategory(fetchedSubcategory);
+                        console.log("Found subcategory via API lookup, using _id:", subcategoryId);
+
+                        // Check if this subcategory has a parent (it's a nested subcategory)
+                        const hasParent = fetchedSubcategory.parent &&
+                          (typeof fetchedSubcategory.parent === 'object' ? fetchedSubcategory.parent._id : fetchedSubcategory.parent);
+
+                        if (hasParent && !nestedSubCategoryId && categoryId) {
+                          // This is a nested subcategory accessed directly without parent in URL
+                          // Redirect to include parent subcategory in URL
+                          const parentId = typeof fetchedSubcategory.parent === 'object'
+                            ? fetchedSubcategory.parent._id
+                            : fetchedSubcategory.parent;
+                          console.log(`Nested subcategory detected, redirecting to include parent: ${parentId}`);
+                          navigate(`/digital-print/${categoryId}/${parentId}/${subcategoryId}${productId ? `/${productId}` : ''}`, { replace: true });
+                          return; // Exit early, let the redirect handle the rest
+                        }
+
+                        // If URL contains slug instead of ObjectId, redirect to use ObjectId
+                        const isSlug = activeSubCategoryId && !/^[0-9a-fA-F]{24}$/.test(activeSubCategoryId);
+                        if (isSlug && subcategoryId && subcategoryId !== activeSubCategoryId) {
+                          // Replace slug with ObjectId in URL
+                          if (nestedSubCategoryId && subCategoryId) {
+                            // Nested subcategory case - preserve parent subcategory ID
+                            const parentSubcategoryId = /^[0-9a-fA-F]{24}$/.test(subCategoryId) ? subCategoryId : subCategoryId; // Keep as is, will be converted if needed
+                            navigate(`/digital-print/${categoryId}/${parentSubcategoryId}/${subcategoryId}${productId ? `/${productId}` : ''}`, { replace: true });
+                          } else if (categoryId) {
+                            // Regular subcategory case
+                            navigate(`/digital-print/${categoryId}/${subcategoryId}${productId ? `/${productId}` : ''}`, { replace: true });
+                          } else {
+                            // No category case
+                            navigate(`/digital-print/${subcategoryId}${productId ? `/${productId}` : ''}`, { replace: true });
+                          }
+                        }
+                      }
+                    }
+                  }
+                } catch (err) {
+                  console.warn("Error fetching subcategory via API:", err);
+                }
               }
               // If subcategoryData is null, don't try to fetch - will use category endpoint instead
             }
           }
         }
         // If subcategoryData is null, don't try to fetch - will use category endpoint instead
+
+        // PRIORITY: Check if selected subcategory has nested subcategories
+        // If nested subcategories exist, display them instead of products
+        // Use the resolved subcategory ID if we found one, otherwise use the active ID from URL
+        const subcategoryToCheck = subcategoryData?._id || activeSubCategoryId;
+
+        if (subcategoryToCheck) {
+          try {
+            // Fetch nested subcategories (children of this subcategory)
+            console.log(`Checking for nested subcategories of: ${subcategoryToCheck}`);
+            const nestedSubcategoriesResponse = await fetch(`${API_BASE_URL}/subcategories/parent/${subcategoryToCheck}`, {
+              method: "GET",
+              headers: {
+                Accept: "application/json",
+              },
+            });
+
+            if (nestedSubcategoriesResponse.ok) {
+              const nestedSubcategoriesText = await nestedSubcategoriesResponse.text();
+              if (!nestedSubcategoriesText.startsWith("<!DOCTYPE") && !nestedSubcategoriesText.startsWith("<html")) {
+                try {
+                  const nestedSubcategoriesData = JSON.parse(nestedSubcategoriesText);
+                  const nestedSubcategoriesArray = Array.isArray(nestedSubcategoriesData) ? nestedSubcategoriesData : [];
+
+                  // Sort by sortOrder
+                  nestedSubcategoriesArray.sort((a: SubCategory, b: SubCategory) => (a.sortOrder || 0) - (b.sortOrder || 0));
+
+                  if (nestedSubcategoriesArray.length > 0) {
+                    // NEW: If there is only exactly one nested subcategory, and we are not looking at a specific product,
+                    // automatically navigate to that nested subcategory to skip an extra click.
+                    if (nestedSubcategoriesArray.length === 1 && !productId) {
+                      const onlySubcat = nestedSubcategoriesArray[0];
+                      const onlySubcatIdForLink = onlySubcat._id;
+
+                      // Safety check: Don't navigate if we are already there to prevent loops
+                      // Check both nestedSubCategoryId and subCategoryId as the identifier could be in either slot
+                      if (nestedSubCategoryId !== onlySubcatIdForLink && subCategoryId !== onlySubcatIdForLink) {
+                        console.log(`Only one nested subcategory found: ${onlySubcat.name} (${onlySubcatIdForLink}). Auto-navigating...`);
+
+                        const targetUrl = categoryId && subCategoryId
+                          ? `/digital-print/${categoryId}/${subCategoryId}/${onlySubcatIdForLink}`
+                          : `/digital-print/${categoryId}/${onlySubcatIdForLink}`;
+
+                        navigate(targetUrl, { replace: true });
+                        return;
+                      }
+                    }
+
+                    // Nested subcategories exist - display them instead of products
+                    console.log(`Found ${nestedSubcategoriesArray.length} nested subcategories for subcategory ${subcategoryToCheck}`);
+                    setNestedSubCategories(nestedSubcategoriesArray);
+                    setProducts([]); // Clear products when showing nested subcategories
+                    setLoading(false);
+                    return; // Exit early - don't fetch products
+                  } else {
+                    console.log(`No nested subcategories found for subcategory ${subcategoryToCheck}, will fetch products`);
+                  }
+                } catch (parseErr) {
+                  console.error("Error parsing nested subcategories response:", parseErr);
+                  // Continue to fetch products
+                }
+              }
+            } else {
+              console.log(`Nested subcategories check returned ${nestedSubcategoriesResponse.status}, will fetch products`);
+            }
+          } catch (nestedErr) {
+            console.error("Error fetching nested subcategories:", nestedErr);
+            // Continue to fetch products if nested subcategories check fails
+          }
+        }
+
+        // No nested subcategories found - proceed to fetch products
+        // Clear nested subcategories state since we're showing products
+        setNestedSubCategories([]);
 
         // Fetch products based on whether subcategory is found or not
         // FIRST check if subcategoryData is null - if null, use category endpoint directly
@@ -486,9 +707,18 @@ const GlossProductSelection: React.FC = () => {
             setProducts([]);
             return;
           }
-        } else if (subcategoryId && subcategoryData && /^[0-9a-fA-F]{24}$/.test(subcategoryId)) {
+        } else if (subcategoryData && subcategoryData._id) {
           // Subcategory found - use subcategory endpoint
-          productsUrl = `${API_BASE_URL}/products/subcategory/${subcategoryId}`;
+          // Use the resolved ID from subcategoryData which handles slugs correctly
+          const productSubcategoryId = subcategoryData._id;
+
+          // Resolve the subcategory name for logging
+          const logSubcategoryName = subcategoryData.name || productSubcategoryId;
+
+          // This endpoint will return products for the subcategory and all nested subcategories
+          // If no products found, it falls back to category products
+          console.log(`Fetching products for subcategory: ${logSubcategoryName} (${productSubcategoryId})`);
+          productsUrl = `${API_BASE_URL}/products/subcategory/${productSubcategoryId}`;
           productsResponse = await fetch(productsUrl, {
             method: "GET",
             headers: {
@@ -513,9 +743,17 @@ const GlossProductSelection: React.FC = () => {
         const productsText = await productsResponse.text();
         if (productsText.startsWith("<!DOCTYPE") || productsText.startsWith("<html")) {
           // Server returned HTML instead of JSON - don't throw error, just log and continue
+          console.error("Server returned HTML instead of JSON for products");
           setProducts([]);
         } else if (!productsResponse.ok) {
-          // Products not found or error - don't throw, just log and continue
+          // Products not found or error - log the error
+          console.error(`Failed to fetch products: ${productsResponse.status} ${productsResponse.statusText}`);
+          try {
+            const errorData = JSON.parse(productsText);
+            console.error("Error details:", errorData);
+          } catch (e) {
+            console.error("Error response text:", productsText);
+          }
           setProducts([]);
         } else {
           try {
@@ -523,10 +761,41 @@ const GlossProductSelection: React.FC = () => {
 
             // Ensure productsData is an array
             if (!Array.isArray(productsData)) {
+              console.warn("Products data is not an array:", productsData);
               setProducts([]);
             } else {
+              const currentSubName = subcategoryData?.name || subcategoryData?._id || subcategoryId || 'category ' + categoryId;
+              console.log(`Fetched ${productsData.length} product(s) for ${currentSubName}`);
+
+              // If no products found for subcategory, try fetching category products as fallback
+              let finalProductsData = productsData;
+              if (productsData.length === 0 && subcategoryData && categoryId && /^[0-9a-fA-F]{24}$/.test(categoryId)) {
+                console.log(`No products found for subcategory ${subcategoryId}, fetching category products as fallback`);
+                try {
+                  const categoryProductsResponse = await fetch(`${API_BASE_URL}/products/category/${categoryId}`, {
+                    method: "GET",
+                    headers: {
+                      Accept: "application/json",
+                    },
+                  });
+
+                  if (categoryProductsResponse.ok) {
+                    const categoryProductsText = await categoryProductsResponse.text();
+                    if (!categoryProductsText.startsWith("<!DOCTYPE") && !categoryProductsText.startsWith("<html")) {
+                      const categoryProductsData = JSON.parse(categoryProductsText);
+                      if (Array.isArray(categoryProductsData) && categoryProductsData.length > 0) {
+                        console.log(`Found ${categoryProductsData.length} product(s) in category as fallback`);
+                        finalProductsData = categoryProductsData;
+                      }
+                    }
+                  }
+                } catch (fallbackErr) {
+                  console.error("Error fetching category products as fallback:", fallbackErr);
+                }
+              }
+
               // Map API products to GlossProduct format
-              const mappedProducts: GlossProduct[] = productsData.map((product: any) => ({
+              const mappedProducts: GlossProduct[] = finalProductsData.map((product: any) => ({
                 _id: product._id,
                 id: product._id,
                 name: product.name || '',
@@ -585,7 +854,7 @@ const GlossProductSelection: React.FC = () => {
                 }
               }
             }
-              } catch (parseErr) {
+          } catch (parseErr) {
             setProducts([]);
           }
         }
@@ -600,7 +869,7 @@ const GlossProductSelection: React.FC = () => {
     };
 
     fetchData();
-  }, [categoryId, subCategoryId, productId]);
+  }, [categoryId, subCategoryId, nestedSubCategoryId, productId]);
 
   // Handle product selection
   const handleProductSelect = (product: GlossProduct) => {
@@ -687,6 +956,131 @@ const GlossProductSelection: React.FC = () => {
 
   // Generate quantity options based on quantity type
   const generateQuantities = (product: GlossProduct) => {
+    // First, check if any selected attribute has step/range quantity settings
+    // Check PDP attributes first (if initialized)
+    if (isInitialized && pdpAttributes.length > 0) {
+      for (const attr of pdpAttributes) {
+        if (!attr.isVisible) continue;
+
+        const selectedValue = selectedDynamicAttributes[attr._id];
+        if (!selectedValue) continue;
+
+        // Check if this attribute has step/range quantity settings
+        if ((attr as any).isStepQuantity && (attr as any).stepQuantities && (attr as any).stepQuantities.length > 0) {
+          // Convert step quantities to numbers and return
+          const stepQuantities = (attr as any).stepQuantities
+            .map((step: any) => {
+              const qty = typeof step === 'object' ? parseFloat(step.quantity) : parseFloat(step);
+              return isNaN(qty) ? 0 : qty;
+            })
+            .filter((qty: number) => qty > 0)
+            .sort((a: number, b: number) => a - b);
+
+          if (stepQuantities.length > 0) {
+            return stepQuantities;
+          }
+        }
+
+        if ((attr as any).isRangeQuantity && (attr as any).rangeQuantities && (attr as any).rangeQuantities.length > 0) {
+          // Generate quantities from range quantities
+          const quantities: number[] = [];
+          (attr as any).rangeQuantities.forEach((range: any) => {
+            const min = typeof range === 'object' ? parseFloat(range.min) : 0;
+            const max = typeof range === 'object' && range.max ? parseFloat(range.max) : null;
+
+            if (min > 0) {
+              if (!quantities.includes(min)) {
+                quantities.push(min);
+              }
+              // If there's a max, add some intermediate values
+              if (max && max > min) {
+                const step = Math.max(1, Math.floor((max - min) / 5));
+                for (let q = min + step; q < max; q += step) {
+                  if (!quantities.includes(q)) {
+                    quantities.push(q);
+                  }
+                }
+                // Add max if it's reasonable
+                if (max <= min * 10) {
+                  if (!quantities.includes(max)) {
+                    quantities.push(max);
+                  }
+                }
+              }
+            }
+          });
+
+          if (quantities.length > 0) {
+            return quantities.sort((a, b) => a - b);
+          }
+        }
+      }
+    }
+
+    // Fallback to product attributes if PDP not available
+    if (selectedProduct && selectedProduct.dynamicAttributes) {
+      for (const attr of selectedProduct.dynamicAttributes) {
+        if (!attr.isEnabled) continue;
+
+        const attrType = typeof attr.attributeType === 'object' ? attr.attributeType : null;
+        if (!attrType) continue;
+
+        const selectedValue = selectedDynamicAttributes[attrType._id];
+        if (!selectedValue) continue;
+
+        // Check if this attribute has step/range quantity settings
+        if ((attrType as any).isStepQuantity && (attrType as any).stepQuantities && (attrType as any).stepQuantities.length > 0) {
+          // Convert step quantities to numbers and return
+          const stepQuantities = (attrType as any).stepQuantities
+            .map((step: any) => {
+              const qty = typeof step === 'object' ? parseFloat(step.quantity) : parseFloat(step);
+              return isNaN(qty) ? 0 : qty;
+            })
+            .filter((qty: number) => qty > 0)
+            .sort((a: number, b: number) => a - b);
+
+          if (stepQuantities.length > 0) {
+            return stepQuantities;
+          }
+        }
+
+        if ((attrType as any).isRangeQuantity && (attrType as any).rangeQuantities && (attrType as any).rangeQuantities.length > 0) {
+          // Generate quantities from range quantities
+          const quantities: number[] = [];
+          (attrType as any).rangeQuantities.forEach((range: any) => {
+            const min = typeof range === 'object' ? parseFloat(range.min) : 0;
+            const max = typeof range === 'object' && range.max ? parseFloat(range.max) : null;
+
+            if (min > 0) {
+              if (!quantities.includes(min)) {
+                quantities.push(min);
+              }
+              // If there's a max, add some intermediate values
+              if (max && max > min) {
+                const step = Math.max(1, Math.floor((max - min) / 5));
+                for (let q = min + step; q < max; q += step) {
+                  if (!quantities.includes(q)) {
+                    quantities.push(q);
+                  }
+                }
+                // Add max if it's reasonable
+                if (max <= min * 10) {
+                  if (!quantities.includes(max)) {
+                    quantities.push(max);
+                  }
+                }
+              }
+            }
+          });
+
+          if (quantities.length > 0) {
+            return quantities.sort((a, b) => a - b);
+          }
+        }
+      }
+    }
+
+    // Fallback to product's quantity configuration
     const orderQuantity = product.filters.orderQuantity;
     const quantityType = orderQuantity.quantityType || "SIMPLE";
 
@@ -884,18 +1278,34 @@ const GlossProductSelection: React.FC = () => {
                   ? attr.customValues
                   : attrType.attributeValues || [];
 
-                // Handle checkbox (multiple values) - apply all multipliers
+                // Handle checkbox (multiple values) - apply all price impacts
                 if (Array.isArray(selectedValue)) {
                   const selectedLabels: string[] = [];
                   let totalCharge = 0;
                   selectedValue.forEach((val) => {
                     const attrValue = attributeValues.find((av: any) => av.value === val);
-                    if (attrValue && attrValue.priceMultiplier && attrValue.priceMultiplier !== 1) {
-                      const oldPrice = basePrice;
-                      basePrice = basePrice * attrValue.priceMultiplier;
-                      const charge = (basePrice - oldPrice) * quantity;
-                      totalCharge += charge;
-                      if (attrValue.label) selectedLabels.push(attrValue.label);
+                    if (attrValue) {
+                      // Check if description contains priceImpact (new format with option usage)
+                      let priceAdd = 0;
+                      if (attrValue.description) {
+                        const priceImpactMatch = attrValue.description.match(/Price Impact: ₹([\d.]+)/);
+                        if (priceImpactMatch) {
+                          priceAdd = parseFloat(priceImpactMatch[1]) || 0;
+                        }
+                      }
+
+                      // Use priceAdd if available (from option usage), otherwise fall back to priceMultiplier
+                      if (priceAdd > 0) {
+                        totalCharge += priceAdd * quantity;
+                        if (attrValue.label) selectedLabels.push(attrValue.label);
+                      } else if (attrValue.priceMultiplier && attrValue.priceMultiplier !== 1) {
+                        // Fallback to old priceMultiplier logic
+                        const oldPrice = basePrice;
+                        basePrice = basePrice * attrValue.priceMultiplier;
+                        const charge = (basePrice - oldPrice) * quantity;
+                        totalCharge += charge;
+                        if (attrValue.label) selectedLabels.push(attrValue.label);
+                      }
                     }
                   });
                   if (totalCharge !== 0) {
@@ -908,16 +1318,38 @@ const GlossProductSelection: React.FC = () => {
                 } else {
                   // Handle single value attributes
                   const attrValue = attributeValues.find((av: any) => av.value === selectedValue);
-                  if (attrValue && attrValue.priceMultiplier && attrValue.priceMultiplier !== 1) {
-                    const oldPrice = basePrice;
-                    basePrice = basePrice * attrValue.priceMultiplier;
-                    const charge = (basePrice - oldPrice) * quantity;
-                    if (charge !== 0) {
-                      dynamicAttributesChargesList.push({
-                        name: attrType.attributeName,
-                        label: attrValue.label || String(selectedValue || ''),
-                        charge: charge
-                      });
+                  if (attrValue) {
+                    // Check if description contains priceImpact (new format with option usage)
+                    let priceAdd = 0;
+                    if (attrValue.description) {
+                      const priceImpactMatch = attrValue.description.match(/Price Impact: ₹([\d.]+)/);
+                      if (priceImpactMatch) {
+                        priceAdd = parseFloat(priceImpactMatch[1]) || 0;
+                      }
+                    }
+
+                    // Use priceAdd if available (from option usage), otherwise fall back to priceMultiplier
+                    if (priceAdd > 0) {
+                      const charge = priceAdd * quantity;
+                      if (charge !== 0) {
+                        dynamicAttributesChargesList.push({
+                          name: attrType.attributeName,
+                          label: attrValue.label || String(selectedValue || ''),
+                          charge: charge
+                        });
+                      }
+                    } else if (attrValue.priceMultiplier && attrValue.priceMultiplier !== 1) {
+                      // Fallback to old priceMultiplier logic
+                      const oldPrice = basePrice;
+                      basePrice = basePrice * attrValue.priceMultiplier;
+                      const charge = (basePrice - oldPrice) * quantity;
+                      if (charge !== 0) {
+                        dynamicAttributesChargesList.push({
+                          name: attrType.attributeName,
+                          label: attrValue.label || String(selectedValue || ''),
+                          charge: charge
+                        });
+                      }
                     }
                   }
                 }
@@ -952,12 +1384,19 @@ const GlossProductSelection: React.FC = () => {
         }
       }
 
-      // Store base subtotal before discount for display
+      // Calculate total of all attribute charges (priceAdd charges)
+      const totalAttributeCharges = dynamicAttributesChargesList.reduce((sum, charge) => sum + charge.charge, 0);
+
+      // Store base subtotal before discount for display (includes base price only, charges shown separately)
       setBaseSubtotalBeforeDiscount(baseSubtotal);
 
       // Apply discount multiplier to subtotal
       const calculatedSubtotal = baseSubtotal * discountMultiplier;
-      setSubtotal(calculatedSubtotal);
+
+      // Add attribute charges to subtotal (these are not discounted)
+      const subtotalWithCharges = calculatedSubtotal + totalAttributeCharges;
+
+      setSubtotal(subtotalWithCharges);
       setAppliedDiscount(currentDiscount);
 
       // Store individual charges for order summary
@@ -972,12 +1411,12 @@ const GlossProductSelection: React.FC = () => {
 
       // Calculate GST on (subtotal + design charge)
       const gstPercent = selectedProduct.gstPercentage || 0;
-      const calculatedGst = (calculatedSubtotal + designCharge) * (gstPercent / 100);
+      const calculatedGst = (subtotalWithCharges + designCharge) * (gstPercent / 100);
       setGstAmount(calculatedGst);
 
       // Store price excluding GST (for product page display)
       // GST will only be added at checkout
-      const priceExcludingGst = calculatedSubtotal + designCharge;
+      const priceExcludingGst = subtotalWithCharges + designCharge;
       setPrice(priceExcludingGst);
 
       // Calculate and store per unit price excluding GST (base price + all per-unit charges, after discount)
@@ -985,6 +1424,17 @@ const GlossProductSelection: React.FC = () => {
       setPerUnitPriceExcludingGst(perUnitExcludingGst);
     }
   }, [selectedProduct, selectedPrintingOption, selectedDeliverySpeed, selectedTextureType, quantity, selectedDynamicAttributes, selectedProductOptions]);
+
+  // Update quantity when attribute with step/range quantity is selected
+  React.useEffect(() => {
+    if (!selectedProduct) return;
+
+    const availableQuantities = generateQuantities(selectedProduct);
+    if (availableQuantities.length > 0 && !availableQuantities.includes(quantity)) {
+      // Current quantity is not in the allowed list, update to the first available
+      setQuantity(availableQuantities[0]);
+    }
+  }, [selectedDynamicAttributes, selectedProduct]);
 
 
   // Get preview classes based on selected product
@@ -1591,6 +2041,41 @@ const GlossProductSelection: React.FC = () => {
                 }
               }
             }
+
+            // Validate image uploads if option requires images
+            if (value && (attrType.inputStyle === 'DROPDOWN' || attrType.inputStyle === 'RADIO')) {
+              const attributeValues = attr.customValues && attr.customValues.length > 0
+                ? attr.customValues
+                : attrType.attributeValues || [];
+
+              const selectedOption = Array.isArray(value)
+                ? attributeValues.find((av: any) => value.includes(av.value))
+                : attributeValues.find((av: any) => av.value === value);
+
+              if (selectedOption && selectedOption.description) {
+                // Parse numberOfImagesRequired from description
+                const imagesRequiredMatch = selectedOption.description.match(/Images Required: (\d+)/);
+                const numberOfImagesRequired = imagesRequiredMatch ? parseInt(imagesRequiredMatch[1]) : 0;
+
+                if (numberOfImagesRequired > 0) {
+                  const imagesKey = `${attrType._id}_images`;
+                  const uploadedImages = Array.isArray(selectedDynamicAttributes[imagesKey])
+                    ? (selectedDynamicAttributes[imagesKey] as File[])
+                    : [];
+
+                  if (uploadedImages.length < numberOfImagesRequired) {
+                    validationErrors.push(`${attrType.attributeName}: Please upload ${numberOfImagesRequired} image(s) for ${selectedOption.label}`);
+                    if (!firstErrorField.current) {
+                      const wrapper = document.querySelector(`[data-attribute="${attrType._id}"]`) as HTMLElement;
+                      if (wrapper) {
+                        const imageSection = wrapper.querySelector('.bg-cream-50') as HTMLElement;
+                        firstErrorField.current = imageSection || wrapper;
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       });
@@ -1827,7 +2312,7 @@ const GlossProductSelection: React.FC = () => {
         image?: string;
       }> = [];
 
-      Object.keys(selectedDynamicAttributes).forEach(key => {
+      for (const key of Object.keys(selectedDynamicAttributes)) {
         const value = selectedDynamicAttributes[key];
         if (value !== null && value !== undefined && value !== "") {
           // Check if this is a sub-attribute key (format: attrId__parentValue)
@@ -1837,7 +2322,7 @@ const GlossProductSelection: React.FC = () => {
             const subAttributesKey = `${attrId}:${parentValue}`;
             const subAttributes = pdpSubAttributes[subAttributesKey] || [];
             const selectedSubAttr = subAttributes.find((sa: any) => sa.value === value);
-            
+
             if (selectedSubAttr) {
               // Find the parent attribute type
               const productAttr = selectedProduct.dynamicAttributes?.find(
@@ -1846,7 +2331,7 @@ const GlossProductSelection: React.FC = () => {
                   return attrType?._id === attrId;
                 }
               );
-              
+
               if (productAttr) {
                 const attrType = typeof productAttr.attributeType === 'object' ? productAttr.attributeType : null;
                 if (attrType) {
@@ -1892,29 +2377,132 @@ const GlossProductSelection: React.FC = () => {
                   if (Array.isArray(selectedValueDetails)) {
                     // Multiple values
                     const labels = selectedValueDetails.map((sv: any) => sv.label || sv.value).join(", ");
-                    const totalPriceMultiplier = selectedValueDetails.reduce((sum: number, sv: any) => sum + (sv.priceMultiplier || 0), 0);
+                    let totalPriceAdd = 0;
+                    let totalPriceMultiplier = 0;
+
+                    // Extract priceImpact from descriptions (new format)
+                    selectedValueDetails.forEach((sv: any) => {
+                      if (sv.description) {
+                        const priceImpactMatch = sv.description.match(/Price Impact: ₹([\d.]+)/);
+                        if (priceImpactMatch) {
+                          totalPriceAdd += parseFloat(priceImpactMatch[1]) || 0;
+                        }
+                      }
+                      if (sv.priceMultiplier) {
+                        totalPriceMultiplier += sv.priceMultiplier;
+                      }
+                    });
+
+                    // Check if there are uploaded images for this attribute (checkbox - multiple values)
+                    const imagesKey = `${key}_images`;
+                    const uploadedImages = Array.isArray(selectedDynamicAttributes[imagesKey])
+                      ? (selectedDynamicAttributes[imagesKey] as File[]).filter((f: any) => f !== null)
+                      : [];
+
+                    // Convert uploaded images to base64
+                    const attributeImages: Array<{ data: string; contentType: string; filename: string }> = [];
+                    if (uploadedImages.length > 0) {
+                      for (const imageFile of uploadedImages) {
+                        if (imageFile instanceof File) {
+                          try {
+                            const reader = new FileReader();
+                            const imageData = await new Promise<string>((resolve, reject) => {
+                              reader.onload = () => {
+                                const result = reader.result as string;
+                                const base64Data = result.includes(',') ? result.split(',')[1] : result;
+                                resolve(base64Data);
+                              };
+                              reader.onerror = reject;
+                              reader.readAsDataURL(imageFile);
+                            });
+
+                            attributeImages.push({
+                              data: imageData,
+                              contentType: imageFile.type || "image/png",
+                              filename: imageFile.name || "attribute-image.png"
+                            });
+                          } catch (err) {
+                            console.error("Error converting image to base64:", err);
+                          }
+                        }
+                      }
+                    }
+
                     selectedDynamicAttributesArray.push({
                       attributeTypeId: key,
                       attributeName: attrType.attributeName || "Attribute",
                       attributeValue: value,
                       label: labels,
-                      priceMultiplier: totalPriceMultiplier || undefined,
-                      priceAdd: 0,
+                      priceMultiplier: totalPriceAdd > 0 ? undefined : (totalPriceMultiplier || undefined),
+                      priceAdd: totalPriceAdd,
                       description: selectedValueDetails.map((sv: any) => sv.description).filter(Boolean).join("; ") || undefined,
                       image: selectedValueDetails[0]?.image || undefined,
-                    });
+                      uploadedImages: attributeImages.length > 0 ? attributeImages : undefined,
+                    } as any);
                   } else {
                     // Single value
+                    let priceAdd = 0;
+                    let priceMultiplier = selectedValueDetails.priceMultiplier;
+
+                    // Extract priceImpact from description (new format)
+                    if (selectedValueDetails.description) {
+                      const priceImpactMatch = selectedValueDetails.description.match(/Price Impact: ₹([\d.]+)/);
+                      if (priceImpactMatch) {
+                        priceAdd = parseFloat(priceImpactMatch[1]) || 0;
+                        // If using priceAdd, don't use priceMultiplier
+                        if (priceAdd > 0) {
+                          priceMultiplier = undefined;
+                        }
+                      }
+                    }
+
+                    // Check if there are uploaded images for this attribute
+                    const imagesKey = `${key}_images`;
+                    const uploadedImages = Array.isArray(selectedDynamicAttributes[imagesKey])
+                      ? (selectedDynamicAttributes[imagesKey] as File[]).filter((f: any) => f !== null)
+                      : [];
+
+                    // Convert uploaded images to base64
+                    const attributeImages: Array<{ data: string; contentType: string; filename: string }> = [];
+                    if (uploadedImages.length > 0) {
+                      for (const imageFile of uploadedImages) {
+                        if (imageFile instanceof File) {
+                          try {
+                            const reader = new FileReader();
+                            const imageData = await new Promise<string>((resolve, reject) => {
+                              reader.onload = () => {
+                                const result = reader.result as string;
+                                // Remove data:image/... prefix
+                                const base64Data = result.includes(',') ? result.split(',')[1] : result;
+                                resolve(base64Data);
+                              };
+                              reader.onerror = reject;
+                              reader.readAsDataURL(imageFile);
+                            });
+
+                            attributeImages.push({
+                              data: imageData,
+                              contentType: imageFile.type || "image/png",
+                              filename: imageFile.name || "attribute-image.png"
+                            });
+                          } catch (err) {
+                            console.error("Error converting image to base64:", err);
+                          }
+                        }
+                      }
+                    }
+
                     selectedDynamicAttributesArray.push({
                       attributeTypeId: key,
                       attributeName: attrType.attributeName || "Attribute",
                       attributeValue: value,
                       label: selectedValueDetails.label || value?.toString() || "",
-                      priceMultiplier: selectedValueDetails.priceMultiplier || undefined,
-                      priceAdd: 0,
+                      priceMultiplier: priceMultiplier || undefined,
+                      priceAdd: priceAdd,
                       description: selectedValueDetails.description || undefined,
                       image: selectedValueDetails.image || undefined,
-                    });
+                      uploadedImages: attributeImages.length > 0 ? attributeImages : undefined,
+                    } as any);
                   }
                 } else {
                   // Value not in predefined list (text/number input)
@@ -1937,7 +2525,7 @@ const GlossProductSelection: React.FC = () => {
             }
           }
         }
-      });
+      }
 
       // Step 3: Create order with payment status
       const orderData = {
@@ -2326,12 +2914,22 @@ const GlossProductSelection: React.FC = () => {
           <BackButton
             onClick={() => {
               // Navigate back based on current route structure
-              if (productId && subCategoryId && categoryId) {
+              // IMPORTANT: Check if params match productId (due to smart routing where params are reused)
+              const isProductSameAsNested = productId === nestedSubCategoryId;
+              const isProductSameAsSub = productId === subCategoryId;
+
+              if (productId && nestedSubCategoryId && subCategoryId && categoryId && !isProductSameAsNested) {
+                // From product detail with nested subcategory → go back to nested subcategory products list
+                navigate(`/digital-print/${categoryId}/${subCategoryId}/${nestedSubCategoryId}`);
+              } else if (productId && subCategoryId && categoryId && !isProductSameAsSub) {
                 // From product detail with subcategory → go back to subcategory products list
                 navigate(`/digital-print/${categoryId}/${subCategoryId}`);
               } else if (productId && categoryId) {
                 // From product detail (direct under category) → go back to category
                 navigate(`/digital-print/${categoryId}`);
+              } else if (nestedSubCategoryId && subCategoryId && categoryId) {
+                // From nested subcategory products list → go back to parent subcategory
+                navigate(`/digital-print/${categoryId}/${subCategoryId}`);
               } else if (subCategoryId && categoryId) {
                 // From subcategory products list → go back to category
                 navigate(`/digital-print/${categoryId}`);
@@ -2345,19 +2943,23 @@ const GlossProductSelection: React.FC = () => {
               window.scrollTo(0, 0);
             }}
             fallbackPath={
-              productId && subCategoryId && categoryId
-                ? `/digital-print/${categoryId}/${subCategoryId}`
-                : productId && categoryId
-                  ? `/digital-print/${categoryId}`
-                  : subCategoryId && categoryId
+              productId && nestedSubCategoryId && subCategoryId && categoryId && productId !== nestedSubCategoryId
+                ? `/digital-print/${categoryId}/${subCategoryId}/${nestedSubCategoryId}`
+                : productId && subCategoryId && categoryId && productId !== subCategoryId
+                  ? `/digital-print/${categoryId}/${subCategoryId}`
+                  : productId && categoryId
                     ? `/digital-print/${categoryId}`
-                    : categoryId
-                      ? `/digital-print/${categoryId}`
-                      : "/digital-print"
+                    : nestedSubCategoryId && subCategoryId && categoryId
+                      ? `/digital-print/${categoryId}/${subCategoryId}`
+                      : subCategoryId && categoryId
+                        ? `/digital-print/${categoryId}`
+                        : categoryId
+                          ? `/digital-print/${categoryId}`
+                          : "/digital-print"
             }
             label={
-              productId && subCategoryId
-                ? "Back to Subcategory"
+              (productId && subCategoryId && productId !== subCategoryId) || (productId && nestedSubCategoryId && productId !== nestedSubCategoryId)
+                ? "Back to products"
                 : productId && categoryId
                   ? "Back to Category"
                   : subCategoryId
@@ -2458,7 +3060,7 @@ const GlossProductSelection: React.FC = () => {
                         // Prioritize product image first, then subcategory, then fallback
                         let displayImage = selectedProduct?.image || selectedSubCategory?.image || "/Glossy.png";
                         let displayAlt = selectedProduct?.name || selectedSubCategory?.name || "Product Preview";
-                        
+
                         // Ensure image URL is valid (not empty or null)
                         if (!displayImage || displayImage.trim() === "" || displayImage === "null" || displayImage === "undefined") {
                           displayImage = selectedSubCategory?.image || "/Glossy.png";
@@ -2563,9 +3165,24 @@ const GlossProductSelection: React.FC = () => {
                         <div className="flex justify-between">
                           <span className="text-cream-600">Base price</span>
                           <span className="font-medium">
-                            ₹{(price || 0).toFixed(2)}
+                            ₹{(baseSubtotalBeforeDiscount || 0).toFixed(2)}
                           </span>
                         </div>
+
+                        {dynamicAttributesCharges.length > 0 && (
+                          <>
+                            {dynamicAttributesCharges.map((attrCharge, idx) => (
+                              <div key={idx} className="flex justify-between">
+                                <span className="text-cream-600 text-[11px]">
+                                  {attrCharge.name}: {attrCharge.label}
+                                </span>
+                                <span className="font-medium text-[11px]">
+                                  ₹{attrCharge.charge.toFixed(2)}
+                                </span>
+                              </div>
+                            ))}
+                          </>
+                        )}
 
                         {additionalDesignCharge > 0 && (
                           <div className="flex justify-between">
@@ -2616,100 +3233,162 @@ const GlossProductSelection: React.FC = () => {
               <div className="lg:w-1/2">
                 <div className="bg-white p-4 sm:p-6 md:p-8 rounded-2xl sm:rounded-3xl shadow-lg border border-cream-100 min-h-[600px] lg:min-h-[700px] flex flex-col">
                   {!selectedProduct ? (
-                    /* Product Selection List */
+                    /* Product Selection List or Nested Subcategories */
                     <div>
                       <div className="mb-6 sm:mb-8 border-b border-cream-100 pb-4 sm:pb-6">
                         <h1 className="font-serif text-xl sm:text-2xl md:text-3xl font-bold text-cream-900 mb-2">
                           {selectedSubCategory?.name || "Products"}
                         </h1>
                         <p className="text-sm sm:text-base text-cream-600">
-                          Select a product to customize and place your order.
+                          {nestedSubCategories.length > 0
+                            ? "Select a subcategory to view products."
+                            : "Select a product to customize and place your order."}
                         </p>
                       </div>
 
-                      <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2">
-                        {products.length === 0 ? (
-                          <div className="text-center py-12">
-                            <p className="text-cream-600">No products available</p>
-                          </div>
-                        ) : (
-                          products.map((product) => {
-                            // Get description points (2-3 lines)
-                            const descriptionList = product.descriptionArray && product.descriptionArray.length > 0
-                              ? product.descriptionArray
-                              : (product.description
-                                ? product.description.split('\n').filter(line => line.trim())
-                                : []);
-
-                            // Get first 2-3 meaningful description points
-                            const descriptionPoints: string[] = [];
-                            for (const item of descriptionList) {
-                              const cleanItem = item.replace(/<[^>]*>/g, '').trim();
-                              // Skip headers (containing colon) and empty items
-                              if (cleanItem && !cleanItem.includes(':') && cleanItem.length > 10) {
-                                descriptionPoints.push(cleanItem);
-                                if (descriptionPoints.length >= 3) break; // Get max 3 lines
-                              }
-                            }
-
-                            // If no points found, use first items
-                            if (descriptionPoints.length === 0 && descriptionList.length > 0) {
-                              for (let i = 0; i < Math.min(3, descriptionList.length); i++) {
-                                const cleanItem = descriptionList[i].replace(/<[^>]*>/g, '').trim();
-                                if (cleanItem) {
-                                  descriptionPoints.push(cleanItem);
-                                }
-                              }
-                            }
-
-                            // Join first 2-3 lines
-                            const shortDescription = descriptionPoints.slice(0, 3).join(' • ') || '';
-
-                            // Calculate price display
-                            const basePrice = product.basePrice || 0;
-                            const displayPrice = basePrice < 1
-                              ? (basePrice * 1000).toFixed(2)
-                              : basePrice.toFixed(2);
-                            const priceLabel = basePrice < 1 ? "per 1000 units" : "";
+                      {/* Nested Subcategories Display */}
+                      {nestedSubCategories.length > 0 ? (
+                        <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2">
+                          {nestedSubCategories.map((nestedSubCategory) => {
+                            const nestedSubCategoryIdForLink = nestedSubCategory._id;
+                            const imageUrl = nestedSubCategory.image || '/Glossy.png';
 
                             return (
-                              <button
-                                key={product._id || product.id}
-                                data-product-select
-                                onClick={() => handleProductSelect(product)}
-                                className="w-full p-3 sm:p-4 rounded-xl border-2 border-cream-200 hover:border-cream-900 text-left transition-all duration-200 hover:bg-cream-50 group"
+                              <Link
+                                key={nestedSubCategory._id}
+                                to={categoryId && subCategoryId
+                                  ? `/digital-print/${categoryId}/${subCategoryId}/${nestedSubCategoryIdForLink}`
+                                  : categoryId
+                                    ? `/digital-print/${categoryId}/${nestedSubCategoryIdForLink}`
+                                    : `/digital-print/${nestedSubCategoryIdForLink}`
+                                }
+                                className="block w-full"
+                                onClick={() => {
+                                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                                }}
                               >
-                                <div className="flex items-start justify-between gap-3 mb-2">
-                                  <h3 className="font-serif text-base sm:text-lg font-bold text-cream-900 group-hover:text-cream-600 transition-colors flex-1">
-                                    {product.name}
-                                  </h3>
-                                  <div className="text-right flex-shrink-0">
-                                    <div className="text-lg sm:text-xl font-bold text-cream-900">
-                                      ₹{displayPrice}
+                                <div className="w-full p-4 sm:p-5 rounded-xl border-2 border-cream-200 hover:border-cream-900 text-left transition-all duration-200 hover:bg-cream-50 group">
+                                  <div className="flex items-start gap-4">
+                                    {/* Subcategory Image */}
+                                    <div className="flex-shrink-0 w-20 sm:w-24 h-20 sm:h-24 rounded-lg overflow-hidden bg-cream-100 border border-cream-200">
+                                      <img
+                                        src={imageUrl}
+                                        alt={nestedSubCategory.name}
+                                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                                      />
                                     </div>
-                                    {priceLabel && (
-                                      <div className="text-xs text-cream-500 mt-0.5">
-                                        {priceLabel}
+
+                                    {/* Subcategory Content */}
+                                    <div className="flex-1 flex flex-col min-w-0">
+                                      <div className="flex items-start justify-between gap-3 mb-2">
+                                        <h3 className="font-serif text-base sm:text-lg font-bold text-cream-900 group-hover:text-cream-600 transition-colors flex-1">
+                                          {nestedSubCategory.name}
+                                        </h3>
+                                        <ArrowRight size={18} className="text-cream-400 group-hover:text-cream-600 group-hover:translate-x-1 transition-all flex-shrink-0" />
                                       </div>
-                                    )}
+
+                                      {nestedSubCategory.description && (
+                                        <div className="text-cream-600 text-xs sm:text-sm mb-2 leading-relaxed">
+                                          <p className="line-clamp-2">{nestedSubCategory.description}</p>
+                                        </div>
+                                      )}
+
+                                      <div className="mt-auto flex items-center text-cream-500 text-xs sm:text-sm font-medium">
+                                        <span>View Products</span>
+                                      </div>
+                                    </div>
                                   </div>
                                 </div>
-
-                                {shortDescription && (
-                                  <div className="text-cream-600 text-xs sm:text-sm mb-2 leading-relaxed">
-                                    <p className="line-clamp-3">{shortDescription}</p>
-                                  </div>
-                                )}
-
-                                <div className="mt-2 flex items-center text-cream-500 text-xs sm:text-sm font-medium">
-                                  <span>View Details & Customize</span>
-                                  <ArrowRight size={14} className="ml-2 group-hover:translate-x-1 transition-transform" />
-                                </div>
-                              </button>
+                              </Link>
                             );
-                          })
-                        )}
-                      </div>
+                          })}
+                        </div>
+                      ) : (
+                        /* Products Display */
+                        <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2">
+                          {products.length === 0 ? (
+                            <div className="text-center py-12">
+                              <p className="text-cream-600">No products available</p>
+                            </div>
+                          ) : (
+                            products.map((product) => {
+                              // Get description points (2-3 lines)
+                              const descriptionList = product.descriptionArray && product.descriptionArray.length > 0
+                                ? product.descriptionArray
+                                : (product.description
+                                  ? product.description.split('\n').filter(line => line.trim())
+                                  : []);
+
+                              // Get first 2-3 meaningful description points
+                              const descriptionPoints: string[] = [];
+                              for (const item of descriptionList) {
+                                const cleanItem = item.replace(/<[^>]*>/g, '').trim();
+                                // Skip headers (containing colon) and empty items
+                                if (cleanItem && !cleanItem.includes(':') && cleanItem.length > 10) {
+                                  descriptionPoints.push(cleanItem);
+                                  if (descriptionPoints.length >= 3) break; // Get max 3 lines
+                                }
+                              }
+
+                              // If no points found, use first items
+                              if (descriptionPoints.length === 0 && descriptionList.length > 0) {
+                                for (let i = 0; i < Math.min(3, descriptionList.length); i++) {
+                                  const cleanItem = descriptionList[i].replace(/<[^>]*>/g, '').trim();
+                                  if (cleanItem) {
+                                    descriptionPoints.push(cleanItem);
+                                  }
+                                }
+                              }
+
+                              // Join first 2-3 lines
+                              const shortDescription = descriptionPoints.slice(0, 3).join(' • ') || '';
+
+                              // Calculate price display
+                              const basePrice = product.basePrice || 0;
+                              const displayPrice = basePrice < 1
+                                ? (basePrice * 1000).toFixed(2)
+                                : basePrice.toFixed(2);
+                              const priceLabel = basePrice < 1 ? "per 1000 units" : "";
+
+                              return (
+                                <button
+                                  key={product._id || product.id}
+                                  data-product-select
+                                  onClick={() => handleProductSelect(product)}
+                                  className="w-full p-3 sm:p-4 rounded-xl border-2 border-cream-200 hover:border-cream-900 text-left transition-all duration-200 hover:bg-cream-50 group"
+                                >
+                                  <div className="flex items-start justify-between gap-3 mb-2">
+                                    <h3 className="font-serif text-base sm:text-lg font-bold text-cream-900 group-hover:text-cream-600 transition-colors flex-1">
+                                      {product.name}
+                                    </h3>
+                                    <div className="text-right flex-shrink-0">
+                                      <div className="text-lg sm:text-xl font-bold text-cream-900">
+                                        ₹{displayPrice}
+                                      </div>
+                                      {priceLabel && (
+                                        <div className="text-xs text-cream-500 mt-0.5">
+                                          {priceLabel}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {shortDescription && (
+                                    <div className="text-cream-600 text-xs sm:text-sm mb-2 leading-relaxed">
+                                      <p className="line-clamp-3">{shortDescription}</p>
+                                    </div>
+                                  )}
+
+                                  <div className="mt-2 flex items-center text-cream-500 text-xs sm:text-sm font-medium">
+                                    <span>View Details & Customize</span>
+                                    <ArrowRight size={14} className="ml-2 group-hover:translate-x-1 transition-transform" />
+                                  </div>
+                                </button>
+                              );
+                            })
+                          )}
+                        </div>
+                      )}
                     </div>
                   ) : (
                     /* Product Filters and Order Form */
@@ -2729,12 +3408,18 @@ const GlossProductSelection: React.FC = () => {
                               <BackButton
                                 onClick={() => {
                                   // Navigate back based on current route structure
-                                  if (productId && subCategoryId && categoryId) {
+                                  if (productId && nestedSubCategoryId && subCategoryId && categoryId) {
+                                    // From product detail with nested subcategory → go back to nested subcategory products list
+                                    navigate(`/digital-print/${categoryId}/${subCategoryId}/${nestedSubCategoryId}`);
+                                  } else if (productId && subCategoryId && categoryId) {
                                     // From product detail with subcategory → go back to subcategory products list
                                     navigate(`/digital-print/${categoryId}/${subCategoryId}`);
                                   } else if (productId && categoryId) {
                                     // From product detail (direct under category) → go back to category
                                     navigate(`/digital-print/${categoryId}`);
+                                  } else if (nestedSubCategoryId && subCategoryId && categoryId) {
+                                    // From nested subcategory products list → go back to parent subcategory
+                                    navigate(`/digital-print/${categoryId}/${subCategoryId}`);
                                   } else if (subCategoryId && categoryId) {
                                     // From subcategory products list → go back to category
                                     navigate(`/digital-print/${categoryId}`);
@@ -2748,15 +3433,19 @@ const GlossProductSelection: React.FC = () => {
                                   window.scrollTo(0, 0);
                                 }}
                                 fallbackPath={
-                                  productId && subCategoryId && categoryId
-                                    ? `/digital-print/${categoryId}/${subCategoryId}`
-                                    : productId && categoryId
-                                      ? `/digital-print/${categoryId}`
-                                      : subCategoryId && categoryId
+                                  productId && nestedSubCategoryId && subCategoryId && categoryId
+                                    ? `/digital-print/${categoryId}/${subCategoryId}/${nestedSubCategoryId}`
+                                    : productId && subCategoryId && categoryId
+                                      ? `/digital-print/${categoryId}/${subCategoryId}`
+                                      : productId && categoryId
                                         ? `/digital-print/${categoryId}`
-                                        : categoryId
-                                          ? `/digital-print/${categoryId}`
-                                          : "/digital-print"
+                                        : nestedSubCategoryId && subCategoryId && categoryId
+                                          ? `/digital-print/${categoryId}/${subCategoryId}`
+                                          : subCategoryId && categoryId
+                                            ? `/digital-print/${categoryId}`
+                                            : categoryId
+                                              ? `/digital-print/${categoryId}`
+                                              : "/digital-print"
                                 }
                                 label={
                                   productId && subCategoryId
@@ -3088,8 +3777,8 @@ const GlossProductSelection: React.FC = () => {
                                               }
                                             }}
                                             className={`p-4 rounded-xl border text-left transition-all duration-200 relative ${isSelected
-                                                ? "border-cream-900 bg-cream-50 text-cream-900 ring-1 ring-cream-900"
-                                                : "border-cream-200 text-cream-600 hover:border-cream-400 hover:bg-cream-50"
+                                              ? "border-cream-900 bg-cream-50 text-cream-900 ring-1 ring-cream-900"
+                                              : "border-cream-200 text-cream-600 hover:border-cream-400 hover:bg-cream-50"
                                               }`}
                                           >
                                             {isSelected && (
@@ -3146,8 +3835,8 @@ const GlossProductSelection: React.FC = () => {
                                             data-field="printingOption"
                                             onClick={() => setSelectedPrintingOption(option)}
                                             className={`p-4 rounded-xl border text-left transition-all duration-200 relative ${selectedPrintingOption === option
-                                                ? "border-cream-900 bg-cream-50 text-cream-900 ring-1 ring-cream-900"
-                                                : "border-cream-200 text-cream-600 hover:border-cream-400 hover:bg-cream-50"
+                                              ? "border-cream-900 bg-cream-50 text-cream-900 ring-1 ring-cream-900"
+                                              : "border-cream-200 text-cream-600 hover:border-cream-400 hover:bg-cream-50"
                                               }`}
                                           >
                                             {selectedPrintingOption === option && (
@@ -3191,8 +3880,8 @@ const GlossProductSelection: React.FC = () => {
                                             key={texture}
                                             onClick={() => setSelectedTextureType(texture)}
                                             className={`p-3 rounded-xl border text-xs sm:text-sm font-medium transition-all duration-200 relative ${selectedTextureType === texture
-                                                ? "border-cream-900 bg-cream-50 text-cream-900 ring-1 ring-cream-900"
-                                                : "border-cream-200 text-cream-600 hover:border-cream-400 hover:bg-cream-50"
+                                              ? "border-cream-900 bg-cream-50 text-cream-900 ring-1 ring-cream-900"
+                                              : "border-cream-200 text-cream-600 hover:border-cream-400 hover:bg-cream-50"
                                               }`}
                                           >
                                             {selectedTextureType === texture && (
@@ -3237,8 +3926,8 @@ const GlossProductSelection: React.FC = () => {
                                             data-field="deliverySpeed"
                                             onClick={() => setSelectedDeliverySpeed(speed)}
                                             className={`p-4 rounded-xl border text-left transition-all duration-200 relative ${selectedDeliverySpeed === speed
-                                                ? "border-cream-900 bg-cream-50 text-cream-900 ring-1 ring-cream-900"
-                                                : "border-cream-200 text-cream-600 hover:border-cream-400 hover:bg-cream-50"
+                                              ? "border-cream-900 bg-cream-50 text-cream-900 ring-1 ring-cream-900"
+                                              : "border-cream-200 text-cream-600 hover:border-cream-400 hover:bg-cream-50"
                                               }`}
                                           >
                                             {selectedDeliverySpeed === speed && (
@@ -3279,6 +3968,113 @@ const GlossProductSelection: React.FC = () => {
                                   </div>
 
                                   {(() => {
+                                    // First, check if any selected attribute has step/range quantity settings
+                                    let attributeQuantityInfo: any = null;
+                                    let attributeName = '';
+
+                                    // Check PDP attributes first (if initialized)
+                                    if (isInitialized && pdpAttributes.length > 0) {
+                                      for (const attr of pdpAttributes) {
+                                        if (!attr.isVisible) continue;
+
+                                        const selectedValue = selectedDynamicAttributes[attr._id];
+                                        if (!selectedValue) continue;
+
+                                        // Check if this attribute has step/range quantity settings
+                                        if ((attr as any).isStepQuantity && (attr as any).stepQuantities && (attr as any).stepQuantities.length > 0) {
+                                          attributeQuantityInfo = {
+                                            type: 'STEP_WISE',
+                                            stepQuantities: (attr as any).stepQuantities
+                                          };
+                                          attributeName = attr.attributeName;
+                                          break;
+                                        }
+
+                                        if ((attr as any).isRangeQuantity && (attr as any).rangeQuantities && (attr as any).rangeQuantities.length > 0) {
+                                          attributeQuantityInfo = {
+                                            type: 'RANGE_WISE',
+                                            rangeQuantities: (attr as any).rangeQuantities
+                                          };
+                                          attributeName = attr.attributeName;
+                                          break;
+                                        }
+                                      }
+                                    }
+
+                                    // Fallback to product attributes if PDP not available
+                                    if (!attributeQuantityInfo && selectedProduct && selectedProduct.dynamicAttributes) {
+                                      for (const attr of selectedProduct.dynamicAttributes) {
+                                        if (!attr.isEnabled) continue;
+
+                                        const attrType = typeof attr.attributeType === 'object' ? attr.attributeType : null;
+                                        if (!attrType) continue;
+
+                                        const selectedValue = selectedDynamicAttributes[attrType._id];
+                                        if (!selectedValue) continue;
+
+                                        // Check if this attribute has step/range quantity settings
+                                        if ((attrType as any).isStepQuantity && (attrType as any).stepQuantities && (attrType as any).stepQuantities.length > 0) {
+                                          attributeQuantityInfo = {
+                                            type: 'STEP_WISE',
+                                            stepQuantities: (attrType as any).stepQuantities
+                                          };
+                                          attributeName = attrType.attributeName;
+                                          break;
+                                        }
+
+                                        if ((attrType as any).isRangeQuantity && (attrType as any).rangeQuantities && (attrType as any).rangeQuantities.length > 0) {
+                                          attributeQuantityInfo = {
+                                            type: 'RANGE_WISE',
+                                            rangeQuantities: (attrType as any).rangeQuantities
+                                          };
+                                          attributeName = attrType.attributeName;
+                                          break;
+                                        }
+                                      }
+                                    }
+
+                                    // If attribute has quantity settings, use those
+                                    if (attributeQuantityInfo) {
+                                      if (attributeQuantityInfo.type === 'STEP_WISE') {
+                                        const stepQuantities = attributeQuantityInfo.stepQuantities
+                                          .map((step: any) => {
+                                            const qty = typeof step === 'object' ? parseFloat(step.quantity) : parseFloat(step);
+                                            return isNaN(qty) ? 0 : qty;
+                                          })
+                                          .filter((qty: number) => qty > 0)
+                                          .sort((a: number, b: number) => a - b);
+
+                                        return (
+                                          <div className="text-xs sm:text-sm text-cream-600 mb-2">
+                                            <span className="font-medium">{attributeName}:</span> Available quantities: {stepQuantities.map(q => q.toLocaleString()).join(", ")}
+                                          </div>
+                                        );
+                                      } else if (attributeQuantityInfo.type === 'RANGE_WISE') {
+                                        return (
+                                          <div className="text-xs sm:text-sm text-cream-600 mb-2 space-y-1">
+                                            <div className="font-medium mb-1">{attributeName}:</div>
+                                            {attributeQuantityInfo.rangeQuantities.map((range: any, idx: number) => {
+                                              const min = typeof range === 'object' ? parseFloat(range.min) : 0;
+                                              const max = typeof range === 'object' && range.max ? parseFloat(range.max) : null;
+                                              const price = typeof range === 'object' ? parseFloat(range.price) : 0;
+
+                                              return (
+                                                <div key={idx}>
+                                                  {range.label || `${min.toLocaleString()}${max ? ` - ${max.toLocaleString()}` : "+"} units`}
+                                                  {price > 0 && (
+                                                    <span className="ml-2 text-green-600">
+                                                      (₹{price.toFixed(2)})
+                                                    </span>
+                                                  )}
+                                                </div>
+                                              );
+                                            })}
+                                          </div>
+                                        );
+                                      }
+                                    }
+
+                                    // Fallback to product's quantity configuration
                                     const orderQuantity = selectedProduct.filters.orderQuantity;
                                     const quantityType = orderQuantity.quantityType || "SIMPLE";
 
@@ -3344,7 +4140,7 @@ const GlossProductSelection: React.FC = () => {
                                 {(() => {
                                   // Use PDP attributes with rule evaluation if available, otherwise fallback to product attributes
                                   let attributesToRender: any[] = [];
-                                  
+
                                   if (isInitialized && pdpAttributes.length > 0) {
                                     // Apply rules to get evaluated attributes
                                     const ruleResult = applyAttributeRules({
@@ -3352,7 +4148,7 @@ const GlossProductSelection: React.FC = () => {
                                       rules: pdpRules,
                                       selectedValues: { ...selectedDynamicAttributes } as Record<string, string | number | boolean | File | any[] | null>,
                                     });
-                                    
+
                                     // Filter to only visible attributes
                                     attributesToRender = ruleResult.attributes
                                       .filter((attr) => attr.isVisible)
@@ -3382,7 +4178,7 @@ const GlossProductSelection: React.FC = () => {
                                           attributeValues = (attr.allowedValues && attr.allowedValues.length > 0)
                                             ? (attr.attributeValues || []).filter((av: any) => attr.allowedValues!.includes(av.value))
                                             : (attr.attributeValues || []);
-                                          
+
                                           // Build attrType-like structure for compatibility
                                           attrType = {
                                             _id: attr._id,
@@ -3441,10 +4237,10 @@ const GlossProductSelection: React.FC = () => {
                                         // Check if selected value has sub-attributes flag
                                         const selectedValueObj = attributeValues.find((av: any) => av.value === selectedValue);
                                         const hasSubAttributes = selectedValueObj?.hasSubAttributes === true;
-                                        
+
                                         // Filter sub-attributes: parentAttribute matches attrId, parentValue matches selectedValue
                                         const subAttributesKey = `${attrId}:${selectedValue || ''}`;
-                                        const availableSubAttributes = (hasSubAttributes && selectedValue) 
+                                        const availableSubAttributes = (hasSubAttributes && selectedValue)
                                           ? (pdpSubAttributes[subAttributesKey] || [])
                                           : [];
 
@@ -3468,10 +4264,30 @@ const GlossProductSelection: React.FC = () => {
                                                     <Select
                                                       options={attributeValues
                                                         .filter((av: any) => av && av.value && av.label) // Filter out invalid options
-                                                        .map((av: any) => ({
-                                                          value: av.value,
-                                                          label: `${av.label}${av.priceMultiplier && av.priceMultiplier !== 1 && selectedProduct ? ` (+₹${((selectedProduct.basePrice || 0) * (av.priceMultiplier - 1)).toFixed(2)}/unit)` : ''}`
-                                                        }))}
+                                                        .map((av: any) => {
+                                                          // Get price display - check for priceImpact first, then fall back to priceMultiplier
+                                                          let priceDisplay = '';
+                                                          if (av.description) {
+                                                            const priceImpactMatch = av.description.match(/Price Impact: ₹([\d.]+)/);
+                                                            if (priceImpactMatch) {
+                                                              const priceImpact = parseFloat(priceImpactMatch[1]) || 0;
+                                                              if (priceImpact > 0) {
+                                                                priceDisplay = ` (+₹${priceImpact.toFixed(2)}/unit)`;
+                                                              }
+                                                            }
+                                                          }
+                                                          if (!priceDisplay && av.priceMultiplier && av.priceMultiplier !== 1 && selectedProduct) {
+                                                            const basePrice = selectedProduct.basePrice || 0;
+                                                            const pricePerUnit = basePrice * (av.priceMultiplier - 1);
+                                                            if (Math.abs(pricePerUnit) >= 0.01) {
+                                                              priceDisplay = ` (+₹${pricePerUnit.toFixed(2)}/unit)`;
+                                                            }
+                                                          }
+                                                          return {
+                                                            value: av.value,
+                                                            label: `${av.label}${priceDisplay}`
+                                                          };
+                                                        })}
                                                       value={selectedDynamicAttributes[attrId] as string || ""}
                                                       onValueChange={(value) => {
                                                         setSelectedDynamicAttributes({
@@ -3497,10 +4313,10 @@ const GlossProductSelection: React.FC = () => {
                                                               if (!subAttr.priceAdd || subAttr.priceAdd === 0) return null;
                                                               return `+₹${subAttr.priceAdd.toFixed(2)}/piece`;
                                                             };
-                                                            
+
                                                             const subAttrKey = `${attrId}__${selectedValue}`;
                                                             const isSubAttrSelected = selectedDynamicAttributes[subAttrKey] === subAttr.value;
-                                                            
+
                                                             return (
                                                               <button
                                                                 key={subAttr._id}
@@ -3511,11 +4327,10 @@ const GlossProductSelection: React.FC = () => {
                                                                     [subAttrKey]: subAttr.value,
                                                                   }));
                                                                 }}
-                                                                className={`p-3 rounded-lg border text-left transition-all ${
-                                                                  isSubAttrSelected
-                                                                    ? "border-cream-900 bg-cream-50 ring-1 ring-cream-900"
-                                                                    : "border-cream-200 hover:border-cream-400"
-                                                                }`}
+                                                                className={`p-3 rounded-lg border text-left transition-all ${isSubAttrSelected
+                                                                  ? "border-cream-900 bg-cream-50 ring-1 ring-cream-900"
+                                                                  : "border-cream-200 hover:border-cream-400"
+                                                                  }`}
                                                               >
                                                                 {subAttr.image && (
                                                                   <div className="mb-2">
@@ -3538,6 +4353,98 @@ const GlossProductSelection: React.FC = () => {
                                                         </div>
                                                       </div>
                                                     )}
+                                                    {/* Image upload fields if selected option requires images */}
+                                                    {(() => {
+                                                      const selectedValue = selectedDynamicAttributes[attrId];
+                                                      if (!selectedValue) return null;
+
+                                                      const selectedOption = attributeValues.find((av: any) => av.value === selectedValue);
+                                                      if (!selectedOption || !selectedOption.description) return null;
+
+                                                      // Parse numberOfImagesRequired from description
+                                                      const imagesRequiredMatch = selectedOption.description.match(/Images Required: (\d+)/);
+                                                      const numberOfImagesRequired = imagesRequiredMatch ? parseInt(imagesRequiredMatch[1]) : 0;
+
+                                                      if (numberOfImagesRequired <= 0) return null;
+
+                                                      // Get uploaded images for this attribute
+                                                      const imagesKey = `${attrId}_images`;
+                                                      const uploadedImages = Array.isArray(selectedDynamicAttributes[imagesKey])
+                                                        ? (selectedDynamicAttributes[imagesKey] as File[])
+                                                        : [];
+
+                                                      return (
+                                                        <div className="mt-4 p-4 bg-cream-50 rounded-lg border border-cream-200">
+                                                          <label className="block text-sm font-semibold text-cream-900 mb-3">
+                                                            Upload Images for {selectedOption.label} ({numberOfImagesRequired} required) *
+                                                          </label>
+                                                          <div className="space-y-3">
+                                                            {Array.from({ length: numberOfImagesRequired }).map((_, index) => {
+                                                              const file = uploadedImages[index] || null;
+                                                              return (
+                                                                <div key={index} className="flex items-center gap-3">
+                                                                  <input
+                                                                    type="file"
+                                                                    accept="image/*"
+                                                                    data-image-index={index}
+                                                                    data-attr-id={attrId}
+                                                                    onChange={(e) => {
+                                                                      const newFile = e.target.files?.[0] || null;
+                                                                      if (newFile) {
+                                                                        const updatedImages = [...uploadedImages];
+                                                                        // Fill gaps with null if needed
+                                                                        while (updatedImages.length <= index) {
+                                                                          updatedImages.push(null as any);
+                                                                        }
+                                                                        updatedImages[index] = newFile;
+                                                                        setSelectedDynamicAttributes({
+                                                                          ...selectedDynamicAttributes,
+                                                                          [imagesKey]: updatedImages
+                                                                        });
+                                                                      }
+                                                                    }}
+                                                                    className="flex-1 px-3 py-2 border border-cream-300 rounded-lg text-sm"
+                                                                  />
+                                                                  {file && (
+                                                                    <div className="flex items-center gap-2">
+                                                                      <span className="text-xs text-cream-600 max-w-[150px] truncate">
+                                                                        {file.name}
+                                                                      </span>
+                                                                      <button
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                          const updatedImages = [...uploadedImages];
+                                                                          updatedImages[index] = null as any;
+                                                                          // Keep array structure but set this index to null
+                                                                          setSelectedDynamicAttributes({
+                                                                            ...selectedDynamicAttributes,
+                                                                            [imagesKey]: updatedImages
+                                                                          });
+                                                                          // Reset the file input
+                                                                          const fileInput = document.querySelector(`input[type="file"][data-image-index="${index}"][data-attr-id="${attrId}"]`) as HTMLInputElement;
+                                                                          if (fileInput) {
+                                                                            fileInput.value = '';
+                                                                          }
+                                                                        }}
+                                                                        className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
+                                                                        title="Remove image"
+                                                                      >
+                                                                        <X size={16} />
+                                                                      </button>
+                                                                    </div>
+                                                                  )}
+                                                                </div>
+                                                              );
+                                                            })}
+                                                          </div>
+                                                          {uploadedImages.length < numberOfImagesRequired && (
+                                                            <p className="text-xs text-red-600 mt-2">
+                                                              Please upload {numberOfImagesRequired - uploadedImages.length} more image(s)
+                                                            </p>
+                                                          )}
+                                                        </div>
+                                                      );
+                                                    })()}
                                                   </>
                                                 )}
                                               </div>
@@ -3570,7 +4477,7 @@ const GlossProductSelection: React.FC = () => {
                                                     >
                                                       <div className="flex-1">
                                                         <span className="text-sm font-medium text-cream-700 group-hover:text-cream-900">
-                                                          {selectedDynamicAttributes[attrId] 
+                                                          {selectedDynamicAttributes[attrId]
                                                             ? attributeValues.find((av: any) => av.value === selectedDynamicAttributes[attrId])?.label || 'Select option'
                                                             : `Select ${attrType.attributeName}${isRequired ? ' *' : ''}`
                                                           }
@@ -3583,7 +4490,98 @@ const GlossProductSelection: React.FC = () => {
                                                       </div>
                                                       <ArrowRight size={18} className="text-cream-400 group-hover:text-cream-600 transition-colors" />
                                                     </button>
-                                                    
+                                                    {/* Image upload fields if selected option requires images */}
+                                                    {(() => {
+                                                      const selectedValue = selectedDynamicAttributes[attrId];
+                                                      if (!selectedValue) return null;
+
+                                                      const selectedOption = attributeValues.find((av: any) => av.value === selectedValue);
+                                                      if (!selectedOption || !selectedOption.description) return null;
+
+                                                      // Parse numberOfImagesRequired from description
+                                                      const imagesRequiredMatch = selectedOption.description.match(/Images Required: (\d+)/);
+                                                      const numberOfImagesRequired = imagesRequiredMatch ? parseInt(imagesRequiredMatch[1]) : 0;
+
+                                                      if (numberOfImagesRequired <= 0) return null;
+
+                                                      // Get uploaded images for this attribute
+                                                      const imagesKey = `${attrId}_images`;
+                                                      const uploadedImages = Array.isArray(selectedDynamicAttributes[imagesKey])
+                                                        ? (selectedDynamicAttributes[imagesKey] as File[])
+                                                        : [];
+
+                                                      return (
+                                                        <div className="mt-4 p-4 bg-cream-50 rounded-lg border border-cream-200">
+                                                          <label className="block text-sm font-semibold text-cream-900 mb-3">
+                                                            Upload Images for {selectedOption.label} ({numberOfImagesRequired} required) *
+                                                          </label>
+                                                          <div className="space-y-3">
+                                                            {Array.from({ length: numberOfImagesRequired }).map((_, index) => {
+                                                              const file = uploadedImages[index] || null;
+                                                              return (
+                                                                <div key={index} className="flex items-center gap-3">
+                                                                  <input
+                                                                    type="file"
+                                                                    accept="image/*"
+                                                                    data-image-index={index}
+                                                                    data-attr-id={attrId}
+                                                                    onChange={(e) => {
+                                                                      const newFile = e.target.files?.[0] || null;
+                                                                      if (newFile) {
+                                                                        const updatedImages = [...uploadedImages];
+                                                                        // Fill gaps with null if needed
+                                                                        while (updatedImages.length <= index) {
+                                                                          updatedImages.push(null as any);
+                                                                        }
+                                                                        updatedImages[index] = newFile;
+                                                                        setSelectedDynamicAttributes({
+                                                                          ...selectedDynamicAttributes,
+                                                                          [imagesKey]: updatedImages
+                                                                        });
+                                                                      }
+                                                                    }}
+                                                                    className="flex-1 px-3 py-2 border border-cream-300 rounded-lg text-sm"
+                                                                  />
+                                                                  {file && (
+                                                                    <div className="flex items-center gap-2">
+                                                                      <span className="text-xs text-cream-600 max-w-[150px] truncate">
+                                                                        {file.name}
+                                                                      </span>
+                                                                      <button
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                          const updatedImages = [...uploadedImages];
+                                                                          updatedImages[index] = null as any;
+                                                                          // Keep array structure but set this index to null
+                                                                          setSelectedDynamicAttributes({
+                                                                            ...selectedDynamicAttributes,
+                                                                            [imagesKey]: updatedImages
+                                                                          });
+                                                                          // Reset the file input
+                                                                          const fileInput = document.querySelector(`input[type="file"][data-image-index="${index}"][data-attr-id="${attrId}"]`) as HTMLInputElement;
+                                                                          if (fileInput) {
+                                                                            fileInput.value = '';
+                                                                          }
+                                                                        }}
+                                                                        className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
+                                                                        title="Remove image"
+                                                                      >
+                                                                        <X size={16} />
+                                                                      </button>
+                                                                    </div>
+                                                                  )}
+                                                                </div>
+                                                              );
+                                                            })}
+                                                          </div>
+                                                          {uploadedImages.length < numberOfImagesRequired && (
+                                                            <p className="text-xs text-red-600 mt-2">
+                                                              Please upload {numberOfImagesRequired - uploadedImages.length} more image(s)
+                                                            </p>
+                                                          )}
+                                                        </div>
+                                                      );
+                                                    })()}
                                                   </>
                                                 )}
                                               </div>
@@ -3603,6 +4601,17 @@ const GlossProductSelection: React.FC = () => {
                                                     .map((av: any) => {
                                                       // Format price display as per unit price
                                                       const getPriceDisplay = () => {
+                                                        // Check for priceImpact first (new format with option usage)
+                                                        if (av.description) {
+                                                          const priceImpactMatch = av.description.match(/Price Impact: ₹([\d.]+)/);
+                                                          if (priceImpactMatch) {
+                                                            const priceImpact = parseFloat(priceImpactMatch[1]) || 0;
+                                                            if (priceImpact > 0) {
+                                                              return `+₹${priceImpact.toFixed(2)}/unit`;
+                                                            }
+                                                          }
+                                                        }
+                                                        // Fall back to priceMultiplier calculation
                                                         if (!av.priceMultiplier || av.priceMultiplier === 1 || !selectedProduct) return null;
                                                         const basePrice = selectedProduct.basePrice || 0;
                                                         const pricePerUnit = basePrice * (av.priceMultiplier - 1);
@@ -3629,8 +4638,8 @@ const GlossProductSelection: React.FC = () => {
                                                             setUserSelectedAttributes(prev => new Set(prev).add(attrId));
                                                           }}
                                                           className={`p-4 rounded-xl border text-left transition-all duration-200 relative ${isSelected
-                                                              ? "border-cream-900 bg-cream-50 text-cream-900 ring-1 ring-cream-900"
-                                                              : "border-cream-200 text-cream-600 hover:border-cream-400 hover:bg-cream-50"
+                                                            ? "border-cream-900 bg-cream-50 text-cream-900 ring-1 ring-cream-900"
+                                                            : "border-cream-200 text-cream-600 hover:border-cream-400 hover:bg-cream-50"
                                                             }`}
                                                         >
                                                           {isSelected && (
@@ -3837,8 +4846,8 @@ const GlossProductSelection: React.FC = () => {
                             onClick={handlePlaceOrder}
                             disabled={isProcessingPayment}
                             className={`w-full py-4 sm:py-5 md:py-6 rounded-xl font-bold text-lg sm:text-xl md:text-2xl transition-all shadow-xl hover:shadow-2xl hover:-translate-y-1 flex items-center justify-center gap-3 min-h-[60px] sm:min-h-[70px] ${isProcessingPayment
-                                ? 'bg-cream-400 text-cream-700 cursor-not-allowed opacity-60'
-                                : 'bg-cream-900 text-cream-50 hover:bg-cream-800 active:bg-cream-700 cursor-pointer opacity-100'
+                              ? 'bg-cream-400 text-cream-700 cursor-not-allowed opacity-60'
+                              : 'bg-cream-900 text-cream-50 hover:bg-cream-800 active:bg-cream-700 cursor-pointer opacity-100'
                               }`}
                           >
                             {isProcessingPayment ? (
@@ -4212,6 +5221,17 @@ const GlossProductSelection: React.FC = () => {
                   {radioModalData.attributeValues.map((av) => {
                     // Format price display as per unit price
                     const getPriceDisplay = () => {
+                      // Check for priceImpact first (new format with option usage)
+                      if (av.description) {
+                        const priceImpactMatch = av.description.match(/Price Impact: ₹([\d.]+)/);
+                        if (priceImpactMatch) {
+                          const priceImpact = parseFloat(priceImpactMatch[1]) || 0;
+                          if (priceImpact > 0) {
+                            return `+₹${priceImpact.toFixed(2)}/unit`;
+                          }
+                        }
+                      }
+                      // Fall back to priceMultiplier calculation
                       if (!av.priceMultiplier || av.priceMultiplier === 1 || !selectedProduct) return null;
                       const basePrice = selectedProduct.basePrice || 0;
                       const pricePerUnit = basePrice * (av.priceMultiplier - 1);
@@ -4258,11 +5278,10 @@ const GlossProductSelection: React.FC = () => {
                         }}
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
-                        className={`relative p-2 rounded-lg border-2 text-left transition-all duration-200 flex flex-col w-[140px] h-[140px] overflow-hidden ${
-                          isSelected
-                            ? "border-cream-900 bg-cream-50 text-cream-900 ring-2 ring-cream-900 ring-offset-1"
-                            : "border-cream-200 text-cream-700 hover:border-cream-400 hover:bg-cream-50 hover:shadow-md"
-                        }`}
+                        className={`relative p-2 rounded-lg border-2 text-left transition-all duration-200 flex flex-col w-[140px] h-[140px] overflow-hidden ${isSelected
+                          ? "border-cream-900 bg-cream-50 text-cream-900 ring-2 ring-cream-900 ring-offset-1"
+                          : "border-cream-200 text-cream-700 hover:border-cream-400 hover:bg-cream-50 hover:shadow-md"
+                          }`}
                       >
                         {isSelected && (
                           <motion.div
@@ -4273,7 +5292,7 @@ const GlossProductSelection: React.FC = () => {
                             <Check size={12} />
                           </motion.div>
                         )}
-                        
+
                         {av.image && (
                           <div className="mb-1.5 overflow-hidden rounded border border-cream-200 bg-cream-50 flex-shrink-0">
                             <img
@@ -4283,18 +5302,18 @@ const GlossProductSelection: React.FC = () => {
                             />
                           </div>
                         )}
-                        
+
                         <div className="space-y-1 flex-1 flex flex-col min-h-0">
                           <div className="font-semibold text-xs text-cream-900 leading-tight line-clamp-2">
                             {av.label}
                           </div>
-                          
+
                           {av.description && (
                             <p className="text-[10px] text-cream-600 line-clamp-2 leading-tight">
                               {av.description}
                             </p>
                           )}
-                          
+
                           {getPriceDisplay() && (
                             <div className="mt-auto pt-1 border-t border-cream-200 text-[10px] font-semibold text-cream-700 leading-tight">
                               {getPriceDisplay()}
@@ -4397,11 +5416,10 @@ const GlossProductSelection: React.FC = () => {
                         }}
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
-                        className={`relative p-2 rounded-lg border-2 text-left transition-all duration-200 flex flex-col w-[140px] h-[140px] overflow-hidden ${
-                          isSelected
-                            ? "border-cream-900 bg-cream-50 text-cream-900 ring-2 ring-cream-900 ring-offset-1"
-                            : "border-cream-200 text-cream-700 hover:border-cream-400 hover:bg-cream-50 hover:shadow-md"
-                        }`}
+                        className={`relative p-2 rounded-lg border-2 text-left transition-all duration-200 flex flex-col w-[140px] h-[140px] overflow-hidden ${isSelected
+                          ? "border-cream-900 bg-cream-50 text-cream-900 ring-2 ring-cream-900 ring-offset-1"
+                          : "border-cream-200 text-cream-700 hover:border-cream-400 hover:bg-cream-50 hover:shadow-md"
+                          }`}
                       >
                         {isSelected && (
                           <motion.div
