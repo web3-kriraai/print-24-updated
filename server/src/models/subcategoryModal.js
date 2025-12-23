@@ -7,6 +7,12 @@ const SubCategorySchema = new mongoose.Schema(
       ref: "Category",
       required: true,
     },
+    // Optional parent subcategory for nested subcategories (unlimited depth)
+    parent: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "SubCategory",
+      default: null,
+    },
     name: { type: String, required: true },
     description: String,
     image: String, // Image URL
@@ -19,6 +25,9 @@ const SubCategorySchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Index for faster parent queries
+SubCategorySchema.index({ parent: 1 });
+SubCategorySchema.index({ category: 1, parent: 1 });
+SubCategorySchema.index({ parent: 1, sortOrder: 1 });
+
 export default mongoose.model("SubCategory", SubCategorySchema);
-
-
