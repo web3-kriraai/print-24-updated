@@ -8,6 +8,12 @@ const AttributeTypeSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+    // Internal name for system use
+    systemName: {
+      type: String,
+      required: false,
+      trim: true,
+    },
 
     // The system role of the attribute: Quantity/Pricing, Printing (Image), Spot UV/Image
     functionType: {

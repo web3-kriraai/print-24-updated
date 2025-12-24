@@ -109,6 +109,7 @@ export const createSubAttribute = async (req, res) => {
     const image = req.body.image;
     const priceAdd = req.body.priceAdd;
     const isEnabled = req.body.isEnabled;
+    const systemName = req.body.systemName;
 
     console.log('[CREATE] Received sub-attribute data:', {
       parentAttribute,
@@ -116,7 +117,8 @@ export const createSubAttribute = async (req, res) => {
       value,
       label,
       priceAdd,
-      isEnabled
+      isEnabled,
+      systemName
     });
 
     if (!parentAttribute) {
@@ -187,6 +189,7 @@ export const createSubAttribute = async (req, res) => {
       image: imageUrl,
       priceAdd: priceAdd !== undefined ? parseFloat(priceAdd) : 0,
       isEnabled: isEnabled !== undefined ? isEnabled : true,
+      systemName,
     });
 
     // Update parent attribute's hasSubAttributes field
@@ -267,7 +270,8 @@ export const getAllSubAttributes = async (req, res) => {
 export const updateSubAttribute = async (req, res) => {
   try {
     const subAttributeId = req.params.id;
-    const { parentAttribute, parentValue, value, label, image, priceAdd, isEnabled } = req.body;
+    const { parentAttribute, parentValue, value, label, image, priceAdd, isEnabled, systemName } = req.body;
+    console.log('[UPDATE] Updating sub-attribute:', { subAttributeId, systemName });
 
     // Get existing sub-attribute first to preserve image if no new one uploaded
     const existingSubAttribute = await SubAttribute.findById(subAttributeId);
@@ -356,6 +360,7 @@ export const updateSubAttribute = async (req, res) => {
         image: imageUrl, // Use uploaded image or preserve existing
         priceAdd: priceAdd !== undefined ? parseFloat(priceAdd) : 0,
         isEnabled: isEnabled !== undefined ? isEnabled : true,
+        systemName,
       },
       { new: true }
     );

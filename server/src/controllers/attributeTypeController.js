@@ -23,6 +23,7 @@ export const createAttributeType = async (req, res) => {
       isRangeQuantity,
       stepQuantities,
       rangeQuantities,
+      systemName,
     } = req.body;
 
     // Debug log to check if effectDescription is received
@@ -157,6 +158,7 @@ export const createAttributeType = async (req, res) => {
       isRangeQuantity: isRangeQuantity === true || isRangeQuantity === 'true',
       stepQuantities: parsedStepQuantities,
       rangeQuantities: parsedRangeQuantities,
+      systemName,
     });
 
     console.log("CREATE AttributeType - Saved effectDescription:", attributeType.effectDescription);
@@ -322,6 +324,7 @@ export const updateAttributeType = async (req, res) => {
       isRangeQuantity,
       stepQuantities,
       rangeQuantities,
+      systemName,
     } = req.body;
 
     // Debug log to check if effectDescription is received
@@ -454,6 +457,7 @@ export const updateAttributeType = async (req, res) => {
     if (isRangeQuantity !== undefined) attributeType.isRangeQuantity = isRangeQuantity === true || isRangeQuantity === 'true';
     if (stepQuantities !== undefined) attributeType.stepQuantities = parsedStepQuantities;
     if (rangeQuantities !== undefined) attributeType.rangeQuantities = parsedRangeQuantities;
+    if (systemName !== undefined) attributeType.systemName = systemName;
 
     await attributeType.save();
     console.log("UPDATE AttributeType - Saved effectDescription:", attributeType.effectDescription);

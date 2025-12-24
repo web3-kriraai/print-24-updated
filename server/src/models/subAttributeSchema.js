@@ -23,6 +23,11 @@ const SubAttributeSchema = new mongoose.Schema(
       default: 0,
     },
 
+    systemName: {
+      type: String,
+      required: false,
+    },
+
     isEnabled: {
       type: Boolean,
       default: true,

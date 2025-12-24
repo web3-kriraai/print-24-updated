@@ -739,6 +739,7 @@ const AdminDashboard: React.FC = () => {
     image: null as File | null,
     priceAdd: 0,
     isEnabled: true,
+    systemName: "",
   });
   // Multiple sub-attributes form state (for bulk creation)
   const [multipleSubAttributes, setMultipleSubAttributes] = useState<Array<{
@@ -747,13 +748,15 @@ const AdminDashboard: React.FC = () => {
     image: File | null;
     priceAdd: number;
     isEnabled: boolean;
-  }>>([{ value: "", label: "", image: null, priceAdd: 0, isEnabled: true }]);
+    systemName: string;
+  }>>([{ value: "", label: "", image: null, priceAdd: 0, isEnabled: true, systemName: "" }]);
   const [subAttributeFilter, setSubAttributeFilter] = useState({
     attributeId: "",
     parentValue: "",
   });
   // Search states for Attribute Rules and Sub-Attributes
   const [attributeRuleSearch, setAttributeRuleSearch] = useState("");
+  const [attributeRuleFilter, setAttributeRuleFilter] = useState("");
   const [subAttributeSearch, setSubAttributeSearch] = useState("");
 
 
@@ -784,6 +787,7 @@ const AdminDashboard: React.FC = () => {
   });
   const [attributeTypeForm, setAttributeTypeForm] = useState({
     attributeName: "",
+    systemName: "",
     inputStyle: "DROPDOWN", // How customer selects
     attributeImage: null as File | null, // Image to be shown when selecting this attribute
     effectDescription: "", // What this affects - description textbox
@@ -3271,6 +3275,7 @@ const AdminDashboard: React.FC = () => {
         formData.append("label", subAttributeForm.label);
         formData.append("priceAdd", subAttributeForm.priceAdd.toString());
         formData.append("isEnabled", subAttributeForm.isEnabled.toString());
+        formData.append("systemName", subAttributeForm.systemName || "");
 
         if (subAttributeForm.image) {
           formData.append("image", subAttributeForm.image);
@@ -3311,6 +3316,7 @@ const AdminDashboard: React.FC = () => {
               createFormData.append("label", subAttr.label.trim());
               createFormData.append("priceAdd", subAttr.priceAdd.toString());
               createFormData.append("isEnabled", subAttr.isEnabled.toString());
+              createFormData.append("systemName", subAttr.systemName || "");
 
               if (subAttr.image) {
                 createFormData.append("image", subAttr.image);
@@ -3378,6 +3384,7 @@ const AdminDashboard: React.FC = () => {
             formData.append("label", subAttr.label.trim());
             formData.append("priceAdd", subAttr.priceAdd.toString());
             formData.append("isEnabled", subAttr.isEnabled.toString());
+            formData.append("systemName", subAttr.systemName || "");
 
             if (subAttr.image) {
               formData.append("image", subAttr.image);
@@ -3464,15 +3471,16 @@ const AdminDashboard: React.FC = () => {
       image: null,
       priceAdd: 0,
       isEnabled: true,
+      systemName: "",
     });
     // Reset multiple sub-attributes form
-    setMultipleSubAttributes([{ value: "", label: "", image: null, priceAdd: 0, isEnabled: true }]);
+    setMultipleSubAttributes([{ value: "", label: "", image: null, priceAdd: 0, isEnabled: true, systemName: "" }]);
   };
 
   const addSubAttributeRow = () => {
     setMultipleSubAttributes([
       ...multipleSubAttributes,
-      { value: "", label: "", image: null, priceAdd: 0, isEnabled: true },
+      { value: "", label: "", image: null, priceAdd: 0, isEnabled: true, systemName: "" },
     ]);
   };
 
@@ -3501,9 +3509,10 @@ const AdminDashboard: React.FC = () => {
       image: null, // File input - don't pre-fill (existing image shown separately)
       priceAdd: subAttr.priceAdd || 0,
       isEnabled: subAttr.isEnabled !== undefined ? subAttr.isEnabled : true,
+      systemName: subAttr.systemName || "",
     });
     // Initialize with one empty row for adding new sub-attributes
-    setMultipleSubAttributes([{ value: "", label: "", image: null, priceAdd: 0, isEnabled: true }]);
+    setMultipleSubAttributes([{ value: "", label: "", image: null, priceAdd: 0, isEnabled: true, systemName: "" }]);
     setEditingSubAttributeId(subAttr._id);
     setShowSubAttributeForm(true);
   };
@@ -3723,6 +3732,7 @@ const AdminDashboard: React.FC = () => {
 
     return {
       attributeName: attributeTypeForm.attributeName || "",
+      systemName: attributeTypeForm.systemName || "",
       functionType: functionType || "GENERAL",
       isPricingAttribute: isPricingAttribute || false,
       inputStyle: attributeTypeForm.inputStyle || "DROPDOWN",
@@ -3845,6 +3855,7 @@ const AdminDashboard: React.FC = () => {
       // Ensure effectDescription is always included in payload - prioritize form value
       const payload = {
         attributeName: fullAttributeType.attributeName || "",
+        systemName: fullAttributeType.systemName || "",
         functionType: fullAttributeType.functionType || "GENERAL",
         isPricingAttribute: fullAttributeType.isPricingAttribute || false,
         inputStyle: fullAttributeType.inputStyle || "DROPDOWN",
@@ -3909,6 +3920,7 @@ const AdminDashboard: React.FC = () => {
       setSuccess(editingAttributeTypeId ? "Attribute type updated successfully" : "Attribute type created successfully");
       setAttributeTypeForm({
         attributeName: "",
+        systemName: "",
         inputStyle: "DROPDOWN",
         attributeImage: null,
         effectDescription: "",
@@ -4064,6 +4076,7 @@ const AdminDashboard: React.FC = () => {
 
         setAttributeTypeForm({
           attributeName: attributeType.attributeName || "",
+          systemName: attributeType.systemName || "",
           inputStyle: attributeType.inputStyle || "DROPDOWN",
           attributeImage: null, // File will be set separately if needed
           effectDescription: attributeType.effectDescription || "",
@@ -4160,6 +4173,7 @@ const AdminDashboard: React.FC = () => {
 
         setAttributeTypeForm({
           attributeName: attributeType.attributeName || "",
+          systemName: attributeType.systemName || "",
           inputStyle: attributeType.inputStyle || "DROPDOWN",
           attributeImage: null,
           effectDescription: attributeType.effectDescription || "",
@@ -8899,6 +8913,7 @@ const AdminDashboard: React.FC = () => {
                           setEditingAttributeTypeId(null);
                           setAttributeTypeForm({
                             attributeName: "",
+                            systemName: "",
                             inputStyle: "DROPDOWN",
                             attributeImage: null,
                             effectDescription: "",
@@ -9842,6 +9857,7 @@ const AdminDashboard: React.FC = () => {
                             setEditingAttributeTypeId(null);
                             setAttributeTypeForm({
                               attributeName: "",
+                              systemName: "",
                               inputStyle: "DROPDOWN",
                               attributeImage: null,
                               effectDescription: "",
@@ -12357,6 +12373,22 @@ const AdminDashboard: React.FC = () => {
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-cream-900 mb-2">
+                          System Name (Internal)
+                        </label>
+                        <input
+                          type="text"
+                          id="system-name"
+                          value={attributeTypeForm.systemName}
+                          onChange={(e) => setAttributeTypeForm({ ...attributeTypeForm, systemName: e.target.value })}
+                          className="w-full px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-900 focus:border-transparent"
+                          placeholder="e.g., paper_type, size_v2"
+                        />
+                        <p className="mt-1 text-xs text-cream-500">
+                          Optional. Used for internal system references or API keys.
+                        </p>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-cream-900 mb-2">
                           How Customers Select This * <span className="text-xs text-cream-500 font-normal">(Input method)</span>
                         </label>
                         <select
@@ -13107,6 +13139,7 @@ const AdminDashboard: React.FC = () => {
                           setEditingAttributeTypeId(null);
                           setAttributeTypeForm({
                             attributeName: "",
+                            systemName: "",
                             inputStyle: "DROPDOWN",
                             attributeImage: null,
                             effectDescription: "",
@@ -13192,6 +13225,7 @@ const AdminDashboard: React.FC = () => {
                         <thead className="bg-cream-100">
                           <tr>
                             <th className="px-4 py-3 text-left text-sm font-medium text-cream-900">Name</th>
+                            <th className="px-4 py-3 text-left text-sm font-medium text-cream-900">System Name</th>
                             <th className="px-4 py-3 text-left text-sm font-medium text-cream-900">Input Style</th>
                             <th className="px-4 py-3 text-left text-sm font-medium text-cream-900">Effect Type</th>
                             <th className="px-4 py-3 text-left text-sm font-medium text-cream-900">Pricing</th>
@@ -13204,12 +13238,14 @@ const AdminDashboard: React.FC = () => {
                             .filter((at) =>
                               !attributeTypeSearch ||
                               at.attributeName?.toLowerCase().includes(attributeTypeSearch.toLowerCase()) ||
+                              at.systemName?.toLowerCase().includes(attributeTypeSearch.toLowerCase()) ||
                               at.inputStyle?.toLowerCase().includes(attributeTypeSearch.toLowerCase()) ||
                               at.primaryEffectType?.toLowerCase().includes(attributeTypeSearch.toLowerCase())
                             )
                             .map((at) => (
                               <tr key={at._id} className="hover:bg-cream-50">
                                 <td className="px-4 py-3 text-sm text-cream-900">{at.attributeName}</td>
+                                <td className="px-4 py-3 text-sm text-gray-500 font-mono font-bold">{at.systemName || "-"}</td>
                                 <td className="px-4 py-3 text-sm text-cream-600">{at.inputStyle}</td>
                                 <td className="px-4 py-3 text-sm text-cream-600">{at.primaryEffectType}</td>
                                 <td className="px-4 py-3 text-sm text-cream-600">{at.isPricingAttribute ? "Yes" : "No"}</td>
@@ -13995,9 +14031,9 @@ const AdminDashboard: React.FC = () => {
                 </div>
               </div>
 
-              {/* Attribute Rules Search */}
-              <div className="mb-4">
-                <div className="relative max-w-md">
+              {/* Attribute Rules Search and Filter */}
+              <div className="mb-4 flex flex-col md:flex-row gap-4">
+                <div className="relative flex-1">
                   <input
                     type="text"
                     value={attributeRuleSearch}
@@ -14006,6 +14042,20 @@ const AdminDashboard: React.FC = () => {
                     className="pl-10 pr-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500 w-full"
                   />
                   <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-cream-500" />
+                </div>
+                <div className="w-full md:w-64">
+                  <select
+                    value={attributeRuleFilter}
+                    onChange={(e) => setAttributeRuleFilter(e.target.value)}
+                    className="w-full h-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500 bg-white"
+                  >
+                    <option value="">Filter by Attribute</option>
+                    {attributeTypes.map((attr) => (
+                      <option key={attr._id} value={attr._id}>
+                        {attr.attributeName}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
@@ -14035,10 +14085,20 @@ const AdminDashboard: React.FC = () => {
                     <tbody>
                       {attributeRules
                         .filter((rule) => {
-                          if (!attributeRuleSearch) return true;
                           const searchLower = attributeRuleSearch.toLowerCase();
                           const ruleName = rule.name?.toLowerCase() || "";
                           const scope = rule.scope?.toLowerCase() || "";
+
+                          // 1. Check Dropdown Filter
+                          if (attributeRuleFilter) {
+                            const conditionUsesAttribute = rule.when?.attribute === attributeRuleFilter ||
+                              (typeof rule.when?.attribute === 'object' && rule.when.attribute !== null && rule.when.attribute._id === attributeRuleFilter);
+
+                            if (!conditionUsesAttribute) return false;
+                          }
+
+                          // 2. Check Search Text (if empty, skip text check but respect filter above)
+                          if (!attributeRuleSearch) return true;
 
                           const whenAttr = typeof rule.when?.attribute === 'object' && rule.when.attribute !== null
                             ? rule.when.attribute.attributeName || ""
@@ -14506,7 +14566,7 @@ const AdminDashboard: React.FC = () => {
                     onClick={() => {
                       handleCancelSubAttributeEdit();
                       // Reset to single row for new creation
-                      setMultipleSubAttributes([{ value: "", label: "", image: null, priceAdd: 0, isEnabled: true }]);
+                      setMultipleSubAttributes([{ value: "", label: "", image: null, priceAdd: 0, isEnabled: true, systemName: "" }]);
                       setShowSubAttributeForm(true);
                     }}
                     className="px-4 py-2 bg-cream-900 text-white rounded-lg hover:bg-cream-800 transition-colors flex items-center gap-2"
@@ -14594,6 +14654,7 @@ const AdminDashboard: React.FC = () => {
                           <th className="px-4 py-3 text-left text-sm font-semibold text-cream-900">Parent Value</th>
                           <th className="px-4 py-3 text-left text-sm font-semibold text-cream-900">Value</th>
                           <th className="px-4 py-3 text-left text-sm font-semibold text-cream-900">Label</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-cream-900">System Name</th>
                           <th className="px-4 py-3 text-left text-sm font-semibold text-cream-900">Image</th>
                           <th className="px-4 py-3 text-left text-sm font-semibold text-cream-900">Price Addition</th>
                           <th className="px-4 py-3 text-left text-sm font-semibold text-cream-900">Status</th>
@@ -14612,6 +14673,7 @@ const AdminDashboard: React.FC = () => {
                             return (
                               subAttr.label?.toLowerCase().includes(searchLower) ||
                               subAttr.value?.toLowerCase().includes(searchLower) ||
+                              subAttr.systemName?.toLowerCase().includes(searchLower) ||
                               (subAttr.parentValue || "").toLowerCase().includes(searchLower) ||
                               parentAttrName.toLowerCase().includes(searchLower)
                             );
@@ -14628,6 +14690,7 @@ const AdminDashboard: React.FC = () => {
                                 <td className="px-4 py-3 text-sm text-cream-700">{subAttr.parentValue}</td>
                                 <td className="px-4 py-3 text-sm text-cream-700">{subAttr.value}</td>
                                 <td className="px-4 py-3 text-sm text-cream-700">{subAttr.label}</td>
+                                <td className="px-4 py-3 text-sm text-gray-500 font-mono font-bold">{subAttr.systemName || "N/A"}</td>
                                 <td className="px-4 py-3">
                                   {subAttr.image ? (
                                     <img src={subAttr.image} alt={subAttr.label} className="w-16 h-16 object-cover rounded" />
@@ -14765,6 +14828,18 @@ const AdminDashboard: React.FC = () => {
                                     required
                                   />
                                 </div>
+                                <div className="col-span-2">
+                                  <label className="block text-sm font-medium text-cream-900 mb-2">
+                                    System Name (Internal)
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={subAttributeForm.systemName}
+                                    onChange={(e) => setSubAttributeForm({ ...subAttributeForm, systemName: e.target.value })}
+                                    className="w-full px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-900 font-mono"
+                                    placeholder="e.g., INTERNAL_ID"
+                                  />
+                                </div>
                               </div>
 
                               <div className="mt-4">
@@ -14886,6 +14961,18 @@ const AdminDashboard: React.FC = () => {
                                         placeholder="e.g., Square Shape"
                                       />
                                     </div>
+                                    <div className="col-span-2">
+                                      <label className="block text-xs font-medium text-cream-700 mb-1">
+                                        System Name
+                                      </label>
+                                      <input
+                                        type="text"
+                                        value={subAttr.systemName}
+                                        onChange={(e) => updateSubAttributeRow(index, "systemName", e.target.value)}
+                                        className="w-full px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-900 text-sm font-mono"
+                                        placeholder="INTERNAL_ID"
+                                      />
+                                    </div>
                                   </div>
 
                                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -14999,6 +15086,18 @@ const AdminDashboard: React.FC = () => {
                                       onChange={(e) => updateSubAttributeRow(index, "label", e.target.value)}
                                       className="w-full px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-900 text-sm"
                                       placeholder="e.g., Round Shape"
+                                    />
+                                  </div>
+                                  <div className="col-span-2">
+                                    <label className="block text-xs font-medium text-cream-700 mb-1">
+                                      System Name
+                                    </label>
+                                    <input
+                                      type="text"
+                                      value={subAttr.systemName}
+                                      onChange={(e) => updateSubAttributeRow(index, "systemName", e.target.value)}
+                                      className="w-full px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-900 text-sm font-mono"
+                                      placeholder="INTERNAL_ID"
                                     />
                                   </div>
                                 </div>
