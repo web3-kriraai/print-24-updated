@@ -1044,7 +1044,7 @@ const AdminDashboard: React.FC = () => {
         });
 
         if (response.ok) {
-          const subcategoriesData = await handleNgrokResponse(response);
+          const subcategoriesData = await response.json();
           const subcategories = Array.isArray(subcategoriesData) ? subcategoriesData : [];
           category.children = mapSubcategoriesRecursive(subcategories, cat._id, cat.type);
         }
@@ -1300,33 +1300,7 @@ const AdminDashboard: React.FC = () => {
     return uniqueSlug;
   };
 
-  // Helper function to handle API responses
-  const handleNgrokResponse = async (response: Response) => {
-    const text = await response.text();
 
-    // Check if response is HTML (could be error page)
-    if (text.trim().startsWith("<!DOCTYPE") || text.trim().startsWith("<html")) {
-      // It's likely a server error page
-      throw new Error(`Server returned HTML instead of JSON. Status: ${response.status} ${response.statusText}`);
-    }
-
-    // Try to parse as JSON
-    try {
-      const data = JSON.parse(text);
-      // If response was not OK, throw error with parsed data
-      if (!response.ok) {
-        throw new Error(data.error || data.message || `Request failed: ${response.status} ${response.statusText}`);
-      }
-      return data;
-    } catch (err) {
-      // If it's already an Error (from the !response.ok check above), re-throw it
-      if (err instanceof Error) {
-        throw err;
-      }
-      // If it's not valid JSON, it might still be an error
-      throw new Error(text || `Invalid response from server. Status: ${response.status} ${response.statusText}`);
-    }
-  };
 
   const fetchCategories = async () => {
     try {
@@ -1339,7 +1313,7 @@ const AdminDashboard: React.FC = () => {
         throw new Error(`Failed to fetch categories: ${response.status} ${response.statusText}`);
       }
 
-      const data = await handleNgrokResponse(response);
+      const data = await response.json();
       // Filter to ensure only top-level categories (no parent) are included
       // This is a safety check - server should already return only top-level categories
       const topLevelCategories = Array.isArray(data)
@@ -1370,7 +1344,7 @@ const AdminDashboard: React.FC = () => {
         throw new Error(`Failed to fetch available parent categories: ${response.status} ${response.statusText}`);
       }
 
-      const data = await handleNgrokResponse(response);
+      const data = await response.json();
       // Sort by sortOrder, then by name (since we may not have createdAt)
       const sorted = Array.isArray(data)
         ? data.sort((a, b) => {
@@ -1401,7 +1375,7 @@ const AdminDashboard: React.FC = () => {
         throw new Error(`Failed to fetch subcategories: ${response.status} ${response.statusText}`);
       }
 
-      const data = await handleNgrokResponse(response);
+      const data = await response.json();
 
       // Check for subcategories with deleted parent categories
       const invalidSubCategories = data.filter((subCat: any) =>
@@ -1442,7 +1416,7 @@ const AdminDashboard: React.FC = () => {
         throw new Error(`Failed to fetch products: ${response.status} ${response.statusText}`);
       }
 
-      const data = await handleNgrokResponse(response);
+      const data = await response.json();
       console.log("=== PRODUCTS FETCHED (AdminDashboard) ===");
       console.log("Total products:", Array.isArray(data) ? data.length : 0);
       console.log("Full products data:", JSON.stringify(data, null, 2));
@@ -1536,7 +1510,7 @@ const AdminDashboard: React.FC = () => {
         throw new Error(`Failed to fetch products: ${response.status} ${response.statusText}`);
       }
 
-      const data = await handleNgrokResponse(response);
+      const data = await response.json();
       console.log("=== PRODUCTS BY SUBCATEGORY FETCHED (AdminDashboard) ===");
       console.log("Subcategory ID:", subcategoryId);
       console.log("Total products:", Array.isArray(data) ? data.length : 0);
@@ -1575,7 +1549,7 @@ const AdminDashboard: React.FC = () => {
         });
 
         if (fallbackResponse.ok) {
-          const fallbackData = await handleNgrokResponse(fallbackResponse);
+          const fallbackData = await fallbackResponse.json();
           const subcategoriesArray = Array.isArray(fallbackData) ? fallbackData : (fallbackData?.data || []);
           setCategoryChildrenMap(prev => ({
             ...prev,
@@ -1587,7 +1561,7 @@ const AdminDashboard: React.FC = () => {
         throw new Error(`Failed to fetch child categories: ${response.status} ${response.statusText}`);
       }
 
-      const data = await handleNgrokResponse(response);
+      const data = await response.json();
       // Ensure data is an array
       const subcategoriesArray = Array.isArray(data) ? data : (data?.data || []);
 
@@ -1731,7 +1705,7 @@ const AdminDashboard: React.FC = () => {
       });
 
       if (productsResponse.ok) {
-        const productsData = await handleNgrokResponse(productsResponse);
+        const productsData = await productsResponse.json();
         console.log(`=== PRODUCTS FROM CATEGORY (fetchAllProductsFromCategory) ===`);
         console.log(`Category ID: ${categoryId}`);
         console.log(`Products fetched: ${Array.isArray(productsData) ? productsData.length : 0}`);
@@ -1747,7 +1721,7 @@ const AdminDashboard: React.FC = () => {
       });
 
       if (subcategoriesResponse.ok) {
-        const subcategoriesData = await handleNgrokResponse(subcategoriesResponse);
+        const subcategoriesData = await subcategoriesResponse.json();
         const childCategories = Array.isArray(subcategoriesData) ? subcategoriesData : (subcategoriesData?.data || []);
 
         // Recursively fetch products from each subcategory
@@ -1763,7 +1737,7 @@ const AdminDashboard: React.FC = () => {
           });
 
           if (fallbackResponse.ok) {
-            const fallbackData = await handleNgrokResponse(fallbackResponse);
+            const fallbackData = await fallbackResponse.json();
             const childCategories = Array.isArray(fallbackData) ? fallbackData : (fallbackData?.data || []);
 
             for (const childCategory of childCategories) {
@@ -1806,7 +1780,7 @@ const AdminDashboard: React.FC = () => {
 
         let directProducts: Product[] = [];
         if (productsResponse.ok) {
-          const productsData = await handleNgrokResponse(productsResponse);
+          const productsData = await productsResponse.json();
           console.log(`=== CATEGORY PRODUCTS (handleCategoryClick) ===`);
           console.log(`Category ID: ${categoryId}`);
           console.log(`Products fetched: ${Array.isArray(productsData) ? productsData.length : 0}`);
@@ -1829,7 +1803,7 @@ const AdminDashboard: React.FC = () => {
           });
 
           if (response.ok) {
-            const data = await handleNgrokResponse(response);
+            const data = await response.json();
             childCategories = Array.isArray(data) ? data : (data?.data || []);
             // Sort by sortOrder, then by createdAt
             childCategories.sort((a, b) => {
@@ -1858,7 +1832,7 @@ const AdminDashboard: React.FC = () => {
                 headers: getAuthHeaders(),
               });
               if (subProductsResponse.ok) {
-                const subProductsData = await handleNgrokResponse(subProductsResponse);
+                const subProductsData = await subProductsResponse.json();
                 console.log(`=== SUBCATEGORY PRODUCTS (handleCategoryClick) ===`);
                 console.log(`Subcategory ID: ${childCategory._id}`);
                 console.log(`Products fetched: ${Array.isArray(subProductsData) ? subProductsData.length : 0}`);
@@ -1874,7 +1848,7 @@ const AdminDashboard: React.FC = () => {
                   headers: getAuthHeaders(),
                 });
                 if (categoryProductsResponse.ok) {
-                  const categoryProductsData = await handleNgrokResponse(categoryProductsResponse);
+                  const categoryProductsData = await categoryProductsResponse.json();
                   if (Array.isArray(categoryProductsData)) {
                     // Filter to only include products without subcategory (directly added to category)
                     const directCategoryProducts = categoryProductsData.filter((p: Product) =>
@@ -1933,7 +1907,7 @@ const AdminDashboard: React.FC = () => {
             headers: getAuthHeaders(),
           });
           if (subcatProductsResponse.ok) {
-            const subcatProductsData = await handleNgrokResponse(subcatProductsResponse);
+            const subcatProductsData = await subcatProductsResponse.json();
             console.log(`=== SUBCATEGORY PRODUCTS (handleSubCategoryClick) ===`);
             console.log(`Subcategory ID: ${subcategoryId}`);
             console.log(`Products fetched: ${Array.isArray(subcatProductsData) ? subcatProductsData.length : 0}`);
@@ -1952,7 +1926,7 @@ const AdminDashboard: React.FC = () => {
               headers: getAuthHeaders(),
             });
             if (categoryProductsResponse.ok) {
-              const categoryProductsData = await handleNgrokResponse(categoryProductsResponse);
+              const categoryProductsData = await categoryProductsResponse.json();
               // Filter to only include products without subcategory (directly added to category)
               if (Array.isArray(categoryProductsData)) {
                 const directCategoryProducts = categoryProductsData.filter((product: Product) =>
@@ -2100,7 +2074,7 @@ const AdminDashboard: React.FC = () => {
             headers: getAuthHeaders(),
           });
           if (response.ok) {
-            const fetchedCategory = await handleNgrokResponse(response);
+            const fetchedCategory = await response.json();
             draggedCategory = fetchedCategory;
           } else {
             // If not found in categories, it might be a subcategory - try subcategories endpoint
@@ -2110,7 +2084,7 @@ const AdminDashboard: React.FC = () => {
                 headers: getAuthHeaders(),
               });
               if (subcatResponse.ok) {
-                const fetchedSubcat = await handleNgrokResponse(subcatResponse);
+                const fetchedSubcat = await subcatResponse.json();
                 // Convert subcategory to category-like format for compatibility
                 draggedCategory = {
                   ...fetchedSubcat,
@@ -2158,7 +2132,7 @@ const AdminDashboard: React.FC = () => {
             headers: getAuthHeaders(),
           });
           if (response.ok) {
-            const fetchedCategory = await handleNgrokResponse(response);
+            const fetchedCategory = await response.json();
             targetCategory = fetchedCategory;
           } else {
             // If not found in categories, it might be a subcategory
@@ -2168,7 +2142,7 @@ const AdminDashboard: React.FC = () => {
                 headers: getAuthHeaders(),
               });
               if (subcatResponse.ok) {
-                const fetchedSubcat = await handleNgrokResponse(subcatResponse);
+                const fetchedSubcat = await subcatResponse.json();
                 // Convert subcategory to category-like format for compatibility
                 targetCategory = {
                   ...fetchedSubcat,
@@ -2333,7 +2307,7 @@ const AdminDashboard: React.FC = () => {
               headers: getAuthHeaders(),
             });
             if (response.ok) {
-              currentCat = await handleNgrokResponse(response);
+              currentCat = await response.json();
             }
           } catch (fetchErr) {
             console.error(`Error fetching category ${id}:`, fetchErr);
@@ -2479,7 +2453,7 @@ const AdminDashboard: React.FC = () => {
               headers: getAuthHeaders(),
             });
             if (response.ok) {
-              const data = await handleNgrokResponse(response);
+              const data = await response.json();
               allSubcategoriesForCategory = Array.isArray(data) ? data : (data?.data || []);
             }
           } catch (err) {
@@ -2720,7 +2694,7 @@ const AdminDashboard: React.FC = () => {
           throw new Error(errorMessage);
         }
 
-        const data = await handleNgrokResponse(response);
+        const data = await response.json();
         console.log("=== Products Response ===");
         console.log("Response Type:", typeof data);
         console.log("Is Array:", Array.isArray(data));
@@ -2776,7 +2750,7 @@ const AdminDashboard: React.FC = () => {
         throw new Error(`Failed to fetch users: ${response.status} ${response.statusText}`);
       }
 
-      const data = await handleNgrokResponse(response);
+      const data = await response.json();
       setUsers(data);
     } catch (err) {
       console.error("Error fetching users:", err);
@@ -2877,7 +2851,7 @@ const AdminDashboard: React.FC = () => {
         throw new Error(`Failed to fetch employees: ${response.status} ${response.statusText}`);
       }
 
-      const data = await handleNgrokResponse(response);
+      const data = await response.json();
       setEmployees(data);
     } catch (err) {
       console.error("Error fetching employees:", err);
@@ -2897,7 +2871,7 @@ const AdminDashboard: React.FC = () => {
 
       // Use handleNgrokResponse which handles both success and error cases
       // This prevents reading the response body multiple times
-      const data = await handleNgrokResponse(response);
+      const data = await response.json();
 
       // Handle timeout errors specifically if needed
       if (response.status === 503) {
@@ -2925,7 +2899,7 @@ const AdminDashboard: React.FC = () => {
         throw new Error(`Failed to fetch orders: ${response.status} ${response.statusText}`);
       }
 
-      const data = await handleNgrokResponse(response);
+      const data = await response.json();
       setOrders(data || []);
     } catch (err) {
       console.error("Error fetching orders:", err);
@@ -2948,7 +2922,7 @@ const AdminDashboard: React.FC = () => {
         throw new Error(`Failed to fetch attribute rules: ${response.status} ${response.statusText}`);
       }
 
-      const data = await handleNgrokResponse(response);
+      const data = await response.json();
       setAttributeRules(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error("Error fetching attribute rules:", err);
@@ -3079,7 +3053,7 @@ const AdminDashboard: React.FC = () => {
       });
 
       if (!response.ok) {
-        const errorData = await handleNgrokResponse(response);
+        const errorData = await response.json();
         throw new Error(errorData.error || `Failed to ${editingRuleId ? 'update' : 'create'} rule`);
       }
 
@@ -3255,7 +3229,7 @@ const AdminDashboard: React.FC = () => {
         throw new Error(`Failed to fetch sub-attributes: ${response.status} ${response.statusText}`);
       }
 
-      const data = await handleNgrokResponse(response);
+      const data = await response.json();
       setSubAttributes(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error("Error fetching sub-attributes:", err);
@@ -3326,7 +3300,7 @@ const AdminDashboard: React.FC = () => {
         });
 
         if (!updateResponse.ok) {
-          const errorData = await handleNgrokResponse(updateResponse);
+          const errorData = await updateResponse.json();
           throw new Error(errorData.error || "Failed to update sub-attribute");
         }
 
@@ -3367,7 +3341,7 @@ const AdminDashboard: React.FC = () => {
               });
 
               if (!createResponse.ok) {
-                const errorData = await handleNgrokResponse(createResponse);
+                const errorData = await createResponse.json();
                 throw new Error(errorData.error || "Failed to create sub-attribute");
               }
 
@@ -3435,7 +3409,7 @@ const AdminDashboard: React.FC = () => {
             });
 
             if (!response.ok) {
-              const errorData = await handleNgrokResponse(response);
+              const errorData = await response.json();
               throw new Error(errorData.error || "Failed to create sub-attribute");
             }
 
@@ -3588,7 +3562,7 @@ const AdminDashboard: React.FC = () => {
         throw new Error(`Failed to fetch attribute types: ${response.status} ${response.statusText}`);
       }
 
-      const data = await handleNgrokResponse(response);
+      const data = await response.json();
       const fetchedAttributes = data.data || data || [];
 
       // Filter to show common attributes and applicable ones
@@ -3940,7 +3914,7 @@ const AdminDashboard: React.FC = () => {
         throw new Error("Attribute types API endpoint not found (404). Please ensure the server is running and the route is registered. Try restarting the server.");
       }
 
-      const data = await handleNgrokResponse(response);
+      const data = await response.json();
 
       console.log("Attribute type response data:", {
         success: data.success,
@@ -4031,7 +4005,7 @@ const AdminDashboard: React.FC = () => {
         throw new Error(`Failed to fetch attribute type: ${response.status}`);
       }
 
-      const data = await handleNgrokResponse(response);
+      const data = await response.json();
       const attributeType = data.data || data;
 
       console.log("EDIT AttributeType - Fetched attributeType:", {
@@ -4327,7 +4301,7 @@ const AdminDashboard: React.FC = () => {
       }
 
       // Parse successful response
-      const data = await handleNgrokResponse(response);
+      const data = await response.json();
 
       // Show success toast
       toast.success("Attribute deleted successfully", {
@@ -4382,7 +4356,7 @@ const AdminDashboard: React.FC = () => {
         throw new Error(`Failed to fetch departments: ${response.status} ${response.statusText}`);
       }
 
-      const data = await handleNgrokResponse(response);
+      const data = await response.json();
       setDepartments(data.data || data || []);
     } catch (err) {
       console.error("Error fetching departments:", err);
@@ -4423,7 +4397,7 @@ const AdminDashboard: React.FC = () => {
         body: JSON.stringify(departmentForm),
       });
 
-      const data = await handleNgrokResponse(response);
+      const data = await response.json();
 
       if (!response.ok) {
         throw new Error(data.error || `Failed to ${editingDepartmentId ? "update" : "create"} department`);
@@ -4482,7 +4456,7 @@ const AdminDashboard: React.FC = () => {
         headers: getAuthHeaders(),
       });
 
-      const data = await handleNgrokResponse(response);
+      const data = await response.json();
 
       if (!response.ok) {
         throw new Error(data.error || "Failed to delete department");
@@ -4510,7 +4484,7 @@ const AdminDashboard: React.FC = () => {
         throw new Error("Failed to fetch sequences");
       }
 
-      const data = await handleNgrokResponse(response);
+      const data = await response.json();
       setSequences(data.data || data || []);
     } catch (err) {
       console.error("Error fetching sequences:", err);
@@ -4583,7 +4557,7 @@ const AdminDashboard: React.FC = () => {
         }),
       });
 
-      const data = await handleNgrokResponse(response);
+      const data = await response.json();
 
       if (!response.ok) {
         throw new Error(data.error || `Failed to ${editingSequenceId ? "update" : "create"} sequence`);
@@ -4718,11 +4692,11 @@ const AdminDashboard: React.FC = () => {
       });
 
       if (!response.ok) {
-        const errorData = await handleNgrokResponse(response);
+        const errorData = await response.json();
         throw new Error(errorData.error || `Failed to update order: ${response.status} ${response.statusText}`);
       }
 
-      await handleNgrokResponse(response);
+      await response.json();
 
       setSuccess("Order updated successfully");
       setShowOrderModal(false);
@@ -4751,11 +4725,11 @@ const AdminDashboard: React.FC = () => {
       });
 
       if (!response.ok) {
-        const errorData = await handleNgrokResponse(response);
+        const errorData = await response.json();
         throw new Error(errorData.error || `Failed to reject order: ${response.status} ${response.statusText}`);
       }
 
-      await handleNgrokResponse(response);
+      await response.json();
 
       setSuccess("Order rejected successfully");
       fetchOrders();
@@ -5146,7 +5120,7 @@ const AdminDashboard: React.FC = () => {
       }
 
       // Use handleNgrokResponse for successful response
-      const data = await handleNgrokResponse(response);
+      const data = await response.json();
 
       // Store categoryId before clearing form to use for fetching products
       const createdCategoryId = categoryId;
@@ -5243,7 +5217,7 @@ const AdminDashboard: React.FC = () => {
         throw new Error(`Failed to fetch product: ${response.status} ${response.statusText}`);
       }
 
-      const product = await handleNgrokResponse(response);
+      const product = await response.json();
 
       console.log("=== SINGLE PRODUCT FETCHED (AdminDashboard - Edit) ===");
       console.log("Product ID:", productId);
@@ -5457,7 +5431,7 @@ const AdminDashboard: React.FC = () => {
           });
 
           if (productsResponse.ok) {
-            const productsData = await handleNgrokResponse(productsResponse);
+            const productsData = await productsResponse.json();
             setCategoryProducts(productsData || []);
           }
         } catch (err) {
@@ -5496,7 +5470,7 @@ const AdminDashboard: React.FC = () => {
         });
 
         if (response.ok) {
-          category = await handleNgrokResponse(response);
+          category = await response.json();
           // Check if it has a parent - if so, it might be in SubCategory collection
           if (category && category.parent) {
             // Try to fetch from subcategories as well
@@ -5506,7 +5480,7 @@ const AdminDashboard: React.FC = () => {
                 headers: getAuthHeaders(),
               });
               if (subcatResponse.ok) {
-                const subcategory = await handleNgrokResponse(subcatResponse);
+                const subcategory = await subcatResponse.json();
                 // If found in subcategories, use that instead
                 category = subcategory;
                 isSubcategory = true;
@@ -5524,7 +5498,7 @@ const AdminDashboard: React.FC = () => {
             headers: getAuthHeaders(),
           });
           if (subcatResponse.ok) {
-            category = await handleNgrokResponse(subcatResponse);
+            category = await subcatResponse.json();
             isSubcategory = true;
           } else {
             throw new Error(`Failed to fetch category: ${subcatResponse.status} ${subcatResponse.statusText}`);
@@ -5660,11 +5634,11 @@ const AdminDashboard: React.FC = () => {
       });
 
       if (!response.ok) {
-        const errorData = await handleNgrokResponse(response);
+        const errorData = await response.json();
         throw new Error(errorData.error || `Failed to delete product: ${response.status} ${response.statusText}`);
       }
 
-      await handleNgrokResponse(response);
+      await response.json();
 
       setSuccess("Product deleted successfully!");
       fetchProducts();
@@ -5803,7 +5777,7 @@ const AdminDashboard: React.FC = () => {
 
         // Use handleNgrokResponse which handles both success and error cases
         // This prevents reading the response body multiple times
-        const data = await handleNgrokResponse(response);
+        const data = await response.json();
 
         setSuccess(`Subcategory ${editingCategoryId ? "updated" : "created"} successfully!`);
         setCategoryForm({
@@ -5921,7 +5895,7 @@ const AdminDashboard: React.FC = () => {
 
         // Use handleNgrokResponse which handles both success and error cases
         // This prevents reading the response body multiple times
-        const data = await handleNgrokResponse(response);
+        const data = await response.json();
 
         setSuccess(`Category ${editingCategoryId ? "updated" : "created"} successfully!`);
         setCategoryForm({
@@ -6063,11 +6037,11 @@ const AdminDashboard: React.FC = () => {
       });
 
       if (!response.ok) {
-        const errorData = await handleNgrokResponse(response);
+        const errorData = await response.json();
         throw new Error(errorData.error || `Failed to ${editingSubCategoryId ? "update" : "create"} subcategory: ${response.status} ${response.statusText}`);
       }
 
-      await handleNgrokResponse(response);
+      await response.json();
 
       setSuccess(`Subcategory ${editingSubCategoryId ? "updated" : "created"} successfully!`);
 
@@ -6109,7 +6083,7 @@ const AdminDashboard: React.FC = () => {
         throw new Error(`Failed to fetch subcategory: ${response.status} ${response.statusText}`);
       }
 
-      const subCategory = await handleNgrokResponse(response);
+      const subCategory = await response.json();
 
       // Get type from parent category
       const parentCategory = typeof subCategory.category === "object" && subCategory.category !== null
@@ -6198,7 +6172,7 @@ const AdminDashboard: React.FC = () => {
 
       let productCount = 0;
       if (productsResponse.ok) {
-        const productsData = await handleNgrokResponse(productsResponse);
+        const productsData = await productsResponse.json();
         productCount = Array.isArray(productsData) ? productsData.length : 0;
       }
 
@@ -6245,14 +6219,14 @@ const AdminDashboard: React.FC = () => {
       });
 
       if (!response.ok) {
-        const errorData = await handleNgrokResponse(response);
+        const errorData = await response.json();
         const errorMessage = errorData.error || `Failed to delete subcategory: ${response.status} ${response.statusText}`;
         setError(errorMessage);
         setLoading(false);
         return;
       }
 
-      await handleNgrokResponse(response);
+      await response.json();
 
       setSuccess("Subcategory deleted successfully!");
       fetchSubCategories();
@@ -6286,7 +6260,7 @@ const AdminDashboard: React.FC = () => {
       let childCategories: any[] = [];
 
       if (childCategoriesResponse.ok) {
-        const childCategoriesData = await handleNgrokResponse(childCategoriesResponse);
+        const childCategoriesData = await childCategoriesResponse.json();
         childCategories = Array.isArray(childCategoriesData) ? childCategoriesData : (childCategoriesData?.data || []);
         childCategoryCount = childCategories.length;
       } else {
@@ -6297,7 +6271,7 @@ const AdminDashboard: React.FC = () => {
           });
 
           if (fallbackResponse.ok) {
-            const fallbackData = await handleNgrokResponse(fallbackResponse);
+            const fallbackData = await fallbackResponse.json();
             childCategories = Array.isArray(fallbackData) ? fallbackData : (fallbackData?.data || []);
             childCategoryCount = childCategories.length;
           }
@@ -6319,7 +6293,7 @@ const AdminDashboard: React.FC = () => {
 
       let productCount = 0;
       if (productsResponse.ok) {
-        const productsData = await handleNgrokResponse(productsResponse);
+        const productsData = await productsResponse.json();
         productCount = Array.isArray(productsData) ? productsData.length : 0;
       }
 
@@ -6357,14 +6331,14 @@ const AdminDashboard: React.FC = () => {
       });
 
       if (!response.ok) {
-        const errorData = await handleNgrokResponse(response);
+        const errorData = await response.json();
         const errorMessage = errorData.error || `Failed to delete category: ${response.status} ${response.statusText}`;
         setError(errorMessage);
         setLoading(false);
         return;
       }
 
-      await handleNgrokResponse(response);
+      await response.json();
 
       setSuccess("Category deleted successfully!");
       fetchCategories();
@@ -6400,11 +6374,11 @@ const AdminDashboard: React.FC = () => {
       });
 
       if (!response.ok) {
-        const errorData = await handleNgrokResponse(response);
+        const errorData = await response.json();
         throw new Error(errorData.message || errorData.error || `Failed to update user role: ${response.status} ${response.statusText}`);
       }
 
-      await handleNgrokResponse(response);
+      await response.json();
 
       setSuccess(`User role updated to ${userRoleForm.role} successfully!`);
       setUserRoleForm({
@@ -6440,11 +6414,11 @@ const AdminDashboard: React.FC = () => {
       });
 
       if (!response.ok) {
-        const errorData = await handleNgrokResponse(response);
+        const errorData = await response.json();
         throw new Error(errorData.message || errorData.error || `Failed to create employee: ${response.status} ${response.statusText}`);
       }
 
-      await handleNgrokResponse(response);
+      await response.json();
 
       setSuccess("Employee created successfully!");
       setCreateEmployeeForm({
@@ -6481,11 +6455,11 @@ const AdminDashboard: React.FC = () => {
       });
 
       if (!response.ok) {
-        const errorData = await handleNgrokResponse(response);
+        const errorData = await response.json();
         throw new Error(errorData.message || errorData.error || `Failed to create employee: ${response.status} ${response.statusText}`);
       }
 
-      await handleNgrokResponse(response);
+      await response.json();
 
       setSuccess("Employee created successfully!");
       setCreateEmployeeModalForm({
@@ -6531,11 +6505,11 @@ const AdminDashboard: React.FC = () => {
       });
 
       if (!response.ok) {
-        const errorData = await handleNgrokResponse(response);
+        const errorData = await response.json();
         throw new Error(errorData.error || errorData.message || `Failed to create department: ${response.status} ${response.statusText}`);
       }
 
-      const data = await handleNgrokResponse(response);
+      const data = await response.json();
       const newDepartmentId = data.data?._id || data.data?.id || data._id || data.id;
 
       setSuccess("Department created successfully!");
@@ -6583,11 +6557,11 @@ const AdminDashboard: React.FC = () => {
       });
 
       if (!response.ok) {
-        const errorData = await handleNgrokResponse(response);
+        const errorData = await response.json();
         throw new Error(errorData.error || `Failed to delete upload: ${response.status} ${response.statusText}`);
       }
 
-      await handleNgrokResponse(response);
+      await response.json();
 
       setSuccess("Uploaded image deleted successfully!");
       fetchUploads();
@@ -7648,7 +7622,7 @@ const AdminDashboard: React.FC = () => {
                                 });
 
                                 if (productsResponse.ok) {
-                                  const productsData = await handleNgrokResponse(productsResponse);
+                                  const productsData = await productsResponse.json();
                                   setCategoryProducts(productsData || []);
                                 }
                               } catch (err) {
@@ -7674,7 +7648,7 @@ const AdminDashboard: React.FC = () => {
                                 });
 
                                 if (productsResponse.ok) {
-                                  const productsData = await handleNgrokResponse(productsResponse);
+                                  const productsData = await productsResponse.json();
                                   setCategoryProducts(productsData || []);
                                 }
                               } catch (err) {
@@ -7798,7 +7772,7 @@ const AdminDashboard: React.FC = () => {
                                       headers: getAuthHeaders(),
                                     });
                                     if (response.ok) {
-                                      const data = await handleNgrokResponse(response);
+                                      const data = await response.json();
                                       setCategoryProducts(data || []);
                                     } else {
                                       setCategoryProducts([]);
@@ -10133,16 +10107,16 @@ const AdminDashboard: React.FC = () => {
                     <label className="block text-sm font-medium text-cream-900 mb-2">
                       Description
                     </label>
-                    <textarea
+                    <RichTextEditor
                       value={categoryForm.description}
-                      onChange={(e) =>
+                      onChange={(value) =>
                         setCategoryForm({
                           ...categoryForm,
-                          description: e.target.value,
+                          description: value,
                         })
                       }
-                      rows={3}
-                      className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
+                      placeholder="Enter category description..."
+                      height="200px"
                     />
                   </div>
 
@@ -16792,9 +16766,10 @@ const AdminDashboard: React.FC = () => {
                 {viewDescriptionModal.name}
               </h4>
               <div className="bg-cream-50 border border-cream-200 rounded-lg p-4 max-h-96 overflow-y-auto">
-                <p className="text-cream-700 whitespace-pre-wrap leading-relaxed">
-                  {viewDescriptionModal.description}
-                </p>
+                <div
+                  className="text-cream-700 leading-relaxed rich-text-content"
+                  dangerouslySetInnerHTML={{ __html: viewDescriptionModal.description }}
+                />
               </div>
             </div>
 
