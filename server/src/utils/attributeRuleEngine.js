@@ -27,6 +27,8 @@ export const applyAttributeRules = ({ attributes, rules, selectedValues = {} }) 
       visibilitySetByRule: false,
       // Track if allowedValues was restricted by a rule
       valuesRestrictedByRule: false,
+      // Track quantity constraints set by rules
+      quantityConstraints: null,
     };
     return acc;
   }, {});
@@ -98,6 +100,19 @@ export const applyAttributeRules = ({ attributes, rules, selectedValues = {} }) 
             ) {
               targetAttr.defaultValue = action.defaultValue;
             }
+          }
+          break;
+
+        case "QUANTITY":
+          // Set quantity constraints if provided
+          if (action.minQuantity !== undefined ||
+            action.maxQuantity !== undefined ||
+            action.stepQuantity !== undefined) {
+            targetAttr.quantityConstraints = {
+              min: action.minQuantity,
+              max: action.maxQuantity,
+              step: action.stepQuantity
+            };
           }
           break;
 

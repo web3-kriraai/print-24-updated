@@ -548,6 +548,8 @@ const AdminDashboard: React.FC = () => {
 
   // State to track if nested subcategory mode is active
   const [isNestedSubcategoryMode, setIsNestedSubcategoryMode] = useState(false);
+  // State to track if regular subcategory mode is active (adding new subcategory)
+  const [isSubCategoryMode, setIsSubCategoryMode] = useState(false);
 
   const [editingSubCategoryId, setEditingSubCategoryId] = useState<string | null>(null);
   const [editingSubCategoryImage, setEditingSubCategoryImage] = useState<string | null>(null);
@@ -966,6 +968,39 @@ const AdminDashboard: React.FC = () => {
     const maxSort = Math.max(...scopeItems.map(sc => sc.sortOrder || 0));
     return maxSort + 1;
   };
+
+  // Effect to update Category sort order when type changes or categories load
+  useEffect(() => {
+    if (!editingCategoryId && categoryForm.type) {
+      const nextOrder = getNextCategorySortOrder(categoryForm.type);
+      setCategoryForm(prev => {
+        if (prev.sortOrder === nextOrder) return prev;
+        return { ...prev, sortOrder: nextOrder };
+      });
+    }
+  }, [categories, categoryForm.type, editingCategoryId]);
+
+  // Effect to update Subcategory sort order when category changes or subcategories load
+  useEffect(() => {
+    if (!editingSubCategoryId && subCategoryForm.category && !isNestedSubcategoryMode) {
+      const nextOrder = getNextSubCategorySortOrder(subCategoryForm.category);
+      setSubCategoryForm(prev => {
+        if (prev.sortOrder === nextOrder) return prev;
+        return { ...prev, sortOrder: nextOrder };
+      });
+    }
+  }, [subCategoryForm.category, subCategories, editingSubCategoryId, isNestedSubcategoryMode]);
+
+  // Effect to update Nested Subcategory sort order when parent changes
+  useEffect(() => {
+    if (!editingSubCategoryId && isNestedSubcategoryMode && subCategoryForm.parent && subCategoryForm.parent !== 'pending') {
+      const nextOrder = getNextSubCategorySortOrder(subCategoryForm.category, subCategoryForm.parent);
+      setSubCategoryForm(prev => {
+        if (prev.sortOrder === nextOrder) return prev;
+        return { ...prev, sortOrder: nextOrder };
+      });
+    }
+  }, [subCategoryForm.parent, subCategories, editingSubCategoryId, isNestedSubcategoryMode]);
 
   type CategoryWithChildren = Category & { children?: any[]; isSubcategory?: boolean };
 
@@ -9485,22 +9520,7 @@ const AdminDashboard: React.FC = () => {
                                             }}
                                             className="w-full px-2 py-2.5 border border-cream-200 rounded text-sm text-sm"
                                           />
-                                          {option.image && (
-                                            <div className="mt-2">
-                                              <img src={option.image} alt={option.name} className="w-16 h-16 object-cover rounded border border-cream-200" />
-                                              <button
-                                                type="button"
-                                                onClick={() => {
-                                                  const updated = [...attributeTypeForm.attributeOptionsTable];
-                                                  updated[index].image = undefined;
-                                                  setAttributeTypeForm({ ...attributeTypeForm, attributeOptionsTable: updated });
-                                                }}
-                                                className="mt-1 text-xs text-red-600 hover:text-red-800"
-                                              >
-                                                Remove
-                                              </button>
-                                            </div>
-                                          )}
+
                                         </td>
                                         <td className="border border-cream-300 px-3 py-2 text-center">
                                           <button
@@ -9932,10 +9952,11 @@ const AdminDashboard: React.FC = () => {
                   <input
                     type="radio"
                     name="categoryLevel"
-                    checked={!categoryForm.parent && !isNestedSubcategoryMode}
+                    checked={!isSubCategoryMode && !isNestedSubcategoryMode}
                     onChange={() => {
                       setCategoryForm({ ...categoryForm, parent: "", sortOrder: 0 });
                       setIsNestedSubcategoryMode(false);
+                      setIsSubCategoryMode(false);
                       // Reset subcategory form when switching back to main category
                       setSubCategoryForm({
                         name: "",
@@ -9957,17 +9978,18 @@ const AdminDashboard: React.FC = () => {
                     <p className="font-semibold text-cream-900">Main Category</p>
                     <p className="text-xs text-cream-600 mt-0.5">Create a top-level category</p>
                   </div>
-                  {!categoryForm.parent && !isNestedSubcategoryMode && (
+                  {!categoryForm.parent && !isNestedSubcategoryMode && !isSubCategoryMode && (
                     <CheckCircle className="text-cream-600" size={20} />
                   )}
                 </label>
-                <label className="flex items-center gap-3 p-4 bg-white rounded-lg border-2 cursor-pointer hover:border-cream-400 transition-all hover:shadow-sm" style={{ borderColor: categoryForm.parent && !isNestedSubcategoryMode ? '#d97706' : '#e5e7eb' }}>
+                <label className="flex items-center gap-3 p-4 bg-white rounded-lg border-2 cursor-pointer hover:border-cream-400 transition-all hover:shadow-sm" style={{ borderColor: isSubCategoryMode ? '#d97706' : '#e5e7eb' }}>
                   <input
                     type="radio"
                     name="categoryLevel"
-                    checked={!!categoryForm.parent && !isNestedSubcategoryMode}
+                    checked={isSubCategoryMode && !isNestedSubcategoryMode}
                     onChange={() => {
                       setIsNestedSubcategoryMode(false);
+                      setIsSubCategoryMode(true);
                       // When subcategory is selected, initialize subcategory form to trigger subcategory form display
                       setSubCategoryForm({
                         name: "",
@@ -9990,7 +10012,7 @@ const AdminDashboard: React.FC = () => {
                     <p className="font-semibold text-cream-900">Subcategory</p>
                     <p className="text-xs text-cream-600 mt-0.5">Create under an existing category</p>
                   </div>
-                  {categoryForm.parent && !isNestedSubcategoryMode && (
+                  {isSubCategoryMode && !isNestedSubcategoryMode && (
                     <CheckCircle className="text-cream-600" size={20} />
                   )}
                 </label>
@@ -10001,6 +10023,7 @@ const AdminDashboard: React.FC = () => {
                     checked={isNestedSubcategoryMode}
                     onChange={() => {
                       setIsNestedSubcategoryMode(true);
+                      setIsSubCategoryMode(false);
                       setCategoryForm({ ...categoryForm, parent: "" });
                       // Initialize nested subcategory form
                       setSubCategoryForm({
@@ -10322,8 +10345,8 @@ const AdminDashboard: React.FC = () => {
             </form>
           )}
 
-          {/* Subcategory Form - Show when editing subcategory, when subcategory is selected in Category Level, or when nested subcategory mode is active */}
-          {activeTab === "categories" && (editingSubCategoryId || (subCategoryForm.category && subCategoryForm.category !== "" && !isNestedSubcategoryMode) || isNestedSubcategoryMode) && (
+          {/* Subcategory Form - Show when editing subcategory, when subcategory mode is active, or when nested subcategory mode is active */}
+          {activeTab === "categories" && (editingSubCategoryId || isSubCategoryMode || isNestedSubcategoryMode) && (
             <form onSubmit={handleSubCategorySubmit} className="space-y-6 mt-8 border-t border-cream-200 pt-8">
               {editingSubCategoryId && (
                 <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
@@ -10339,10 +10362,10 @@ const AdminDashboard: React.FC = () => {
                   </button>
                 </div>
               )}
-              {!editingSubCategoryId && subCategoryForm.category && subCategoryForm.category !== "pending" && !isNestedSubcategoryMode && (
+              {!editingSubCategoryId && !isNestedSubcategoryMode && (isSubCategoryMode || (subCategoryForm.category && subCategoryForm.category !== "pending")) && (
                 <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg flex items-center justify-between">
                   <p className="text-sm text-green-800 font-medium">
-                    Adding Subcategory to: {categories.find(c => c._id === subCategoryForm.category)?.name || "Category"}
+                    {subCategoryForm.category ? `Adding Subcategory to: ${categories.find(c => c._id === subCategoryForm.category)?.name || "Category"}` : "Adding New Subcategory"}
                   </p>
                   <button
                     type="button"
@@ -10359,6 +10382,7 @@ const AdminDashboard: React.FC = () => {
                       });
                       setIsSubCategorySlugManuallyEdited(false);
                       setCategoryForm({ ...categoryForm, parent: "" });
+                      setIsSubCategoryMode(false);
                       setAvailableParentSubcategories([]);
                       setError(null);
                     }}
@@ -12766,22 +12790,7 @@ const AdminDashboard: React.FC = () => {
                                         }}
                                         className="w-full px-2 py-2.5 border border-cream-200 rounded text-sm text-sm"
                                       />
-                                      {option.image && (
-                                        <div className="mt-2">
-                                          <img src={option.image} alt={option.name} className="w-16 h-16 object-cover rounded border border-cream-200" />
-                                          <button
-                                            type="button"
-                                            onClick={() => {
-                                              const updated = [...attributeTypeForm.attributeOptionsTable];
-                                              updated[index].image = undefined;
-                                              setAttributeTypeForm({ ...attributeTypeForm, attributeOptionsTable: updated });
-                                            }}
-                                            className="mt-1 text-xs text-red-600 hover:text-red-800"
-                                          >
-                                            Remove
-                                          </button>
-                                        </div>
-                                      )}
+
                                     </td>
                                     <td className="border border-cream-300 px-3 py-2 text-center">
                                       <button
@@ -14431,6 +14440,7 @@ const AdminDashboard: React.FC = () => {
                                         <option value="HIDE">HIDE</option>
                                         <option value="SHOW_ONLY">SHOW_ONLY</option>
                                         <option value="SET_DEFAULT">SET_DEFAULT</option>
+                                        <option value="QUANTITY">QUANTITY</option>
                                       </select>
                                     </div>
                                     <div>

@@ -11,10 +11,13 @@ export interface AttributeRule {
     value: string;
   };
   then: Array<{
-    action: "SHOW" | "HIDE" | "SHOW_ONLY" | "SET_DEFAULT";
+    action: "SHOW" | "HIDE" | "SHOW_ONLY" | "SET_DEFAULT" | "QUANTITY";
     targetAttribute: string | { _id: string; attributeName: string };
     allowedValues?: string[];
     defaultValue?: string;
+    minQuantity?: number;
+    maxQuantity?: number;
+    stepQuantity?: number;
   }>;
   priority: number;
 }
@@ -42,7 +45,7 @@ export const applyAttributeRules = ({
   rules: AttributeRule[];
   selectedValues?: Record<string, string | number | boolean | File | any[] | null>;
 }): {
-  attributes: Array<Attribute & { isVisible: boolean; allowedValues: string[] | null; defaultValue: string | null }>;
+  attributes: Array<Attribute & { isVisible: boolean; allowedValues: string[] | null; defaultValue: string | null; quantityConstraints?: { min?: number; max?: number; step?: number } | null }>;
   selectedValues: Record<string, string | number | boolean | File | any[] | null>;
 } => {
   // Initialize result: all attributes start visible with all values allowed
@@ -56,6 +59,7 @@ export const applyAttributeRules = ({
       defaultValue: attr.defaultValue || null,
       visibilitySetByRule: false,
       valuesRestrictedByRule: false,
+      quantityConstraints: null,
     };
     return acc;
   }, {} as Record<string, any>);
@@ -127,6 +131,19 @@ export const applyAttributeRules = ({
             ) {
               targetAttr.defaultValue = action.defaultValue;
             }
+          }
+          break;
+
+        case "QUANTITY":
+          // Set quantity constraints if provided
+          if (action.minQuantity !== undefined ||
+            action.maxQuantity !== undefined ||
+            action.stepQuantity !== undefined) {
+            targetAttr.quantityConstraints = {
+              min: action.minQuantity,
+              max: action.maxQuantity,
+              step: action.stepQuantity
+            };
           }
           break;
       }

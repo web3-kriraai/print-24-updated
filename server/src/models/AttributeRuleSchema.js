@@ -25,7 +25,7 @@ const AttributeRuleSchema = new mongoose.Schema(
       {
         action: {
           type: String,
-          enum: ["SHOW", "HIDE", "SHOW_ONLY", "SET_DEFAULT"],
+          enum: ["SHOW", "HIDE", "SHOW_ONLY", "SET_DEFAULT", "QUANTITY"],
           required: true,
         },
 
@@ -36,7 +36,10 @@ const AttributeRuleSchema = new mongoose.Schema(
         },
 
         allowedValues: [String], // for SHOW_ONLY
-        defaultValue: String     // for SET_DEFAULT
+        defaultValue: String,    // for SET_DEFAULT
+        minQuantity: Number,     // for QUANTITY
+        maxQuantity: Number,     // for QUANTITY
+        stepQuantity: Number     // for QUANTITY (multiples)
       }
     ],
 

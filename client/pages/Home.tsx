@@ -167,7 +167,7 @@ const Home: React.FC = () => {
   const [expandedComments, setExpandedComments] = useState<Set<string>>(
     new Set()
   );
-  
+
   // Client-only flag for SSR hydration safety
   const isClient = useClientOnly();
 
@@ -308,7 +308,7 @@ const Home: React.FC = () => {
       isScrolling = true;
       const maxScroll = scrollContainer.scrollWidth - scrollContainer.clientWidth;
       const currentScroll = scrollContainer.scrollLeft;
-      
+
       // Calculate width of 1 item based on screen size
       const screenWidth = window.innerWidth;
       let oneItemWidth = screenWidth / 2; // mobile: 1 item = 50% of screen
@@ -316,7 +316,7 @@ const Home: React.FC = () => {
       else if (screenWidth >= 1024) oneItemWidth = screenWidth * 0.25; // lg: 1 item = 25%
       else if (screenWidth >= 768) oneItemWidth = screenWidth * 0.333; // md: 1 item = 33.3%
       else if (screenWidth >= 640) oneItemWidth = screenWidth / 2; // sm: 1 item = 50%
-      
+
       if (currentScroll >= maxScroll - 10) {
         scrollContainer.scrollTo({ left: 0, behavior: "smooth" });
       } else {
@@ -330,7 +330,7 @@ const Home: React.FC = () => {
           scrollContainer.scrollTo({ left: newScrollLeft, behavior: "smooth" });
         }
       }
-      
+
       // After scroll completes, wait another 6 seconds
       setTimeout(() => {
         isScrolling = false;
@@ -342,11 +342,11 @@ const Home: React.FC = () => {
 
     const startAutoScroll = () => {
       if (isScrolling) return;
-      
+
       const timeoutDuration = arrowButtonClicked ? 20000 : 10000; // 10 seconds of inactivity
       const timeSinceInteraction = Date.now() - lastInteractionTime;
       const remainingTime = Math.max(0, timeoutDuration - timeSinceInteraction);
-      
+
       timeoutId = setTimeout(() => {
         // Double check that the required time has passed since last interaction
         const timeSinceLastInteraction = Date.now() - lastInteractionTime;
@@ -401,7 +401,7 @@ const Home: React.FC = () => {
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('touchstart', handleTouchStart);
     window.addEventListener('wheel', handleWheel);
-    
+
     const container = document.getElementById("category-scroll-container");
     if (container) {
       container.addEventListener('mouseenter', handleMouseEnter);
@@ -448,8 +448,8 @@ const Home: React.FC = () => {
   const displayedReviews = viewAllReviews
     ? sortedReviews
     : showMoreReviews
-    ? sortedReviews
-    : sortedReviews.slice(0, 6);
+      ? sortedReviews
+      : sortedReviews.slice(0, 6);
 
   // Calculate statistics
   const totalReviews = reviews.length;
@@ -543,7 +543,7 @@ const Home: React.FC = () => {
           {/* Featured Categories - Infinite Slider with Left/Right Buttons */}
           {!loadingCategories && categories.length > 0 && (
             <div className="mb-12">
-              <div 
+              <div
                 className="relative group/slider overflow-hidden"
                 onMouseEnter={() => {
                   (window as any).categoryLastInteraction = Date.now();
@@ -560,9 +560,9 @@ const Home: React.FC = () => {
                       const screenWidth = window.innerWidth;
                       const visibleItems = getVisibleItems(screenWidth);
                       const itemWidth = screenWidth / visibleItems;
-                      
+
                       const currentScroll = container.scrollLeft;
-                      
+
                       if (currentScroll <= 0) {
                         // If at the start, wrap to the end
                         container.scrollTo({ left: container.scrollWidth - container.clientWidth, behavior: "smooth" });
@@ -589,11 +589,11 @@ const Home: React.FC = () => {
                       const screenWidth = window.innerWidth;
                       const visibleItems = getVisibleItems(screenWidth);
                       const itemWidth = screenWidth / visibleItems;
-                      
+
                       const currentScroll = container.scrollLeft;
                       const maxScroll = container.scrollWidth - container.clientWidth;
                       const newScrollLeft = currentScroll + itemWidth;
-                      
+
                       // Check if we're already at or very close to the end
                       if (currentScroll >= maxScroll - 1) {
                         // If at the end, wrap to the start
@@ -616,12 +616,12 @@ const Home: React.FC = () => {
                   <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6" />
                 </button>
 
-                <div 
+                <div
                   id="category-scroll-container"
                   className="flex overflow-x-auto overflow-y-hidden pb-2 sm:pb-3 md:pb-4 snap-x snap-mandatory scroll-smooth touch-pan-x"
-                  style={{ 
-                    scrollbarWidth: 'none', 
-                    msOverflowStyle: 'none', 
+                  style={{
+                    scrollbarWidth: 'none',
+                    msOverflowStyle: 'none',
                     scrollBehavior: 'smooth'
                   }}
                 >
@@ -637,32 +637,24 @@ const Home: React.FC = () => {
                         <div className="group flex flex-col items-center gap-1 sm:gap-1.5 p-2 sm:p-2.5 rounded-lg transition-all duration-300 relative">
                           {/* Type Badge - Shows on hover, positioned outside circle */}
                           {category.type && (
-                            <div 
-                              className={`absolute top-0 left-1/2 -translate-x-1/2 px-2 sm:px-2.5 md:px-3 py-0.5 sm:py-1 md:py-1.5 rounded-full text-[9px] sm:text-[10px] md:text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10 whitespace-nowrap shadow-lg ${
-                                category.type === "digital"
+                            <div
+                              className={`absolute top-0 left-1/2 -translate-x-1/2 px-2 sm:px-2.5 md:px-3 py-0.5 sm:py-1 md:py-1.5 rounded-full text-[9px] sm:text-[10px] md:text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10 whitespace-nowrap shadow-lg ${category.type === "digital"
                                   ? "bg-[#588157] text-white"
                                   : "bg-[#003049] text-white"
-                              }`}
+                                }`}
                             >
                               {category.type === "digital" ? "Digital Print" : "Bulk Print"}
                             </div>
                           )}
                           {/* Reduced circle sizes for better mobile compatibility */}
-                          <div className={`w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 lg:w-32 lg:h-32 xl:w-36 xl:h-36 rounded-full overflow-hidden bg-white transition-all duration-300 shadow-sm sm:shadow-md group-hover:shadow-lg group-hover:scale-105 flex items-center justify-center relative ${
-                            category.type === "digital" 
-                              ? "group-hover:bg-[#f5faf0]" 
+                          <div className={`w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 lg:w-32 lg:h-32 xl:w-36 xl:h-36 rounded-full overflow-hidden bg-white transition-all duration-300 shadow-sm sm:shadow-md group-hover:shadow-lg group-hover:scale-105 flex items-center justify-center relative ${category.type === "digital"
+                              ? "group-hover:bg-[#f5faf0]"
                               : "group-hover:bg-[#f5fbff]"
-                          }`}>
+                            }`}>
                             <img
                               src={category.image}
                               alt={category.name}
-                              className={`${
-                                category.name.toLowerCase().includes('visiting card') 
-                                  ? 'w-full h-full object-cover' 
-                                  : category.name.toLowerCase().includes('card holder')
-                                  ? 'w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 lg:w-16 lg:h-16 xl:w-18 xl:h-18 object-contain'
-                                  : 'w-14 h-14 sm:w-16 sm:h-16 md:w-18 md:h-18 lg:w-20 lg:h-20 xl:w-22 xl:h-22 object-contain'
-                              }`}
+                              className="w-full h-full object-cover"
                             />
                           </div>
                           <span className="text-xs sm:text-sm font-semibold text-cream-900 text-center max-w-[80px] sm:max-w-[100px] md:max-w-[120px] line-clamp-2 leading-tight mt-0.5">
@@ -757,11 +749,10 @@ const Home: React.FC = () => {
                         <Star
                           key={star}
                           size={16}
-                          className={`sm:w-5 sm:h-5 ${
-                            star <= Math.round(averageRating)
+                          className={`sm:w-5 sm:h-5 ${star <= Math.round(averageRating)
                               ? "fill-yellow-400 text-yellow-400"
                               : "text-cream-300"
-                          }`}
+                            }`}
                         />
                       ))}
                     </div>
@@ -921,7 +912,7 @@ const Home: React.FC = () => {
                               isExpanded || !isLong
                                 ? review.comment
                                 : review.comment.substring(0, maxLength) +
-                                  "...";
+                                "...";
 
                             return (
                               <div className="mb-2">
@@ -1025,13 +1016,13 @@ const Home: React.FC = () => {
                         );
                       })()}
                       <p className="text-xs text-cream-500">
-                        {!isClient 
-                          ? 'Loading...' 
+                        {!isClient
+                          ? 'Loading...'
                           : new Date(review.createdAt).toLocaleDateString("en-US", {
-                              year: "numeric",
-                              month: "long",
-                              day: "numeric",
-                            })
+                            year: "numeric",
+                            month: "long",
+                            day: "numeric",
+                          })
                         }
                       </p>
                     </motion.div>
@@ -1053,9 +1044,8 @@ const Home: React.FC = () => {
                   : `Show More (${sortedReviews.length - 6} more)`}
                 <ArrowRight
                   size={18}
-                  className={`transition-transform ${
-                    showMoreReviews ? "rotate-90" : ""
-                  }`}
+                  className={`transition-transform ${showMoreReviews ? "rotate-90" : ""
+                    }`}
                 />
               </button>
             </div>

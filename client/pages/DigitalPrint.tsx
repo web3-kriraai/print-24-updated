@@ -666,12 +666,7 @@ const DigitalPrint: React.FC = () => {
                             <img
                               src={category.image}
                               alt={category.name}
-                              className={`${category.name.toLowerCase().includes('visiting card')
-                                  ? 'w-full h-full object-cover'
-                                  : category.name.toLowerCase().includes('card holder')
-                                    ? 'w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 lg:w-16 lg:h-16 xl:w-18 xl:h-18 object-contain'
-                                    : 'w-14 h-14 sm:w-16 sm:h-16 md:w-18 md:h-18 lg:w-20 lg:h-20 xl:w-22 xl:h-22 object-contain'
-                                }`}
+                              className="w-full h-full object-cover"
                             />
                           </div>
                           <span className="text-xs sm:text-sm font-semibold text-cream-900 text-center max-w-[80px] sm:max-w-[100px] md:max-w-[120px] line-clamp-2 leading-tight mt-0.5">
@@ -798,12 +793,7 @@ const DigitalPrint: React.FC = () => {
                             <img
                               src={category.image}
                               alt={category.name}
-                              className={`${category.name.toLowerCase().includes('visiting card')
-                                  ? 'w-full h-full object-cover'
-                                  : category.name.toLowerCase().includes('card holder')
-                                    ? 'w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 lg:w-16 lg:h-16 xl:w-18 xl:h-18 object-contain'
-                                    : 'w-14 h-14 sm:w-16 sm:h-16 md:w-18 md:h-18 lg:w-20 lg:h-20 xl:w-22 xl:h-22 object-contain'
-                                }`}
+                              className="w-full h-full object-cover"
                             />
                           </div>
                           <span className="text-xs sm:text-sm font-semibold text-cream-900 text-center max-w-[80px] sm:max-w-[100px] md:max-w-[120px] line-clamp-2 leading-tight mt-0.5">

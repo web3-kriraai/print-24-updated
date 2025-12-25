@@ -110,7 +110,13 @@ export const createCategory = async (req, res) => {
 
     // Parse sortOrder or auto-increment if not provided
     let parsedSortOrder;
-    if (sortOrder !== undefined && sortOrder !== null && sortOrder !== '') {
+    // Treat empty strings, whitespace, null, and undefined as "not provided"
+    const sortOrderProvided = sortOrder !== undefined &&
+      sortOrder !== null &&
+      sortOrder !== '' &&
+      (typeof sortOrder === 'string' ? sortOrder.trim() !== '' : true);
+
+    if (sortOrderProvided) {
       parsedSortOrder = parseInt(sortOrder, 10);
       if (isNaN(parsedSortOrder)) {
         return res.status(400).json({ error: "Sort order must be a valid number." });
