@@ -8787,88 +8787,135 @@ const AdminDashboard: React.FC = () => {
                     <label className="block text-sm font-medium text-cream-900 mb-2">
                       Select Attribute Types to Use with This Product
                     </label>
-                    <div className="space-y-2 max-h-60 overflow-y-auto">
-                      {(attributeTypes || []).map((attrType) => {
-                        const isSelected = (selectedAttributeTypes || []).some(
-                          (sa) => sa.attributeTypeId === attrType._id
-                        );
-                        const selectedAttr = (selectedAttributeTypes || []).find(
-                          (sa) => sa.attributeTypeId === attrType._id
-                        );
 
-                        return (
-                          <div
-                            key={attrType._id}
-                            className={`border rounded-lg p-3 ${isSelected
-                              ? "border-green-500 bg-green-50"
-                              : "border-cream-300 bg-white"
-                              }`}
-                          >
-                            <div className="flex items-start gap-3">
-                              <input
-                                type="checkbox"
-                                checked={isSelected}
-                                onChange={(e) => {
-                                  if (e.target.checked) {
-                                    setSelectedAttributeTypes([
-                                      ...(selectedAttributeTypes || []),
-                                      {
-                                        attributeTypeId: attrType._id,
-                                        isEnabled: true,
-                                        isRequired: attrType.isRequired || false,
-                                        displayOrder: (selectedAttributeTypes || []).length,
-                                      },
-                                    ]);
-                                  } else {
-                                    setSelectedAttributeTypes(
-                                      (selectedAttributeTypes || []).filter(
-                                        (sa) => sa.attributeTypeId !== attrType._id
-                                      )
-                                    );
-                                  }
-                                }}
-                                className="w-4 h-4 text-cream-900 border-cream-300 rounded focus:ring-cream-900 mt-1"
-                              />
-                              <div className="flex-1">
-                                <div className="flex items-center justify-between">
-                                  <div>
-                                    <h4 className="font-medium text-cream-900">
-                                      {attrType.attributeName}
-                                    </h4>
-                                    <p className="text-xs text-cream-600 mt-1">
-                                      {attrType.inputStyle || "N/A"} • {attrType.primaryEffectType || "N/A"} •{" "}
-                                      {attrType.isPricingAttribute ? "Affects Price" : "No Price Impact"}
-                                    </p>
-                                  </div>
-                                </div>
-                                {isSelected && (
-                                  <div className="mt-3 space-y-2 pl-7">
-                                    <div className="flex items-center gap-4">
-                                      <label className="flex items-center gap-2 text-sm text-cream-700">
-                                        <input
-                                          type="checkbox"
-                                          checked={selectedAttr?.isRequired || false}
-                                          onChange={(e) => {
-                                            setSelectedAttributeTypes(
-                                              (selectedAttributeTypes || []).map((sa) =>
-                                                sa.attributeTypeId === attrType._id
-                                                  ? { ...sa, isRequired: e.target.checked }
-                                                  : sa
-                                              )
-                                            );
-                                          }}
-                                          className="w-4 h-4 text-cream-900 border-cream-300 rounded"
-                                        />
-                                        Required for this product
-                                      </label>
+                    {/* Search Bar */}
+                    <div className="relative mb-3">
+                      <input
+                        type="text"
+                        value={attributeTypeSearch}
+                        onChange={(e) => setAttributeTypeSearch(e.target.value)}
+                        placeholder="Search by attribute name or system name..."
+                        className="w-full px-4 py-2 pl-10 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-900 focus:border-transparent"
+                      />
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-cream-400" size={18} />
+                      {attributeTypeSearch && (
+                        <button
+                          type="button"
+                          onClick={() => setAttributeTypeSearch("")}
+                          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-cream-400 hover:text-cream-600"
+                        >
+                          <X size={18} />
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="space-y-2 max-h-60 overflow-y-auto">
+                      {(attributeTypes || [])
+                        .filter((attrType) => {
+                          if (!attributeTypeSearch.trim()) return true;
+                          const searchLower = attributeTypeSearch.toLowerCase();
+                          const attributeName = (attrType.attributeName || "").toLowerCase();
+                          const systemName = (attrType.systemName || "").toLowerCase();
+                          return attributeName.includes(searchLower) || systemName.includes(searchLower);
+                        })
+                        .map((attrType) => {
+                          const isSelected = (selectedAttributeTypes || []).some(
+                            (sa) => sa.attributeTypeId === attrType._id
+                          );
+                          const selectedAttr = (selectedAttributeTypes || []).find(
+                            (sa) => sa.attributeTypeId === attrType._id
+                          );
+
+                          return (
+                            <div
+                              key={attrType._id}
+                              className={`border rounded-lg p-3 ${isSelected
+                                ? "border-green-500 bg-green-50"
+                                : "border-cream-300 bg-white"
+                                }`}
+                            >
+                              <div className="flex items-start gap-3">
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setSelectedAttributeTypes([
+                                        ...(selectedAttributeTypes || []),
+                                        {
+                                          attributeTypeId: attrType._id,
+                                          isEnabled: true,
+                                          isRequired: attrType.isRequired || false,
+                                          displayOrder: (selectedAttributeTypes || []).length,
+                                        },
+                                      ]);
+                                    } else {
+                                      setSelectedAttributeTypes(
+                                        (selectedAttributeTypes || []).filter(
+                                          (sa) => sa.attributeTypeId !== attrType._id
+                                        )
+                                      );
+                                    }
+                                  }}
+                                  className="w-4 h-4 text-cream-900 border-cream-300 rounded focus:ring-cream-900 mt-1"
+                                />
+                                <div className="flex-1">
+                                  <div className="flex items-center justify-between">
+                                    <div>
+                                      <h4 className="font-medium text-cream-900">
+                                        {attrType.attributeName}
+                                      </h4>
+                                      <h3 className="text-xs text-cream-600 mt-1">
+                                        {attrType.systemName}
+                                      </h3>
+                                      <p className="text-xs text-cream-600 mt-1">
+                                        {attrType.inputStyle || "N/A"} • {attrType.primaryEffectType || "N/A"} •{" "}
+                                        {attrType.isPricingAttribute ? "Affects Price" : "No Price Impact"}
+                                      </p>
                                     </div>
                                   </div>
-                                )}
+                                  {isSelected && (
+                                    <div className="mt-3 space-y-2 pl-7">
+                                      <div className="flex items-center gap-4">
+                                        <label className="flex items-center gap-2 text-sm text-cream-700">
+                                          <input
+                                            type="checkbox"
+                                            checked={selectedAttr?.isRequired || false}
+                                            onChange={(e) => {
+                                              setSelectedAttributeTypes(
+                                                (selectedAttributeTypes || []).map((sa) =>
+                                                  sa.attributeTypeId === attrType._id
+                                                    ? { ...sa, isRequired: e.target.checked }
+                                                    : sa
+                                                )
+                                              );
+                                            }}
+                                            className="w-4 h-4 text-cream-900 border-cream-300 rounded"
+                                          />
+                                          Required for this product
+                                        </label>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                             </div>
+                          );
+                        })}
+                      {(attributeTypes || [])
+                        .filter((attrType) => {
+                          if (!attributeTypeSearch.trim()) return true;
+                          const searchLower = attributeTypeSearch.toLowerCase();
+                          const attributeName = (attrType.attributeName || "").toLowerCase();
+                          const systemName = (attrType.systemName || "").toLowerCase();
+                          return attributeName.includes(searchLower) || systemName.includes(searchLower);
+                        }).length === 0 && attributeTypeSearch.trim() && (
+                          <div className="p-4 bg-cream-50 border border-cream-200 rounded-lg text-center">
+                            <p className="text-sm text-cream-600">
+                              No attributes found matching "<strong>{attributeTypeSearch}</strong>"
+                            </p>
                           </div>
-                        );
-                      })}
+                        )}
                     </div>
                     {selectedAttributeTypes && selectedAttributeTypes.length > 0 && (
                       <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">

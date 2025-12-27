@@ -1,117 +1,244 @@
-# Prints24 SSR Project
+# Print24 - E-commerce Platform
 
-This is the restructured project with complete Server-Side Rendering (SSR) support.
+A full-stack e-commerce platform with React frontend and Node.js backend, deployable to Google Cloud Platform.
 
-## Project Structure
+## 🏗️ Architecture
+
+**Monolithic Deployment**: Client and server deployed together on GCP Cloud Run
+- **Frontend**: React 19 with SSR (Server-Side Rendering)
+- **Backend**: Express.js API server
+- **Database**: MongoDB Atlas
+- **Hosting**: Google Cloud Run (asia-south1 - Mumbai)
+- **Storage**: Cloudinary for images
+
+## 📁 Project Structure
 
 ```
-print24-ssr/
-├── client/          # React frontend with SSR
-│   ├── src/         # Source files (will be created after build)
-│   ├── dist/        # Build output (generated)
-│   ├── public/      # Static assets
+print24-updated/
+├── client/                 # React frontend
+│   ├── components/        # React components
+│   ├── pages/            # Page components
+│   ├── lib/              # Utilities and API config
+│   ├── dist/             # Build output (generated)
 │   └── package.json
-├── server/          # Express backend with SSR support
-│   ├── src/         # Server source code
-│   ├── uploads/     # Uploaded files
+├── server/                # Express backend
+│   ├── src/              # Server source code
+│   │   ├── routes/      # API routes
+│   │   ├── models/      # MongoDB models
+│   │   └── server.js    # Main server file
 │   └── package.json
-└── README.md
+├── Dockerfile            # Multi-stage Docker build
+├── setup-gcp.ps1         # One-time GCP setup
+├── deploy-gcp.ps1        # Deployment script
+├── QUICK_START_GCP.md    # Quick start guide
+└── DEPLOYMENT_GUIDE.md   # Detailed deployment guide
 ```
 
-## Setup Instructions
+## 🚀 Quick Start
 
-### 1. Install Dependencies
+### Local Development
 
-**Server:**
-```bash
-cd server
-npm install
-```
-
-**Client:**
-```bash
+1. **Install dependencies:**
+```powershell
+# Install client dependencies
 cd client
 npm install
+
+# Install server dependencies
+cd ../server
+npm install
 ```
 
-### 2. Environment Variables
+2. **Setup environment variables:**
 
-Create a `.env` file in the `server` folder with:
-```
-MONGO_URI=your_mongodb_connection_string
+Create `server/.env`:
+```env
 PORT=5000
-CLOUDINARY_CLOUD_NAME=your_cloud_name
-CLOUDINARY_API_KEY=your_api_key
-CLOUDINARY_API_SECRET=your_api_secret
-JWT_SECRET=your_jwt_secret
+NODE_ENV=development
+MONGO_URI=your-mongodb-connection-string
+JWT_SECRET=your-jwt-secret
+CLOUDINARY_CLOUD_NAME=your-cloud-name
+CLOUDINARY_API_KEY=your-api-key
+CLOUDINARY_API_SECRET=your-api-secret
 ```
 
-### 3. Build Client
-
-```bash
-cd client
-npm run build
+Create `client/.env` (optional for dev):
+```env
+VITE_API_BASE_URL=http://localhost:5000
 ```
 
-This will create the `dist` folder with:
-- `index.html` - HTML template
-- `client.js` - Client-side hydration script
-- `ssr.js` - Server-side rendering script
-- `assets/` - Static assets
+3. **Run development servers:**
 
-### 4. Start Server
-
-```bash
-cd server
-npm start
-```
-
-The server will:
-- Serve API routes at `/api/*`
-- Serve static assets from `client/dist`
-- Render React components server-side for all other routes
-- Handle SSR with proper hydration
-
-## Development
-
-For development with hot reload:
-
-**Client (separate terminal):**
-```bash
+**Terminal 1 - Client (with hot reload):**
+```powershell
 cd client
 npm run dev
+# Access at http://localhost:3000
 ```
 
-This runs Vite dev server on `http://localhost:3000`
-
-**Server (separate terminal):**
-```bash
+**Terminal 2 - Server:**
+```powershell
 cd server
 npm start
+# API at http://localhost:5000
 ```
 
-This runs the Express server on `http://localhost:5000`
+### Production Build (Local Test)
 
-## Production
+```powershell
+# Build everything
+.\build-production.ps1
 
-1. Build the client: `cd client && npm run build`
-2. Start the server: `cd server && npm start`
-3. Access the app at `http://localhost:5000`
+# Start server (serves both API and client)
+cd server
+npm start
+# Access at http://localhost:5000
+```
 
-## SSR Features
+## ☁️ Deploy to GCP
 
-- ✅ Complete server-side rendering
+**See [QUICK_START_GCP.md](./QUICK_START_GCP.md) for deployment guide**
+
+Quick deployment:
+
+```powershell
+# 1. One-time setup (run once)
+.\setup-gcp.ps1
+
+# 2. Deploy application
+.\deploy-gcp.ps1
+```
+
+**GCP Configuration:**
+- Region: asia-south1 (Mumbai)
+- Service: ecommerce-monolith
+- Min instances: 1 (always warm)
+- Max instances: 4
+- CPU: 1 vCPU, Memory: 1GB
+
+## 📚 Documentation
+
+- **[QUICK_START_GCP.md](./QUICK_START_GCP.md)** - Quick deployment guide
+- **[DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md)** - Detailed deployment documentation
+- **[client/.env.example](./client/.env.example)** - Client environment variables
+- **[server/.env.example](./server/.env.example)** - Server environment variables
+
+## 🎯 Features
+
+### Frontend
+- ✅ React 19 with TypeScript
+- ✅ Server-Side Rendering (SSR)
+- ✅ React Router v7
+- ✅ Responsive design
+- ✅ Tailwind CSS
+- ✅ Framer Motion animations
 - ✅ Client-side hydration
-- ✅ No hydration mismatches
-- ✅ SEO-friendly HTML output
-- ✅ Fast initial page load
-- ✅ React Router v7 with RouterProvider
-- ✅ Shared routes configuration
 
-## Notes
+### Backend
+- ✅ Express.js REST API
+- ✅ MongoDB with Mongoose
+- ✅ JWT authentication
+- ✅ File upload (Cloudinary)
+- ✅ Email notifications
+- ✅ SSR support
+- ✅ Health check endpoint
 
-- The server serves the built client from `client/dist`
-- SSR is handled by `server/src/server.js`
-- Client hydration is handled by `client/client.tsx`
-- Routes are defined in `client/routes.tsx` (shared by server and client)
+### Deployment
+- ✅ Docker containerization
+- ✅ Google Cloud Run
+- ✅ Artifact Registry
+- ✅ Secret Manager integration
+- ✅ Auto-scaling
+- ✅ Production-ready
+
+## 🛠️ Scripts
+
+### Client Scripts
+```powershell
+npm run dev       # Development server (Vite)
+npm run build     # Production build
+npm run preview   # Preview production build
+```
+
+### Server Scripts
+```powershell
+npm start         # Start server
+```
+
+### Root Scripts
+```powershell
+.\build-production.ps1    # Build for production
+.\setup-gcp.ps1          # Setup GCP resources
+.\deploy-gcp.ps1         # Deploy to GCP
+```
+
+## 🔧 Environment Variables
+
+### Client (.env)
+- `VITE_API_BASE_URL` - API URL (dev only, auto in production)
+
+### Server (.env)
+- `PORT` - Server port (default: 5000)
+- `NODE_ENV` - Environment (development/production)
+- `MONGO_URI` - MongoDB connection string
+- `JWT_SECRET` - JWT signing secret
+- `CLOUDINARY_CLOUD_NAME` - Cloudinary cloud name
+- `CLOUDINARY_API_KEY` - Cloudinary API key
+- `CLOUDINARY_API_SECRET` - Cloudinary API secret
+- `EMAIL_HOST` - SMTP host
+- `EMAIL_PORT` - SMTP port
+- `EMAIL_USER` - SMTP username
+- `EMAIL_PASSWORD` - SMTP password
+
+## 📊 API Endpoints
+
+- `GET /api/health` - Health check
+- `POST /api/auth/login` - User login
+- `POST /api/auth/register` - User registration
+- `GET /api/products` - Get products
+- `POST /api/products` - Create product (admin)
+- And more...
+
+## 🔐 Security
+
+- ✅ JWT authentication
+- ✅ Secrets stored in GCP Secret Manager
+- ✅ HTTPS by default (Cloud Run)
+- ✅ CORS configured
+- ✅ Input validation
+- ✅ MongoDB injection prevention
+
+## 💰 Estimated Costs
+
+**Monthly GCP costs: ~$15-30**
+- Cloud Run: $10-20
+- Artifact Registry: $0.10
+- Secret Manager: $0.06
+- Networking: ~$5
+
+**Free tier:** 2 million requests/month included
+
+## 🐛 Troubleshooting
+
+See [QUICK_START_GCP.md](./QUICK_START_GCP.md#-common-issues--fixes) for common issues and solutions.
+
+**Quick fixes:**
+```powershell
+# View logs
+gcloud run logs read --service ecommerce-monolith --limit 100
+
+# Update secret
+echo "new-value" | gcloud secrets versions add SECRET_NAME --data-file=-
+
+# Rebuild and redeploy
+.\deploy-gcp.ps1
+```
+
+## 📝 License
+
+Private project - All rights reserved
+
+## 🤝 Contributing
+
+This is a private project. Contact the project owner for contribution guidelines.
 

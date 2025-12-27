@@ -105,6 +105,15 @@ app.use("/api", (req, res, next) => {
   next();
 });
 
+// Health check endpoint (for Docker and Cloud Run)
+app.get("/api/health", (req, res) => {
+  res.status(200).json({
+    status: "healthy",
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
+});
+
 app.use("/api/auth", authRoutes);
 app.use("/api", apiRoutes);
 app.use("/api", uploadRoutes);
@@ -122,8 +131,11 @@ app.use((err, req, res, next) => {
 });
 
 // Serve static files from client dist
-// From server/src/server.js, go up 2 levels to print24-ssr, then into client/dist
-const clientDistPath = join(__dirname, "../../client/dist");
+// In Docker: /app/client/dist (from WORKDIR /app)
+// In local dev: ../../client/dist (from server/src)
+const clientDistPath = process.env.NODE_ENV === 'production'
+  ? join(__dirname, "../client/dist")  // Docker: /app/src -> /app/client/dist
+  : join(__dirname, "../../client/dist");  // Local: server/src -> client/dist
 const clientDistPathResolved = resolve(clientDistPath);
 console.log(`[SSR] Client dist path: ${clientDistPathResolved}`);
 
@@ -169,7 +181,9 @@ app.get("/index.css", (req, res) => {
 
 // Also serve from public folder for images (logo.svg, etc.)
 // Files in public/ are served at root path (e.g., /logo.svg, not /public/logo.svg)
-const clientPublicPath = join(__dirname, "../../client/public");
+const clientPublicPath = process.env.NODE_ENV === 'production'
+  ? join(__dirname, "../client/public")  // Docker: /app/src -> /app/client/public
+  : join(__dirname, "../../client/public");  // Local: server/src -> client/public
 if (existsSync(clientPublicPath)) {
   app.use(express.static(clientPublicPath, {
     index: false,
@@ -452,9 +466,9 @@ app.use(async (req, res, next) => {
 // Static files are already served above, before SSR middleware
 
 // DB + SERVER
-if (!process.env.MONGO_URI) {
-  console.error("❌ ERROR: MONGO_URI environment variable is not set!");
-  console.error("Please check your .env file and ensure MONGO_URI is configured.");
+if (!process.env.MONGO_TEST_URI) {
+  console.error("❌ ERROR: MONGO_TEST_URI environment variable is not set!");
+  console.error("Please check your .env file and ensure MONGO_TEST_URI is configured.");
   process.exit(1);
 }
 
@@ -465,7 +479,7 @@ async function startServer() {
 
   // Connect to MongoDB
   mongoose
-    .connect(process.env.MONGO_URI, {
+    .connect(process.env.MONGO_TEST_URI, {
       serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
       socketTimeoutMS: 45000, // Close sockets after 45s of inactivity
       retryWrites: true,
