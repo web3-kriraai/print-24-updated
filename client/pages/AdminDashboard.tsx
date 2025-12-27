@@ -8863,11 +8863,8 @@ const AdminDashboard: React.FC = () => {
                                   <div className="flex items-center justify-between">
                                     <div>
                                       <h4 className="font-medium text-cream-900">
-                                        {attrType.attributeName}
+                                        {attrType.systemName} {attrType.attributeName ? `(${attrType.attributeName})` : ''}
                                       </h4>
-                                      <h3 className="text-xs text-cream-600 mt-1">
-                                        {attrType.systemName}
-                                      </h3>
                                       <p className="text-xs text-cream-600 mt-1">
                                         {attrType.inputStyle || "N/A"} • {attrType.primaryEffectType || "N/A"} •{" "}
                                         {attrType.isPricingAttribute ? "Affects Price" : "No Price Impact"}
