@@ -13878,7 +13878,9 @@ const AdminDashboard: React.FC = () => {
                                 <div className="flex-1">
                                   <div className="flex items-center justify-between">
                                     <div>
-                                      <h4 className="font-medium text-cream-900">{attrType.attributeName}</h4>
+                                      <h4 className="font-medium text-cream-900">
+                                        {attrType.systemName ? `${attrType.systemName} (${attrType.attributeName})` : attrType.attributeName}
+                                      </h4>
                                       <p className="text-xs text-cream-600 mt-1">
                                         {attrType.inputStyle || "N/A"} • {attrType.primaryEffectType || "N/A"} •{" "}
                                         {attrType.isPricingAttribute ? "Affects Price" : "No Price Impact"}
@@ -13904,7 +13906,7 @@ const AdminDashboard: React.FC = () => {
                                 key={attrId}
                                 className="text-xs text-blue-800 bg-blue-100 px-2 py-1 rounded"
                               >
-                                {attr.attributeName}
+                                {attr.systemName ? `${attr.systemName} (${attr.attributeName})` : attr.attributeName}
                               </span>
                             ) : null;
                           })}
@@ -14079,7 +14081,7 @@ const AdminDashboard: React.FC = () => {
                     <option value="">Filter by Attribute</option>
                     {attributeTypes.map((attr) => (
                       <option key={attr._id} value={attr._id}>
-                        {attr.attributeName}
+                        {attr.systemName} {attr.attributeName ? `(${attr.attributeName})` : ''}
                       </option>
                     ))}
                   </select>
@@ -14353,7 +14355,7 @@ const AdminDashboard: React.FC = () => {
                               <option value="">Select Attribute</option>
                               {attributeTypes.map((attr) => (
                                 <option key={attr._id} value={attr.attributeName}>
-                                  {attr.attributeName}
+                                  {attr.systemName} {attr.attributeName ? `(${attr.attributeName})` : ''}
                                 </option>
                               ))}
                             </select>
@@ -14480,7 +14482,7 @@ const AdminDashboard: React.FC = () => {
                                           .filter(attr => attr.attributeName !== ruleForm.when.attribute)
                                           .map((attr) => (
                                             <option key={attr._id} value={attr.attributeName}>
-                                              {attr.attributeName}
+                                              {attr.systemName} {attr.attributeName ? `(${attr.attributeName})` : ''}
                                             </option>
                                           ))}
                                       </select>
@@ -14634,7 +14636,7 @@ const AdminDashboard: React.FC = () => {
                       <option value="">All Attributes</option>
                       {attributeTypes.map((attr) => (
                         <option key={attr._id} value={attr._id}>
-                          {attr.attributeName}
+                          {attr.systemName} {attr.attributeName ? `(${attr.attributeName})` : ''}
                         </option>
                       ))}
                     </select>
@@ -14708,9 +14710,13 @@ const AdminDashboard: React.FC = () => {
                           })
                           .map((subAttr) => {
 
-                            const parentAttrName = typeof subAttr.parentAttribute === 'object' && subAttr.parentAttribute !== null
-                              ? subAttr.parentAttribute.attributeName
-                              : attributeTypes.find(attr => attr._id === subAttr.parentAttribute)?.attributeName || 'Unknown';
+                            const parentAttrObj = typeof subAttr.parentAttribute === 'object' && subAttr.parentAttribute !== null
+                              ? subAttr.parentAttribute
+                              : attributeTypes.find(attr => attr._id === subAttr.parentAttribute);
+
+                            const parentAttrName = parentAttrObj
+                              ? `${parentAttrObj.systemName || ''} ${parentAttrObj.attributeName ? `(${parentAttrObj.attributeName})` : ''}`
+                              : 'Unknown';
 
                             return (
                               <tr key={subAttr._id} className="border-b border-cream-200 hover:bg-cream-50">
@@ -14718,7 +14724,9 @@ const AdminDashboard: React.FC = () => {
                                 <td className="px-4 py-3 text-sm text-cream-700">{subAttr.parentValue}</td>
                                 <td className="px-4 py-3 text-sm text-cream-700">{subAttr.value}</td>
                                 <td className="px-4 py-3 text-sm text-cream-700">{subAttr.label}</td>
-                                <td className="px-4 py-3 text-sm text-gray-500 font-mono font-bold">{subAttr.systemName || "N/A"}</td>
+                                <td className="px-4 py-3 text-sm text-gray-500 font-mono font-bold">
+                                  {subAttr.systemName || "N/A"} {subAttr.label ? `(${subAttr.label})` : ''}
+                                </td>
                                 <td className="px-4 py-3">
                                   {subAttr.image ? (
                                     <img src={subAttr.image} alt={subAttr.label} className="w-16 h-16 object-cover rounded" />
@@ -14793,7 +14801,7 @@ const AdminDashboard: React.FC = () => {
                             <option value="">Select Attribute</option>
                             {attributeTypes.map((attr) => (
                               <option key={attr._id} value={attr.attributeName}>
-                                {attr.attributeName}
+                                {attr.systemName} {attr.attributeName ? `(${attr.attributeName})` : ''}
                               </option>
                             ))}
                           </select>
