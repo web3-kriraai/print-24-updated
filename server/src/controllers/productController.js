@@ -347,12 +347,19 @@ export const getAllProducts = async (req, res) => {
       })
       .populate({
         path: "subcategory",
-        select: "_id name description image slug category",
-        populate: {
-          path: "category",
-          model: "Category",
-          select: "_id name description type image"
-        }
+        select: "_id name description image slug category parent",
+        populate: [
+          {
+            path: "category",
+            model: "Category",
+            select: "_id name description type image"
+          },
+          {
+            path: "parent",
+            model: "SubCategory",
+            select: "_id name description image slug category"
+          }
+        ]
       })
       .populate({
         path: "dynamicAttributes.attributeType",
@@ -361,9 +368,43 @@ export const getAllProducts = async (req, res) => {
       .sort({ createdAt: -1 });
 
     console.log(`Fetched ${list.length} product(s) total`);
-    console.log("=== ALL PRODUCTS DATA ===");
-    console.log(JSON.stringify(list, null, 2));
-    res.json(list);
+
+    // Restructure each product's subcategory hierarchy
+    const restructuredList = await Promise.all(list.map(async (item) => {
+      let response = item.toObject();
+
+      if (item.subcategory) {
+        // If subcategory has a parent, it's a nested subcategory
+        if (item.subcategory.parent) {
+          // Fetch the parent subcategory to get full details
+          const parentSubcategory = await SubCategory.findById(item.subcategory.parent)
+            .populate({
+              path: "category",
+              model: "Category",
+              select: "_id name description type image"
+            });
+
+          // Set response.subcategory = parent subcategory
+          // Set response.nestedSubcategory = current subcategory
+          response.subcategory = parentSubcategory;
+          response.nestedSubcategory = item.subcategory;
+        } else {
+          // Subcategory has no parent - it's a top-level subcategory
+          response.subcategory = item.subcategory;
+          response.nestedSubcategory = null;
+        }
+      } else {
+        // No subcategory at all
+        response.subcategory = null;
+        response.nestedSubcategory = null;
+      }
+
+      return response;
+    }));
+
+    console.log("=== ALL PRODUCTS DATA (RESTRUCTURED) ===");
+    console.log(JSON.stringify(restructuredList, null, 2));
+    res.json(restructuredList);
   } catch (err) {
     console.error("Error fetching all products:", err);
     res.status(500).json({ error: err.message || "Failed to fetch products" });
@@ -398,12 +439,19 @@ export const getSingleProduct = async (req, res) => {
         })
         .populate({
           path: "subcategory",
-          select: "_id name description image slug category",
-          populate: {
-            path: "category",
-            model: "Category",
-            select: "_id name description type image"
-          }
+          select: "_id name description image slug category parent",
+          populate: [
+            {
+              path: "category",
+              model: "Category",
+              select: "_id name description type image"
+            },
+            {
+              path: "parent",
+              model: "SubCategory",
+              select: "_id name description image slug category"
+            }
+          ]
         })
         .populate({
           path: "dynamicAttributes.attributeType",
@@ -427,9 +475,49 @@ export const getSingleProduct = async (req, res) => {
     }
 
     console.log("Product found:", item.name);
-    console.log("=== SINGLE PRODUCT DATA ===");
-    console.log(JSON.stringify(item, null, 2));
-    res.json(item);
+    console.log("Product subcategory ID:", item.subcategory?._id);
+    console.log("Product subcategory parent:", item.subcategory?.parent);
+
+    // Restructure the response based on subcategory hierarchy
+    let response = item.toObject();
+
+    if (item.subcategory) {
+      // If subcategory has a parent, it's a nested subcategory
+      if (item.subcategory.parent) {
+        console.log("Subcategory has a parent - treating as nested subcategory");
+        // Fetch the parent subcategory to get full details
+        const parentSubcategory = await SubCategory.findById(item.subcategory.parent)
+          .populate({
+            path: "category",
+            model: "Category",
+            select: "_id name description type image"
+          });
+
+        // Set response.subcategory = parent subcategory
+        // Set response.nestedSubcategory = current subcategory
+        response.subcategory = parentSubcategory;
+        response.nestedSubcategory = item.subcategory;
+      } else {
+        // Subcategory has no parent - it's a top-level subcategory
+        console.log("Subcategory has no parent - treating as top-level subcategory");
+        // Set response.subcategory = current subcategory
+        // Set response.nestedSubcategory = null
+        response.subcategory = item.subcategory;
+        response.nestedSubcategory = null;
+      }
+    } else {
+      // No subcategory at all
+      response.subcategory = null;
+      response.nestedSubcategory = null;
+    }
+
+    console.log("=== RESTRUCTURED PRODUCT DATA ===");
+    console.log("Category:", response.category?._id);
+    console.log("Subcategory:", response.subcategory?._id);
+    console.log("Nested Subcategory:", response.nestedSubcategory?._id);
+    console.log(JSON.stringify(response, null, 2));
+
+    res.json(response);
   } catch (err) {
     console.error("Error fetching product:", err);
     if (err.name === 'CastError') {
@@ -591,8 +679,38 @@ export const getProductsByCategory = async (req, res) => {
 
     console.log(`=== PRODUCTS BY CATEGORY (${categoryId}) ===`);
     console.log(`Fetched ${list.length} product(s)`);
-    console.log(JSON.stringify(list, null, 2));
-    res.json(list);
+
+    // Restructure each product's subcategory hierarchy
+    const restructuredList = await Promise.all(list.map(async (item) => {
+      let response = item.toObject();
+
+      if (item.subcategory) {
+        // If subcategory has a parent, it's a nested subcategory
+        if (item.subcategory.parent) {
+          // Fetch the parent subcategory to get full details
+          const parentSubcategory = await SubCategory.findById(item.subcategory.parent)
+            .populate({
+              path: "category",
+              model: "Category",
+              select: "_id name description type image"
+            });
+
+          response.subcategory = parentSubcategory;
+          response.nestedSubcategory = item.subcategory;
+        } else {
+          response.subcategory = item.subcategory;
+          response.nestedSubcategory = null;
+        }
+      } else {
+        response.subcategory = null;
+        response.nestedSubcategory = null;
+      }
+
+      return response;
+    }));
+
+    console.log(JSON.stringify(restructuredList, null, 2));
+    res.json(restructuredList);
   } catch (err) {
     console.error("Error in getProductsByCategory:", err);
     if (err.name === 'CastError') {
@@ -735,9 +853,39 @@ export const getProductsBySubcategory = async (req, res) => {
 
     console.log(`=== PRODUCTS BY SUBCATEGORY (${subcategoryId}) ===`);
     console.log(`Fetched ${list.length} product(s)`);
-    console.log(JSON.stringify(list, null, 2));
+
+    // Restructure each product's subcategory hierarchy
+    const restructuredList = await Promise.all(list.map(async (item) => {
+      let response = item.toObject();
+
+      if (item.subcategory) {
+        // If subcategory has a parent, it's a nested subcategory
+        if (item.subcategory.parent) {
+          // Fetch the parent subcategory to get full details
+          const parentSubcategory = await SubCategory.findById(item.subcategory.parent)
+            .populate({
+              path: "category",
+              model: "Category",
+              select: "_id name description type image"
+            });
+
+          response.subcategory = parentSubcategory;
+          response.nestedSubcategory = item.subcategory;
+        } else {
+          response.subcategory = item.subcategory;
+          response.nestedSubcategory = null;
+        }
+      } else {
+        response.subcategory = null;
+        response.nestedSubcategory = null;
+      }
+
+      return response;
+    }));
+
+    console.log(JSON.stringify(restructuredList, null, 2));
     // Return the list of products
-    res.json(list);
+    res.json(restructuredList);
   } catch (err) {
     console.error("Error fetching products by subcategory:", err);
     if (err.name === 'CastError') {

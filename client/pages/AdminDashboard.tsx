@@ -449,7 +449,8 @@ const AdminDashboard: React.FC = () => {
     descriptionArray: [] as string[],
     basePrice: "",
     category: "", // Now using category instead of subcategory
-    subcategory: "", // Keep for backward compatibility
+    subcategory: "", // Parent subcategory from SubCategory collection
+    nestedSubcategory: "", // Nested subcategory (child of subcategory)
     image: null as File | null,
     options: "",
     filters: {
@@ -636,6 +637,12 @@ const AdminDashboard: React.FC = () => {
   const [loadingCategoryChildren, setLoadingCategoryChildren] = useState<{ [key: string]: boolean }>({});
   const [categoryProducts, setCategoryProducts] = useState<Product[]>([]);
   const [loadingCategoryProducts, setLoadingCategoryProducts] = useState(false);
+
+  // Subcategory management for product form
+  const [subcategoriesByCategory, setSubcategoriesByCategory] = useState<{ [key: string]: any[] }>({}); // Map of categoryId -> subcategories (parent-level only)
+  const [nestedSubcategoriesByParent, setNestedSubcategoriesByParent] = useState<{ [key: string]: any[] }>({}); // Map of parentSubcategoryId -> nested subcategories
+  const [loadingSubcategories, setLoadingSubcategories] = useState(false);
+
   const [users, setUsers] = useState<User[]>([]);
 
   // Print Partner Requests state
@@ -1395,6 +1402,82 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
+  // Fetch parent-level subcategories for a specific category (for product form)
+  const fetchSubCategoriesForCategory = async (categoryId: string) => {
+    if (!categoryId) return;
+
+    try {
+      setLoadingSubcategories(true);
+      const response = await fetch(`${API_BASE_URL}/subcategories`, {
+        method: "GET",
+        headers: getAuthHeaders(),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch subcategories: ${response.status} ${response.statusText}`);
+      }
+
+      const allSubcategories = await response.json();
+
+      // Filter to get only parent-level subcategories for this category
+      // (subcategories that belong to this category and have no parent)
+      const parentSubcategories = allSubcategories.filter((subCat: any) => {
+        const subCatCategoryId = typeof subCat.category === 'object' && subCat.category !== null
+          ? subCat.category._id
+          : subCat.category;
+        return subCatCategoryId === categoryId && !subCat.parent;
+      });
+
+      // Store in state map
+      setSubcategoriesByCategory(prev => ({
+        ...prev,
+        [categoryId]: parentSubcategories
+      }));
+    } catch (err) {
+      console.error("Error fetching subcategories for category:", err);
+    } finally {
+      setLoadingSubcategories(false);
+    }
+  };
+
+  // Fetch nested subcategories for a specific parent subcategory (for product form)
+  const fetchNestedSubCategories = async (parentSubcategoryId: string) => {
+    if (!parentSubcategoryId) return;
+
+    try {
+      setLoadingSubcategories(true);
+      const response = await fetch(`${API_BASE_URL}/subcategories`, {
+        method: "GET",
+        headers: getAuthHeaders(),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch subcategories: ${response.status} ${response.statusText}`);
+      }
+
+      const allSubcategories = await response.json();
+
+      // Filter to get nested subcategories (those with this parent)
+      const nestedSubcategories = allSubcategories.filter((subCat: any) => {
+        const subCatParentId = typeof subCat.parent === 'object' && subCat.parent !== null
+          ? subCat.parent._id
+          : subCat.parent;
+        return subCatParentId === parentSubcategoryId;
+      });
+
+      // Store in state map
+      setNestedSubcategoriesByParent(prev => ({
+        ...prev,
+        [parentSubcategoryId]: nestedSubcategories
+      }));
+    } catch (err) {
+      console.error("Error fetching nested subcategories:", err);
+    } finally {
+      setLoadingSubcategories(false);
+    }
+  };
+
+
   const fetchProducts = async (categoryId?: string) => {
     try {
       setLoadingProducts(true);
@@ -1598,60 +1681,66 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
+
   // Helper function to build category path from root to a specific category
   const buildCategoryPath = (rootCategoryId: string, targetCategoryId?: string): string[] => {
     if (!rootCategoryId) return [];
 
-    const path: string[] = [rootCategoryId];
-
+    // If no target or target is root, return just root
     if (!targetCategoryId || targetCategoryId === rootCategoryId) {
+      return [rootCategoryId];
+    }
+
+    // New Logic: Trace back from target to root using parent pointers
+    // We assume fetchCategoryChildren has been called for rootCategoryId, so we have all descendants
+    const allDescendants = categoryChildrenMap[rootCategoryId] || [];
+
+    // Helper to find a category object by ID (check descendants, subcategories, then main categories)
+    const findCategory = (id: string) => {
+      return allDescendants.find(c => c._id === id) ||
+        subCategories.find(c => c._id === id) ||
+        categories.find(c => c._id === id);
+    };
+
+    const path: string[] = [];
+    let currentId = targetCategoryId;
+    let foundRoot = false;
+
+    // Safety counter to prevent infinite loops
+    let iterations = 0;
+    while (currentId && iterations < 20) {
+      path.unshift(currentId);
+
+      if (currentId === rootCategoryId) {
+        foundRoot = true;
+        break;
+      }
+
+      const category = findCategory(currentId);
+      if (!category) {
+        break;
+      }
+
+      // Get parent ID
+      const parentId = category.parent
+        ? (typeof category.parent === 'object' ? category.parent._id : category.parent)
+        : null;
+
+      if (!parentId) {
+        break;
+      }
+
+      currentId = parentId;
+      iterations++;
+    }
+
+    // If we successfully traced back to root, return the path
+    if (foundRoot) {
       return path;
     }
 
-    // Find the target category and build path to it
-    const findPathToTarget = (currentId: string, targetId: string, currentPath: string[]): string[] | null => {
-      if (currentId === targetId) {
-        return currentPath;
-      }
-
-      const children = categoryChildrenMap[currentId] || [];
-      for (const child of children) {
-        const newPath = [...currentPath, child._id];
-        const result = findPathToTarget(child._id, targetId, newPath);
-        if (result) return result;
-      }
-
-      return null;
-    };
-
-    // Try to find path in already loaded children
-    const foundPath = findPathToTarget(rootCategoryId, targetCategoryId, path);
-    if (foundPath) {
-      return foundPath;
-    }
-
-    // If not found in loaded children, search in all categories
-    const targetCategory = categories.find(cat => cat._id === targetCategoryId);
-    if (targetCategory) {
-      // Build path by traversing parent chain
-      const reversePath: string[] = [];
-      let currentId: string | null = targetCategoryId;
-
-      while (currentId) {
-        reversePath.unshift(currentId);
-        if (currentId === rootCategoryId) break;
-
-        const cat = categories.find(c => c._id === currentId);
-        if (!cat || !cat.parent) break;
-
-        currentId = typeof cat.parent === "object" ? cat.parent._id : cat.parent;
-        if (reversePath.includes(currentId)) break; // Prevent loops
-      }
-
-      return reversePath;
-    }
-
-    return path;
+    // If tracing failed (e.g. broken chain or missing data), return [root, target] as best effort
+    return [rootCategoryId, targetCategoryId];
   };
 
   // Filter categories by selected type - only show top-level categories (no parent)
@@ -4854,30 +4943,57 @@ const AdminDashboard: React.FC = () => {
       // If using subcategory, validate it exists in SubCategory collection and belongs to selected category
       let subcategoryId: string | undefined = undefined;
       if (productForm.subcategory && productForm.subcategory.trim() !== "") {
+        // Determine which subcategory ID to send to the backend
+        // If nestedSubcategory is selected, send that; otherwise send subcategory
+        const subcategoryToSend = productForm.nestedSubcategory || productForm.subcategory;
+
         // Find the subcategory in the subCategories list (from SubCategory collection)
         const selectedSubCategory = subCategories.find(
-          (sc) => sc._id === productForm.subcategory
+          (sc) => sc._id === subcategoryToSend
         );
 
         if (!selectedSubCategory) {
-          // Also check in categoryChildrenMap in case it's loaded there
-          const allSubcategories: any[] = [];
-          Object.values(categoryChildrenMap).forEach((children: any[]) => {
-            if (Array.isArray(children)) {
-              allSubcategories.push(...children);
+          // Also check in subcategoriesByCategory and nestedSubcategoriesByParent
+          let foundSubcategory: any = null;
+
+          // Check in subcategoriesByCategory
+          Object.values(subcategoriesByCategory).forEach((subs: any[]) => {
+            if (Array.isArray(subs)) {
+              const found = subs.find(sc => sc._id === subcategoryToSend);
+              if (found) foundSubcategory = found;
             }
           });
-          const foundInMap = allSubcategories.find(sc => sc._id === productForm.subcategory);
 
-          if (!foundInMap) {
+          // Check in nestedSubcategoriesByParent
+          if (!foundSubcategory) {
+            Object.values(nestedSubcategoriesByParent).forEach((subs: any[]) => {
+              if (Array.isArray(subs)) {
+                const found = subs.find(sc => sc._id === subcategoryToSend);
+                if (found) foundSubcategory = found;
+              }
+            });
+          }
+
+          // Also check in categoryChildrenMap in case it's loaded there
+          if (!foundSubcategory) {
+            const allSubcategories: any[] = [];
+            Object.values(categoryChildrenMap).forEach((children: any[]) => {
+              if (Array.isArray(children)) {
+                allSubcategories.push(...children);
+              }
+            });
+            foundSubcategory = allSubcategories.find(sc => sc._id === subcategoryToSend);
+          }
+
+          if (!foundSubcategory) {
             setError("Selected subcategory not found. Please select a valid subcategory.");
             setLoading(false);
             return;
           }
 
           // Verify subcategory belongs to the selected category
-          const subcategoryCategoryId = foundInMap.category
-            ? (typeof foundInMap.category === 'object' ? foundInMap.category._id : foundInMap.category)
+          const subcategoryCategoryId = foundSubcategory.category
+            ? (typeof foundSubcategory.category === 'object' ? foundSubcategory.category._id : foundSubcategory.category)
             : null;
 
           if (subcategoryCategoryId !== categoryId) {
@@ -4886,7 +5002,7 @@ const AdminDashboard: React.FC = () => {
             return;
           }
 
-          subcategoryId = foundInMap._id;
+          subcategoryId = foundSubcategory._id;
         } else {
           // Verify subcategory belongs to the selected category
           const subcategoryCategoryId = selectedSubCategory.category
@@ -5143,6 +5259,7 @@ const AdminDashboard: React.FC = () => {
         basePrice: "",
         category: "",
         subcategory: "",
+        nestedSubcategory: "",
         image: null,
         options: "",
         filters: {
@@ -5228,31 +5345,77 @@ const AdminDashboard: React.FC = () => {
         ? product.descriptionArray.join('\n')
         : product.description || "";
 
-      // Determine category and type from product
-      // If subcategory exists, get category from subcategory, otherwise use product.category
+      // Determine category, subcategory, and nested subcategory from product
+      // The backend now returns:
+      // - category: main category
+      // - subcategory: parent subcategory (if nested) OR direct subcategory (if not nested)
+      // - nestedSubcategory: child subcategory (if nested) OR null (if not nested)
+
       let categoryId = "";
+      let parentSubcategoryId = ""; // For the subcategory dropdown
+      let nestedSubcategoryId = ""; // For the nested subcategory dropdown
       let productType = "";
 
-      if (product.subcategory) {
+      // Extract category ID
+      const categoryObj = typeof product.category === "object" && product.category !== null
+        ? product.category
+        : null;
+      categoryId = categoryObj ? categoryObj._id : (product.category || "");
+      productType = categoryObj ? categoryObj.type : "";
+
+      console.log("=== CATEGORY EXTRACTION ===");
+      console.log("Category ID:", categoryId);
+      console.log("Product Type:", productType);
+      console.log("Product subcategory:", product.subcategory);
+      console.log("Product nestedSubcategory:", product.nestedSubcategory);
+
+      // Extract parent subcategory and nested subcategory IDs
+      // If nestedSubcategory exists, then:
+      //   - subcategory field contains the parent subcategory
+      //   - nestedSubcategory field contains the child subcategory
+      // If nestedSubcategory is null, then:
+      //   - subcategory field contains the direct subcategory
+      //   - nestedSubcategory is empty
+      if (product.nestedSubcategory) {
+        // Product has a nested subcategory
+        const nestedSubcategoryObj = typeof product.nestedSubcategory === "object" && product.nestedSubcategory !== null
+          ? product.nestedSubcategory
+          : null;
+        nestedSubcategoryId = nestedSubcategoryObj ? nestedSubcategoryObj._id : (product.nestedSubcategory || "");
+
+        // Robustly determine parent subcategory ID
+        // First try to get it from nestedSubcategory.parent (most reliable source of truth for hierarchy)
+        if (nestedSubcategoryObj && nestedSubcategoryObj.parent) {
+          parentSubcategoryId = typeof nestedSubcategoryObj.parent === 'object'
+            ? nestedSubcategoryObj.parent._id
+            : nestedSubcategoryObj.parent;
+          console.log("Derived parent ID from nestedSubcategory.parent:", parentSubcategoryId);
+        }
+
+        // If not found above, fall back to the product.subcategory field (which backend should have set to parent)
+        if (!parentSubcategoryId) {
+          const parentSubcategoryObj = typeof product.subcategory === "object" && product.subcategory !== null
+            ? product.subcategory
+            : null;
+          parentSubcategoryId = parentSubcategoryObj ? parentSubcategoryObj._id : (product.subcategory || "");
+          console.log("Using product.subcategory as parent ID:", parentSubcategoryId);
+        }
+
+        console.log("Has nested subcategory - Parent:", parentSubcategoryId, "Nested:", nestedSubcategoryId);
+      } else if (product.subcategory) {
+        // Product has a top-level subcategory (no nesting)
         const subcategoryObj = typeof product.subcategory === "object" && product.subcategory !== null
           ? product.subcategory
           : null;
-        if (subcategoryObj && subcategoryObj.category) {
-          const categoryObj = typeof subcategoryObj.category === "object" && subcategoryObj.category !== null
-            ? subcategoryObj.category
-            : null;
-          categoryId = categoryObj ? categoryObj._id : (subcategoryObj.category || "");
-          productType = categoryObj ? categoryObj.type : "";
-        }
-      }
+        parentSubcategoryId = subcategoryObj ? subcategoryObj._id : (product.subcategory || "");
+        nestedSubcategoryId = "";
 
-      // If no category from subcategory, use product.category
-      if (!categoryId) {
-        const categoryObj = typeof product.category === "object" && product.category !== null
-          ? product.category
-          : null;
-        categoryId = categoryObj ? categoryObj._id : (product.category || "");
-        productType = categoryObj ? categoryObj.type : "";
+        console.log("Has top-level subcategory:", parentSubcategoryId);
+      } else {
+        // No subcategory at all
+        parentSubcategoryId = "";
+        nestedSubcategoryId = "";
+        console.log("No subcategory");
       }
 
       // Set type first, then category (this will trigger filtering)
@@ -5266,6 +5429,16 @@ const AdminDashboard: React.FC = () => {
         setFilteredCategoriesByType([]);
       }
 
+      // Fetch subcategories for the selected category
+      if (categoryId) {
+        await fetchSubCategoriesForCategory(categoryId);
+      }
+
+      // If there's a parent subcategory, fetch nested subcategories for it
+      if (parentSubcategoryId) {
+        await fetchNestedSubCategories(parentSubcategoryId);
+      }
+
       // Set category
       setProductForm({
         name: product.name || "",
@@ -5273,9 +5446,8 @@ const AdminDashboard: React.FC = () => {
         descriptionArray: product.descriptionArray || [],
         basePrice: product.basePrice?.toString() || "",
         category: categoryId || "",
-        subcategory: product.subcategory && typeof product.subcategory === "object" && product.subcategory._id
-          ? product.subcategory._id
-          : (product.subcategory && product.subcategory !== null && product.subcategory !== "null" && product.subcategory !== "" ? String(product.subcategory) : ""),
+        subcategory: parentSubcategoryId || "", // Parent subcategory
+        nestedSubcategory: nestedSubcategoryId || "", // Nested subcategory
         image: null,
         options: "",
         filters: {
@@ -5383,16 +5555,14 @@ const AdminDashboard: React.FC = () => {
 
       // Fetch attribute types filtered by product's category/subcategory
       const productCategoryId = categoryId || null;
-      const productSubCategoryId = product.subcategory && typeof product.subcategory === "object" && product.subcategory._id
-        ? product.subcategory._id
-        : (product.subcategory && product.subcategory !== null && product.subcategory !== "null" && product.subcategory !== "" ? String(product.subcategory) : null);
+      // Use the deepest subcategory level (nested if exists, otherwise parent)
+      const finalSubcategoryId = nestedSubcategoryId || parentSubcategoryId;
+      const productSubCategoryId = finalSubcategoryId || null;
       await fetchAttributeTypes(productCategoryId, productSubCategoryId);
 
       // Build category path for hierarchical selection
       // If subcategory exists, build the path from root category to subcategory
-      const subcategoryId = product.subcategory && typeof product.subcategory === "object" && product.subcategory !== null
-        ? (product.subcategory._id || "")
-        : (product.subcategory && product.subcategory !== null && product.subcategory !== "null" ? String(product.subcategory) : "");
+      // Note: finalSubcategoryId is the deepest subcategory level based on nestedSubcategory logic
 
       // Wait for categories to be loaded, then build path
       if (categoryId) {
@@ -5400,14 +5570,32 @@ const AdminDashboard: React.FC = () => {
         await fetchCategoryChildren(categoryId);
 
         // If subcategory exists and is valid, build path to it
-        if (subcategoryId && subcategoryId.trim() !== "" && subcategoryId !== categoryId && subcategoryId !== "null") {
+        if (finalSubcategoryId && finalSubcategoryId.trim() !== "" && finalSubcategoryId !== categoryId && finalSubcategoryId !== "null") {
           // Wait a bit for children to load, then build path
           setTimeout(() => {
-            const path = buildCategoryPath(categoryId, subcategoryId);
-            setSelectedCategoryPath(path);
+            // Manually construct the path based on the IDs we found
+            // This is much more reliable than buildCategoryPath because we know the hierarchy directly from the product object
+            const newPath: string[] = [];
+            if (categoryId) newPath.push(categoryId);
+
+            // Add parent subcategory if it exists
+            if (parentSubcategoryId) {
+              newPath.push(parentSubcategoryId);
+
+              // Add nested subcategory only if parent also exists
+              if (nestedSubcategoryId) {
+                newPath.push(nestedSubcategoryId);
+              }
+            } else if (nestedSubcategoryId) {
+              // Should not happen technically (nested implies parent), but as fallback
+              newPath.push(nestedSubcategoryId);
+            }
+
+            console.log("Setting selectedCategoryPath manually:", newPath);
+            setSelectedCategoryPath(newPath);
 
             // Fetch children for all categories in the path
-            path.forEach(catId => {
+            newPath.forEach(catId => {
               if (catId !== categoryId) { // Already fetched root
                 fetchCategoryChildren(catId);
               }
@@ -5422,7 +5610,7 @@ const AdminDashboard: React.FC = () => {
       }
 
       // Fetch products for the selected category/subcategory
-      const finalCategoryId = subcategoryId || categoryId;
+      const finalCategoryId = finalSubcategoryId || categoryId;
       if (finalCategoryId) {
         try {
           setLoadingCategoryProducts(true);
@@ -5560,6 +5748,7 @@ const AdminDashboard: React.FC = () => {
       basePrice: "",
       category: "",
       subcategory: "",
+      nestedSubcategory: "",
       image: null,
       options: "",
       filters: {
@@ -7486,6 +7675,7 @@ const AdminDashboard: React.FC = () => {
                           ...productForm,
                           category: "",
                           subcategory: "",
+                          nestedSubcategory: "",
                         });
                         setCategoryProducts([]);
 
@@ -7607,12 +7797,16 @@ const AdminDashboard: React.FC = () => {
                               // Update path to include subcategory
                               setSelectedCategoryPath([String(selectedCategoryPath[0]), String(value)]);
 
-                              // Update product form
+                              // Update product form - clear nested subcategory when subcategory changes
                               setProductForm({
                                 ...productForm,
                                 category: String(selectedCategoryPath[0]),
                                 subcategory: String(value),
+                                nestedSubcategory: "", // Clear nested subcategory
                               });
+
+                              // Fetch nested subcategories for this subcategory
+                              await fetchNestedSubCategories(String(value));
 
                               // Fetch products for the selected subcategory
                               try {
@@ -7632,13 +7826,16 @@ const AdminDashboard: React.FC = () => {
                                 setLoadingCategoryProducts(false);
                               }
                             } else {
-                              // Clear subcategory
+                              // Clear subcategory and nested subcategory
                               setSelectedCategoryPath([selectedCategoryPath[0]]);
                               setProductForm({
                                 ...productForm,
                                 category: selectedCategoryPath[0],
                                 subcategory: "",
+                                nestedSubcategory: "", // Clear nested subcategory
                               });
+                              // Clear nested subcategories
+                              setNestedSubcategoriesByParent({});
 
                               // Fetch products for the category
                               try {
@@ -7662,6 +7859,7 @@ const AdminDashboard: React.FC = () => {
                           options={[
                             { value: "", label: "None (Use Category Directly)" },
                             ...children
+                              .filter(child => !child.parent || child._id === String(selectedChildId || productForm.subcategory))
                               .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
                               .map((child) => ({
                                 value: child._id,
@@ -7674,6 +7872,97 @@ const AdminDashboard: React.FC = () => {
                     </div>
                   );
                 })()}
+
+                {/* Nested Subcategory Selection - Only shown when subcategory is selected */}
+                {productForm.subcategory && (() => {
+                  const nestedChildren = nestedSubcategoriesByParent[productForm.subcategory] || [];
+                  const isLoadingNested = loadingSubcategories;
+
+                  return (
+                    <div className="mt-4">
+                      <label className="block text-sm font-medium text-cream-900 mb-2">
+                        Nested Subcategory <span className="text-xs text-cream-500 font-normal">(Optional - Leave empty if no nested subcategory)</span>
+                      </label>
+                      {isLoadingNested && nestedChildren.length === 0 ? (
+                        <div className="w-full py-2 border border-cream-300 rounded-lg flex items-center justify-center">
+                          <Loader className="animate-spin text-cream-600" size={16} />
+                          <span className="ml-2 text-sm text-cream-600">Loading nested subcategories...</span>
+                        </div>
+                      ) : nestedChildren.length > 0 ? (
+                        <ReviewFilterDropdown
+                          label="Select Nested Subcategory"
+                          value={String(productForm.nestedSubcategory || "")}
+                          onChange={async (value) => {
+                            if (value) {
+                              // Update product form with nested subcategory
+                              setProductForm({
+                                ...productForm,
+                                nestedSubcategory: String(value),
+                              });
+
+                              // Fetch products for the selected nested subcategory
+                              try {
+                                setLoadingCategoryProducts(true);
+                                const productsResponse = await fetch(`${API_BASE_URL}/products/category/${value}`, {
+                                  headers: getAuthHeaders(),
+                                });
+
+                                if (productsResponse.ok) {
+                                  const productsData = await productsResponse.json();
+                                  setCategoryProducts(productsData || []);
+                                }
+                              } catch (err) {
+                                console.error("Error fetching nested subcategory products:", err);
+                                setCategoryProducts([]);
+                              } finally {
+                                setLoadingCategoryProducts(false);
+                              }
+                            } else {
+                              // Clear nested subcategory
+                              setProductForm({
+                                ...productForm,
+                                nestedSubcategory: "",
+                              });
+
+                              // Fetch products for the parent subcategory
+                              try {
+                                setLoadingCategoryProducts(true);
+                                const productsResponse = await fetch(`${API_BASE_URL}/products/category/${productForm.subcategory}`, {
+                                  headers: getAuthHeaders(),
+                                });
+
+                                if (productsResponse.ok) {
+                                  const productsData = await productsResponse.json();
+                                  setCategoryProducts(productsData || []);
+                                }
+                              } catch (err) {
+                                console.error("Error fetching subcategory products:", err);
+                                setCategoryProducts([]);
+                              } finally {
+                                setLoadingCategoryProducts(false);
+                              }
+                            }
+                          }}
+                          options={[
+                            { value: "", label: "None (Use Subcategory Directly)" },
+                            ...nestedChildren
+                              .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
+                              .map((child) => ({
+                                value: child._id,
+                                label: child.name,
+                              })),
+                          ]}
+                          className="w-full"
+                        />
+                      ) : (
+                        <p className="text-sm text-cream-600 py-2">
+                          No nested subcategories available for this subcategory.
+                        </p>
+                      )}
+                    </div>
+                  );
+                })()}
+
 
                 {/* Display categories, subcategories, or products based on selection */}
                 {selectedType && (
