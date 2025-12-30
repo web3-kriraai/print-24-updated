@@ -31,24 +31,27 @@ export const createAttributeRule = async (req, res) => {
 
     // Validate then actions
     for (const action of then) {
-      if (!action.action || !action.targetAttribute) {
+      // For QUANTITY actions, targetAttribute is optional
+      if (!action.action || (!action.targetAttribute && action.action !== "QUANTITY")) {
         return res.status(400).json({
-          error: "Each THEN action must have 'action' and 'targetAttribute' fields",
+          error: "Each THEN action must have 'action' and 'targetAttribute' fields (except QUANTITY)",
         });
       }
 
-      if (!["SHOW", "HIDE", "SHOW_ONLY", "SET_DEFAULT"].includes(action.action)) {
+      if (!["SHOW", "HIDE", "SHOW_ONLY", "SET_DEFAULT", "QUANTITY"].includes(action.action)) {
         return res.status(400).json({
-          error: `Invalid action type: ${action.action}. Must be one of: SHOW, HIDE, SHOW_ONLY, SET_DEFAULT`,
+          error: `Invalid action type: ${action.action}. Must be one of: SHOW, HIDE, SHOW_ONLY, SET_DEFAULT, QUANTITY`,
         });
       }
 
-      // Validate targetAttribute exists
-      const targetAttribute = await AttributeType.findById(action.targetAttribute);
-      if (!targetAttribute) {
-        return res.status(400).json({
-          error: `Target attribute not found for action: ${action.action}`,
-        });
+      // Validate targetAttribute exists (skip for QUANTITY actions as it's auto-set to "Cutting")
+      if (action.targetAttribute && action.action !== "QUANTITY") {
+        const targetAttribute = await AttributeType.findById(action.targetAttribute);
+        if (!targetAttribute) {
+          return res.status(400).json({
+            error: `Target attribute not found for action: ${action.action}`,
+          });
+        }
       }
 
       // Validate SHOW_ONLY has allowedValues
@@ -63,6 +66,31 @@ export const createAttributeRule = async (req, res) => {
         return res.status(400).json({
           error: "SET_DEFAULT action requires 'defaultValue'",
         });
+      }
+
+      // Validate QUANTITY has at least one constraint field
+      if (action.action === "QUANTITY") {
+        if (action.minQuantity === undefined && action.maxQuantity === undefined && action.stepQuantity === undefined) {
+          return res.status(400).json({
+            error: "QUANTITY action requires at least one of: minQuantity, maxQuantity, or stepQuantity",
+          });
+        }
+
+        // Validate min <= max if both are provided
+        if (action.minQuantity !== undefined && action.maxQuantity !== undefined) {
+          if (action.minQuantity > action.maxQuantity) {
+            return res.status(400).json({
+              error: "QUANTITY action: minQuantity must be less than or equal to maxQuantity",
+            });
+          }
+        }
+
+        // Validate step is positive if provided
+        if (action.stepQuantity !== undefined && action.stepQuantity <= 0) {
+          return res.status(400).json({
+            error: "QUANTITY action: stepQuantity must be greater than 0",
+          });
+        }
       }
     }
 
@@ -100,6 +128,9 @@ export const createAttributeRule = async (req, res) => {
         targetAttribute: action.targetAttribute,
         allowedValues: action.allowedValues || [],
         defaultValue: action.defaultValue || null,
+        minQuantity: action.minQuantity,
+        maxQuantity: action.maxQuantity,
+        stepQuantity: action.stepQuantity,
       })),
       applicableCategory: applicableCategory || null,
       applicableProduct: applicableProduct || null,
@@ -233,24 +264,27 @@ export const updateAttributeRule = async (req, res) => {
 
     // Validate then actions
     for (const action of then) {
-      if (!action.action || !action.targetAttribute) {
+      // For QUANTITY actions, targetAttribute is optional
+      if (!action.action || (!action.targetAttribute && action.action !== "QUANTITY")) {
         return res.status(400).json({
-          error: "Each THEN action must have 'action' and 'targetAttribute' fields",
+          error: "Each THEN action must have 'action' and 'targetAttribute' fields (except QUANTITY)",
         });
       }
 
-      if (!["SHOW", "HIDE", "SHOW_ONLY", "SET_DEFAULT"].includes(action.action)) {
+      if (!["SHOW", "HIDE", "SHOW_ONLY", "SET_DEFAULT", "QUANTITY"].includes(action.action)) {
         return res.status(400).json({
-          error: `Invalid action type: ${action.action}. Must be one of: SHOW, HIDE, SHOW_ONLY, SET_DEFAULT`,
+          error: `Invalid action type: ${action.action}. Must be one of: SHOW, HIDE, SHOW_ONLY, SET_DEFAULT, QUANTITY`,
         });
       }
 
-      // Validate targetAttribute exists
-      const targetAttribute = await AttributeType.findById(action.targetAttribute);
-      if (!targetAttribute) {
-        return res.status(400).json({
-          error: `Target attribute not found for action: ${action.action}`,
-        });
+      // Validate targetAttribute exists (skip for QUANTITY actions as it's auto-set to "Cutting")
+      if (action.targetAttribute && action.action !== "QUANTITY") {
+        const targetAttribute = await AttributeType.findById(action.targetAttribute);
+        if (!targetAttribute) {
+          return res.status(400).json({
+            error: `Target attribute not found for action: ${action.action}`,
+          });
+        }
       }
 
       // Validate SHOW_ONLY has allowedValues
@@ -265,6 +299,31 @@ export const updateAttributeRule = async (req, res) => {
         return res.status(400).json({
           error: "SET_DEFAULT action requires 'defaultValue'",
         });
+      }
+
+      // Validate QUANTITY has at least one constraint field
+      if (action.action === "QUANTITY") {
+        if (action.minQuantity === undefined && action.maxQuantity === undefined && action.stepQuantity === undefined) {
+          return res.status(400).json({
+            error: "QUANTITY action requires at least one of: minQuantity, maxQuantity, or stepQuantity",
+          });
+        }
+
+        // Validate min <= max if both are provided
+        if (action.minQuantity !== undefined && action.maxQuantity !== undefined) {
+          if (action.minQuantity > action.maxQuantity) {
+            return res.status(400).json({
+              error: "QUANTITY action: minQuantity must be less than or equal to maxQuantity",
+            });
+          }
+        }
+
+        // Validate step is positive if provided
+        if (action.stepQuantity !== undefined && action.stepQuantity <= 0) {
+          return res.status(400).json({
+            error: "QUANTITY action: stepQuantity must be greater than 0",
+          });
+        }
       }
     }
 
@@ -304,6 +363,9 @@ export const updateAttributeRule = async (req, res) => {
           targetAttribute: action.targetAttribute,
           allowedValues: action.allowedValues || [],
           defaultValue: action.defaultValue || null,
+          minQuantity: action.minQuantity,
+          maxQuantity: action.maxQuantity,
+          stepQuantity: action.stepQuantity,
         })),
         applicableCategory: applicableCategory || null,
         applicableProduct: applicableProduct || null,

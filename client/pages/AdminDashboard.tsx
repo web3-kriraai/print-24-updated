@@ -726,10 +726,13 @@ const AdminDashboard: React.FC = () => {
       value: "",
     },
     then: [] as Array<{
-      action: "SHOW" | "HIDE" | "SHOW_ONLY" | "SET_DEFAULT";
+      action: "SHOW" | "HIDE" | "SHOW_ONLY" | "SET_DEFAULT" | "QUANTITY";
       targetAttribute: string;
       allowedValues?: string[];
       defaultValue?: string;
+      minQuantity?: number;
+      maxQuantity?: number;
+      stepQuantity?: number;
     }>,
     priority: 0,
     isActive: true,
@@ -3073,6 +3076,28 @@ const AdminDashboard: React.FC = () => {
           setLoading(false);
           return;
         }
+
+        if (action.action === "QUANTITY") {
+          if (action.minQuantity === undefined && action.maxQuantity === undefined && action.stepQuantity === undefined) {
+            setError(`QUANTITY action requires at least one of: Min, Max, or Step`);
+            setLoading(false);
+            return;
+          }
+
+          if (action.minQuantity !== undefined && action.maxQuantity !== undefined) {
+            if (action.minQuantity > action.maxQuantity) {
+              setError(`QUANTITY action: Min must be less than or equal to Max`);
+              setLoading(false);
+              return;
+            }
+          }
+
+          if (action.stepQuantity !== undefined && action.stepQuantity <= 0) {
+            setError(`QUANTITY action: Step must be greater than 0`);
+            setLoading(false);
+            return;
+          }
+        }
       }
 
       // Validate scope
@@ -3113,6 +3138,9 @@ const AdminDashboard: React.FC = () => {
             targetAttribute: targetAttr._id, // Convert attributeName to ID
             allowedValues: action.allowedValues || [],
             defaultValue: action.defaultValue || null,
+            minQuantity: action.minQuantity,
+            maxQuantity: action.maxQuantity,
+            stepQuantity: action.stepQuantity,
           };
         }),
         priority: ruleForm.priority || 0,
@@ -3232,6 +3260,9 @@ const AdminDashboard: React.FC = () => {
           targetAttribute: targetAttributeName,
           allowedValues: action.allowedValues || [],
           defaultValue: action.defaultValue || null,
+          minQuantity: action.minQuantity,
+          maxQuantity: action.maxQuantity,
+          stepQuantity: action.stepQuantity,
         };
       });
 
@@ -3286,6 +3317,9 @@ const AdminDashboard: React.FC = () => {
           targetAttribute: targetAttributeName,
           allowedValues: action.allowedValues || [],
           defaultValue: action.defaultValue || null,
+          minQuantity: action.minQuantity,
+          maxQuantity: action.maxQuantity,
+          stepQuantity: action.stepQuantity,
         };
       }),
       priority: rule.priority || 0,
@@ -14429,7 +14463,10 @@ const AdminDashboard: React.FC = () => {
                         .sort((a, b) => (b.priority || 0) - (a.priority || 0))
                         .map((rule) => {
                           // Safety check: ensure rule.then is an array
-                          const validActions = (rule.then || []).filter((action: any) => action && action.targetAttribute);
+                          // For QUANTITY actions, targetAttribute is not required
+                          const validActions = (rule.then || []).filter((action: any) =>
+                            action && (action.targetAttribute || action.action === 'QUANTITY')
+                          );
 
                           const whenAttr = typeof rule.when?.attribute === 'object' && rule.when.attribute !== null
                             ? rule.when.attribute.attributeName
@@ -14737,8 +14774,13 @@ const AdminDashboard: React.FC = () => {
                                           newThen[index] = {
                                             ...action,
                                             action: e.target.value as any,
+                                            // Auto-set targetAttribute to "Cutting" for QUANTITY actions
+                                            targetAttribute: e.target.value === "QUANTITY" ? "Cutting" : action.targetAttribute,
                                             allowedValues: e.target.value === "SHOW_ONLY" ? [] : action.allowedValues,
                                             defaultValue: e.target.value === "SET_DEFAULT" ? "" : action.defaultValue,
+                                            minQuantity: e.target.value === "QUANTITY" ? undefined : action.minQuantity,
+                                            maxQuantity: e.target.value === "QUANTITY" ? undefined : action.maxQuantity,
+                                            stepQuantity: e.target.value === "QUANTITY" ? undefined : action.stepQuantity,
                                           };
                                           setRuleForm({ ...ruleForm, then: newThen });
                                         }}
@@ -14752,30 +14794,33 @@ const AdminDashboard: React.FC = () => {
                                         <option value="QUANTITY">QUANTITY</option>
                                       </select>
                                     </div>
-                                    <div>
-                                      <label className="block text-sm font-medium text-cream-900 mb-2">
-                                        Target Attribute *
-                                      </label>
-                                      <select
-                                        value={action.targetAttribute}
-                                        onChange={(e) => {
-                                          const newThen = [...ruleForm.then];
-                                          newThen[index] = { ...action, targetAttribute: e.target.value };
-                                          setRuleForm({ ...ruleForm, then: newThen });
-                                        }}
-                                        className="w-full px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-900"
-                                        required
-                                      >
-                                        <option value="">Select Attribute</option>
-                                        {attributeTypes
-                                          .filter(attr => attr.attributeName !== ruleForm.when.attribute)
-                                          .map((attr) => (
-                                            <option key={attr._id} value={attr.attributeName}>
-                                              {attr.systemName} {attr.attributeName ? `(${attr.attributeName})` : ''}
-                                            </option>
-                                          ))}
-                                      </select>
-                                    </div>
+                                    {/* Hide Target Attribute field for QUANTITY actions - it's auto-set to "Cutting" */}
+                                    {action.action !== "QUANTITY" && (
+                                      <div>
+                                        <label className="block text-sm font-medium text-cream-900 mb-2">
+                                          Target Attribute *
+                                        </label>
+                                        <select
+                                          value={action.targetAttribute}
+                                          onChange={(e) => {
+                                            const newThen = [...ruleForm.then];
+                                            newThen[index] = { ...action, targetAttribute: e.target.value };
+                                            setRuleForm({ ...ruleForm, then: newThen });
+                                          }}
+                                          className="w-full px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-900"
+                                          required
+                                        >
+                                          <option value="">Select Attribute</option>
+                                          {attributeTypes
+                                            .filter(attr => attr.attributeName !== ruleForm.when.attribute)
+                                            .map((attr) => (
+                                              <option key={attr._id} value={attr.attributeName}>
+                                                {attr.systemName} {attr.attributeName ? `(${attr.attributeName})` : ''}
+                                              </option>
+                                            ))}
+                                        </select>
+                                      </div>
+                                    )}
                                   </div>
 
                                   {action.action === "SHOW_ONLY" && (
@@ -14843,6 +14888,79 @@ const AdminDashboard: React.FC = () => {
                                           </option>
                                         ))}
                                       </select>
+                                    </div>
+                                  )}
+
+                                  {action.action === "QUANTITY" && (
+                                    <div className="mt-4">
+                                      <label className="block text-sm font-medium text-cream-900 mb-3">
+                                        Quantity Constraints *
+                                      </label>
+                                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <div>
+                                          <label className="block text-xs font-medium text-cream-700 mb-1">
+                                            Min Quantity
+                                          </label>
+                                          <input
+                                            type="number"
+                                            min="0"
+                                            value={action.minQuantity ?? ""}
+                                            onChange={(e) => {
+                                              const newThen = [...ruleForm.then];
+                                              newThen[index] = {
+                                                ...action,
+                                                minQuantity: e.target.value ? parseInt(e.target.value) : undefined,
+                                              };
+                                              setRuleForm({ ...ruleForm, then: newThen });
+                                            }}
+                                            className="w-full px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-900"
+                                            placeholder="e.g., 100"
+                                          />
+                                        </div>
+                                        <div>
+                                          <label className="block text-xs font-medium text-cream-700 mb-1">
+                                            Max Quantity
+                                          </label>
+                                          <input
+                                            type="number"
+                                            min="0"
+                                            value={action.maxQuantity ?? ""}
+                                            onChange={(e) => {
+                                              const newThen = [...ruleForm.then];
+                                              newThen[index] = {
+                                                ...action,
+                                                maxQuantity: e.target.value ? parseInt(e.target.value) : undefined,
+                                              };
+                                              setRuleForm({ ...ruleForm, then: newThen });
+                                            }}
+                                            className="w-full px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-900"
+                                            placeholder="e.g., 1000"
+                                          />
+                                        </div>
+                                        <div>
+                                          <label className="block text-xs font-medium text-cream-700 mb-1">
+                                            Step (Multiples)
+                                          </label>
+                                          <input
+                                            type="number"
+                                            min="1"
+                                            value={action.stepQuantity ?? ""}
+                                            onChange={(e) => {
+                                              const newThen = [...ruleForm.then];
+                                              newThen[index] = {
+                                                ...action,
+                                                stepQuantity: e.target.value ? parseInt(e.target.value) : undefined,
+                                              };
+                                              setRuleForm({ ...ruleForm, then: newThen });
+                                            }}
+                                            className="w-full px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-900"
+                                            placeholder="e.g., 50"
+                                          />
+                                        </div>
+                                      </div>
+                                      <p className="text-xs text-cream-600 mt-2">
+                                        At least one constraint is required. Step defines the increment (e.g., 50 means quantities must be multiples of 50).
+                                      </p>
                                     </div>
                                   )}
                                 </div>

@@ -140,6 +140,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
   const [selectedDeliverySpeed, setSelectedDeliverySpeed] = useState<string>("");
   const [selectedTextureType, setSelectedTextureType] = useState<string>("");
   const [quantity, setQuantity] = useState<number>(100); // Will be set to minimum from product config
+  const [activeQuantityConstraints, setActiveQuantityConstraints] = useState<{ min?: number; max?: number; step?: number } | null>(null);
 
   // Dynamic attributes state - store selected values for each attribute
   const [selectedDynamicAttributes, setSelectedDynamicAttributes] = useState<{ [key: string]: string | number | boolean | File | any[] | null }>({});
@@ -283,6 +284,42 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
           }));
         }
       });
+
+      // Extract QUANTITY constraints directly from rules
+      let quantityConstraints: { min?: number; max?: number; step?: number } | null = null;
+
+      for (const rule of pdpRules) {
+        // Check if rule condition is met
+        const whenAttributeId = typeof rule.when.attribute === 'object'
+          ? rule.when.attribute._id
+          : rule.when.attribute;
+
+        const selectedValue = selectedDynamicAttributes[whenAttributeId];
+
+        if (selectedValue && String(selectedValue) === rule.when.value) {
+          // Rule condition is met, check for QUANTITY actions
+          for (const action of rule.then) {
+            if (action.action === 'QUANTITY') {
+              // Extract quantity constraints from this action
+              quantityConstraints = {
+                min: action.minQuantity,
+                max: action.maxQuantity,
+                step: action.stepQuantity,
+              };
+              break; // Use first matching QUANTITY action
+            }
+          }
+          if (quantityConstraints) break; // Stop after finding first matching rule
+        }
+      }
+
+      if (quantityConstraints) {
+        console.log('✅ Quantity constraints activated:', quantityConstraints);
+      } else {
+        console.log('❌ No quantity constraints active');
+      }
+
+      setActiveQuantityConstraints(quantityConstraints);
     } else if (selectedProduct && !isInitialized) {
       // Fallback to old logic if PDP not loaded yet
       if (selectedProduct.dynamicAttributes) {
@@ -309,6 +346,78 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
       }
     }
   }, [selectedProduct, isInitialized, pdpAttributes, pdpRules, selectedDynamicAttributes]);
+
+  // Validate and adjust quantity when constraints change
+  useEffect(() => {
+    if (!activeQuantityConstraints) return;
+
+    const { min, max, step } = activeQuantityConstraints;
+
+    // Always default to minimum value when constraints change
+    let adjustedQuantity = min !== undefined ? min : quantity;
+
+    // Ensure the minimum value respects the step constraint
+    if (step !== undefined && step > 0 && min !== undefined) {
+      // Make sure min is a valid step value
+      const stepsFromMin = Math.round((adjustedQuantity - min) / step);
+      adjustedQuantity = min + (stepsFromMin * step);
+    }
+
+    // Update quantity to minimum value
+    if (adjustedQuantity !== quantity) {
+      console.log(`Quantity set to minimum value ${adjustedQuantity} based on constraints:`, activeQuantityConstraints);
+      setQuantity(adjustedQuantity);
+
+      // Auto-scroll to quantity section
+      setTimeout(() => {
+        const quantitySection = document.querySelector('[data-section="quantity"]');
+        if (quantitySection) {
+          quantitySection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 100);
+
+      // Show notification about quantity update
+      setValidationError(`Quantity set to ${adjustedQuantity.toLocaleString()} (Min: ${min?.toLocaleString()}, Max: ${max?.toLocaleString()}, Step: ${step?.toLocaleString()})`);
+      setTimeout(() => setValidationError(null), 5000);
+    }
+  }, [activeQuantityConstraints]);
+
+  // Auto-scroll to quantity section whenever quantity changes
+  useEffect(() => {
+    if (quantity > 0) {
+      setTimeout(() => {
+        const quantitySection = document.querySelector('[data-section="quantity"]');
+        if (quantitySection) {
+          quantitySection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 100);
+    }
+  }, [quantity]);
+
+  // Reset quantity to product minimum when constraints are removed
+  useEffect(() => {
+    if (activeQuantityConstraints || !selectedProduct) return;
+
+    // Get minimum quantity from product configuration
+    const orderQuantity = selectedProduct.filters?.orderQuantity;
+    let minQuantity = 100; // Default fallback
+
+    if (orderQuantity) {
+      if (orderQuantity.quantityType === "STEP_WISE" && orderQuantity.stepWiseQuantities && orderQuantity.stepWiseQuantities.length > 0) {
+        minQuantity = Math.min(...orderQuantity.stepWiseQuantities);
+      } else if (orderQuantity.quantityType === "RANGE_WISE" && orderQuantity.rangeWiseQuantities && orderQuantity.rangeWiseQuantities.length > 0) {
+        minQuantity = Math.min(...orderQuantity.rangeWiseQuantities.map((r: any) => r.min || 100));
+      } else {
+        minQuantity = orderQuantity.min || 100;
+      }
+    }
+
+    // Set to minimum if current quantity doesn't match
+    if (quantity !== minQuantity) {
+      console.log(`Quantity reset to product minimum ${minQuantity} (no active constraints)`);
+      setQuantity(minQuantity);
+    }
+  }, [activeQuantityConstraints, selectedProduct]);
 
   // Fetch subcategory and products
   useEffect(() => {
@@ -975,7 +1084,35 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
   // Generate quantity options based on quantity type
   const generateQuantities = (product: GlossProduct) => {
-    // First, check if any selected attribute has step/range quantity settings
+    // PRIORITY 1: Check if active quantity constraints from rules exist
+    if (activeQuantityConstraints) {
+      const { min, max, step } = activeQuantityConstraints;
+      const quantities: number[] = [];
+
+      // If we have min, max, and step, generate the range
+      if (min !== undefined && max !== undefined && step !== undefined && step > 0) {
+        for (let q = min; q <= max; q += step) {
+          quantities.push(q);
+        }
+        console.log('📊 Generated quantities from rule constraints:', quantities);
+        return quantities;
+      }
+
+      // If we only have min and max but no step, generate with a reasonable default step
+      if (min !== undefined && max !== undefined) {
+        const defaultStep = Math.max(1, Math.floor((max - min) / 20)); // Generate ~20 options
+        for (let q = min; q <= max; q += defaultStep) {
+          quantities.push(q);
+        }
+        if (!quantities.includes(max)) {
+          quantities.push(max);
+        }
+        console.log('📊 Generated quantities from rule constraints (default step):', quantities);
+        return quantities;
+      }
+    }
+
+    // PRIORITY 2: Check if any selected attribute has step/range quantity settings
     // Check PDP attributes first (if initialized)
     if (isInitialized && pdpAttributes.length > 0) {
       for (const attr of pdpAttributes) {
@@ -3045,36 +3182,6 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
           </div>
         )}
 
-        {/* Validation Error Notification - Fixed at top for visibility */}
-        <AnimatePresence>
-          {validationError && (
-            <motion.div
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="sticky top-4 mb-4 p-4 bg-red-50 border-2 border-red-300 rounded-lg flex items-start gap-3 text-red-700 shadow-lg z-50"
-              role="alert"
-            >
-              <AlertCircle size={20} className="flex-shrink-0 mt-0.5 text-red-600" />
-              <div className="flex-1">
-                <p className="font-semibold mb-1 text-red-900">Please complete the required fields:</p>
-                <ul className="text-sm whitespace-pre-wrap font-sans list-disc list-inside space-y-1">
-                  {validationError.split('\n').filter(line => line.trim()).map((error, idx) => (
-                    <li key={idx} className="text-red-800">{error.replace(/^Please fill in all required fields:\n?/, '')}</li>
-                  ))}
-                </ul>
-              </div>
-              <button
-                onClick={() => setValidationError(null)}
-                className="flex-shrink-0 text-red-500 hover:text-red-700 transition-colors"
-                aria-label="Close error message"
-              >
-                <X size={18} />
-              </button>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
         {/* Main Content - Only show if not loading and no error */}
         {!loading && !error && !pdpLoading && !pdpError && (
           <>
@@ -3971,7 +4078,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                 )}
 
                                 {/* Quantity Selection */}
-                                <div className="mb-6 sm:mb-8">
+                                <div className="mb-6 sm:mb-8" data-section="quantity">
                                   <label className="block text-xs sm:text-sm font-bold text-cream-900 mb-2 sm:mb-3 uppercase tracking-wider">
                                     {sectionNum++}. Select Quantity
                                   </label>
@@ -3990,7 +4097,17 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                   </div>
 
                                   {(() => {
-                                    // First, check if any selected attribute has step/range quantity settings
+                                    // PRIORITY 1: Check if active quantity constraints from rules exist
+                                    if (activeQuantityConstraints) {
+                                      const { min, max, step } = activeQuantityConstraints;
+                                      return (
+                                        <div className="text-xs sm:text-sm text-cream-600 mb-2">
+                                          <span className="font-medium">Quantity Rules Applied:</span> Min: {min.toLocaleString()}, Max: {max.toLocaleString()}, Step: {step.toLocaleString()}
+                                        </div>
+                                      );
+                                    }
+
+                                    // PRIORITY 2: Check if any selected attribute has step/range quantity settings
                                     let attributeQuantityInfo: any = null;
                                     let attributeName = '';
 

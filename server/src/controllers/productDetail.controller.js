@@ -17,7 +17,7 @@ export const getProductDetail = async (req, res) => {
 
     // Check if identifier is a MongoDB ObjectId (24 hex characters)
     const isObjectId = /^[0-9a-fA-F]{24}$/.test(productId);
-    
+
     let product;
     if (isObjectId) {
       // Try to find by ID first
@@ -229,6 +229,9 @@ export const getProductDetail = async (req, res) => {
           targetAttribute: action.targetAttribute,
           allowedValues: action.allowedValues || [],
           defaultValue: action.defaultValue,
+          minQuantity: action.minQuantity,
+          maxQuantity: action.maxQuantity,
+          stepQuantity: action.stepQuantity,
         })),
         priority: rule.priority,
         applicableCategory: rule.applicableCategory,
