@@ -34,11 +34,41 @@ export const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
     const [highlightedIndex, setHighlightedIndex] = useState(-1);
 
     // Filter options based on search query
-    const filteredOptions = enableSearch && searchQuery.trim()
-        ? options.filter((opt) =>
-            opt.label.toLowerCase().includes(searchQuery.toLowerCase())
-        )
-        : options;
+    const filteredOptions = React.useMemo(() => {
+        const query = searchQuery.toLowerCase().trim();
+
+        if (!enableSearch || !query) {
+            return options;
+        }
+
+        return options
+            .filter((opt) => {
+                const label = String(opt.label || "").toLowerCase();
+                return label.includes(query);
+            })
+            .sort((a, b) => {
+                const labelA = String(a.label || "").toLowerCase();
+                const labelB = String(b.label || "").toLowerCase();
+
+                // 1. Exact match priority
+                if (labelA === query && labelB !== query) return -1;
+                if (labelA !== query && labelB === query) return 1;
+
+                // 2. Starts with priority
+                const aStartsWith = labelA.startsWith(query);
+                const bStartsWith = labelB.startsWith(query);
+                if (aStartsWith && !bStartsWith) return -1;
+                if (!aStartsWith && bStartsWith) return 1;
+
+                // 3. Match position priority (earlier is better)
+                const aIndex = labelA.indexOf(query);
+                const bIndex = labelB.indexOf(query);
+                if (aIndex !== bIndex) return aIndex - bIndex;
+
+                // 4. Alphabetical fallback
+                return labelA.localeCompare(labelB);
+            });
+    }, [options, searchQuery, enableSearch]);
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -68,7 +98,7 @@ export const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
     // Reset highlighted index when filtered options change
     useEffect(() => {
         setHighlightedIndex(-1);
-    }, [searchQuery]);
+    }, [filteredOptions]);
 
     // Keyboard navigation
     const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -153,30 +183,35 @@ export const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
                         {enableSearch && (
                             <div className="p-2 border-b border-cream-200">
                                 <div className="relative">
-                                    <Search
-                                        size={16}
-                                        className="absolute left-3 top-1/2 transform -translate-y-1/2 text-cream-500"
-                                    />
                                     <input
                                         ref={searchInputRef}
                                         type="text"
                                         value={searchQuery}
                                         onChange={(e) => setSearchQuery(e.target.value)}
                                         placeholder={searchPlaceholder}
-                                        className="w-full pl-9 pr-8 py-2 text-sm border border-cream-300 rounded-md focus:outline-none focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
+                                        className="w-full pl-3 pr-20 py-2 text-sm border border-cream-300 rounded-md focus:outline-none focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
                                     />
-                                    {searchQuery && (
+                                    <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center gap-1">
+                                        {searchQuery && (
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setSearchQuery("");
+                                                    searchInputRef.current?.focus();
+                                                }}
+                                                className="p-1 text-cream-400 hover:text-cream-600 transition-colors"
+                                            >
+                                                <X size={14} />
+                                            </button>
+                                        )}
                                         <button
                                             type="button"
-                                            onClick={() => {
-                                                setSearchQuery("");
-                                                searchInputRef.current?.focus();
-                                            }}
-                                            className="absolute right-2 top-1/2 transform -translate-y-1/2 text-cream-500 hover:text-cream-700 transition-colors"
+                                            className="p-1.5 bg-cream-100 text-cream-600 rounded hover:bg-cream-200 transition-colors"
+                                            onClick={() => searchInputRef.current?.focus()}
                                         >
-                                            <X size={16} />
+                                            <Search size={14} />
                                         </button>
-                                    )}
+                                    </div>
                                 </div>
                             </div>
                         )}
@@ -199,8 +234,8 @@ export const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
                                         type="button"
                                         onClick={() => handleSelect(option.value)}
                                         className={`w-full flex items-center justify-between px-3 py-2 text-sm text-cream-900 rounded-md transition-colors ${highlightedIndex === index
-                                                ? "bg-cream-100"
-                                                : "hover:bg-cream-50"
+                                            ? "bg-cream-100"
+                                            : "hover:bg-cream-50"
                                             }`}
                                         onMouseEnter={() => setHighlightedIndex(index)}
                                     >
