@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useClientOnly } from "../hooks/useClientOnly";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import BackButton from "../components/BackButton";
 import toast from "react-hot-toast";
 import {
@@ -42,6 +42,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ReviewFilterDropdown } from "../components/ReviewFilterDropdown";
+import { SearchableDropdown } from "../components/SearchableDropdown";
 import RichTextEditor from "../components/RichTextEditor";
 import { formatCurrency, calculateOrderBreakdown, OrderForCalculation } from "../utils/pricing";
 import { API_BASE_URL_WITH_API as API_BASE_URL } from "../lib/apiConfig";
@@ -394,8 +395,33 @@ const HierarchicalCategorySelector: React.FC<{
 
 const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const isClient = useClientOnly();
-  const [activeTab, setActiveTab] = useState("products");
+  const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "products");
+
+
+
+  // Update URL function
+  const updateUrl = (tab: string, action?: string, id?: string) => {
+    const currentTab = searchParams.get("tab");
+    const currentAction = searchParams.get("action");
+    const currentId = searchParams.get("id");
+
+    // Prevent redundant updates to avoid loops
+    if (
+      currentTab === tab &&
+      (currentAction || "") === (action || "") &&
+      (currentId || "") === (id || "")
+    ) {
+      return;
+    }
+
+    const params = new URLSearchParams();
+    params.set("tab", tab);
+    if (action) params.set("action", action);
+    if (id) params.set("id", id);
+    setSearchParams(params);
+  };
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -5665,10 +5691,11 @@ const AdminDashboard: React.FC = () => {
       }
 
       setEditingProductId(productId);
+      updateUrl("products", "edit", productId);
       // Reset sequence selection states
       setSelectedSequenceId(null);
       setIsCustomizingSequence(false);
-      setActiveTab("products");
+      setError(null);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load product");
@@ -5753,9 +5780,8 @@ const AdminDashboard: React.FC = () => {
       });
       setIsSlugManuallyEdited(!!category.slug); // If category has a slug, consider it manually set
 
-      setEditingCategoryId(categoryId);
-      setEditingCategoryImage(category.image || null);
-      setActiveTab("categories");
+      // Update URL instead of setting state directly
+      updateUrl("categories", "edit", categoryId);
       setError(null);
 
       // Fetch available parent categories (excluding current category and its descendants)
@@ -6373,8 +6399,10 @@ const AdminDashboard: React.FC = () => {
 
       setEditingSubCategoryId(subCategoryId);
       setEditingSubCategoryImage(subCategory.image || null);
-      // Switch to categories tab to show the edit form
-      setActiveTab("categories");
+
+      // Update URL instead of setting active tab directly
+      updateUrl("categories", "edit-sub", subCategoryId);
+
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load subcategory");
@@ -6382,6 +6410,54 @@ const AdminDashboard: React.FC = () => {
       setLoading(false);
     }
   };
+
+
+  // Sync state with URL params
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+
+    // If no tab is present, default to 'products' and replace history entry
+    if (!tab) {
+      setSearchParams(
+        (prev) => {
+          const newParams = new URLSearchParams(prev);
+          newParams.set("tab", "products");
+          return newParams;
+        },
+        { replace: true }
+      );
+      return;
+    }
+
+    if (tab && tab !== activeTab) {
+      setActiveTab(tab);
+    }
+
+    // Handle deep linking for edit actions
+    const action = searchParams.get("action");
+    const id = searchParams.get("id");
+
+    if (tab === "products" && action === "edit" && id) {
+      if (id !== editingProductId) {
+        // Load product data if not already checked loaded
+        handleEditProduct(id);
+      }
+    } else if (tab === "categories" && action === "edit" && id) {
+      if (id !== editingCategoryId) {
+        handleEditCategory(id);
+      }
+    } else if (tab === "categories" && action === "edit-sub" && id) {
+      if (id !== editingSubCategoryId) {
+        handleEditSubCategory(id);
+      }
+    } else if (tab === "products" && !action) {
+      // Clear editing state if URL is just tabs
+      if (editingProductId) setEditingProductId(null);
+    } else if (tab === "categories" && !action) {
+      if (editingCategoryId) setEditingCategoryId(null);
+      if (editingSubCategoryId) setEditingSubCategoryId(null);
+    }
+  }, [searchParams, activeTab, editingProductId, editingCategoryId, editingSubCategoryId]);
 
   const handleDeleteSubCategory = async (subCategoryId: string) => {
     const subCategory = subCategories.find(sc => sc._id === subCategoryId);
@@ -6928,7 +7004,7 @@ const AdminDashboard: React.FC = () => {
     <div className="min-h-screen bg-cream-50 py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-6">
-          <BackButton fallbackPath="/" label="Back to Home" className="text-cream-600 hover:text-cream-900 mb-4" />
+          <BackButton fallbackPath="/" label="Back" className="text-cream-600 hover:text-cream-900 mb-4" />
         </div>
         <div className="mb-6 sm:mb-8">
           <h1 className="font-serif text-2xl sm:text-3xl md:text-4xl font-bold text-cream-900 mb-2">
@@ -6948,7 +7024,7 @@ const AdminDashboard: React.FC = () => {
                 <button
                   key={tab.id}
                   onClick={() => {
-                    setActiveTab(tab.id);
+                    updateUrl(tab.id);
                     setError(null);
                     setSuccess(null);
                     // Clear edit state when switching tabs
@@ -7041,17 +7117,24 @@ const AdminDashboard: React.FC = () => {
               className="space-y-6"
             >
               {editingProductId && (
-                <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
-                  <p className="text-sm text-blue-800 font-medium">
-                    Editing Product: {productForm.name || "Loading..."}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={handleCancelEdit}
-                    className="px-3 py-1 text-sm bg-blue-100 text-blue-800 rounded-lg hover:bg-blue-200 transition-colors"
-                  >
-                    Cancel Edit
-                  </button>
+                <div className="mb-4">
+                  <BackButton
+                    onClick={() => updateUrl("products")}
+                    label="Back"
+                    className="mb-4"
+                  />
+                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
+                    <p className="text-sm text-blue-800 font-medium">
+                      Editing Product: {productForm.name || "Loading..."}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => updateUrl("products")}
+                      className="px-3 py-1 text-sm bg-blue-100 text-blue-800 rounded-lg hover:bg-blue-200 transition-colors"
+                    >
+                      Cancel Edit
+                    </button>
+                  </div>
                 </div>
               )}
               {/* Form Progress Indicator - Show all required fields */}
@@ -9186,7 +9269,7 @@ const AdminDashboard: React.FC = () => {
                                   <div className="flex items-center justify-between">
                                     <div>
                                       <h4 className="font-medium text-cream-900">
-                                        {attrType.systemName} {attrType.attributeName ? `(${attrType.attributeName})` : ''}
+                                        {attrType.systemName ? `${attrType.systemName} ${attrType.attributeName ? `(${attrType.attributeName})` : ''}` : attrType.attributeName}
                                       </h4>
                                       <p className="text-xs text-cream-600 mt-1">
                                         {attrType.inputStyle || "N/A"} • {attrType.primaryEffectType || "N/A"} •{" "}
@@ -9462,28 +9545,30 @@ const AdminDashboard: React.FC = () => {
                               <label className="block text-sm font-medium text-cream-900 mb-2">
                                 Parent Attribute <span className="text-xs text-cream-500 font-normal">(Optional - if this depends on another attribute)</span>
                               </label>
-                              <select
+                              <SearchableDropdown
+                                label="None (Independent Attribute)"
                                 value={attributeTypeForm.parentAttribute}
-                                onChange={(e) => {
+                                onChange={(value) => {
                                   setAttributeTypeForm({
                                     ...attributeTypeForm,
-                                    parentAttribute: e.target.value,
+                                    parentAttribute: String(value || ""),
                                     // Clear show/hide values when parent changes
                                     showWhenParentValue: [],
                                     hideWhenParentValue: []
                                   });
                                 }}
-                                className="w-full px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-900 focus:border-transparent"
-                              >
-                                <option value="">None (Independent Attribute)</option>
-                                {attributeTypes
-                                  .filter(attr => !attr.parentAttribute) // Only show attributes without parents as potential parents
-                                  .map((attr) => (
-                                    <option key={attr._id} value={attr._id}>
-                                      {attr.attributeName}
-                                    </option>
-                                  ))}
-                              </select>
+                                options={[
+                                  { value: "", label: "None (Independent Attribute)" },
+                                  ...attributeTypes
+                                    .filter(attr => !attr.parentAttribute) // Only show attributes without parents as potential parents
+                                    .map((attr) => ({
+                                      value: attr._id,
+                                      label: attr.systemName ? `${attr.systemName} (${attr.attributeName})` : attr.attributeName,
+                                    }))
+                                ]}
+                                className="w-full"
+                                searchPlaceholder="Search attributes..."
+                              />
                               <p className="mt-1 text-xs text-cream-600">
                                 Select a parent attribute if this attribute should only appear when the parent has certain values
                               </p>
@@ -10399,17 +10484,24 @@ const AdminDashboard: React.FC = () => {
           {activeTab === "categories" && !editingSubCategoryId && !subCategoryForm.category && !isNestedSubcategoryMode && (
             <form onSubmit={handleCategorySubmit} className="space-y-6">
               {editingCategoryId && (
-                <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
-                  <p className="text-sm text-blue-800 font-medium">
-                    Editing Category: {categoryForm.name || "Loading..."}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={handleCancelEdit}
-                    className="px-3 py-1 text-sm bg-blue-100 text-blue-800 rounded-lg hover:bg-blue-200 transition-colors"
-                  >
-                    Cancel Edit
-                  </button>
+                <div className="mb-4">
+                  <BackButton
+                    onClick={() => updateUrl("categories")}
+                    label="Back"
+                    className="mb-4"
+                  />
+                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
+                    <p className="text-sm text-blue-800 font-medium">
+                      Editing Category: {categoryForm.name || "Loading..."}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => updateUrl("categories")}
+                      className="px-3 py-1 text-sm bg-blue-100 text-blue-800 rounded-lg hover:bg-blue-200 transition-colors"
+                    >
+                      Cancel Edit
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -10690,17 +10782,24 @@ const AdminDashboard: React.FC = () => {
           {activeTab === "categories" && (editingSubCategoryId || isSubCategoryMode || isNestedSubcategoryMode) && (
             <form onSubmit={handleSubCategorySubmit} className="space-y-6 mt-8 border-t border-cream-200 pt-8">
               {editingSubCategoryId && (
-                <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
-                  <p className="text-sm text-blue-800 font-medium">
-                    Editing Subcategory: {subCategoryForm.name || "Loading..."}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={handleCancelEdit}
-                    className="px-3 py-1 text-sm bg-blue-100 text-blue-800 rounded-lg hover:bg-blue-200 transition-colors"
-                  >
-                    Cancel Edit
-                  </button>
+                <div className="mb-4">
+                  <BackButton
+                    onClick={() => updateUrl("categories")}
+                    label="Back"
+                    className="mb-4"
+                  />
+                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
+                    <p className="text-sm text-blue-800 font-medium">
+                      Editing Subcategory: {subCategoryForm.name || "Loading..."}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => updateUrl("categories")}
+                      className="px-3 py-1 text-sm bg-blue-100 text-blue-800 rounded-lg hover:bg-blue-200 transition-colors"
+                    >
+                      Cancel Edit
+                    </button>
+                  </div>
                 </div>
               )}
               {!editingSubCategoryId && !isNestedSubcategoryMode && (isSubCategoryMode || (subCategoryForm.category && subCategoryForm.category !== "pending")) && (
@@ -14404,7 +14503,7 @@ const AdminDashboard: React.FC = () => {
                     <option value="">Filter by Attribute</option>
                     {attributeTypes.map((attr) => (
                       <option key={attr._id} value={attr._id}>
-                        {attr.systemName} {attr.attributeName ? `(${attr.attributeName})` : ''}
+                        {attr.systemName ? `${attr.systemName} ${attr.attributeName ? `(${attr.attributeName})` : ''}` : attr.attributeName}
                       </option>
                     ))}
                   </select>
@@ -14667,46 +14766,52 @@ const AdminDashboard: React.FC = () => {
                             <label className="block text-sm font-medium text-cream-900 mb-2">
                               Attribute *
                             </label>
-                            <select
+                            <SearchableDropdown
+                              label="Select Attribute"
                               value={ruleForm.when.attribute}
-                              onChange={(e) => {
+                              onChange={(value) => {
                                 setRuleForm({
                                   ...ruleForm,
-                                  when: { ...ruleForm.when, attribute: e.target.value, value: "" },
+                                  when: { ...ruleForm.when, attribute: String(value || ""), value: "" },
                                 });
                               }}
-                              className="w-full px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-900"
-                              required
-                            >
-                              <option value="">Select Attribute</option>
-                              {attributeTypes.map((attr) => (
-                                <option key={attr._id} value={attr.attributeName}>
-                                  {attr.systemName} {attr.attributeName ? `(${attr.attributeName})` : ''}
-                                </option>
-                              ))}
-                            </select>
+                              options={[
+                                { value: "", label: "Select Attribute" },
+                                ...attributeTypes.map((attr) => ({
+                                  value: attr.attributeName,
+                                  label: attr.systemName ? `${attr.systemName} ${attr.attributeName ? `(${attr.attributeName})` : ''}` : attr.attributeName,
+                                }))
+                              ]}
+                              className="w-full"
+                              searchPlaceholder="Search attributes..."
+                              enableSearch={attributeTypes.length > 5}
+                            />
                           </div>
                           <div>
                             <label className="block text-sm font-medium text-cream-900 mb-2">
                               Value *
                             </label>
-                            <select
+                            <SearchableDropdown
+                              label="Select Value"
                               value={ruleForm.when.value}
-                              onChange={(e) => setRuleForm({ ...ruleForm, when: { ...ruleForm.when, value: e.target.value } })}
-                              className="w-full px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-900"
-                              required
-                              disabled={!ruleForm.when.attribute}
-                            >
-                              <option value="">Select Value</option>
-                              {(() => {
+                              onChange={(value) => setRuleForm({ ...ruleForm, when: { ...ruleForm.when, value: String(value || "") } })}
+                              options={[
+                                { value: "", label: "Select Value" },
+                                ...(() => {
+                                  const selectedAttr = attributeTypes.find(attr => attr.attributeName === ruleForm.when.attribute);
+                                  return selectedAttr?.attributeValues?.map((av: any) => ({
+                                    value: av.value,
+                                    label: av.label,
+                                  })) || [];
+                                })()
+                              ]}
+                              className="w-full"
+                              searchPlaceholder="Search values..."
+                              enableSearch={(() => {
                                 const selectedAttr = attributeTypes.find(attr => attr.attributeName === ruleForm.when.attribute);
-                                return selectedAttr?.attributeValues?.map((av: any) => (
-                                  <option key={av.value} value={av.value}>
-                                    {av.label}
-                                  </option>
-                                )) || [];
+                                return (selectedAttr?.attributeValues?.length || 0) > 5;
                               })()}
-                            </select>
+                            />
                           </div>
                         </div>
                       </div>
@@ -14800,25 +14905,27 @@ const AdminDashboard: React.FC = () => {
                                         <label className="block text-sm font-medium text-cream-900 mb-2">
                                           Target Attribute *
                                         </label>
-                                        <select
+                                        <SearchableDropdown
+                                          label="Select Attribute"
                                           value={action.targetAttribute}
-                                          onChange={(e) => {
+                                          onChange={(value) => {
                                             const newThen = [...ruleForm.then];
-                                            newThen[index] = { ...action, targetAttribute: e.target.value };
+                                            newThen[index] = { ...action, targetAttribute: String(value || "") };
                                             setRuleForm({ ...ruleForm, then: newThen });
                                           }}
-                                          className="w-full px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-900"
-                                          required
-                                        >
-                                          <option value="">Select Attribute</option>
-                                          {attributeTypes
-                                            .filter(attr => attr.attributeName !== ruleForm.when.attribute)
-                                            .map((attr) => (
-                                              <option key={attr._id} value={attr.attributeName}>
-                                                {attr.systemName} {attr.attributeName ? `(${attr.attributeName})` : ''}
-                                              </option>
-                                            ))}
-                                        </select>
+                                          options={[
+                                            { value: "", label: "Select Attribute" },
+                                            ...attributeTypes
+                                              .filter(attr => attr.attributeName !== ruleForm.when.attribute)
+                                              .map((attr) => ({
+                                                value: attr.attributeName,
+                                                label: attr.systemName ? `${attr.systemName} ${attr.attributeName ? `(${attr.attributeName})` : ''}` : attr.attributeName,
+                                              }))
+                                          ]}
+                                          className="w-full"
+                                          searchPlaceholder="Search attributes..."
+                                          enableSearch={attributeTypes.length > 5}
+                                        />
                                       </div>
                                     )}
                                   </div>
@@ -15043,7 +15150,7 @@ const AdminDashboard: React.FC = () => {
                       <option value="">All Attributes</option>
                       {attributeTypes.map((attr) => (
                         <option key={attr._id} value={attr._id}>
-                          {attr.systemName} {attr.attributeName ? `(${attr.attributeName})` : ''}
+                          {attr.systemName ? `${attr.systemName} ${attr.attributeName ? `(${attr.attributeName})` : ''}` : attr.attributeName}
                         </option>
                       ))}
                     </select>
@@ -15122,7 +15229,7 @@ const AdminDashboard: React.FC = () => {
                               : attributeTypes.find(attr => attr._id === subAttr.parentAttribute);
 
                             const parentAttrName = parentAttrObj
-                              ? `${parentAttrObj.systemName || ''} ${parentAttrObj.attributeName ? `(${parentAttrObj.attributeName})` : ''}`
+                              ? (parentAttrObj.systemName ? `${parentAttrObj.systemName} ${parentAttrObj.attributeName ? `(${parentAttrObj.attributeName})` : ''}` : parentAttrObj.attributeName)
                               : 'Unknown';
 
                             return (
@@ -15196,45 +15303,50 @@ const AdminDashboard: React.FC = () => {
                           <label className="block text-sm font-medium text-cream-900 mb-2">
                             Parent Attribute *
                           </label>
-                          <select
+                          <SearchableDropdown
+                            label="Select Attribute"
                             value={subAttributeForm.parentAttribute}
-                            onChange={(e) => {
-                              setSubAttributeForm({ ...subAttributeForm, parentAttribute: e.target.value, parentValue: "" });
+                            onChange={(value) => {
+                              setSubAttributeForm({ ...subAttributeForm, parentAttribute: String(value || ""), parentValue: "" });
                             }}
-                            className="w-full px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-900"
-                            required
-                            disabled={!!editingSubAttributeId}
-                          >
-                            <option value="">Select Attribute</option>
-                            {attributeTypes.map((attr) => (
-                              <option key={attr._id} value={attr.attributeName}>
-                                {attr.systemName} {attr.attributeName ? `(${attr.attributeName})` : ''}
-                              </option>
-                            ))}
-                          </select>
+                            options={[
+                              { value: "", label: "Select Attribute" },
+                              ...attributeTypes.map((attr) => ({
+                                value: attr.attributeName,
+                                label: attr.systemName ? `${attr.systemName} ${attr.attributeName ? `(${attr.attributeName})` : ''}` : attr.attributeName,
+                              }))
+                            ]}
+                            className="w-full"
+                            searchPlaceholder="Search attributes..."
+                            enableSearch={attributeTypes.length > 5}
+                          />
                         </div>
 
                         <div>
                           <label className="block text-sm font-medium text-cream-900 mb-2">
                             Parent Value *
                           </label>
-                          <select
+                          <SearchableDropdown
+                            label="Select Parent Value"
                             value={subAttributeForm.parentValue}
-                            onChange={(e) => setSubAttributeForm({ ...subAttributeForm, parentValue: e.target.value })}
-                            className="w-full px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-900"
-                            required
-                            disabled={!subAttributeForm.parentAttribute || !!editingSubAttributeId}
-                          >
-                            <option value="">Select Parent Value</option>
-                            {(() => {
+                            onChange={(value) => setSubAttributeForm({ ...subAttributeForm, parentValue: String(value || "") })}
+                            options={[
+                              { value: "", label: "Select Parent Value" },
+                              ...(() => {
+                                const selectedAttr = attributeTypes.find(attr => attr.attributeName === subAttributeForm.parentAttribute);
+                                return selectedAttr?.attributeValues?.map((av: any) => ({
+                                  value: av.value,
+                                  label: av.label,
+                                })) || [];
+                              })()
+                            ]}
+                            className="w-full"
+                            searchPlaceholder="Search values..."
+                            enableSearch={(() => {
                               const selectedAttr = attributeTypes.find(attr => attr.attributeName === subAttributeForm.parentAttribute);
-                              return selectedAttr?.attributeValues?.map((av: any) => (
-                                <option key={av.value} value={av.value}>
-                                  {av.label}
-                                </option>
-                              )) || [];
+                              return (selectedAttr?.attributeValues?.length || 0) > 5;
                             })()}
-                          </select>
+                          />
                           <p className="text-xs text-cream-600 mt-1">The attribute value that triggers these sub-attributes</p>
                         </div>
 
@@ -17558,4 +17670,5 @@ const AdminDashboard: React.FC = () => {
   );
 };
 
+export { AdminDashboard };
 export default AdminDashboard;
