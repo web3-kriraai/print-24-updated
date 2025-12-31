@@ -20,7 +20,8 @@ export const Pagination: React.FC<PaginationProps> = ({
 
     // If there's only one page (or no items), typically we might hide pagination or show disabled controls.
     // Showing disabled controls is often better for layout stability.
-    if (totalPages <= 1 && totalItems === 0) return null;
+    // If there's only one page or no items, hide pagination
+    if (totalPages <= 1) return null;
 
     const handlePrevious = () => {
         if (currentPage > 1) {
@@ -74,7 +75,7 @@ export const Pagination: React.FC<PaginationProps> = ({
     };
 
     return (
-        <div className={`flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 ${className}`}>
+        <div className={`sticky bottom-0 z-10 bg-white/95 backdrop-blur-sm border-t border-cream-200 py-4 px-2 -mx-2 flex flex-col sm:flex-row items-center justify-between gap-4 mt-0 mb-2 shadow-sm ${className}`}>
             <div className="text-sm text-cream-600">
                 Showing <span className="font-medium">{Math.min((currentPage - 1) * itemsPerPage + 1, totalItems)}</span> to{' '}
                 <span className="font-medium">{Math.min(currentPage * itemsPerPage, totalItems)}</span> of{' '}
