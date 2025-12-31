@@ -40,6 +40,7 @@ import {
   Copy,
   Briefcase,
 } from "lucide-react";
+import { Pagination } from "../components/Pagination";
 import { motion, AnimatePresence } from "framer-motion";
 import { ReviewFilterDropdown } from "../components/ReviewFilterDropdown";
 import { SearchableDropdown } from "../components/SearchableDropdown";
@@ -14798,27 +14799,12 @@ const AdminDashboard: React.FC = () => {
                     </table>
                   </div>
                   {/* Pagination Controls for Attribute Rules */}
-                  {filteredAttributeRules.length > ITEMS_PER_PAGE && (
-                    <div className="flex justify-between items-center mt-4">
-                      <button
-                        onClick={() => setAttributeRulePage(prev => Math.max(prev - 1, 1))}
-                        disabled={attributeRulePage === 1}
-                        className="px-4 py-2 text-sm text-cream-700 bg-white border border-cream-300 rounded-lg hover:bg-cream-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        Previous
-                      </button>
-                      <span className="text-sm text-cream-700">
-                        Page {attributeRulePage} of {Math.ceil(filteredAttributeRules.length / ITEMS_PER_PAGE)}
-                      </span>
-                      <button
-                        onClick={() => setAttributeRulePage(prev => Math.min(prev + 1, Math.ceil(filteredAttributeRules.length / ITEMS_PER_PAGE)))}
-                        disabled={attributeRulePage === Math.ceil(filteredAttributeRules.length / ITEMS_PER_PAGE)}
-                        className="px-4 py-2 text-sm text-cream-700 bg-white border border-cream-300 rounded-lg hover:bg-cream-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        Next
-                      </button>
-                    </div>
-                  )}
+                  <Pagination
+                    currentPage={attributeRulePage}
+                    totalItems={filteredAttributeRules.length}
+                    itemsPerPage={ITEMS_PER_PAGE}
+                    onPageChange={setAttributeRulePage}
+                  />
                 </>
               )}
 
@@ -15528,33 +15514,19 @@ const AdminDashboard: React.FC = () => {
                                     </div>
                                   </td>
                                 </tr>
+
                               );
                             })}
                         </tbody>
                       </table>
                     </div>
                     {/* Pagination Controls for Sub-Attributes */}
-                    {filteredSubAttributes.length > ITEMS_PER_PAGE && (
-                      <div className="flex justify-between items-center mt-4">
-                        <button
-                          onClick={() => setSubAttributePage(prev => Math.max(prev - 1, 1))}
-                          disabled={subAttributePage === 1}
-                          className="px-4 py-2 text-sm text-cream-700 bg-white border border-cream-300 rounded-lg hover:bg-cream-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          Previous
-                        </button>
-                        <span className="text-sm text-cream-700">
-                          Page {subAttributePage} of {Math.ceil(filteredSubAttributes.length / ITEMS_PER_PAGE)}
-                        </span>
-                        <button
-                          onClick={() => setSubAttributePage(prev => Math.min(prev + 1, Math.ceil(filteredSubAttributes.length / ITEMS_PER_PAGE)))}
-                          disabled={subAttributePage === Math.ceil(filteredSubAttributes.length / ITEMS_PER_PAGE)}
-                          className="px-4 py-2 text-sm text-cream-700 bg-white border border-cream-300 rounded-lg hover:bg-cream-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          Next
-                        </button>
-                      </div>
-                    )}
+                    <Pagination
+                      currentPage={subAttributePage}
+                      totalItems={filteredSubAttributes.length}
+                      itemsPerPage={ITEMS_PER_PAGE}
+                      onPageChange={setSubAttributePage}
+                    />
                   </>
                 )}
 
@@ -15590,7 +15562,7 @@ const AdminDashboard: React.FC = () => {
                               { value: "", label: "Select Attribute" },
                               ...attributeTypes.map((attr) => ({
                                 value: attr._id,
-                                label: attr.systemName ? `${attr.systemName} ${attr.attributeName ? `(${attr.attributeName})` : ''}` : attr.attributeName,
+                                label: attr.systemName ? `${attr.systemName} ${attr.attributeName ? `(${attr.attributeName})` : ''} ` : attr.attributeName,
                               }))
                             ]}
                             className="w-full"
@@ -16210,10 +16182,10 @@ const AdminDashboard: React.FC = () => {
                           <p className="text-sm text-cream-600">{user.email}</p>
                           <div className="flex items-center gap-2 mt-2">
                             <span
-                              className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${user.role === "admin"
-                                ? "bg-cream-900 text-white"
-                                : "bg-cream-200 text-cream-900"
-                                }`}
+                              className={`inline - block px - 2 py - 1 rounded - full text - xs font - medium ${user.role === "admin"
+                                  ? "bg-cream-900 text-white"
+                                  : "bg-cream-200 text-cream-900"
+                                } `}
                             >
                               {user.role}
                             </span>
@@ -16283,12 +16255,12 @@ const AdminDashboard: React.FC = () => {
                   {printPartnerRequests.map((request) => (
                     <div
                       key={request._id}
-                      className={`border-2 rounded-lg p-5 transition-all ${request.status === "pending"
-                        ? "border-yellow-300 bg-yellow-50"
-                        : request.status === "approved"
-                          ? "border-green-300 bg-green-50"
-                          : "border-red-300 bg-red-50"
-                        }`}
+                      className={`border - 2 rounded - lg p - 5 transition - all ${request.status === "pending"
+                          ? "border-yellow-300 bg-yellow-50"
+                          : request.status === "approved"
+                            ? "border-green-300 bg-green-50"
+                            : "border-red-300 bg-red-50"
+                        } `}
                     >
                       <div className="flex flex-col lg:flex-row gap-4">
                         <div className="flex-1">
@@ -16302,12 +16274,12 @@ const AdminDashboard: React.FC = () => {
                               </p>
                             </div>
                             <span
-                              className={`px-3 py-1 rounded-full text-xs font-semibold ${request.status === "pending"
-                                ? "bg-yellow-200 text-yellow-800"
-                                : request.status === "approved"
-                                  ? "bg-green-200 text-green-800"
-                                  : "bg-red-200 text-red-800"
-                                }`}
+                              className={`px - 3 py - 1 rounded - full text - xs font - semibold ${request.status === "pending"
+                                  ? "bg-yellow-200 text-yellow-800"
+                                  : request.status === "approved"
+                                    ? "bg-green-200 text-green-800"
+                                    : "bg-red-200 text-red-800"
+                                } `}
                             >
                               {request.status.toUpperCase()}
                             </span>
@@ -16501,13 +16473,13 @@ const AdminDashboard: React.FC = () => {
                 {/* Order Status */}
                 <div className="flex items-center gap-4">
                   <span className="text-sm font-medium text-cream-700">Status:</span>
-                  <div className={`px-4 py-2 rounded-full border-2 ${selectedOrder.status === "completed" ? "bg-green-100 text-green-800 border-green-200" :
-                    selectedOrder.status === "processing" ? "bg-blue-100 text-blue-800 border-blue-200" :
-                      selectedOrder.status === "production_ready" ? "bg-orange-100 text-orange-800 border-orange-200" :
-                        selectedOrder.status === "request" ? "bg-yellow-100 text-yellow-800 border-yellow-200" :
-                          selectedOrder.status === "rejected" ? "bg-red-100 text-red-800 border-red-200" :
-                            "bg-gray-100 text-gray-800 border-gray-200"
-                    }`}>
+                  <div className={`px - 4 py - 2 rounded - full border - 2 ${selectedOrder.status === "completed" ? "bg-green-100 text-green-800 border-green-200" :
+                      selectedOrder.status === "processing" ? "bg-blue-100 text-blue-800 border-blue-200" :
+                        selectedOrder.status === "production_ready" ? "bg-orange-100 text-orange-800 border-orange-200" :
+                          selectedOrder.status === "request" ? "bg-yellow-100 text-yellow-800 border-yellow-200" :
+                            selectedOrder.status === "rejected" ? "bg-red-100 text-red-800 border-red-200" :
+                              "bg-gray-100 text-gray-800 border-gray-200"
+                    } `}>
                     <span className="text-sm font-semibold capitalize">{selectedOrder.status}</span>
                   </div>
                 </div>
@@ -17493,145 +17465,149 @@ const AdminDashboard: React.FC = () => {
       </AnimatePresence>
 
       {/* Delete Confirmation Modal */}
-      {deleteConfirmModal.isOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <AlertCircle className="text-red-600" size={24} />
-              <h3 className="text-xl font-bold text-cream-900">
-                Delete {deleteConfirmModal.type === 'category' ? 'Category' : 'Subcategory'}
-              </h3>
-            </div>
-
-            <div className="mb-4">
-              <p className="text-cream-700 mb-3">
-                Are you sure you want to delete <strong>{deleteConfirmModal.name}</strong>?
-              </p>
-
-              {deleteConfirmModal.subcategoryCount > 0 && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
-                  <div className="flex items-start gap-2">
-                    <AlertCircle className="text-red-600 mt-0.5" size={20} />
-                    <div>
-                      <p className="text-red-800 font-semibold mb-1">
-                        ⚠️ Cannot Delete: This category has {deleteConfirmModal.subcategoryCount} subcategor{deleteConfirmModal.subcategoryCount === 1 ? 'y' : 'ies'}!
-                      </p>
-                      <p className="text-red-700 text-sm">
-                        Please delete or reassign all subcategories before deleting this category.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {deleteConfirmModal.productCount > 0 && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
-                  <div className="flex items-start gap-2">
-                    <AlertCircle className="text-red-600 mt-0.5" size={20} />
-                    <div>
-                      <p className="text-red-800 font-semibold mb-1">
-                        ⚠️ Warning: This will delete {deleteConfirmModal.productCount} product{deleteConfirmModal.productCount !== 1 ? 's' : ''}!
-                      </p>
-                      <p className="text-red-700 text-sm">
-                        All products under this {deleteConfirmModal.type === 'category' ? 'category and its subcategories' : 'subcategory'} will be permanently deleted. This action cannot be undone.
-                      </p>
-                      <p className="text-red-700 text-sm mt-2 font-medium">
-                        Please be careful before proceeding.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-cream-900 mb-2">
-                  Type <strong>"delete"</strong> to confirm:
-                </label>
-                <input
-                  type="text"
-                  value={deleteConfirmModal.deleteText}
-                  onChange={(e) => setDeleteConfirmModal({ ...deleteConfirmModal, deleteText: e.target.value })}
-                  className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
-                  placeholder="Type 'delete' to confirm"
-                  autoFocus
-                />
-              </div>
-            </div>
-
-            <div className="flex gap-3">
-              <button
-                onClick={() => setDeleteConfirmModal({ ...deleteConfirmModal, isOpen: false, deleteText: '' })}
-                className="flex-1 px-4 py-2 border border-cream-300 text-cream-700 rounded-lg hover:bg-cream-50 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  if (deleteConfirmModal.type === 'category') {
-                    confirmDeleteCategory();
-                  } else {
-                    confirmDeleteSubCategory();
-                  }
-                }}
-                disabled={deleteConfirmModal.deleteText.toLowerCase() !== 'delete' || loading || deleteConfirmModal.subcategoryCount > 0}
-                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {loading ? (
-                  <>
-                    <Loader className="animate-spin inline mr-2" size={16} />
-                    Deleting...
-                  </>
-                ) : (
-                  'Delete'
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* View Description Modal */}
-      {viewDescriptionModal.isOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <Eye className="text-blue-600" size={24} />
+      {
+        deleteConfirmModal.isOpen && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <AlertCircle className="text-red-600" size={24} />
                 <h3 className="text-xl font-bold text-cream-900">
-                  {viewDescriptionModal.type === 'category' ? 'Category' : 'Subcategory'} Description
+                  Delete {deleteConfirmModal.type === 'category' ? 'Category' : 'Subcategory'}
                 </h3>
               </div>
-              <button
-                onClick={() => setViewDescriptionModal({ ...viewDescriptionModal, isOpen: false })}
-                className="text-cream-600 hover:text-cream-900 transition-colors"
-              >
-                <X size={24} />
-              </button>
-            </div>
 
-            <div className="mb-4">
-              <h4 className="text-lg font-semibold text-cream-900 mb-2">
-                {viewDescriptionModal.name}
-              </h4>
-              <div className="bg-cream-50 border border-cream-200 rounded-lg p-4 max-h-96 overflow-y-auto">
-                <div
-                  className="text-cream-700 leading-relaxed rich-text-content"
-                  dangerouslySetInnerHTML={{ __html: viewDescriptionModal.description }}
-                />
+              <div className="mb-4">
+                <p className="text-cream-700 mb-3">
+                  Are you sure you want to delete <strong>{deleteConfirmModal.name}</strong>?
+                </p>
+
+                {deleteConfirmModal.subcategoryCount > 0 && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+                    <div className="flex items-start gap-2">
+                      <AlertCircle className="text-red-600 mt-0.5" size={20} />
+                      <div>
+                        <p className="text-red-800 font-semibold mb-1">
+                          ⚠️ Cannot Delete: This category has {deleteConfirmModal.subcategoryCount} subcategor{deleteConfirmModal.subcategoryCount === 1 ? 'y' : 'ies'}!
+                        </p>
+                        <p className="text-red-700 text-sm">
+                          Please delete or reassign all subcategories before deleting this category.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {deleteConfirmModal.productCount > 0 && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+                    <div className="flex items-start gap-2">
+                      <AlertCircle className="text-red-600 mt-0.5" size={20} />
+                      <div>
+                        <p className="text-red-800 font-semibold mb-1">
+                          ⚠️ Warning: This will delete {deleteConfirmModal.productCount} product{deleteConfirmModal.productCount !== 1 ? 's' : ''}!
+                        </p>
+                        <p className="text-red-700 text-sm">
+                          All products under this {deleteConfirmModal.type === 'category' ? 'category and its subcategories' : 'subcategory'} will be permanently deleted. This action cannot be undone.
+                        </p>
+                        <p className="text-red-700 text-sm mt-2 font-medium">
+                          Please be careful before proceeding.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-cream-900 mb-2">
+                    Type <strong>"delete"</strong> to confirm:
+                  </label>
+                  <input
+                    type="text"
+                    value={deleteConfirmModal.deleteText}
+                    onChange={(e) => setDeleteConfirmModal({ ...deleteConfirmModal, deleteText: e.target.value })}
+                    className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
+                    placeholder="Type 'delete' to confirm"
+                    autoFocus
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setDeleteConfirmModal({ ...deleteConfirmModal, isOpen: false, deleteText: '' })}
+                  className="flex-1 px-4 py-2 border border-cream-300 text-cream-700 rounded-lg hover:bg-cream-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    if (deleteConfirmModal.type === 'category') {
+                      confirmDeleteCategory();
+                    } else {
+                      confirmDeleteSubCategory();
+                    }
+                  }}
+                  disabled={deleteConfirmModal.deleteText.toLowerCase() !== 'delete' || loading || deleteConfirmModal.subcategoryCount > 0}
+                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loading ? (
+                    <>
+                      <Loader className="animate-spin inline mr-2" size={16} />
+                      Deleting...
+                    </>
+                  ) : (
+                    'Delete'
+                  )}
+                </button>
               </div>
             </div>
+          </div>
+        )
+      }
 
-            <div className="flex justify-end">
-              <button
-                onClick={() => setViewDescriptionModal({ ...viewDescriptionModal, isOpen: false })}
-                className="px-6 py-2 bg-cream-900 text-white rounded-lg hover:bg-cream-800 transition-colors"
-              >
-                Close
-              </button>
+      {/* View Description Modal */}
+      {
+        viewDescriptionModal.isOpen && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <Eye className="text-blue-600" size={24} />
+                  <h3 className="text-xl font-bold text-cream-900">
+                    {viewDescriptionModal.type === 'category' ? 'Category' : 'Subcategory'} Description
+                  </h3>
+                </div>
+                <button
+                  onClick={() => setViewDescriptionModal({ ...viewDescriptionModal, isOpen: false })}
+                  className="text-cream-600 hover:text-cream-900 transition-colors"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+
+              <div className="mb-4">
+                <h4 className="text-lg font-semibold text-cream-900 mb-2">
+                  {viewDescriptionModal.name}
+                </h4>
+                <div className="bg-cream-50 border border-cream-200 rounded-lg p-4 max-h-96 overflow-y-auto">
+                  <div
+                    className="text-cream-700 leading-relaxed rich-text-content"
+                    dangerouslySetInnerHTML={{ __html: viewDescriptionModal.description }}
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end">
+                <button
+                  onClick={() => setViewDescriptionModal({ ...viewDescriptionModal, isOpen: false })}
+                  className="px-6 py-2 bg-cream-900 text-white rounded-lg hover:bg-cream-800 transition-colors"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      }
 
       {/* Create Employee Modal (for Department Section) */}
       <AnimatePresence>
@@ -17943,7 +17919,7 @@ const AdminDashboard: React.FC = () => {
           </div>
         )}
       </AnimatePresence>
-    </div>
+    </div >
   );
 };
 
