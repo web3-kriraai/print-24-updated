@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useClientOnly } from "../hooks/useClientOnly";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import BackButton from "../components/BackButton";
@@ -799,11 +799,14 @@ const AdminDashboard: React.FC = () => {
 
   // Enhanced filter states for Sub-Attributes
   const [subAttributeStatusFilter, setSubAttributeStatusFilter] = useState<"all" | "enabled" | "disabled">("all");
+  const [subAttributePage, setSubAttributePage] = useState(1);
 
   // Enhanced filter states for Attribute Rules
   const [ruleActionTypeFilter, setRuleActionTypeFilter] = useState("");
   const [ruleStatusFilter, setRuleStatusFilter] = useState<"all" | "active" | "inactive">("all");
   const [ruleScopeFilter, setRuleScopeFilter] = useState<"all" | "global" | "product">("all");
+  const [attributeRulePage, setAttributeRulePage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
 
 
   // Departments state
@@ -883,6 +886,98 @@ const AdminDashboard: React.FC = () => {
     applicableSubCategories: [] as string[],
   });
 
+  // Filtered Attribute Rules
+  const filteredAttributeRules = useMemo(() => {
+    return attributeRules
+      .filter((rule) => {
+        const searchLower = attributeRuleSearch.toLowerCase();
+        const ruleName = rule.name?.toLowerCase() || "";
+        const scope = rule.scope?.toLowerCase() || "";
+
+        // 1. Check Dropdown Filter
+        if (attributeRuleFilter) {
+          const conditionUsesAttribute = rule.when?.attribute === attributeRuleFilter ||
+            (typeof rule.when?.attribute === 'object' && rule.when.attribute !== null && rule.when.attribute._id === attributeRuleFilter);
+
+          if (!conditionUsesAttribute) return false;
+        }
+
+        // 2. Filter by Action Type (if selected)
+        if (ruleActionTypeFilter) {
+          const hasActionType = (rule.then || []).some((action: any) => action.action === ruleActionTypeFilter);
+          if (!hasActionType) return false;
+        }
+
+        // 3. Filter by Status (if selected)
+        if (ruleStatusFilter !== "all") {
+          if (ruleStatusFilter === "active" && !rule.isActive) return false;
+          if (ruleStatusFilter === "inactive" && rule.isActive) return false;
+        }
+
+        // 4. Filter by Scope (if selected)
+        if (ruleScopeFilter !== "all") {
+          const isGlobal = !rule.productId && !rule.applicableProduct;
+          if (ruleScopeFilter === "global" && !isGlobal) return false;
+          if (ruleScopeFilter === "product" && isGlobal) return false;
+        }
+
+        // 5. Check Search Text (require minimum 2 characters)
+        if (!attributeRuleSearch || attributeRuleSearch.length < 2) return true;
+
+        const whenAttr = typeof rule.when?.attribute === 'object' && rule.when.attribute !== null
+          ? rule.when.attribute.attributeName || ""
+          : attributeTypes.find(attr => attr._id === rule.when?.attribute)?.attributeName || "";
+
+        return ruleName.includes(searchLower) ||
+          scope.includes(searchLower) ||
+          whenAttr.toLowerCase().includes(searchLower);
+      })
+      .sort((a, b) => (b.priority || 0) - (a.priority || 0));
+  }, [attributeRules, attributeRuleSearch, attributeRuleFilter, ruleActionTypeFilter, ruleStatusFilter, ruleScopeFilter, attributeTypes]);
+
+  // Filtered Sub-Attributes
+  const filteredSubAttributes = useMemo(() => {
+    return subAttributes.filter((subAttr) => {
+      const searchLower = subAttributeSearch.toLowerCase();
+
+      // 1. Search Logic
+      if (subAttributeSearch && subAttributeSearch.length >= 2) {
+        const matchesName = subAttr.value?.toLowerCase().includes(searchLower) || false;
+        const matchesLabel = subAttr.label?.toLowerCase().includes(searchLower) || false;
+        const matchesSystemName = subAttr.systemName?.toLowerCase().includes(searchLower) || false;
+        const matchesParentValue = (subAttr.parentValue || "").toLowerCase().includes(searchLower);
+
+        // Also search in Parent Attribute Name if possible
+        const parentAttrName = subAttr.parentAttribute
+          ? (attributeTypes.find(a => a._id === subAttr.parentAttribute)?.attributeName || "").toLowerCase()
+          : "";
+        const matchesParent = parentAttrName.includes(searchLower);
+
+        if (!matchesName && !matchesLabel && !matchesSystemName && !matchesParentValue && !matchesParent) return false;
+      }
+
+      // 2. Filter by Attribute
+      if (subAttributeFilter.attributeId) {
+        // subAttr.parentAttribute is the ID
+        if (subAttr.parentAttribute !== subAttributeFilter.attributeId) return false;
+      }
+
+      // 3. Filter by Parent Value
+      if (subAttributeFilter.parentValue) {
+        if (subAttr.parentValue !== subAttributeFilter.parentValue) return false;
+      }
+
+      // 4. Filter by Status
+      if (subAttributeStatusFilter !== "all") {
+        const isEnabled = subAttr.isEnabled !== false; // Default to true if undefined
+        if (subAttributeStatusFilter === "enabled" && !isEnabled) return false;
+        if (subAttributeStatusFilter === "disabled" && isEnabled) return false;
+      }
+
+      return true;
+    });
+  }, [subAttributes, subAttributeSearch, subAttributeFilter, subAttributeStatusFilter, attributeTypes]);
+
   useEffect(() => {
     // Check if user is admin
     const user = localStorage.getItem("user");
@@ -933,6 +1028,13 @@ const AdminDashboard: React.FC = () => {
       // Fetch subcategories to display category/subcategory info in product list
       fetchSubCategories();
       fetchCategories();
+    }
+    if (activeTab === "attribute-rules") {
+      fetchAttributeRules();
+      fetchAttributeTypes();
+      fetchCategories();
+      fetchProducts();
+      fetchSubAttributes();
     }
   }, [activeTab]);
 
@@ -991,6 +1093,8 @@ const AdminDashboard: React.FC = () => {
   // Helper to get next sort order for subcategories
   const getNextSubCategorySortOrder = (categoryId: string, parentSubId?: string): number => {
     let scopeItems = [];
+
+
 
     if (parentSubId) {
       // Nested subcategory: max sort order among siblings (same parent subcategory)
@@ -14533,26 +14637,32 @@ const AdminDashboard: React.FC = () => {
                     </select>
                   </div>
                   <div className="w-full md:w-40">
-                    <select
+                    <SearchableDropdown
+                      label="All Status"
                       value={ruleStatusFilter}
-                      onChange={(e) => setRuleStatusFilter(e.target.value as "all" | "active" | "inactive")}
-                      className="w-full h-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500 bg-white"
-                    >
-                      <option value="all">All Status</option>
-                      <option value="active">Active</option>
-                      <option value="inactive">Inactive</option>
-                    </select>
+                      onChange={(value) => setRuleStatusFilter(String(value || "all") as "all" | "active" | "inactive")}
+                      options={[
+                        { value: "all", label: "All Status" },
+                        { value: "active", label: "Active" },
+                        { value: "inactive", label: "Inactive" },
+                      ]}
+                      searchPlaceholder="Search status..."
+                      enableSearch={false}
+                    />
                   </div>
                   <div className="w-full md:w-40">
-                    <select
+                    <SearchableDropdown
+                      label="All Scopes"
                       value={ruleScopeFilter}
-                      onChange={(e) => setRuleScopeFilter(e.target.value as "all" | "global" | "product")}
-                      className="w-full h-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500 bg-white"
-                    >
-                      <option value="all">All Scopes</option>
-                      <option value="global">Global</option>
-                      <option value="product">Product-Specific</option>
-                    </select>
+                      onChange={(value) => setRuleScopeFilter(String(value || "all") as "all" | "global" | "product")}
+                      options={[
+                        { value: "all", label: "All Scopes" },
+                        { value: "global", label: "Global" },
+                        { value: "product", label: "Product-Specific" },
+                      ]}
+                      searchPlaceholder="Search scopes..."
+                      enableSearch={false}
+                    />
                   </div>
                 </div>
                 <div className="flex items-center justify-between">
@@ -14604,43 +14714,7 @@ const AdminDashboard: React.FC = () => {
               ) : (
                 <>
                   <div className="mb-3 text-sm text-cream-600">
-                    Showing {attributeRules.filter((rule) => {
-                      const searchLower = attributeRuleSearch.toLowerCase();
-                      const ruleName = rule.name?.toLowerCase() || "";
-                      const scope = rule.scope?.toLowerCase() || "";
-
-                      if (attributeRuleFilter) {
-                        const conditionUsesAttribute = rule.when?.attribute === attributeRuleFilter ||
-                          (typeof rule.when?.attribute === 'object' && rule.when.attribute !== null && rule.when.attribute._id === attributeRuleFilter);
-                        if (!conditionUsesAttribute) return false;
-                      }
-
-                      if (ruleActionTypeFilter) {
-                        const hasActionType = (rule.then || []).some((action: any) => action.action === ruleActionTypeFilter);
-                        if (!hasActionType) return false;
-                      }
-
-                      if (ruleStatusFilter !== "all") {
-                        if (ruleStatusFilter === "active" && !rule.isActive) return false;
-                        if (ruleStatusFilter === "inactive" && rule.isActive) return false;
-                      }
-
-                      if (ruleScopeFilter !== "all") {
-                        const isGlobal = !rule.productId && !rule.applicableProduct;
-                        if (ruleScopeFilter === "global" && !isGlobal) return false;
-                        if (ruleScopeFilter === "product" && isGlobal) return false;
-                      }
-
-                      if (!attributeRuleSearch || attributeRuleSearch.length < 2) return true;
-
-                      const whenAttr = typeof rule.when?.attribute === 'object' && rule.when.attribute !== null
-                        ? rule.when.attribute.attributeName || ""
-                        : attributeTypes.find(attr => attr._id === rule.when?.attribute)?.attributeName || "";
-
-                      return ruleName.includes(searchLower) ||
-                        scope.includes(searchLower) ||
-                        whenAttr.toLowerCase().includes(searchLower);
-                    }).length} of {attributeRules.length} rules
+                    Showing {filteredAttributeRules.length} of {attributeRules.length} rules
                   </div>
                   <div className="overflow-x-auto">
                     <table className="w-full border-collapse">
@@ -14656,51 +14730,8 @@ const AdminDashboard: React.FC = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {attributeRules
-                          .filter((rule) => {
-                            const searchLower = attributeRuleSearch.toLowerCase();
-                            const ruleName = rule.name?.toLowerCase() || "";
-                            const scope = rule.scope?.toLowerCase() || "";
-
-                            // 1. Check Dropdown Filter
-                            if (attributeRuleFilter) {
-                              const conditionUsesAttribute = rule.when?.attribute === attributeRuleFilter ||
-                                (typeof rule.when?.attribute === 'object' && rule.when.attribute !== null && rule.when.attribute._id === attributeRuleFilter);
-
-                              if (!conditionUsesAttribute) return false;
-                            }
-
-                            // 2. Filter by Action Type (if selected)
-                            if (ruleActionTypeFilter) {
-                              const hasActionType = (rule.then || []).some((action: any) => action.action === ruleActionTypeFilter);
-                              if (!hasActionType) return false;
-                            }
-
-                            // 3. Filter by Status (if selected)
-                            if (ruleStatusFilter !== "all") {
-                              if (ruleStatusFilter === "active" && !rule.isActive) return false;
-                              if (ruleStatusFilter === "inactive" && rule.isActive) return false;
-                            }
-
-                            // 4. Filter by Scope (if selected)
-                            if (ruleScopeFilter !== "all") {
-                              const isGlobal = !rule.productId && !rule.applicableProduct;
-                              if (ruleScopeFilter === "global" && !isGlobal) return false;
-                              if (ruleScopeFilter === "product" && isGlobal) return false;
-                            }
-
-                            // 5. Check Search Text (require minimum 2 characters)
-                            if (!attributeRuleSearch || attributeRuleSearch.length < 2) return true;
-
-                            const whenAttr = typeof rule.when?.attribute === 'object' && rule.when.attribute !== null
-                              ? rule.when.attribute.attributeName || ""
-                              : attributeTypes.find(attr => attr._id === rule.when?.attribute)?.attributeName || "";
-
-                            return ruleName.includes(searchLower) ||
-                              scope.includes(searchLower) ||
-                              whenAttr.toLowerCase().includes(searchLower);
-                          })
-                          .sort((a, b) => (b.priority || 0) - (a.priority || 0))
+                        {filteredAttributeRules
+                          .slice((attributeRulePage - 1) * ITEMS_PER_PAGE, attributeRulePage * ITEMS_PER_PAGE)
                           .map((rule) => {
                             // Safety check: ensure rule.then is an array
                             // For QUANTITY actions, targetAttribute is not required
@@ -14766,6 +14797,28 @@ const AdminDashboard: React.FC = () => {
                       </tbody>
                     </table>
                   </div>
+                  {/* Pagination Controls for Attribute Rules */}
+                  {filteredAttributeRules.length > ITEMS_PER_PAGE && (
+                    <div className="flex justify-between items-center mt-4">
+                      <button
+                        onClick={() => setAttributeRulePage(prev => Math.max(prev - 1, 1))}
+                        disabled={attributeRulePage === 1}
+                        className="px-4 py-2 text-sm text-cream-700 bg-white border border-cream-300 rounded-lg hover:bg-cream-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Previous
+                      </button>
+                      <span className="text-sm text-cream-700">
+                        Page {attributeRulePage} of {Math.ceil(filteredAttributeRules.length / ITEMS_PER_PAGE)}
+                      </span>
+                      <button
+                        onClick={() => setAttributeRulePage(prev => Math.min(prev + 1, Math.ceil(filteredAttributeRules.length / ITEMS_PER_PAGE)))}
+                        disabled={attributeRulePage === Math.ceil(filteredAttributeRules.length / ITEMS_PER_PAGE)}
+                        className="px-4 py-2 text-sm text-cream-700 bg-white border border-cream-300 rounded-lg hover:bg-cream-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Next
+                      </button>
+                    </div>
+                  )}
                 </>
               )}
 
@@ -15312,12 +15365,21 @@ const AdminDashboard: React.FC = () => {
                         }}
                         options={[
                           { value: "", label: "All Parent Values" },
-                          ...Array.from(new Set(subAttributes.map(sa => sa.parentValue).filter(Boolean)))
-                            .sort()
-                            .map((pv) => ({
-                              value: pv,
-                              label: pv
-                            }))
+                          ...(() => {
+                            if (subAttributeFilter.attributeId) {
+                              const attr = attributeTypes.find(a => a._id === subAttributeFilter.attributeId);
+                              if (attr && attr.attributeValues) {
+                                return attr.attributeValues.map(av => ({ value: av.value, label: av.label }));
+                              }
+                            }
+                            // Fallback to showing unique values from the current list if no attribute selected
+                            return Array.from(new Set(subAttributes.map(sa => sa.parentValue).filter(Boolean)))
+                              .sort()
+                              .map((pv) => ({
+                                value: pv,
+                                label: pv
+                              }));
+                          })()
                         ]}
                         searchPlaceholder="Search parent values..."
                       />
@@ -15326,15 +15388,18 @@ const AdminDashboard: React.FC = () => {
                       <label className="block text-sm font-medium text-cream-900 mb-2">
                         Filter by Status
                       </label>
-                      <select
+                      <SearchableDropdown
+                        label="All Status"
                         value={subAttributeStatusFilter}
-                        onChange={(e) => setSubAttributeStatusFilter(e.target.value as "all" | "enabled" | "disabled")}
-                        className="w-full px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-900"
-                      >
-                        <option value="all">All Status</option>
-                        <option value="enabled">Enabled Only</option>
-                        <option value="disabled">Disabled Only</option>
-                      </select>
+                        onChange={(value) => setSubAttributeStatusFilter(String(value || "all") as "all" | "enabled" | "disabled")}
+                        options={[
+                          { value: "all", label: "All Status" },
+                          { value: "enabled", label: "Enabled Only" },
+                          { value: "disabled", label: "Disabled Only" },
+                        ]}
+                        searchPlaceholder="Search status..."
+                        enableSearch={false}
+                      />
                     </div>
                   </div>
                   <div className="flex items-center justify-between">
@@ -15391,27 +15456,7 @@ const AdminDashboard: React.FC = () => {
                 ) : (
                   <>
                     <div className="mb-3 text-sm text-cream-600">
-                      Showing {subAttributes.filter((subAttr) => {
-                        // Search filter
-                        if (!subAttributeSearch) return true;
-                        const searchLower = subAttributeSearch.toLowerCase();
-                        const parentAttrName = typeof subAttr.parentAttribute === 'object' && subAttr.parentAttribute !== null
-                          ? subAttr.parentAttribute.attributeName || ""
-                          : attributeTypes.find(attr => attr._id === subAttr.parentAttribute)?.attributeName || "";
-                        return (
-                          subAttr.label?.toLowerCase().includes(searchLower) ||
-                          subAttr.value?.toLowerCase().includes(searchLower) ||
-                          subAttr.systemName?.toLowerCase().includes(searchLower) ||
-                          (subAttr.parentValue || "").toLowerCase().includes(searchLower) ||
-                          parentAttrName.toLowerCase().includes(searchLower)
-                        );
-                      }).filter((subAttr) => {
-                        // Status filter
-                        if (subAttributeStatusFilter === "all") return true;
-                        if (subAttributeStatusFilter === "enabled") return subAttr.isEnabled === true;
-                        if (subAttributeStatusFilter === "disabled") return subAttr.isEnabled === false;
-                        return true;
-                      }).length} of {subAttributes.length} sub-attributes
+                      Showing {filteredSubAttributes.length} of {subAttributes.length} sub-attributes
                     </div>
                     <div className="overflow-x-auto">
                       <table className="w-full border-collapse">
@@ -15429,30 +15474,8 @@ const AdminDashboard: React.FC = () => {
                           </tr>
                         </thead>
                         <tbody>
-                          {subAttributes
-                            .filter((subAttr) => {
-                              // Search filter
-                              if (!subAttributeSearch) return true;
-                              const searchLower = subAttributeSearch.toLowerCase();
-                              const parentAttrName = typeof subAttr.parentAttribute === 'object' && subAttr.parentAttribute !== null
-                                ? subAttr.parentAttribute.attributeName || ""
-                                : attributeTypes.find(attr => attr._id === subAttr.parentAttribute)?.attributeName || "";
-
-                              return (
-                                subAttr.label?.toLowerCase().includes(searchLower) ||
-                                subAttr.value?.toLowerCase().includes(searchLower) ||
-                                subAttr.systemName?.toLowerCase().includes(searchLower) ||
-                                (subAttr.parentValue || "").toLowerCase().includes(searchLower) ||
-                                parentAttrName.toLowerCase().includes(searchLower)
-                              );
-                            })
-                            .filter((subAttr) => {
-                              // Status filter
-                              if (subAttributeStatusFilter === "all") return true;
-                              if (subAttributeStatusFilter === "enabled") return subAttr.isEnabled === true;
-                              if (subAttributeStatusFilter === "disabled") return subAttr.isEnabled === false;
-                              return true;
-                            })
+                          {filteredSubAttributes
+                            .slice((subAttributePage - 1) * ITEMS_PER_PAGE, subAttributePage * ITEMS_PER_PAGE)
                             .map((subAttr) => {
 
                               const parentAttrObj = typeof subAttr.parentAttribute === 'object' && subAttr.parentAttribute !== null
@@ -15510,6 +15533,28 @@ const AdminDashboard: React.FC = () => {
                         </tbody>
                       </table>
                     </div>
+                    {/* Pagination Controls for Sub-Attributes */}
+                    {filteredSubAttributes.length > ITEMS_PER_PAGE && (
+                      <div className="flex justify-between items-center mt-4">
+                        <button
+                          onClick={() => setSubAttributePage(prev => Math.max(prev - 1, 1))}
+                          disabled={subAttributePage === 1}
+                          className="px-4 py-2 text-sm text-cream-700 bg-white border border-cream-300 rounded-lg hover:bg-cream-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          Previous
+                        </button>
+                        <span className="text-sm text-cream-700">
+                          Page {subAttributePage} of {Math.ceil(filteredSubAttributes.length / ITEMS_PER_PAGE)}
+                        </span>
+                        <button
+                          onClick={() => setSubAttributePage(prev => Math.min(prev + 1, Math.ceil(filteredSubAttributes.length / ITEMS_PER_PAGE)))}
+                          disabled={subAttributePage === Math.ceil(filteredSubAttributes.length / ITEMS_PER_PAGE)}
+                          className="px-4 py-2 text-sm text-cream-700 bg-white border border-cream-300 rounded-lg hover:bg-cream-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          Next
+                        </button>
+                      </div>
+                    )}
                   </>
                 )}
 
