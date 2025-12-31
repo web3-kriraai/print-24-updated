@@ -797,6 +797,14 @@ const AdminDashboard: React.FC = () => {
   const [attributeRuleFilter, setAttributeRuleFilter] = useState("");
   const [subAttributeSearch, setSubAttributeSearch] = useState("");
 
+  // Enhanced filter states for Sub-Attributes
+  const [subAttributeStatusFilter, setSubAttributeStatusFilter] = useState<"all" | "enabled" | "disabled">("all");
+
+  // Enhanced filter states for Attribute Rules
+  const [ruleActionTypeFilter, setRuleActionTypeFilter] = useState("");
+  const [ruleStatusFilter, setRuleStatusFilter] = useState<"all" | "active" | "inactive">("all");
+  const [ruleScopeFilter, setRuleScopeFilter] = useState<"all" | "global" | "product">("all");
+
 
   // Departments state
   const [departments, setDepartments] = useState<any[]>([]);
@@ -3140,7 +3148,7 @@ const AdminDashboard: React.FC = () => {
       }
 
       // Convert attributeNames to IDs for backend
-      const whenAttribute = attributeTypes.find(attr => attr.attributeName === ruleForm.when.attribute);
+      const whenAttribute = attributeTypes.find(attr => attr._id === ruleForm.when.attribute);
       if (!whenAttribute) {
         setError("WHEN attribute not found");
         setLoading(false);
@@ -3155,7 +3163,7 @@ const AdminDashboard: React.FC = () => {
           value: ruleForm.when.value,
         },
         then: ruleForm.then.map((action) => {
-          const targetAttr = attributeTypes.find(attr => attr.attributeName === action.targetAttribute);
+          const targetAttr = attributeTypes.find(attr => attr._id === action.targetAttribute || attr.attributeName === action.targetAttribute);
           if (!targetAttr) {
             throw new Error(`Target attribute "${action.targetAttribute}" not found`);
           }
@@ -3410,7 +3418,7 @@ const AdminDashboard: React.FC = () => {
       }
 
       // Convert attributeName to ID
-      const parentAttr = attributeTypes.find(attr => attr.attributeName === subAttributeForm.parentAttribute);
+      const parentAttr = attributeTypes.find(attr => attr._id === subAttributeForm.parentAttribute);
       if (!parentAttr) {
         setError("Parent attribute not found");
         setLoading(false);
@@ -14483,30 +14491,104 @@ const AdminDashboard: React.FC = () => {
               </div>
 
               {/* Attribute Rules Search and Filter */}
-              <div className="mb-4 flex flex-col md:flex-row gap-4">
-                <div className="relative flex-1">
-                  <input
-                    type="text"
-                    value={attributeRuleSearch}
-                    onChange={(e) => setAttributeRuleSearch(e.target.value)}
-                    placeholder="Search attribute rules..."
-                    className="pl-10 pr-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500 w-full"
-                  />
-                  <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-cream-500" />
+              <div className="mb-4 space-y-4">
+                <div className="flex flex-col md:flex-row gap-4">
+                  <div className="relative flex-1">
+                    <input
+                      type="text"
+                      value={attributeRuleSearch}
+                      onChange={(e) => setAttributeRuleSearch(e.target.value)}
+                      placeholder="Search attribute rules (min 2 characters)..."
+                      className="pl-10 pr-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500 w-full"
+                    />
+                    <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-cream-500" />
+                  </div>
+                  <div className="w-full md:w-48">
+                    <SearchableDropdown
+                      label="All Attributes"
+                      value={attributeRuleFilter}
+                      onChange={(value) => setAttributeRuleFilter(String(value || ""))}
+                      options={[
+                        { value: "", label: "All Attributes" },
+                        ...attributeTypes.map((attr) => ({
+                          value: attr._id,
+                          label: attr.systemName ? `${attr.systemName} ${attr.attributeName ? `(${attr.attributeName})` : ''}` : attr.attributeName || ""
+                        }))
+                      ]}
+                      searchPlaceholder="Search attributes..."
+                    />
+                  </div>
+                  <div className="w-full md:w-48">
+                    <select
+                      value={ruleActionTypeFilter}
+                      onChange={(e) => setRuleActionTypeFilter(e.target.value)}
+                      className="w-full h-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500 bg-white"
+                    >
+                      <option value="">All Action Types</option>
+                      <option value="SHOW">Show</option>
+                      <option value="HIDE">Hide</option>
+                      <option value="SHOW_ONLY">Show Only</option>
+                      <option value="SET_DEFAULT">Set Default</option>
+                      <option value="QUANTITY">Quantity</option>
+                    </select>
+                  </div>
+                  <div className="w-full md:w-40">
+                    <select
+                      value={ruleStatusFilter}
+                      onChange={(e) => setRuleStatusFilter(e.target.value as "all" | "active" | "inactive")}
+                      className="w-full h-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500 bg-white"
+                    >
+                      <option value="all">All Status</option>
+                      <option value="active">Active</option>
+                      <option value="inactive">Inactive</option>
+                    </select>
+                  </div>
+                  <div className="w-full md:w-40">
+                    <select
+                      value={ruleScopeFilter}
+                      onChange={(e) => setRuleScopeFilter(e.target.value as "all" | "global" | "product")}
+                      className="w-full h-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500 bg-white"
+                    >
+                      <option value="all">All Scopes</option>
+                      <option value="global">Global</option>
+                      <option value="product">Product-Specific</option>
+                    </select>
+                  </div>
                 </div>
-                <div className="w-full md:w-64">
-                  <select
-                    value={attributeRuleFilter}
-                    onChange={(e) => setAttributeRuleFilter(e.target.value)}
-                    className="w-full h-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500 bg-white"
-                  >
-                    <option value="">Filter by Attribute</option>
-                    {attributeTypes.map((attr) => (
-                      <option key={attr._id} value={attr._id}>
-                        {attr.systemName ? `${attr.systemName} ${attr.attributeName ? `(${attr.attributeName})` : ''}` : attr.attributeName}
-                      </option>
-                    ))}
-                  </select>
+                <div className="flex items-center justify-between">
+
+                  {(() => {
+                    const activeFilters = [
+                      attributeRuleSearch,
+                      attributeRuleFilter,
+                      ruleActionTypeFilter,
+                      ruleStatusFilter !== "all" ? ruleStatusFilter : "",
+                      ruleScopeFilter !== "all" ? ruleScopeFilter : ""
+                    ].filter(Boolean).length;
+
+                    return (
+                      <>
+                        {activeFilters > 0 && (
+                          <button
+                            onClick={() => {
+                              setAttributeRuleSearch("");
+                              setAttributeRuleFilter("");
+                              setRuleActionTypeFilter("");
+                              setRuleStatusFilter("all");
+                              setRuleScopeFilter("all");
+                            }}
+                            className="px-4 py-2 bg-cream-100 text-cream-900 rounded-lg hover:bg-cream-200 transition-colors text-sm flex items-center gap-2"
+                          >
+                            <X size={16} />
+                            Clear All Filters
+                          </button>
+                        )}
+                        <div className="text-sm text-cream-600">
+                          {activeFilters > 0 ? `${activeFilters} filter${activeFilters > 1 ? 's' : ''} active` : 'No filters active'}
+                        </div>
+                      </>
+                    );
+                  })()}
                 </div>
               </div>
 
@@ -14520,111 +14602,171 @@ const AdminDashboard: React.FC = () => {
                   <p>No attribute rules found. Create your first rule to get started.</p>
                 </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full border-collapse">
-                    <thead>
-                      <tr className="bg-cream-100 border-b border-cream-300">
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-cream-900">Rule Name</th>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-cream-900">Scope</th>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-cream-900">Condition</th>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-cream-900">Actions</th>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-cream-900">Status</th>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-cream-900">Priority</th>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-cream-900">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {attributeRules
-                        .filter((rule) => {
-                          const searchLower = attributeRuleSearch.toLowerCase();
-                          const ruleName = rule.name?.toLowerCase() || "";
-                          const scope = rule.scope?.toLowerCase() || "";
+                <>
+                  <div className="mb-3 text-sm text-cream-600">
+                    Showing {attributeRules.filter((rule) => {
+                      const searchLower = attributeRuleSearch.toLowerCase();
+                      const ruleName = rule.name?.toLowerCase() || "";
+                      const scope = rule.scope?.toLowerCase() || "";
 
-                          // 1. Check Dropdown Filter
-                          if (attributeRuleFilter) {
-                            const conditionUsesAttribute = rule.when?.attribute === attributeRuleFilter ||
-                              (typeof rule.when?.attribute === 'object' && rule.when.attribute !== null && rule.when.attribute._id === attributeRuleFilter);
+                      if (attributeRuleFilter) {
+                        const conditionUsesAttribute = rule.when?.attribute === attributeRuleFilter ||
+                          (typeof rule.when?.attribute === 'object' && rule.when.attribute !== null && rule.when.attribute._id === attributeRuleFilter);
+                        if (!conditionUsesAttribute) return false;
+                      }
 
-                            if (!conditionUsesAttribute) return false;
-                          }
+                      if (ruleActionTypeFilter) {
+                        const hasActionType = (rule.then || []).some((action: any) => action.action === ruleActionTypeFilter);
+                        if (!hasActionType) return false;
+                      }
 
-                          // 2. Check Search Text (if empty, skip text check but respect filter above)
-                          if (!attributeRuleSearch) return true;
+                      if (ruleStatusFilter !== "all") {
+                        if (ruleStatusFilter === "active" && !rule.isActive) return false;
+                        if (ruleStatusFilter === "inactive" && rule.isActive) return false;
+                      }
 
-                          const whenAttr = typeof rule.when?.attribute === 'object' && rule.when.attribute !== null
-                            ? rule.when.attribute.attributeName || ""
-                            : attributeTypes.find(attr => attr._id === rule.when?.attribute)?.attributeName || "";
+                      if (ruleScopeFilter !== "all") {
+                        const isGlobal = !rule.productId && !rule.applicableProduct;
+                        if (ruleScopeFilter === "global" && !isGlobal) return false;
+                        if (ruleScopeFilter === "product" && isGlobal) return false;
+                      }
 
-                          return ruleName.includes(searchLower) ||
-                            scope.includes(searchLower) ||
-                            whenAttr.toLowerCase().includes(searchLower);
-                        })
-                        .sort((a, b) => (b.priority || 0) - (a.priority || 0))
-                        .map((rule) => {
-                          // Safety check: ensure rule.then is an array
-                          // For QUANTITY actions, targetAttribute is not required
-                          const validActions = (rule.then || []).filter((action: any) =>
-                            action && (action.targetAttribute || action.action === 'QUANTITY')
-                          );
+                      if (!attributeRuleSearch || attributeRuleSearch.length < 2) return true;
 
-                          const whenAttr = typeof rule.when?.attribute === 'object' && rule.when.attribute !== null
-                            ? rule.when.attribute.attributeName
-                            : attributeTypes.find(attr => attr._id === rule.when?.attribute)?.attributeName || 'Unknown';
+                      const whenAttr = typeof rule.when?.attribute === 'object' && rule.when.attribute !== null
+                        ? rule.when.attribute.attributeName || ""
+                        : attributeTypes.find(attr => attr._id === rule.when?.attribute)?.attributeName || "";
 
-                          const scopeLabel = rule.applicableProduct
-                            ? `Product: ${typeof rule.applicableProduct === 'object' && rule.applicableProduct !== null && rule.applicableProduct.name ? rule.applicableProduct.name : (products.find(p => p._id === (typeof rule.applicableProduct === 'object' && rule.applicableProduct !== null ? rule.applicableProduct._id : rule.applicableProduct))?.name || 'N/A')}`
-                            : rule.applicableCategory
-                              ? `Category: ${typeof rule.applicableCategory === 'object' && rule.applicableCategory !== null && rule.applicableCategory.name ? rule.applicableCategory.name : (categories.find(c => c._id === (typeof rule.applicableCategory === 'object' && rule.applicableCategory !== null ? rule.applicableCategory._id : rule.applicableCategory))?.name || 'N/A')}`
-                              : 'Global';
+                      return ruleName.includes(searchLower) ||
+                        scope.includes(searchLower) ||
+                        whenAttr.toLowerCase().includes(searchLower);
+                    }).length} of {attributeRules.length} rules
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse">
+                      <thead>
+                        <tr className="bg-cream-100 border-b border-cream-300">
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-cream-900">Rule Name</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-cream-900">Scope</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-cream-900">Condition</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-cream-900">Actions</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-cream-900">Status</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-cream-900">Priority</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-cream-900">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {attributeRules
+                          .filter((rule) => {
+                            const searchLower = attributeRuleSearch.toLowerCase();
+                            const ruleName = rule.name?.toLowerCase() || "";
+                            const scope = rule.scope?.toLowerCase() || "";
 
-                          return (
-                            <tr key={rule._id} className="border-b border-cream-200 hover:bg-cream-50">
-                              <td className="px-4 py-3 text-sm text-cream-900 font-medium">{rule.name}</td>
-                              <td className="px-4 py-3 text-sm text-cream-700">{scopeLabel}</td>
-                              <td className="px-4 py-3 text-sm text-cream-700">
-                                IF {whenAttr} = {rule.when?.value || ''}
-                              </td>
-                              <td className="px-4 py-3 text-sm text-cream-700">
-                                {validActions.length} action{validActions.length !== 1 ? 's' : ''}
-                              </td>
-                              <td className="px-4 py-3">
-                                <span className={`px-2 py-1 rounded text-xs font-medium ${rule.isActive
-                                  ? 'bg-green-100 text-green-800'
-                                  : 'bg-gray-100 text-gray-800'
-                                  }`}>
-                                  {rule.isActive ? 'Active' : 'Disabled'}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3 text-sm text-cream-700">{rule.priority || 0}</td>
-                              <td className="px-4 py-3">
-                                <div className="flex gap-2">
-                                  <button
-                                    onClick={() => handleEditRule(rule)}
-                                    className="px-2 py-1 text-sm bg-cream-200 text-cream-900 rounded hover:bg-cream-300 transition-colors"
-                                  >
-                                    <Edit size={14} />
-                                  </button>
-                                  <button
-                                    onClick={() => handleDuplicateRule(rule)}
-                                    className="px-2 py-1 text-sm bg-cream-100 text-cream-900 rounded hover:bg-cream-200 transition-colors"
-                                    title="Duplicate rule"
-                                  >
-                                    <Copy size={14} />
-                                  </button>
-                                  <button
-                                    onClick={() => handleDeleteRule(rule._id)}
-                                    className="px-2 py-1 text-sm bg-red-100 text-red-700 rounded hover:bg-red-200 transition-colors"
-                                  >
-                                    <Trash2 size={14} />
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                    </tbody>
-                  </table>
-                </div>
+                            // 1. Check Dropdown Filter
+                            if (attributeRuleFilter) {
+                              const conditionUsesAttribute = rule.when?.attribute === attributeRuleFilter ||
+                                (typeof rule.when?.attribute === 'object' && rule.when.attribute !== null && rule.when.attribute._id === attributeRuleFilter);
+
+                              if (!conditionUsesAttribute) return false;
+                            }
+
+                            // 2. Filter by Action Type (if selected)
+                            if (ruleActionTypeFilter) {
+                              const hasActionType = (rule.then || []).some((action: any) => action.action === ruleActionTypeFilter);
+                              if (!hasActionType) return false;
+                            }
+
+                            // 3. Filter by Status (if selected)
+                            if (ruleStatusFilter !== "all") {
+                              if (ruleStatusFilter === "active" && !rule.isActive) return false;
+                              if (ruleStatusFilter === "inactive" && rule.isActive) return false;
+                            }
+
+                            // 4. Filter by Scope (if selected)
+                            if (ruleScopeFilter !== "all") {
+                              const isGlobal = !rule.productId && !rule.applicableProduct;
+                              if (ruleScopeFilter === "global" && !isGlobal) return false;
+                              if (ruleScopeFilter === "product" && isGlobal) return false;
+                            }
+
+                            // 5. Check Search Text (require minimum 2 characters)
+                            if (!attributeRuleSearch || attributeRuleSearch.length < 2) return true;
+
+                            const whenAttr = typeof rule.when?.attribute === 'object' && rule.when.attribute !== null
+                              ? rule.when.attribute.attributeName || ""
+                              : attributeTypes.find(attr => attr._id === rule.when?.attribute)?.attributeName || "";
+
+                            return ruleName.includes(searchLower) ||
+                              scope.includes(searchLower) ||
+                              whenAttr.toLowerCase().includes(searchLower);
+                          })
+                          .sort((a, b) => (b.priority || 0) - (a.priority || 0))
+                          .map((rule) => {
+                            // Safety check: ensure rule.then is an array
+                            // For QUANTITY actions, targetAttribute is not required
+                            const validActions = (rule.then || []).filter((action: any) =>
+                              action && (action.targetAttribute || action.action === 'QUANTITY')
+                            );
+
+                            const whenAttr = typeof rule.when?.attribute === 'object' && rule.when.attribute !== null
+                              ? rule.when.attribute.attributeName
+                              : attributeTypes.find(attr => attr._id === rule.when?.attribute)?.attributeName || 'Unknown';
+
+                            const scopeLabel = rule.applicableProduct
+                              ? `Product: ${typeof rule.applicableProduct === 'object' && rule.applicableProduct !== null && rule.applicableProduct.name ? rule.applicableProduct.name : (products.find(p => p._id === (typeof rule.applicableProduct === 'object' && rule.applicableProduct !== null ? rule.applicableProduct._id : rule.applicableProduct))?.name || 'N/A')}`
+                              : rule.applicableCategory
+                                ? `Category: ${typeof rule.applicableCategory === 'object' && rule.applicableCategory !== null && rule.applicableCategory.name ? rule.applicableCategory.name : (categories.find(c => c._id === (typeof rule.applicableCategory === 'object' && rule.applicableCategory !== null ? rule.applicableCategory._id : rule.applicableCategory))?.name || 'N/A')}`
+                                : 'Global';
+
+                            return (
+                              <tr key={rule._id} className="border-b border-cream-200 hover:bg-cream-50">
+                                <td className="px-4 py-3 text-sm text-cream-900 font-medium">{rule.name}</td>
+                                <td className="px-4 py-3 text-sm text-cream-700">{scopeLabel}</td>
+                                <td className="px-4 py-3 text-sm text-cream-700">
+                                  IF {whenAttr} = {rule.when?.value || ''}
+                                </td>
+                                <td className="px-4 py-3 text-sm text-cream-700">
+                                  {validActions.length} action{validActions.length !== 1 ? 's' : ''}
+                                </td>
+                                <td className="px-4 py-3">
+                                  <span className={`px-2 py-1 rounded text-xs font-medium ${rule.isActive
+                                    ? 'bg-green-100 text-green-800'
+                                    : 'bg-gray-100 text-gray-800'
+                                    }`}>
+                                    {rule.isActive ? 'Active' : 'Disabled'}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 text-sm text-cream-700">{rule.priority || 0}</td>
+                                <td className="px-4 py-3">
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={() => handleEditRule(rule)}
+                                      className="px-2 py-1 text-sm bg-cream-200 text-cream-900 rounded hover:bg-cream-300 transition-colors"
+                                    >
+                                      <Edit size={14} />
+                                    </button>
+                                    <button
+                                      onClick={() => handleDuplicateRule(rule)}
+                                      className="px-2 py-1 text-sm bg-cream-100 text-cream-900 rounded hover:bg-cream-200 transition-colors"
+                                      title="Duplicate rule"
+                                    >
+                                      <Copy size={14} />
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteRule(rule._id)}
+                                      className="px-2 py-1 text-sm bg-red-100 text-red-700 rounded hover:bg-red-200 transition-colors"
+                                    >
+                                      <Trash2 size={14} />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
               )}
 
               {/* Rule Builder Modal/Drawer */}
@@ -14778,7 +14920,7 @@ const AdminDashboard: React.FC = () => {
                               options={[
                                 { value: "", label: "Select Attribute" },
                                 ...attributeTypes.map((attr) => ({
-                                  value: attr.attributeName,
+                                  value: attr._id,
                                   label: attr.systemName ? `${attr.systemName} ${attr.attributeName ? `(${attr.attributeName})` : ''}` : attr.attributeName,
                                 }))
                               ]}
@@ -14798,7 +14940,7 @@ const AdminDashboard: React.FC = () => {
                               options={[
                                 { value: "", label: "Select Value" },
                                 ...(() => {
-                                  const selectedAttr = attributeTypes.find(attr => attr.attributeName === ruleForm.when.attribute);
+                                  const selectedAttr = attributeTypes.find(attr => attr._id === ruleForm.when.attribute);
                                   return selectedAttr?.attributeValues?.map((av: any) => ({
                                     value: av.value,
                                     label: av.label,
@@ -14808,7 +14950,7 @@ const AdminDashboard: React.FC = () => {
                               className="w-full"
                               searchPlaceholder="Search values..."
                               enableSearch={(() => {
-                                const selectedAttr = attributeTypes.find(attr => attr.attributeName === ruleForm.when.attribute);
+                                const selectedAttr = attributeTypes.find(attr => attr._id === ruleForm.when.attribute);
                                 return (selectedAttr?.attributeValues?.length || 0) > 5;
                               })()}
                             />
@@ -14846,7 +14988,7 @@ const AdminDashboard: React.FC = () => {
                         ) : (
                           <div className="space-y-4">
                             {ruleForm.then.map((action, index) => {
-                              const selectedTargetAttr = attributeTypes.find(attr => attr.attributeName === action.targetAttribute);
+                              const selectedTargetAttr = attributeTypes.find(attr => attr._id === action.targetAttribute);
                               const targetAttrValues = selectedTargetAttr?.attributeValues || [];
 
                               return (
@@ -14916,9 +15058,9 @@ const AdminDashboard: React.FC = () => {
                                           options={[
                                             { value: "", label: "Select Attribute" },
                                             ...attributeTypes
-                                              .filter(attr => attr.attributeName !== ruleForm.when.attribute)
+                                              .filter(attr => attr._id !== ruleForm.when.attribute)
                                               .map((attr) => ({
-                                                value: attr.attributeName,
+                                                value: attr._id,
                                                 label: attr.systemName ? `${attr.systemName} ${attr.attributeName ? `(${attr.attributeName})` : ''}` : attr.attributeName,
                                               }))
                                           ]}
@@ -15120,54 +15262,111 @@ const AdminDashboard: React.FC = () => {
                   </button>
                 </div>
 
-                <div className="mb-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-cream-900 mb-2">
-                      Search
-                    </label>
-                    <div className="relative">
-                      <input
-                        type="text"
-                        value={subAttributeSearch}
-                        onChange={(e) => setSubAttributeSearch(e.target.value)}
-                        placeholder="Search sub-attributes..."
-                        className="pl-10 pr-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-900 w-full"
+
+                <div className="mb-4 space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-cream-900 mb-2">
+                        Search
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={subAttributeSearch}
+                          onChange={(e) => setSubAttributeSearch(e.target.value)}
+                          placeholder="Search sub-attributes..."
+                          className="pl-10 pr-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-900 w-full"
+                        />
+                        <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-cream-500" />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-cream-900 mb-2">
+                        Filter by Attribute
+                      </label>
+                      <SearchableDropdown
+                        label="All Attributes"
+                        value={subAttributeFilter.attributeId}
+                        onChange={(value) => {
+                          setSubAttributeFilter({ ...subAttributeFilter, attributeId: String(value || "") });
+                        }}
+                        options={[
+                          { value: "", label: "All Attributes" },
+                          ...attributeTypes.map((attr) => ({
+                            value: attr._id,
+                            label: attr.systemName ? `${attr.systemName} ${attr.attributeName ? `(${attr.attributeName})` : ''}` : attr.attributeName || ""
+                          }))
+                        ]}
+                        searchPlaceholder="Search attributes..."
                       />
-                      <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-cream-500" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-cream-900 mb-2">
+                        Filter by Parent Value
+                      </label>
+                      <SearchableDropdown
+                        label="All Parent Values"
+                        value={subAttributeFilter.parentValue}
+                        onChange={(value) => {
+                          setSubAttributeFilter({ ...subAttributeFilter, parentValue: String(value || "") });
+                        }}
+                        options={[
+                          { value: "", label: "All Parent Values" },
+                          ...Array.from(new Set(subAttributes.map(sa => sa.parentValue).filter(Boolean)))
+                            .sort()
+                            .map((pv) => ({
+                              value: pv,
+                              label: pv
+                            }))
+                        ]}
+                        searchPlaceholder="Search parent values..."
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-cream-900 mb-2">
+                        Filter by Status
+                      </label>
+                      <select
+                        value={subAttributeStatusFilter}
+                        onChange={(e) => setSubAttributeStatusFilter(e.target.value as "all" | "enabled" | "disabled")}
+                        className="w-full px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-900"
+                      >
+                        <option value="all">All Status</option>
+                        <option value="enabled">Enabled Only</option>
+                        <option value="disabled">Disabled Only</option>
+                      </select>
                     </div>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-cream-900 mb-2">
-                      Filter by Attribute
-                    </label>
-                    <select
-                      value={subAttributeFilter.attributeId}
-                      onChange={(e) => {
-                        setSubAttributeFilter({ ...subAttributeFilter, attributeId: e.target.value });
-                      }}
-                      className="w-full px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-900"
-                    >
-                      <option value="">All Attributes</option>
-                      {attributeTypes.map((attr) => (
-                        <option key={attr._id} value={attr._id}>
-                          {attr.systemName ? `${attr.systemName} ${attr.attributeName ? `(${attr.attributeName})` : ''}` : attr.attributeName}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-cream-900 mb-2">
-                      Filter by Parent Value
-                    </label>
-                    <input
-                      type="text"
-                      value={subAttributeFilter.parentValue}
-                      onChange={(e) => {
-                        setSubAttributeFilter({ ...subAttributeFilter, parentValue: e.target.value });
-                      }}
-                      placeholder="e.g., custom-shape-"
-                      className="w-full px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-900"
-                    />
+                  <div className="flex items-center justify-between">
+                    {(() => {
+                      const activeFilters = [
+                        subAttributeSearch,
+                        subAttributeFilter.attributeId,
+                        subAttributeFilter.parentValue,
+                        subAttributeStatusFilter !== "all" ? subAttributeStatusFilter : ""
+                      ].filter(Boolean).length;
+
+                      return (
+                        <>
+                          {activeFilters > 0 && (
+                            <button
+                              onClick={() => {
+                                setSubAttributeSearch("");
+                                setSubAttributeFilter({ attributeId: "", parentValue: "" });
+                                setSubAttributeStatusFilter("all");
+                              }}
+                              className="px-4 py-2 bg-cream-100 text-cream-900 rounded-lg hover:bg-cream-200 transition-colors text-sm flex items-center gap-2"
+                            >
+                              <X size={16} />
+                              Clear All Filters
+                            </button>
+                          )}
+                          <div className="text-sm text-cream-600">
+                            {activeFilters > 0 ? `${activeFilters} filter${activeFilters > 1 ? 's' : ''} active` : 'No filters active'}
+                          </div>
+                        </>
+                      );
+                    })()}
                   </div>
                 </div>
                 <div className="mb-4">
@@ -15190,95 +15389,128 @@ const AdminDashboard: React.FC = () => {
                     <p>No sub-attributes found. Create your first sub-attribute to get started.</p>
                   </div>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full border-collapse">
-                      <thead>
-                        <tr className="bg-cream-100 border-b border-cream-300">
-                          <th className="px-4 py-3 text-left text-sm font-semibold text-cream-900">Parent Attribute</th>
-                          <th className="px-4 py-3 text-left text-sm font-semibold text-cream-900">Parent Value</th>
-                          <th className="px-4 py-3 text-left text-sm font-semibold text-cream-900">Value</th>
-                          <th className="px-4 py-3 text-left text-sm font-semibold text-cream-900">Label</th>
-                          <th className="px-4 py-3 text-left text-sm font-semibold text-cream-900">System Name</th>
-                          <th className="px-4 py-3 text-left text-sm font-semibold text-cream-900">Image</th>
-                          <th className="px-4 py-3 text-left text-sm font-semibold text-cream-900">Price Addition</th>
-                          <th className="px-4 py-3 text-left text-sm font-semibold text-cream-900">Status</th>
-                          <th className="px-4 py-3 text-left text-sm font-semibold text-cream-900">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {subAttributes
-                          .filter((subAttr) => {
-                            if (!subAttributeSearch) return true;
-                            const searchLower = subAttributeSearch.toLowerCase();
-                            const parentAttrName = typeof subAttr.parentAttribute === 'object' && subAttr.parentAttribute !== null
-                              ? subAttr.parentAttribute.attributeName || ""
-                              : attributeTypes.find(attr => attr._id === subAttr.parentAttribute)?.attributeName || "";
+                  <>
+                    <div className="mb-3 text-sm text-cream-600">
+                      Showing {subAttributes.filter((subAttr) => {
+                        // Search filter
+                        if (!subAttributeSearch) return true;
+                        const searchLower = subAttributeSearch.toLowerCase();
+                        const parentAttrName = typeof subAttr.parentAttribute === 'object' && subAttr.parentAttribute !== null
+                          ? subAttr.parentAttribute.attributeName || ""
+                          : attributeTypes.find(attr => attr._id === subAttr.parentAttribute)?.attributeName || "";
+                        return (
+                          subAttr.label?.toLowerCase().includes(searchLower) ||
+                          subAttr.value?.toLowerCase().includes(searchLower) ||
+                          subAttr.systemName?.toLowerCase().includes(searchLower) ||
+                          (subAttr.parentValue || "").toLowerCase().includes(searchLower) ||
+                          parentAttrName.toLowerCase().includes(searchLower)
+                        );
+                      }).filter((subAttr) => {
+                        // Status filter
+                        if (subAttributeStatusFilter === "all") return true;
+                        if (subAttributeStatusFilter === "enabled") return subAttr.isEnabled === true;
+                        if (subAttributeStatusFilter === "disabled") return subAttr.isEnabled === false;
+                        return true;
+                      }).length} of {subAttributes.length} sub-attributes
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full border-collapse">
+                        <thead>
+                          <tr className="bg-cream-100 border-b border-cream-300">
+                            <th className="px-4 py-3 text-left text-sm font-semibold text-cream-900">Parent Attribute</th>
+                            <th className="px-4 py-3 text-left text-sm font-semibold text-cream-900">Parent Value</th>
+                            <th className="px-4 py-3 text-left text-sm font-semibold text-cream-900">Value</th>
+                            <th className="px-4 py-3 text-left text-sm font-semibold text-cream-900">Label</th>
+                            <th className="px-4 py-3 text-left text-sm font-semibold text-cream-900">System Name</th>
+                            <th className="px-4 py-3 text-left text-sm font-semibold text-cream-900">Image</th>
+                            <th className="px-4 py-3 text-left text-sm font-semibold text-cream-900">Price Addition</th>
+                            <th className="px-4 py-3 text-left text-sm font-semibold text-cream-900">Status</th>
+                            <th className="px-4 py-3 text-left text-sm font-semibold text-cream-900">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {subAttributes
+                            .filter((subAttr) => {
+                              // Search filter
+                              if (!subAttributeSearch) return true;
+                              const searchLower = subAttributeSearch.toLowerCase();
+                              const parentAttrName = typeof subAttr.parentAttribute === 'object' && subAttr.parentAttribute !== null
+                                ? subAttr.parentAttribute.attributeName || ""
+                                : attributeTypes.find(attr => attr._id === subAttr.parentAttribute)?.attributeName || "";
 
-                            return (
-                              subAttr.label?.toLowerCase().includes(searchLower) ||
-                              subAttr.value?.toLowerCase().includes(searchLower) ||
-                              subAttr.systemName?.toLowerCase().includes(searchLower) ||
-                              (subAttr.parentValue || "").toLowerCase().includes(searchLower) ||
-                              parentAttrName.toLowerCase().includes(searchLower)
-                            );
-                          })
-                          .map((subAttr) => {
+                              return (
+                                subAttr.label?.toLowerCase().includes(searchLower) ||
+                                subAttr.value?.toLowerCase().includes(searchLower) ||
+                                subAttr.systemName?.toLowerCase().includes(searchLower) ||
+                                (subAttr.parentValue || "").toLowerCase().includes(searchLower) ||
+                                parentAttrName.toLowerCase().includes(searchLower)
+                              );
+                            })
+                            .filter((subAttr) => {
+                              // Status filter
+                              if (subAttributeStatusFilter === "all") return true;
+                              if (subAttributeStatusFilter === "enabled") return subAttr.isEnabled === true;
+                              if (subAttributeStatusFilter === "disabled") return subAttr.isEnabled === false;
+                              return true;
+                            })
+                            .map((subAttr) => {
 
-                            const parentAttrObj = typeof subAttr.parentAttribute === 'object' && subAttr.parentAttribute !== null
-                              ? subAttr.parentAttribute
-                              : attributeTypes.find(attr => attr._id === subAttr.parentAttribute);
+                              const parentAttrObj = typeof subAttr.parentAttribute === 'object' && subAttr.parentAttribute !== null
+                                ? subAttr.parentAttribute
+                                : attributeTypes.find(attr => attr._id === subAttr.parentAttribute);
 
-                            const parentAttrName = parentAttrObj
-                              ? (parentAttrObj.systemName ? `${parentAttrObj.systemName} ${parentAttrObj.attributeName ? `(${parentAttrObj.attributeName})` : ''}` : parentAttrObj.attributeName)
-                              : 'Unknown';
+                              const parentAttrName = parentAttrObj
+                                ? (parentAttrObj.systemName ? `${parentAttrObj.systemName} ${parentAttrObj.attributeName ? `(${parentAttrObj.attributeName})` : ''}` : parentAttrObj.attributeName)
+                                : 'Unknown';
 
-                            return (
-                              <tr key={subAttr._id} className="border-b border-cream-200 hover:bg-cream-50">
-                                <td className="px-4 py-3 text-sm text-cream-900">{parentAttrName}</td>
-                                <td className="px-4 py-3 text-sm text-cream-700">{subAttr.parentValue}</td>
-                                <td className="px-4 py-3 text-sm text-cream-700">{subAttr.value}</td>
-                                <td className="px-4 py-3 text-sm text-cream-700">{subAttr.label}</td>
-                                <td className="px-4 py-3 text-sm text-gray-500 font-mono font-bold">
-                                  {subAttr.systemName || "N/A"} {subAttr.label ? `(${subAttr.label})` : ''}
-                                </td>
-                                <td className="px-4 py-3">
-                                  {subAttr.image ? (
-                                    <img src={subAttr.image} alt={subAttr.label} className="w-16 h-16 object-cover rounded" />
-                                  ) : (
-                                    <span className="text-xs text-cream-500">No image</span>
-                                  )}
-                                </td>
-                                <td className="px-4 py-3 text-sm text-cream-700">₹{subAttr.priceAdd || 0}/piece</td>
-                                <td className="px-4 py-3">
-                                  <span className={`px-2 py-1 rounded text-xs font-medium ${subAttr.isEnabled
-                                    ? 'bg-green-100 text-green-800'
-                                    : 'bg-gray-100 text-gray-800'
-                                    }`}>
-                                    {subAttr.isEnabled ? 'Enabled' : 'Disabled'}
-                                  </span>
-                                </td>
-                                <td className="px-4 py-3">
-                                  <div className="flex gap-2">
-                                    <button
-                                      onClick={() => handleEditSubAttribute(subAttr)}
-                                      className="px-2 py-1 text-sm bg-cream-200 text-cream-900 rounded hover:bg-cream-300 transition-colors"
-                                    >
-                                      <Edit size={14} />
-                                    </button>
-                                    <button
-                                      onClick={() => handleDeleteSubAttribute(subAttr._id)}
-                                      className="px-2 py-1 text-sm bg-red-100 text-red-700 rounded hover:bg-red-200 transition-colors"
-                                    >
-                                      <Trash2 size={14} />
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                      </tbody>
-                    </table>
-                  </div>
+                              return (
+                                <tr key={subAttr._id} className="border-b border-cream-200 hover:bg-cream-50">
+                                  <td className="px-4 py-3 text-sm text-cream-900">{parentAttrName}</td>
+                                  <td className="px-4 py-3 text-sm text-cream-700">{subAttr.parentValue}</td>
+                                  <td className="px-4 py-3 text-sm text-cream-700">{subAttr.value}</td>
+                                  <td className="px-4 py-3 text-sm text-cream-700">{subAttr.label}</td>
+                                  <td className="px-4 py-3 text-sm text-gray-500 font-mono font-bold">
+                                    {subAttr.systemName || "N/A"} {subAttr.label ? `(${subAttr.label})` : ''}
+                                  </td>
+                                  <td className="px-4 py-3">
+                                    {subAttr.image ? (
+                                      <img src={subAttr.image} alt={subAttr.label} className="w-16 h-16 object-cover rounded" />
+                                    ) : (
+                                      <span className="text-xs text-cream-500">No image</span>
+                                    )}
+                                  </td>
+                                  <td className="px-4 py-3 text-sm text-cream-700">₹{subAttr.priceAdd || 0}/piece</td>
+                                  <td className="px-4 py-3">
+                                    <span className={`px-2 py-1 rounded text-xs font-medium ${subAttr.isEnabled
+                                      ? 'bg-green-100 text-green-800'
+                                      : 'bg-gray-100 text-gray-800'
+                                      }`}>
+                                      {subAttr.isEnabled ? 'Enabled' : 'Disabled'}
+                                    </span>
+                                  </td>
+                                  <td className="px-4 py-3">
+                                    <div className="flex gap-2">
+                                      <button
+                                        onClick={() => handleEditSubAttribute(subAttr)}
+                                        className="px-2 py-1 text-sm bg-cream-200 text-cream-900 rounded hover:bg-cream-300 transition-colors"
+                                      >
+                                        <Edit size={14} />
+                                      </button>
+                                      <button
+                                        onClick={() => handleDeleteSubAttribute(subAttr._id)}
+                                        className="px-2 py-1 text-sm bg-red-100 text-red-700 rounded hover:bg-red-200 transition-colors"
+                                      >
+                                        <Trash2 size={14} />
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
                 )}
 
                 {/* Sub-Attribute Form Modal */}
@@ -15312,7 +15544,7 @@ const AdminDashboard: React.FC = () => {
                             options={[
                               { value: "", label: "Select Attribute" },
                               ...attributeTypes.map((attr) => ({
-                                value: attr.attributeName,
+                                value: attr._id,
                                 label: attr.systemName ? `${attr.systemName} ${attr.attributeName ? `(${attr.attributeName})` : ''}` : attr.attributeName,
                               }))
                             ]}
@@ -15333,7 +15565,7 @@ const AdminDashboard: React.FC = () => {
                             options={[
                               { value: "", label: "Select Parent Value" },
                               ...(() => {
-                                const selectedAttr = attributeTypes.find(attr => attr.attributeName === subAttributeForm.parentAttribute);
+                                const selectedAttr = attributeTypes.find(attr => attr._id === subAttributeForm.parentAttribute);
                                 return selectedAttr?.attributeValues?.map((av: any) => ({
                                   value: av.value,
                                   label: av.label,
@@ -15343,7 +15575,7 @@ const AdminDashboard: React.FC = () => {
                             className="w-full"
                             searchPlaceholder="Search values..."
                             enableSearch={(() => {
-                              const selectedAttr = attributeTypes.find(attr => attr.attributeName === subAttributeForm.parentAttribute);
+                              const selectedAttr = attributeTypes.find(attr => attr._id === subAttributeForm.parentAttribute);
                               return (selectedAttr?.attributeValues?.length || 0) > 5;
                             })()}
                           />
@@ -17670,5 +17902,4 @@ const AdminDashboard: React.FC = () => {
   );
 };
 
-export { AdminDashboard };
 export default AdminDashboard;
