@@ -40,8 +40,8 @@ Write-Host "  ✓ Docker configured" -ForegroundColor Green
 
 # Step 3: Build Docker image
 Write-Host ""
-Write-Host "Step 3: Building Docker image..." -ForegroundColor Yellow
-docker build -t "${IMAGE_NAME}:latest" .
+Write-Host "Step 3: Building Docker image (no cache)..." -ForegroundColor Yellow
+docker build --no-cache -t "${IMAGE_NAME}:latest" .
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Failed to build Docker image" -ForegroundColor Red
     exit 1
