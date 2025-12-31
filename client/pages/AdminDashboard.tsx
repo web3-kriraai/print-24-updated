@@ -3765,12 +3765,13 @@ const AdminDashboard: React.FC = () => {
   };
 
   const handleEditSubAttribute = (subAttr: any) => {
-    const parentAttrName = typeof subAttr.parentAttribute === 'object' && subAttr.parentAttribute !== null
-      ? subAttr.parentAttribute.attributeName
-      : attributeTypes.find(attr => attr._id === subAttr.parentAttribute)?.attributeName || '';
+    // Extract the parent attribute ID (not the name)
+    const parentAttrId = typeof subAttr.parentAttribute === 'object' && subAttr.parentAttribute !== null
+      ? subAttr.parentAttribute._id
+      : subAttr.parentAttribute;
 
     setSubAttributeForm({
-      parentAttribute: parentAttrName,
+      parentAttribute: parentAttrId || "",
       parentValue: subAttr.parentValue || "",
       value: subAttr.value || "",
       label: subAttr.label || "",
