@@ -460,70 +460,179 @@ const Home: React.FC = () => {
 
   return (
     <div className="w-full overflow-hidden">
-      {/* Hero Section - Smaller Slider with Top Margin */}
-      <section className="relative mt-2 sm:mt-4 h-[35vh] sm:h-[40vh] min-h-[290px] sm:min-h-[430px] max-h-[390px] sm:max-h-[530px] w-full overflow-hidden bg-cream-900 rounded-xl sm:rounded-2xl mx-2 sm:mx-4">
-        {/* Background Image Slider */}
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={currentSlide}
-            initial={{ opacity: 0, scale: 1.1 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 1.5 }}
-            className="absolute inset-0"
-          >
-            <img
-              src={heroSlides[currentSlide].image}
-              alt={heroSlides[currentSlide].alt}
-              className="w-full h-full object-cover"
-            />
-            {/* Dark Overlay for text readability */}
-            <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px]"></div>
-          </motion.div>
-        </AnimatePresence>
-
-        {/* Hero Content Overlay */}
-        <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-4 z-10">
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.2 }}
-            className="max-w-4xl"
-          >
-            {/* Welcome Text */}
-            <div className="inline-block py-2 px-4 sm:py-3 sm:px-8 rounded-full bg-cream-50/100 backdrop-blur-md border border-white/20 mb-4 sm:mb-8">
-              <span className="text-sm sm:text-xl md:text-2xl lg:text-3xl font-bold text-gray-800 uppercase tracking-wider">
-                WELCOME TO PRINTS 24
-              </span>
-            </div>
-
-            {/* Smaller Premium Printing Text */}
-            <h1 className="font-serif text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold text-white mb-4 sm:mb-6 leading-tight drop-shadow-lg px-2">
-              Premium Printing <br />
-              <span className="text-cream-300 italic">Simplified</span>
-            </h1>
-
-            <p className="text-sm sm:text-base md:text-lg lg:text-xl text-cream-100 mb-6 sm:mb-10 max-w-2xl mx-auto leading-relaxed drop-shadow-md px-2">
-              India's easiest and fastest printing platform. Design your
-              personality and receive premium prints delivered right to your
-              desk.
+      {/* OUR SERVICES Section */}
+      <section className="relative mt-20 sm:mt-24 pb-8 bg-white">
+        <div className="container mx-auto px-4 sm:px-6">
+          {/* Header */}
+          <div className="text-center mb-8">
+            <h2 className="font-serif text-3xl sm:text-4xl md:text-5xl font-bold text-purple-900 mb-2">
+              OUR SERVICES
+            </h2>
+            <p className="text-base sm:text-lg text-gray-600">
+              Login Type - Printers / Agent
             </p>
+          </div>
 
-            <div className="flex flex-col sm:flex-row justify-center gap-3 sm:gap-5 px-4">
-              <Link
-                to="/signup"
-                className="bg-cream-50 text-cream-900 px-6 py-3 sm:px-8 sm:py-4 rounded-full text-base sm:text-lg font-bold hover:bg-white transition-all shadow-lg hover:shadow-xl hover:-translate-y-1 flex items-center justify-center gap-2 w-full sm:min-w-[200px]"
-              >
-                <UserPlus size={18} className="sm:w-5 sm:h-5" /> Sign Up Now
-              </Link>
-              <Link
-                to="/digital-print"
-                className="bg-cream-50 text-cream-900 px-6 py-3 sm:px-8 sm:py-4 rounded-full text-base sm:text-lg font-bold hover:bg-white transition-all shadow-lg hover:shadow-xl hover:-translate-y-1 flex items-center justify-center gap-2 w-full sm:min-w-[200px]"
-              >
-                <Compass size={18} className="sm:w-5 sm:h-5" /> Explore Products
-              </Link>
-            </div>
-          </motion.div>
+          {/* Service Cards Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 max-w-7xl mx-auto">
+            {/* Row 1 */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className="bg-pink-400 rounded-2xl p-6 text-center hover:shadow-xl transition-all cursor-pointer group"
+            >
+              <div className="text-white">
+                <p className="text-xs uppercase mb-2 opacity-90">Looking for</p>
+                <h3 className="text-lg font-bold mb-2">GIFTING SOLUTIONS</h3>
+                <p className="text-xs opacity-90">
+                  Wide range of corporate and personalized gifts
+                </p>
+              </div>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="bg-lime-400 rounded-2xl p-6 text-center hover:shadow-xl transition-all cursor-pointer group relative border-4 border-lime-600"
+            >
+              <div className="absolute top-3 right-3">
+                <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center">
+                  <span className="text-lime-600 text-xl">👆</span>
+                </div>
+              </div>
+              <div className="text-gray-800">
+                <p className="text-xs uppercase mb-2 opacity-90">Looking for</p>
+                <h3 className="text-lg font-bold mb-2">PRINTING SOLUTIONS</h3>
+                <p className="text-xs opacity-90">
+                  High quality printing services for all your needs
+                </p>
+              </div>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              className="bg-orange-300 rounded-2xl p-6 text-center hover:shadow-xl transition-all cursor-pointer group"
+            >
+              <div className="text-gray-800">
+                <p className="text-xs uppercase mb-2 opacity-90">Looking for</p>
+                <h3 className="text-lg font-bold mb-2">CREATE DESIGN</h3>
+                <p className="text-xs opacity-90">
+                  Professional design services for your brand
+                </p>
+              </div>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4 }}
+              className="bg-teal-400 rounded-2xl p-6 text-center hover:shadow-xl transition-all cursor-pointer group"
+            >
+              <div className="text-white">
+                <p className="text-xs uppercase mb-2 opacity-90">Looking for</p>
+                <h3 className="text-lg font-bold mb-2">HIRE A DESIGNER</h3>
+                <p className="text-xs opacity-90">
+                  Connect with talented designers for your projects
+                </p>
+              </div>
+            </motion.div>
+
+            {/* Row 2 */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.5 }}
+              className="bg-cyan-400 rounded-2xl p-6 text-center hover:shadow-xl transition-all cursor-pointer group"
+            >
+              <div className="text-white">
+                <p className="text-xs uppercase mb-2 opacity-90">Enhance your</p>
+                <h3 className="text-lg font-bold mb-2">PACKAGING SOLUTIONS</h3>
+                <p className="text-xs opacity-90">
+                  Enhance your products with our premium packaging
+                </p>
+              </div>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.6 }}
+              className="bg-purple-400 rounded-2xl p-6 text-center hover:shadow-xl transition-all cursor-pointer group"
+            >
+              <div className="text-white">
+                <p className="text-xs uppercase mb-2 opacity-90">Stay updated with</p>
+                <h3 className="text-lg font-bold mb-2">PRINT INDUSTRY MAGAZINE</h3>
+                <p className="text-xs opacity-90">
+                  Get insights into the latest trends and news
+                </p>
+              </div>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.7 }}
+              className="bg-rose-400 rounded-2xl p-6 text-center hover:shadow-xl transition-all cursor-pointer group"
+            >
+              <div className="text-white">
+                <p className="text-xs uppercase mb-2 opacity-90">Looking for</p>
+                <h3 className="text-lg font-bold mb-2">BUY & SELL PRINTING MACHINES</h3>
+                <p className="text-xs opacity-90">
+                  Easy online marketplace for buying and selling printing machines
+                </p>
+              </div>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.8 }}
+              className="bg-lime-300 rounded-2xl p-6 text-center hover:shadow-xl transition-all cursor-pointer group"
+            >
+              <div className="text-gray-800">
+                <p className="text-xs uppercase mb-2 opacity-90">Looking for</p>
+                <h3 className="text-lg font-bold mb-2">FIND A NEARBY PRINTER</h3>
+                <p className="text-xs opacity-90">
+                  Enter your pincode to discover printers near you
+                </p>
+              </div>
+            </motion.div>
+
+            {/* Row 3 - Centered */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.9 }}
+              className="bg-pink-400 rounded-2xl p-6 text-center hover:shadow-xl transition-all cursor-pointer group sm:col-span-2 lg:col-span-2"
+            >
+              <div className="text-white">
+                <p className="text-xs uppercase mb-2 opacity-90">Try our advanced</p>
+                <h3 className="text-lg font-bold mb-2">ORDER MANAGEMENT SOFTWARE</h3>
+                <p className="text-xs opacity-90">
+                  Free software for managing and tracking orders
+                </p>
+              </div>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 1.0 }}
+              className="bg-orange-300 rounded-2xl p-6 text-center hover:shadow-xl transition-all cursor-pointer group sm:col-span-2 lg:col-span-2"
+            >
+              <div className="text-gray-800">
+                <p className="text-xs uppercase mb-2 opacity-90">Free online</p>
+                <h3 className="text-lg font-bold mb-2">PAPER GSM CALCULATOR</h3>
+                <p className="text-xs opacity-90">
+                  Calculate paper GSM with our free online tool
+                </p>
+              </div>
+            </motion.div>
+          </div>
         </div>
       </section>
 
@@ -639,8 +748,8 @@ const Home: React.FC = () => {
                           {category.type && (
                             <div
                               className={`absolute top-0 left-1/2 -translate-x-1/2 px-2 sm:px-2.5 md:px-3 py-0.5 sm:py-1 md:py-1.5 rounded-full text-[9px] sm:text-[10px] md:text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10 whitespace-nowrap shadow-lg ${category.type === "digital"
-                                  ? "bg-[#588157] text-white"
-                                  : "bg-[#003049] text-white"
+                                ? "bg-[#588157] text-white"
+                                : "bg-[#003049] text-white"
                                 }`}
                             >
                               {category.type === "digital" ? "Digital Print" : "Bulk Print"}
@@ -648,8 +757,8 @@ const Home: React.FC = () => {
                           )}
                           {/* Reduced circle sizes for better mobile compatibility */}
                           <div className={`w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 lg:w-32 lg:h-32 xl:w-36 xl:h-36 rounded-full overflow-hidden bg-white transition-all duration-300 shadow-sm sm:shadow-md group-hover:shadow-lg group-hover:scale-105 flex items-center justify-center relative ${category.type === "digital"
-                              ? "group-hover:bg-[#f5faf0]"
-                              : "group-hover:bg-[#f5fbff]"
+                            ? "group-hover:bg-[#f5faf0]"
+                            : "group-hover:bg-[#f5fbff]"
                             }`}>
                             <img
                               src={category.image}
@@ -750,8 +859,8 @@ const Home: React.FC = () => {
                           key={star}
                           size={16}
                           className={`sm:w-5 sm:h-5 ${star <= Math.round(averageRating)
-                              ? "fill-yellow-400 text-yellow-400"
-                              : "text-cream-300"
+                            ? "fill-yellow-400 text-yellow-400"
+                            : "text-cream-300"
                             }`}
                         />
                       ))}
