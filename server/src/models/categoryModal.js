@@ -23,8 +23,8 @@ const CategorySchema = new mongoose.Schema(
       default: 0,
     },
     // Slug for URL-friendly identifiers (optional, auto-generated if not provided)
-    slug: { 
-      type: String, 
+    slug: {
+      type: String,
       unique: true,
       sparse: true, // Allow null values for uniqueness
     },

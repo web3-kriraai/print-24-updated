@@ -295,10 +295,13 @@ const VisitingCards: React.FC = () => {
 
             const productsData = await handleApiResponse(productsResponse);
 
-            // Filter to only include products directly added to category (without subcategory)
+            // Filter products to decide what to display
+            // If we have subcategories (folders), we only want to show products that DON'T belong to any subcategory (direct children) for mixed view.
+            // If we have NO subcategories, we show ALL products returned (flattened view), to ensure nothing is hidden.
+            const hasSubcategories = subcategoriesArray && subcategoriesArray.length > 0;
+
             const directProducts = Array.isArray(productsData)
               ? productsData.filter((product: Product) => {
-                // A direct product should have category matching categoryId and no valid subcategory
                 // First check if product's category matches (convert both to strings for comparison)
                 const productCategoryId = typeof product.category === 'object'
                   ? (product.category?._id ? String(product.category._id) : null)
@@ -311,8 +314,14 @@ const VisitingCards: React.FC = () => {
                   return false;
                 }
 
-                // Now check if it has a valid subcategory
-                // Product should not have a subcategory
+                // If no subcategories are being displayed, show ALL products for this category
+                // This fixes the issue where products with subcategories were hidden when no subcategory folders existed
+                if (!hasSubcategories) {
+                  return true;
+                }
+
+                // If subcategories ARE displayed, only show products that don't have a subcategory
+                // (Strict filtering to prevent duplicates - product inside folder and outside)
                 if (!product.subcategory) return true;
                 if (product.subcategory === null) return true;
                 if (product.subcategory === undefined) return true;
@@ -357,8 +366,7 @@ const VisitingCards: React.FC = () => {
                 : String(productsData[0]?.category));
             }
 
-            // Determine if category has subcategories
-            const hasSubcategories = subcategoriesArray && subcategoriesArray.length > 0;
+            // (hasSubcategories already defined above)
 
             // AUTO-SKIP: If only one subcategory, navigate directly to its products
             if (hasSubcategories && subcategoriesArray.length === 1) {
@@ -1181,6 +1189,17 @@ const VisitingCards: React.FC = () => {
       )}
 
       <div className="container mx-auto px-4 sm:px-6 pb-12 sm:pb-16">
+        {/* Back Button - Show when viewing category */}
+        {categoryId && !subCategoryId && (
+          <div className="mb-6">
+            <BackButton
+              fallbackPath="/"
+              label="Back to Home"
+              className="text-cream-600 hover:text-cream-900"
+            />
+          </div>
+        )}
+
         {loading ? (
           <div className="flex items-center justify-center py-20">
             <Loader className="animate-spin text-cream-900" size={48} />

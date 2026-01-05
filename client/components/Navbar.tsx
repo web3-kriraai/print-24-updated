@@ -75,9 +75,11 @@ const Navbar: React.FC = () => {
 
   const navLinks = [
     { label: "HOME", path: "/" },
+    { label: "SERVICES", path: "/digital-print" },
     { label: "REVIEWS", path: "/reviews" },
+    { label: "POLICY", path: "/policy" },
     { label: "ABOUT US", path: "/about" },
-    { label: "CONTACT US", path: "/contact" },
+    // { label: "CONTACT US", path: "/contact" }, // Removed as per request
   ];
 
   // Track if component is mounted to avoid hydration mismatch
