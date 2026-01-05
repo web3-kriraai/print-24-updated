@@ -4,27 +4,16 @@ import { useInactivitySlider } from "../hooks/useInactivitySlider";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  CreditCard,
-  FileText,
-  Sticker,
-  Mail,
-  Image as ImageIcon,
-  Printer,
   ArrowRight,
-  BadgeCheck,
-  UserPlus,
-  Compass,
-  Zap,
-  Shield,
   Star,
   Filter,
   X,
   Edit3,
-  ChevronLeft,
-  ChevronRight,
 } from "lucide-react";
-import { ServiceItem } from "../types";
 import { ReviewFilterDropdown } from "../components/ReviewFilterDropdown";
+import ServicesMorph from "../components/ServicesMorph";
+import ServiceBanner from "../components/ServiceBanner";
+import ServiceProducts from "../components/ServiceProducts";
 import { API_BASE_URL_WITH_API } from "../lib/apiConfig";
 
 interface Category {
@@ -40,85 +29,11 @@ interface Category {
 }
 
 // Icon mapping based on category names
-const getCategoryIcon = (categoryName: string) => {
-  const iconMap: { [key: string]: any } = {
-    "Visiting Cards": CreditCard,
-    "Flyers & Brochures": FileText,
-    "Stickers & Labels": Sticker,
-    Banners: ImageIcon,
-    Invitations: Mail,
-  };
-  return iconMap[categoryName] || FileText;
-};
 
-const services: ServiceItem[] = [
-  {
-    id: "cards",
-    title: "Visiting Cards",
-    description: "Premium matte, gloss, and textured business cards.",
-    icon: CreditCard,
-  },
-  {
-    id: "flyers",
-    title: "Flyers & Brochures",
-    description: "High-quality marketing materials for your business.",
-    icon: FileText,
-  },
-  {
-    id: "idcards",
-    title: "ID Cards",
-    description: "Durable employee and student identification cards.",
-    icon: BadgeCheck,
-  },
-  {
-    id: "letterhead",
-    title: "Letterhead",
-    description: "Professional official stationary.",
-    icon: FileText,
-  },
-  {
-    id: "stickers",
-    title: "Stickers",
-    description: "Custom shapes and sizes for branding.",
-    icon: Sticker,
-  },
-  {
-    id: "invites",
-    title: "Invitations",
-    description: "Elegant cards for weddings and events.",
-    icon: Mail,
-  },
-  {
-    id: "banners",
-    title: "Flex & Banners",
-    description: "Large format printing for maximum visibility.",
-    icon: ImageIcon,
-  },
-  {
-    id: "more",
-    title: "Digital Printing",
-    description: "Custom solutions for all your printing needs.",
-    icon: Printer,
-  },
-];
 
-const containerVariants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: {
-      staggerChildren: 0.1,
-    },
-  },
-};
 
-const itemVariants = {
-  hidden: { y: 20, opacity: 0 },
-  visible: {
-    y: 0,
-    opacity: 1,
-  },
-};
+
+
 
 // Hero Slider Images
 const heroSlides = [
@@ -143,20 +58,8 @@ interface Review {
   updatedAt: string;
 }
 
-// Helper function to get number of visible items based on screen width
-const getVisibleItems = (screenWidth: number): number => {
-  if (screenWidth >= 1536) return 7; // 2xl: 7 items
-  if (screenWidth >= 1280) return 6; // xl: 6 items
-  if (screenWidth >= 1024) return 5; // lg: 5 items
-  if (screenWidth >= 768) return 4; // md: 4 items
-  if (screenWidth >= 640) return 3; // sm: 3 items
-  return 2; // mobile: 2 items
-};
-
 const Home: React.FC = () => {
   const [currentSlide, setCurrentSlide] = useState(0);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [loadingCategories, setLoadingCategories] = useState(true);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loadingReviews, setLoadingReviews] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -167,6 +70,7 @@ const Home: React.FC = () => {
   const [expandedComments, setExpandedComments] = useState<Set<string>>(
     new Set()
   );
+  const [selectedService, setSelectedService] = useState('printing'); // Default service for banner
 
   // Client-only flag for SSR hydration safety
   const isClient = useClientOnly();
@@ -179,253 +83,12 @@ const Home: React.FC = () => {
     return () => clearInterval(timer);
   }, []);
 
-  // Fetch categories
-  useEffect(() => {
-    const fetchCategories = async () => {
-      try {
-        setLoadingCategories(true);
-        const BASE_URL = API_BASE_URL_WITH_API;
-        const headers = {
-          Accept: "application/json",
-        };
-
-        // Fetch Digital Categories
-        const digitalResponse = await fetch(`${BASE_URL}/categories/digital`, {
-          method: "GET",
-          headers,
-        });
-
-        const digitalText = await digitalResponse.text();
-        if (
-          digitalText.trim().startsWith("<!DOCTYPE") ||
-          digitalText.trim().startsWith("<html")
-        ) {
-        }
-
-        if (!digitalResponse.ok) {
-          throw new Error(`HTTP ${digitalResponse.status}`);
-        }
-
-        const digitalData = JSON.parse(digitalText);
-
-        // Fetch Bulk Categories
-        const bulkResponse = await fetch(`${BASE_URL}/categories/bulk`, {
-          method: "GET",
-          headers,
-        });
-
-        const bulkText = await bulkResponse.text();
-        if (
-          bulkText.trim().startsWith("<!DOCTYPE") ||
-          bulkText.trim().startsWith("<html")
-        ) {
-        }
-
-        if (!bulkResponse.ok) {
-          throw new Error(`HTTP ${bulkResponse.status}`);
-        }
-
-        const bulkData = JSON.parse(bulkText);
-
-        // Get all digital and bulk categories
-        const digitalCategories = digitalData.map((cat: Category) => ({
-          ...cat,
-          type: "digital",
-        }));
-        const bulkCategories = bulkData.map((cat: Category) => ({
-          ...cat,
-          type: "bulk",
-        }));
-
-        // Sort each type by sortOrder, then combine
-        digitalCategories.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
-        bulkCategories.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
-
-        // Combine all categories (digital first, then bulk, both sorted by sortOrder)
-        setCategories([...digitalCategories, ...bulkCategories]);
-      } catch (err) {
-        console.error("Fetch categories error:", err);
-      } finally {
-        setLoadingCategories(false);
-      }
-    };
-
-    fetchCategories();
-  }, []);
-
   // Check if user is logged in (client-side only)
   useEffect(() => {
     if (typeof window === "undefined") return;
     const token = localStorage.getItem("token");
     setIsLoggedIn(!!token);
   }, []);
-
-  // Fetch reviews
-  useEffect(() => {
-    const fetchReviews = async () => {
-      try {
-        setLoadingReviews(true);
-        const BASE_URL = API_BASE_URL_WITH_API;
-        const headers = {
-          Accept: "application/json",
-        };
-
-        const response = await fetch(`${BASE_URL}/reviews`, {
-          method: "GET",
-          headers,
-        });
-
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
-        }
-
-        const data = await response.json();
-        setReviews(data);
-      } catch (err) {
-        console.error("Fetch reviews error:", err);
-      } finally {
-        setLoadingReviews(false);
-      }
-    };
-
-    fetchReviews();
-  }, []);
-
-  // Filter and sort reviews
-  // Auto-scroll categories after 5 seconds of no user interaction
-  useEffect(() => {
-    if (loadingCategories || categories.length === 0) return;
-
-    let timeoutId: NodeJS.Timeout | null = null;
-    let isScrolling = false;
-    let lastInteractionTime = Date.now();
-    let arrowButtonClicked = false;
-
-    const performScroll = () => {
-      const scrollContainer = document.getElementById("category-scroll-container");
-      if (!scrollContainer) return;
-
-      isScrolling = true;
-      const maxScroll = scrollContainer.scrollWidth - scrollContainer.clientWidth;
-      const currentScroll = scrollContainer.scrollLeft;
-
-      // Calculate width of 1 item based on screen size
-      const screenWidth = window.innerWidth;
-      let oneItemWidth = screenWidth / 2; // mobile: 1 item = 50% of screen
-      if (screenWidth >= 1280) oneItemWidth = screenWidth * 0.2; // xl: 1 item = 20%
-      else if (screenWidth >= 1024) oneItemWidth = screenWidth * 0.25; // lg: 1 item = 25%
-      else if (screenWidth >= 768) oneItemWidth = screenWidth * 0.333; // md: 1 item = 33.3%
-      else if (screenWidth >= 640) oneItemWidth = screenWidth / 2; // sm: 1 item = 50%
-
-      if (currentScroll >= maxScroll - 10) {
-        scrollContainer.scrollTo({ left: 0, behavior: "smooth" });
-      } else {
-        const newScrollLeft = currentScroll + oneItemWidth;
-        if (newScrollLeft >= maxScroll) {
-          scrollContainer.scrollTo({ left: maxScroll, behavior: "smooth" });
-        } else {
-          // Slower scroll animation
-          scrollContainer.style.scrollBehavior = 'smooth';
-          scrollContainer.style.transition = 'scroll-left 0.8s ease-in-out';
-          scrollContainer.scrollTo({ left: newScrollLeft, behavior: "smooth" });
-        }
-      }
-
-      // After scroll completes, wait another 6 seconds
-      setTimeout(() => {
-        isScrolling = false;
-        lastInteractionTime = Date.now();
-        arrowButtonClicked = false;
-        startAutoScroll();
-      }, 1000);
-    };
-
-    const startAutoScroll = () => {
-      if (isScrolling) return;
-
-      const timeoutDuration = arrowButtonClicked ? 20000 : 10000; // 10 seconds of inactivity
-      const timeSinceInteraction = Date.now() - lastInteractionTime;
-      const remainingTime = Math.max(0, timeoutDuration - timeSinceInteraction);
-
-      timeoutId = setTimeout(() => {
-        // Double check that the required time has passed since last interaction
-        const timeSinceLastInteraction = Date.now() - lastInteractionTime;
-        const requiredTime = arrowButtonClicked ? 20000 : 10000; // 10 seconds of inactivity
-        if (timeSinceLastInteraction >= requiredTime) {
-          performScroll();
-        } else {
-          // If interaction happened during timeout, restart with remaining time
-          isScrolling = false;
-          startAutoScroll();
-        }
-      }, remainingTime);
-    };
-
-    const updateInteraction = () => {
-      lastInteractionTime = Date.now();
-      arrowButtonClicked = false;
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-        timeoutId = null;
-      }
-      isScrolling = false;
-      startAutoScroll();
-    };
-
-    const updateInteractionFromArrow = () => {
-      lastInteractionTime = Date.now();
-      arrowButtonClicked = true;
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-        timeoutId = null;
-      }
-      isScrolling = false;
-      startAutoScroll();
-    };
-
-    // Store function in window for button access
-    (window as any).homeCategoryUpdateFromArrow = updateInteractionFromArrow;
-
-    // Add event listeners for user interactions (stops auto-slide on any movement)
-    const handleMouseMove = () => updateInteraction();
-    const handleMouseEnter = () => updateInteraction();
-    const handleClick = () => updateInteraction();
-    const handleMouseDown = () => updateInteraction();
-    const handleKeyDown = () => updateInteraction();
-    const handleTouchStart = () => updateInteraction();
-    const handleWheel = () => updateInteraction();
-
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mousedown', handleMouseDown);
-    window.addEventListener('click', handleClick);
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('touchstart', handleTouchStart);
-    window.addEventListener('wheel', handleWheel);
-
-    const container = document.getElementById("category-scroll-container");
-    if (container) {
-      container.addEventListener('mouseenter', handleMouseEnter);
-    }
-
-    // Start the auto-scroll timer (wait 5 seconds from now)
-    lastInteractionTime = Date.now();
-    startAutoScroll();
-
-    return () => {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mousedown', handleMouseDown);
-      window.removeEventListener('click', handleClick);
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('touchstart', handleTouchStart);
-      window.removeEventListener('wheel', handleWheel);
-      if (container) {
-        container.removeEventListener('mouseenter', handleMouseEnter);
-      }
-    };
-  }, [loadingCategories, categories.length]);
 
   const filteredReviews = reviews.filter((review) => {
     if (filterRating && review.rating !== filterRating) {
@@ -460,264 +123,20 @@ const Home: React.FC = () => {
 
   return (
     <div className="w-full overflow-hidden">
-      {/* Hero Section - Smaller Slider with Top Margin */}
-      <section className="relative mt-2 sm:mt-4 h-[35vh] sm:h-[40vh] min-h-[290px] sm:min-h-[430px] max-h-[390px] sm:max-h-[530px] w-full overflow-hidden bg-cream-900 rounded-xl sm:rounded-2xl mx-2 sm:mx-4">
-        {/* Background Image Slider */}
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={currentSlide}
-            initial={{ opacity: 0, scale: 1.1 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 1.5 }}
-            className="absolute inset-0"
-          >
-            <img
-              src={heroSlides[currentSlide].image}
-              alt={heroSlides[currentSlide].alt}
-              className="w-full h-full object-cover"
-            />
-            {/* Dark Overlay for text readability */}
-            <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px]"></div>
-          </motion.div>
-        </AnimatePresence>
+      {/* Morphing Services Section */}
+      <ServicesMorph onServiceSelect={setSelectedService} />
 
-        {/* Hero Content Overlay */}
-        <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-4 z-10">
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.2 }}
-            className="max-w-4xl"
-          >
-            {/* Welcome Text */}
-            <div className="inline-block py-2 px-4 sm:py-3 sm:px-8 rounded-full bg-cream-50/100 backdrop-blur-md border border-white/20 mb-4 sm:mb-8">
-              <span className="text-sm sm:text-xl md:text-2xl lg:text-3xl font-bold text-gray-800 uppercase tracking-wider">
-                WELCOME TO PRINTS 24
-              </span>
-            </div>
+      {/* Service Banner */}
+      <ServiceBanner selectedService={selectedService} />
 
-            {/* Smaller Premium Printing Text */}
-            <h1 className="font-serif text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold text-white mb-4 sm:mb-6 leading-tight drop-shadow-lg px-2">
-              Premium Printing <br />
-              <span className="text-cream-300 italic">Simplified</span>
-            </h1>
+      {/* Dynamic Service Products Section */}
+      <ServiceProducts selectedService={selectedService} />
 
-            <p className="text-sm sm:text-base md:text-lg lg:text-xl text-cream-100 mb-6 sm:mb-10 max-w-2xl mx-auto leading-relaxed drop-shadow-md px-2">
-              India's easiest and fastest printing platform. Design your
-              personality and receive premium prints delivered right to your
-              desk.
-            </p>
+      {/* Existing Services Grid */}
 
-            <div className="flex flex-col sm:flex-row justify-center gap-3 sm:gap-5 px-4">
-              <Link
-                to="/signup"
-                className="bg-cream-50 text-cream-900 px-6 py-3 sm:px-8 sm:py-4 rounded-full text-base sm:text-lg font-bold hover:bg-white transition-all shadow-lg hover:shadow-xl hover:-translate-y-1 flex items-center justify-center gap-2 w-full sm:min-w-[200px]"
-              >
-                <UserPlus size={18} className="sm:w-5 sm:h-5" /> Sign Up Now
-              </Link>
-              <Link
-                to="/digital-print"
-                className="bg-cream-50 text-cream-900 px-6 py-3 sm:px-8 sm:py-4 rounded-full text-base sm:text-lg font-bold hover:bg-white transition-all shadow-lg hover:shadow-xl hover:-translate-y-1 flex items-center justify-center gap-2 w-full sm:min-w-[200px]"
-              >
-                <Compass size={18} className="sm:w-5 sm:h-5" /> Explore Products
-              </Link>
-            </div>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Services Section */}
-      <section className="pt-2 sm:pt-4 pb-6 sm:pb-8 bg-white">
-        <div className="container mx-auto px-4 sm:px-6">
-          <div className="text-center mb-2 sm:mb-4">
-            <h2 className="font-serif text-2xl sm:text-3xl md:text-4xl font-bold text-cream-900 mb-3 sm:mb-4">
-              Our Products
-            </h2>
-            <p className="text-sm sm:text-base text-cream-600 max-w-xl mx-auto mb-2 sm:mb-3">
-              Select from our wide range of premium printed products specially
-              crafted for you
-            </p>
-          </div>
-
-          {/* Featured Categories - Infinite Slider with Left/Right Buttons */}
-          {!loadingCategories && categories.length > 0 && (
-            <div className="mb-12">
-              <div
-                className="relative group/slider overflow-hidden"
-                onMouseEnter={() => {
-                  (window as any).categoryLastInteraction = Date.now();
-                }}
-                onMouseLeave={() => {
-                  (window as any).categoryLastInteraction = Date.now();
-                }}
-              >
-                {/* Left Arrow Button - Scroll left to show items from left */}
-                <button
-                  onClick={() => {
-                    const container = document.getElementById("category-scroll-container");
-                    if (container) {
-                      const screenWidth = window.innerWidth;
-                      const visibleItems = getVisibleItems(screenWidth);
-                      const itemWidth = screenWidth / visibleItems;
-
-                      const currentScroll = container.scrollLeft;
-
-                      if (currentScroll <= 0) {
-                        // If at the start, wrap to the end
-                        container.scrollTo({ left: container.scrollWidth - container.clientWidth, behavior: "smooth" });
-                      } else {
-                        // Scroll left by 1 item
-                        container.scrollTo({ left: currentScroll - itemWidth, behavior: "smooth" });
-                      }
-                    }
-                    if ((window as any).homeCategoryUpdateFromArrow) {
-                      (window as any).homeCategoryUpdateFromArrow();
-                    }
-                  }}
-                  className="absolute left-2 sm:left-3 md:left-4 z-10 w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 bg-white/95 hover:bg-white active:bg-white shadow-md sm:shadow-lg rounded-full flex items-center justify-center text-cream-900 hover:text-cream-600 active:scale-95 transition-all opacity-100 sm:opacity-0 sm:group-hover/slider:opacity-100 touch-manipulation"
-                  style={{ top: 'calc(50% - 1rem)' }}
-                >
-                  <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6" />
-                </button>
-
-                {/* Right Arrow Button - Scroll right to show items from right */}
-                <button
-                  onClick={() => {
-                    const container = document.getElementById("category-scroll-container");
-                    if (container) {
-                      const screenWidth = window.innerWidth;
-                      const visibleItems = getVisibleItems(screenWidth);
-                      const itemWidth = screenWidth / visibleItems;
-
-                      const currentScroll = container.scrollLeft;
-                      const maxScroll = container.scrollWidth - container.clientWidth;
-                      const newScrollLeft = currentScroll + itemWidth;
-
-                      // Check if we're already at or very close to the end
-                      if (currentScroll >= maxScroll - 1) {
-                        // If at the end, wrap to the start
-                        container.scrollTo({ left: 0, behavior: "smooth" });
-                      } else if (newScrollLeft >= maxScroll) {
-                        // If the new scroll would go past the end, scroll to the maximum to show last item
-                        container.scrollTo({ left: maxScroll, behavior: "smooth" });
-                      } else {
-                        // Scroll right by 1 item
-                        container.scrollTo({ left: newScrollLeft, behavior: "smooth" });
-                      }
-                    }
-                    if ((window as any).homeCategoryUpdateFromArrow) {
-                      (window as any).homeCategoryUpdateFromArrow();
-                    }
-                  }}
-                  className="absolute right-2 sm:right-3 md:right-4 z-10 w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 bg-white/95 hover:bg-white active:bg-white shadow-md sm:shadow-lg rounded-full flex items-center justify-center text-cream-900 hover:text-cream-600 active:scale-95 transition-all opacity-100 sm:opacity-0 sm:group-hover/slider:opacity-100 touch-manipulation"
-                  style={{ top: 'calc(50% - 1rem)' }}
-                >
-                  <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6" />
-                </button>
-
-                <div
-                  id="category-scroll-container"
-                  className="flex overflow-x-auto overflow-y-hidden pb-2 sm:pb-3 md:pb-4 snap-x snap-mandatory scroll-smooth touch-pan-x"
-                  style={{
-                    scrollbarWidth: 'none',
-                    msOverflowStyle: 'none',
-                    scrollBehavior: 'smooth'
-                  }}
-                >
-                  {categories.map((category, index) => (
-                    <motion.div
-                      key={category._id}
-                      initial={{ opacity: 0, scale: 0.8 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ delay: index * 0.03 }}
-                      className="flex-shrink-0 snap-start transition-all duration-500 ease-in-out w-1/2 sm:w-1/3 md:w-1/4 lg:w-1/5 xl:w-1/6 2xl:w-[14.285%] px-0.5 sm:px-1 md:px-1"
-                    >
-                      <Link to={`/digital-print/${category._id}`} className="block">
-                        <div className="group flex flex-col items-center gap-1 sm:gap-1.5 p-2 sm:p-2.5 rounded-lg transition-all duration-300 relative">
-                          {/* Type Badge - Shows on hover, positioned outside circle */}
-                          {category.type && (
-                            <div
-                              className={`absolute top-0 left-1/2 -translate-x-1/2 px-2 sm:px-2.5 md:px-3 py-0.5 sm:py-1 md:py-1.5 rounded-full text-[9px] sm:text-[10px] md:text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10 whitespace-nowrap shadow-lg ${category.type === "digital"
-                                  ? "bg-[#588157] text-white"
-                                  : "bg-[#003049] text-white"
-                                }`}
-                            >
-                              {category.type === "digital" ? "Digital Print" : "Bulk Print"}
-                            </div>
-                          )}
-                          {/* Reduced circle sizes for better mobile compatibility */}
-                          <div className={`w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 lg:w-32 lg:h-32 xl:w-36 xl:h-36 rounded-full overflow-hidden bg-white transition-all duration-300 shadow-sm sm:shadow-md group-hover:shadow-lg group-hover:scale-105 flex items-center justify-center relative ${category.type === "digital"
-                              ? "group-hover:bg-[#f5faf0]"
-                              : "group-hover:bg-[#f5fbff]"
-                            }`}>
-                            <img
-                              src={category.image}
-                              alt={category.name}
-                              className="w-full h-full object-cover"
-                            />
-                          </div>
-                          <span className="text-xs sm:text-sm font-semibold text-cream-900 text-center max-w-[80px] sm:max-w-[100px] md:max-w-[120px] line-clamp-2 leading-tight mt-0.5">
-                            {category.name}
-                          </span>
-                        </div>
-                      </Link>
-                    </motion.div>
-                  ))}
-                </div>
-              </div>
-              <div className="text-center mt-6">
-                <Link
-                  to="/digital-print"
-                  className="inline-flex items-center gap-2 bg-cream-900 text-cream-50 px-8 py-3 rounded-full font-medium hover:bg-cream-800 transition-all shadow-lg hover:shadow-xl hover:-translate-y-1"
-                >
-                  Explore More
-                  <ArrowRight size={18} />
-                </Link>
-              </div>
-            </div>
-          )}
-
-          {/* Existing Services Grid */}
-          <div className="mt-8">
-            <div className="text-center mb-8">
-              <h3 className="font-serif text-3xl font-bold text-cream-900 mb-2">
-                All Services
-              </h3>
-            </div>
-            <motion.div
-              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8"
-              variants={containerVariants}
-              initial="hidden"
-              whileInView="visible"
-              viewport={{ once: true, margin: "-100px" }}
-            >
-              {services.map((service) => (
-                <motion.div key={service.id} variants={itemVariants}>
-                  <Link to="/digital-print">
-                    <div className="group h-full p-8 bg-cream-50 rounded-2xl hover:bg-cream-900 transition-all duration-300 cursor-pointer relative overflow-hidden border border-cream-100 hover:shadow-2xl">
-                      <div className="relative z-10">
-                        <div className="w-14 h-14 bg-cream-200 text-cream-900 rounded-xl flex items-center justify-center mb-6 group-hover:bg-cream-800 group-hover:text-cream-50 transition-colors">
-                          <service.icon size={28} />
-                        </div>
-                        <h3 className="font-serif text-xl font-semibold mb-3 text-cream-900 group-hover:text-cream-50 transition-colors">
-                          {service.title}
-                        </h3>
-                        <p className="text-cream-600 text-sm group-hover:text-cream-200 transition-colors">
-                          {service.description}
-                        </p>
-                      </div>
-                    </div>
-                  </Link>
-                </motion.div>
-              ))}
-            </motion.div>
-          </div>
-        </div>
-      </section>
 
       {/* Reviews Section */}
-      <section className="pt-8 sm:pt-12 pb-6 sm:pb-8 bg-cream-50">
+      < section className="pt-8 sm:pt-12 pb-6 sm:pb-8 bg-cream-50" >
         <div className="container mx-auto px-4 sm:px-6">
           <div className="text-center mb-8 sm:mb-12">
             <h2 className="font-serif text-2xl sm:text-3xl md:text-4xl font-bold text-cream-900 mb-3 sm:mb-4">
@@ -750,8 +169,8 @@ const Home: React.FC = () => {
                           key={star}
                           size={16}
                           className={`sm:w-5 sm:h-5 ${star <= Math.round(averageRating)
-                              ? "fill-yellow-400 text-yellow-400"
-                              : "text-cream-300"
+                            ? "fill-yellow-400 text-yellow-400"
+                            : "text-cream-300"
                             }`}
                         />
                       ))}
@@ -1068,10 +487,10 @@ const Home: React.FC = () => {
             </div>
           )}
         </div>
-      </section>
+      </section >
 
       {/* About Section */}
-      <section className="pt-8 pb-24 bg-cream-100 relative overflow-hidden">
+      < section className="pt-8 pb-24 bg-cream-100 relative overflow-hidden" >
         <div className="container mx-auto px-4">
           <div className="max-w-4xl mx-auto">
             <motion.div
@@ -1143,10 +562,10 @@ const Home: React.FC = () => {
             </motion.div>
           </div>
         </div>
-      </section>
+      </section >
 
       {/* Upload Teaser Section */}
-      <section className="pt-24 pb-8 bg-cream-900 text-cream-50 text-center">
+      < section className="pt-24 pb-8 bg-cream-900 text-cream-50 text-center" >
         <div className="container mx-auto px-4">
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
@@ -1186,8 +605,8 @@ const Home: React.FC = () => {
             </Link>
           </motion.div>
         </div>
-      </section>
-    </div>
+      </section >
+    </div >
   );
 };
 

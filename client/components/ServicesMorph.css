@@ -1,0 +1,306 @@
+:root {
+    --c-pink: #ed0887;
+    --c-purple: #93357c;
+    --c-lime: #c9d729;
+    --c-orange: #f79a1c;
+    --c-teal: #0ab2b5;
+    --c-coral: #e63737;
+    --c-red-btn: #dc3545;
+    --c-purple-btn: #8e2468;
+    --c-dark-text: #333;
+}
+
+.services-morph-container {
+    font-family: 'Montserrat', sans-serif;
+    overflow-x: hidden;
+    /* Prevent horizontal scroll from flying elements */
+}
+
+/* 1. NAV & HERO STYLES */
+/* Note: Main Nav is handled by the parent layout, so we focus on Hero and Sticky Nav */
+
+.hero-wrapper {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 40px 20px;
+    text-align: center;
+}
+
+.hero-title {
+    color: var(--c-purple-btn);
+    font-size: 2.2rem;
+    font-weight: 700;
+    margin-bottom: 5px;
+}
+
+.hero-subtitle {
+    color: var(--c-dark-text);
+    margin-bottom: 50px;
+    font-size: 1.1rem;
+}
+
+/* 2. GRID SETUP */
+.services-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 20px;
+    justify-content: center;
+}
+
+.card {
+    padding: 35px 20px;
+    border-radius: 10px;
+    color: white;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+    transition: opacity 0.3s, transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s;
+    /* Only animate opacity here, morph handles the rest */
+    min-height: 120px;
+    cursor: pointer;
+}
+
+/* Hover effect for cards */
+.card:hover {
+    transform: translateY(-5px) scale(1.02);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+}
+
+/* Active/Click effect */
+.card:active {
+    transform: translateY(-2px) scale(0.98);
+}
+
+/* Helper class to hide cards during animation */
+.card.invisible {
+    opacity: 0;
+}
+
+/* Helper class to remove cards after animation */
+.card.displaynone {
+    display: none;
+}
+
+/* Card Colors */
+.bg-pink {
+    background: var(--c-pink);
+}
+
+.bg-purple {
+    background: var(--c-purple);
+}
+
+.bg-teal {
+    background: var(--c-teal);
+}
+
+.bg-coral {
+    background: var(--c-coral);
+}
+
+.bg-lime {
+    background: var(--c-lime);
+    color: var(--c-dark-text);
+}
+
+.bg-orange {
+    background: var(--c-orange);
+    color: var(--c-dark-text);
+}
+
+/* Typography inside cards */
+.card-intro {
+    font-size: 10px;
+    margin: 0;
+    font-weight: 500;
+    opacity: 0.9;
+}
+
+.card-title {
+    font-size: 14px;
+    font-weight: 700;
+    margin: 5px 0;
+    text-transform: uppercase;
+}
+
+.card-desc {
+    font-size: 9px;
+    line-height: 1.4;
+    opacity: 0.9;
+    margin: 0;
+}
+
+/* 3. STICKY NAV (Target for Morph) */
+.sticky-sub-nav {
+    position: fixed;
+    top: 0;
+    /* Cover the main navbar */
+    left: 0;
+    width: 100%;
+    height: 60px;
+    /* Navbar height */
+    background: white;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    display: flex;
+    justify-content: space-between;
+    /* Logo on left, links in center */
+    align-items: center;
+    padding: 0 20px;
+    z-index: 9999;
+    /* Ensure it's on top of everything */
+
+    /* VISIBILITY CONTROL: Start Hidden */
+    visibility: hidden;
+    opacity: 0;
+    transition: opacity 0.3s, visibility 0.3s;
+}
+
+.sticky-sub-nav.visible {
+    visibility: visible;
+    opacity: 1;
+}
+
+/* Logo Container on Left */
+.sticky-nav-logo-container {
+    display: flex;
+    align-items: center;
+    padding: 10px 20px;
+}
+
+/* Logo in Sticky Nav */
+.sticky-nav-logo {
+    height: 50px;
+    /* Increased size */
+    width: auto;
+    opacity: 0;
+    transform: translateX(-20px);
+    transition: all 0.5s ease-out;
+}
+
+.sticky-sub-nav.visible .sticky-nav-logo {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+/* Links Container */
+.sticky-nav-links {
+    display: flex;
+    flex: 1;
+    justify-content: center;
+    align-items: center;
+}
+
+.sub-nav-link {
+    flex-grow: 1;
+    flex-basis: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 15px 0;
+    text-decoration: none;
+    font-weight: 800;
+    /* Bolder */
+    font-size: 1rem;
+    /* Increased font size */
+    text-transform: uppercase;
+    position: relative;
+    /* Hide text initially, we reveal it after morph */
+    color: transparent;
+    transition: color 0.3s 0.3s;
+    /* Delay color appearance */
+    cursor: pointer;
+}
+
+.sticky-sub-nav.visible .sub-nav-link {
+    color: inherit;
+    /* Or specify colors */
+}
+
+/* Hover Effects */
+.sub-nav-link:hover {
+    transform: translateY(-2px);
+    filter: brightness(1.1);
+}
+
+/* Active/Selected State */
+.sub-nav-link.active {
+    font-weight: 900;
+    transform: scale(1.05);
+}
+
+.sub-nav-link.active::before {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 60%;
+    height: 3px;
+    background: currentColor;
+    border-radius: 2px;
+}
+
+/* Specific Text Colors for Nav Links */
+.sub-nav-link.text-pink {
+    color: var(--c-pink) !important;
+}
+
+.sub-nav-link.text-lime {
+    color: #9aa808 !important;
+}
+
+.sub-nav-link.text-orange {
+    color: #d98e04 !important;
+}
+
+.sub-nav-link.text-teal {
+    color: var(--c-teal) !important;
+}
+
+.sub-nav-link.text-purple {
+    color: var(--c-purple) !important;
+}
+
+.sub-nav-link.text-coral {
+    color: var(--c-coral) !important;
+}
+
+/* Hide text initially logic adjustment */
+.sticky-sub-nav:not(.visible) .sub-nav-link {
+    color: transparent !important;
+}
+
+
+.sub-nav-link i {
+    margin-right: 10px;
+    font-size: 1.2rem;
+    /* Larger icons */
+}
+
+/* The Separator */
+.sub-nav-link:not(:last-child)::after {
+    content: '|';
+    position: absolute;
+    right: 0;
+    color: #ccc;
+    font-weight: 400;
+}
+
+/* 4. THE MORPHING CLONES */
+.morph-clone {
+    position: fixed;
+    z-index: 9999;
+    border-radius: 10px;
+    pointer-events: none;
+    transform-origin: top left;
+    transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Dummy spacer if needed, but we likely just want the content below to scroll normally */
+.page-content-spacer {
+    /* content below hero */
+    display: block;
+}
