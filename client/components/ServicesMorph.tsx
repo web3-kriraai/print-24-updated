@@ -13,37 +13,64 @@ import {
     Calculator
 } from 'lucide-react';
 
+import type { Service } from '../types/serviceTypes';
+
 interface ServicesMorphProps {
     onServiceSelect?: (serviceId: string) => void;
+    services: Service[];
 }
 
-const ServicesMorph: React.FC<ServicesMorphProps> = ({ onServiceSelect }) => {
+const ServicesMorph: React.FC<ServicesMorphProps> = ({ onServiceSelect, services }) => {
     const [hasMorphed, setHasMorphed] = useState(false);
     const stickyBarRef = useRef<HTMLDivElement>(null);
     const gridContainerRef = useRef<HTMLDivElement>(null);
 
-    // Define services data to map over for cleaner JSX
-    const services = [
-        { id: 'gifting', title: 'GIFTING SOLUTIONS', intro: 'Looking for...', desc: 'Personalized gifts', bg: 'bg-pink', icon: Gift, textCol: 'text-pink' },
-        { id: 'printing', title: 'PRINTING SOLUTIONS', intro: 'Looking for...', desc: 'Premium printing services', bg: 'bg-lime', icon: Printer, textCol: 'text-lime' },
-        { id: 'design', title: 'CREATE DESIGN', intro: null, desc: 'Customize designs online', bg: 'bg-orange', icon: PenTool, textCol: 'text-orange' },
-        { id: 'hire', title: 'HIRE A DESIGNER', intro: null, desc: 'Professional designers', bg: 'bg-teal', icon: User, textCol: 'text-teal' },
-        { id: 'packaging', title: 'PACKAGING SOLUTIONS', intro: null, desc: 'Enhance your products', bg: 'bg-teal', icon: Package, textCol: 'text-teal' },
-        { id: 'magazine', title: 'PRINT INDUSTRY MAGAZINE', intro: null, desc: 'Latest trends & insights', bg: 'bg-purple', icon: BookOpen, textCol: 'text-purple' },
-        { id: 'machines', title: 'BUY & SELL MACHINES', intro: null, desc: 'Marketplace for machines', bg: 'bg-coral', icon: Settings, textCol: 'text-coral' },
-        { id: 'find', title: 'FIND A PRINTER', intro: null, desc: 'Printers near you', bg: 'bg-lime', icon: MapPin, textCol: 'text-lime' },
-        { id: 'software', title: 'ORDER SOFTWARE', intro: null, desc: 'Managing printing orders', bg: 'bg-pink', icon: Monitor, textCol: 'text-pink' },
-        { id: 'calc', title: 'GSM CALCULATOR', intro: null, desc: 'Easy calculation tool', bg: 'bg-orange', icon: Calculator, textCol: 'text-orange' },
-    ];
+    // Icon mapping based on service name
+    const getServiceIcon = (serviceName: string): any => {
+        const name = serviceName.toLowerCase();
+        if (name.includes('gift')) return Gift;
+        if (name.includes('print')) return Printer;
+        if (name.includes('design')) return PenTool;
+        if (name.includes('hire')) return User;
+        if (name.includes('package') || name.includes('packaging')) return Package;
+        if (name.includes('magazine')) return BookOpen;
+        if (name.includes('machine')) return Settings;
+        if (name.includes('find')) return MapPin;
+        if (name.includes('software')) return Monitor;
+        if (name.includes('calc')) return Calculator;
+        return Printer; // Default
+    };
+
+    // Track user interaction for auto-scroll behavior
+    const userInteractedRef = useRef(false);
+    const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+    // Reset inactivity timer
+    const resetInactivityTimer = () => {
+        if (inactivityTimerRef.current) {
+            clearTimeout(inactivityTimerRef.current);
+        }
+
+        // Set new 2-minute inactivity timer
+        inactivityTimerRef.current = setTimeout(() => {
+            // After 2 minutes of inactivity, scroll to banner
+            if (hasMorphed) {
+                scrollToBanner();
+            }
+        }, 120000); // 2 minutes = 120000ms
+    };
 
     useEffect(() => {
         const handleScroll = () => {
-            const triggerPoint = 200; // Fixed scroll amount to trigger animation as per user request
+            userInteractedRef.current = true; // Mark as interacted on scroll
+            resetInactivityTimer(); // Reset the 2-minute timer
+
+            const triggerPoint = 200; // Fixed scroll amount to trigger animation
 
             if (window.scrollY > triggerPoint && !hasMorphed) {
                 triggerMorph();
                 setHasMorphed(true);
-                // Auto-scroll to banner when morph triggers, as per "use auto scroll smooth when first uto scroll so it come to banner"
+                // Auto-scroll to banner when morph triggers
                 scrollToBanner();
             } else if (window.scrollY < triggerPoint && hasMorphed) {
                 resetMorph();
@@ -51,9 +78,39 @@ const ServicesMorph: React.FC<ServicesMorphProps> = ({ onServiceSelect }) => {
             }
         };
 
+        const handleClick = () => {
+            resetInactivityTimer(); // Reset the 2-minute timer on any click
+        };
+
         window.addEventListener('scroll', handleScroll);
-        return () => window.removeEventListener('scroll', handleScroll);
+        window.addEventListener('click', handleClick);
+
+        // Start the initial inactivity timer
+        resetInactivityTimer();
+
+        return () => {
+            window.removeEventListener('scroll', handleScroll);
+            window.removeEventListener('click', handleClick);
+            if (inactivityTimerRef.current) {
+                clearTimeout(inactivityTimerRef.current);
+            }
+        };
     }, [hasMorphed]);
+
+    // Initial auto-scroll timer effect
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            // Only auto-scroll if user hasn't scrolled manually yet and we are at the top
+            if (!userInteractedRef.current && window.scrollY < 50) {
+                window.scrollTo({
+                    top: 250, // Enough to trigger the 200px threshold
+                    behavior: 'smooth'
+                });
+            }
+        }, 2000);
+
+        return () => clearTimeout(timer);
+    }, []);
 
     const triggerMorph = () => {
         if (!stickyBarRef.current || !gridContainerRef.current) return;
@@ -113,8 +170,6 @@ const ServicesMorph: React.FC<ServicesMorphProps> = ({ onServiceSelect }) => {
                 // E. Cleanup after animation ends
                 setTimeout(() => {
                     clone.remove(); // Remove the flying box
-                    // Do NOT set display:none, just keep it invisible to preserve layout height
-                    // card.classList.add('displaynone'); 
                 }, 600); // Match CSS transition time
             }
         });
@@ -142,7 +197,6 @@ const ServicesMorph: React.FC<ServicesMorphProps> = ({ onServiceSelect }) => {
         const cards = gridContainerRef.current.querySelectorAll('.card');
         cards.forEach(card => {
             card.classList.remove('invisible');
-            // card.classList.remove('displaynone');
         });
 
         // Remove any stuck clones
@@ -152,18 +206,20 @@ const ServicesMorph: React.FC<ServicesMorphProps> = ({ onServiceSelect }) => {
     const scrollToBanner = () => {
         // Wait for state update/DOM render
         setTimeout(() => {
-            const banner = document.querySelector('.service-banner');
+            // Try both possible banner selectors
+            const banner = document.querySelector('.service-banner-container') ||
+                document.querySelector('.service-banner');
+
             if (banner) {
                 const bannerRect = banner.getBoundingClientRect();
                 const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
                 const bannerAbsoluteTop = bannerRect.top + scrollTop;
 
-                // Banner should appear just below sticky nav (60px) with some padding
-                // The sticky nav height in CSS is 60px
-                const stickyNavHeight = 60;
-                const padding = 20;
+                // Get sticky nav height dynamically for responsive support
+                const stickyNav = stickyBarRef.current;
+                const stickyNavHeight = stickyNav ? stickyNav.offsetHeight : 60;
 
-                const targetScroll = bannerAbsoluteTop - stickyNavHeight - padding;
+                const targetScroll = bannerAbsoluteTop - stickyNavHeight;
 
                 window.scrollTo({
                     top: targetScroll,
@@ -184,24 +240,29 @@ const ServicesMorph: React.FC<ServicesMorphProps> = ({ onServiceSelect }) => {
 
                 {/* Service Links */}
                 <div className="sticky-nav-links">
-                    {services.map(service => (
-                        <a
-                            key={service.id}
-                            href="#"
-                            className={`sub-nav-link ${service.textCol}`}
-                            data-target={service.id}
-                            onClick={(e) => {
-                                e.preventDefault();
-                                if (onServiceSelect) {
-                                    onServiceSelect(service.id);
-                                    scrollToBanner();
-                                }
-                            }}
-                        >
-                            <service.icon size={16} style={{ marginRight: '8px' }} />
-                            {service.title.split(' ')[0]}
-                        </a>
-                    ))}
+                    {services.map(service => {
+                        const Icon = getServiceIcon(service.name);
+                        return (
+                            <a
+                                key={service._id}
+                                href="#"
+                                className="sub-nav-link"
+                                style={{ color: service.color }}
+                                data-target={service._id}
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    resetInactivityTimer(); // Reset timer on service selection
+                                    if (onServiceSelect) {
+                                        onServiceSelect(service._id);
+                                        scrollToBanner();
+                                    }
+                                }}
+                            >
+                                <Icon size={16} style={{ marginRight: '8px' }} />
+                                {service.name.split(' ')[0]}
+                            </a>
+                        );
+                    })}
                 </div>
             </div>
 
@@ -212,21 +273,22 @@ const ServicesMorph: React.FC<ServicesMorphProps> = ({ onServiceSelect }) => {
                 <div className="services-grid" id="gridContainer" ref={gridContainerRef}>
                     {services.map(service => (
                         <div
-                            key={service.id}
-                            className={`card ${service.bg}`}
-                            data-target={service.id}
+                            key={service._id}
+                            className="card"
+                            style={{ backgroundColor: service.color }}
+                            data-target={service._id}
                             onClick={() => {
+                                resetInactivityTimer(); // Reset timer on card click
                                 // Update the selected service first
                                 if (onServiceSelect) {
-                                    onServiceSelect(service.id);
+                                    onServiceSelect(service._id);
                                     scrollToBanner();
                                 }
                             }}
-                            style={{ cursor: 'pointer' }}
                         >
-                            {service.intro && <span className="card-intro">{service.intro}</span>}
-                            <h3 className="card-title">{service.title}</h3>
-                            {service.desc && <p className="card-desc">{service.desc}</p>}
+                            <span className="card-intro">We Offer...</span>
+                            <h3 className="card-title text-white">{service.name}</h3>
+                            <p className="card-desc text-white/90">{service.description}</p>
                         </div>
                     ))}
                 </div>

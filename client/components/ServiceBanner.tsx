@@ -2,89 +2,80 @@ import React from 'react';
 import { Gift, Printer, Palette, Users, Package, FileText } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import './ServiceBanner.css';
+import { Service } from '../types/serviceTypes';
+import { API_BASE_URL } from '../lib/apiConfig';
 
 interface ServiceBannerProps {
-    selectedService: string;
+    service: Service;
 }
 
-const ServiceBanner: React.FC<ServiceBannerProps> = ({ selectedService }) => {
-    const bannerContent: Record<string, {
-        title: string;
-        subtitle: string;
-        highlight: string;
-        color: string;
-        gradient: string;
-        icon: React.ElementType;
-    }> = {
-        gifting: {
-            title: 'ORDER BOOK TODAY',
-            subtitle: 'WIDE RANGE OF',
-            highlight: 'GIFTING SERVICES',
-            color: '#ed0887',
-            gradient: 'linear-gradient(90deg, #fce4ec 0%, #f8bbd0 50%, #ffffff 100%)',
-            icon: Gift
-        },
-        printing: {
-            title: 'ORDER BOOK TODAY',
-            subtitle: 'WIDE RANGE OF',
-            highlight: 'PRINTING SERVICES',
-            color: '#93357c',
-            gradient: 'linear-gradient(90deg, #f3e5f5 0%, #e1bee7 50%, #ffffff 100%)',
-            icon: Printer
-        },
-        design: {
-            title: 'ORDER BOOK TODAY',
-            subtitle: 'WIDE RANGE OF',
-            highlight: 'CREATIVE DESIGN SERVICES',
-            color: '#c9d729',
-            gradient: 'linear-gradient(90deg, #f9fbe7 0%, #f0f4c3 50%, #ffffff 100%)',
-            icon: Palette
-        },
-        hire: {
-            title: 'ORDER BOOK TODAY',
-            subtitle: 'WIDE RANGE OF',
-            highlight: 'HIRING SERVICES',
-            color: '#f79a1c',
-            gradient: 'linear-gradient(90deg, #fff3e0 0%, #ffe0b2 50%, #ffffff 100%)',
-            icon: Users
-        },
-        packaging: {
-            title: 'ORDER BOOK TODAY',
-            subtitle: 'WIDE RANGE OF',
-            highlight: 'PACKAGING SERVICES',
-            color: '#0ab2b5',
-            gradient: 'linear-gradient(90deg, #e0f7fa 0%, #b2ebf2 50%, #ffffff 100%)',
-            icon: Package
-        },
-        print: {
-            title: 'ORDER BOOK TODAY',
-            subtitle: 'WIDE RANGE OF',
-            highlight: 'PRINT SERVICES',
-            color: '#e63737',
-            gradient: 'linear-gradient(90deg, #ffebee 0%, #ffcdd2 50%, #ffffff 100%)',
-            icon: FileText
-        }
+const ServiceBanner: React.FC<ServiceBannerProps> = ({ service }) => {
+    // Helper to select icon based on service name
+    const getServiceIcon = (name: string) => {
+        const lowerName = name.toLowerCase();
+        if (lowerName.includes('gift')) return Gift;
+        if (lowerName.includes('design')) return Palette;
+        if (lowerName.includes('hire') || lowerName.includes('hiring')) return Users;
+        if (lowerName.includes('pack')) return Package;
+        if (lowerName.includes('print')) return Printer;
+        return FileText; // Default icon
     };
 
-    const content = bannerContent[selectedService] || bannerContent.printing;
-    const IconComponent = content.icon;
+    const IconComponent = getServiceIcon(service.name);
+
+    // Generate dynamic styles based on service color
+    const bannerStyle = {
+        title: 'ORDER BOOK TODAY',
+        subtitle: 'WIDE RANGE OF',
+        highlight: `${service.name} SERVICES`.toUpperCase(),
+        color: service.color || '#93357c',
+        // Create a light gradient version of the color
+        gradient: `linear-gradient(90deg, ${service.color}15 0%, ${service.color}05 50%, #ffffff 100%)`
+    };
+
+    // Construct image URL if it exists
+    const bannerImageUrl = service.bannerImage
+        ? (service.bannerImage.startsWith('http')
+            ? service.bannerImage
+            : `${API_BASE_URL}${service.bannerImage.startsWith('/') ? '' : '/'}${service.bannerImage}`)
+        : null;
+
+    if (bannerImageUrl) {
+        console.log('Rendering Service Banner Image:', bannerImageUrl);
+        return (
+            <div className="service-banner-container relative w-full h-[350px] overflow-hidden">
+                <motion.img
+                    src={bannerImageUrl}
+                    alt={`${service.name} Banner`}
+                    className="w-full h-full object-fill"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ duration: 0.6 }}
+                />
+            </div>
+        );
+    }
 
     return (
         <div className="service-banner-container">
             <motion.div
                 className="service-banner"
-                style={{ background: content.gradient }}
-                animate={{ background: content.gradient }}
+                style={{ background: bannerStyle.gradient }}
+                animate={{ background: bannerStyle.gradient }}
                 transition={{ duration: 0.6, ease: "easeInOut" }}
             >
                 {/* Decorative Background Dots */}
                 <div className="banner-dots">
                     <motion.span
-                        className="dot dot-pink"
-                        style={{ top: '15%', left: '8%' }}
+                        className="dot"
+                        style={{ top: '15%', left: '8%', backgroundColor: service.color }}
                         animate={{ y: [0, -10, 0] }}
                         transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
                     />
+                    {/* ... (Keeping other dots with dynamic or variety colors? Let's just use service color and variants or hardcoded palette matching service color)
+                         Actually, let's keep the colorful dots but maybe tint them?
+                         Or just keep existing colorful dots for vibrancy.
+                      */}
                     <motion.span
                         className="dot dot-orange"
                         style={{ top: '25%', left: '25%' }}
@@ -104,8 +95,8 @@ const ServiceBanner: React.FC<ServiceBannerProps> = ({ selectedService }) => {
                         transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", delay: 0.6 }}
                     />
                     <motion.span
-                        className="dot dot-lime"
-                        style={{ top: '15%', right: '15%' }}
+                        className="dot"
+                        style={{ top: '15%', right: '15%', backgroundColor: service.color }} // Dynamic
                         animate={{ y: [0, -10, 0] }}
                         transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", delay: 0.8 }}
                     />
@@ -116,8 +107,8 @@ const ServiceBanner: React.FC<ServiceBannerProps> = ({ selectedService }) => {
                         transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", delay: 1.0 }}
                     />
                     <motion.span
-                        className="dot dot-pink"
-                        style={{ bottom: '20%', left: '30%' }}
+                        className="dot"
+                        style={{ bottom: '20%', left: '30%', backgroundColor: service.color }} // Dynamic
                         animate={{ y: [0, -10, 0] }}
                         transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", delay: 1.2 }}
                     />
@@ -132,7 +123,7 @@ const ServiceBanner: React.FC<ServiceBannerProps> = ({ selectedService }) => {
                 {/* Left Side - Icon Graphics */}
                 <AnimatePresence mode="wait">
                     <motion.div
-                        key={selectedService}
+                        key={service._id}
                         className="banner-left"
                         initial={{ opacity: 0, x: -50 }}
                         animate={{ opacity: 1, x: 0 }}
@@ -142,7 +133,7 @@ const ServiceBanner: React.FC<ServiceBannerProps> = ({ selectedService }) => {
                         <div className="icon-cluster">
                             <motion.div
                                 className="cluster-icon"
-                                style={{ backgroundColor: content.color }}
+                                style={{ backgroundColor: bannerStyle.color }}
                                 animate={{ rotate: [0, 5, -5, 0], scale: [1, 1.05, 1] }}
                                 transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
                             >
@@ -176,7 +167,7 @@ const ServiceBanner: React.FC<ServiceBannerProps> = ({ selectedService }) => {
                 {/* Center-Right - Text Content */}
                 <AnimatePresence mode="wait">
                     <motion.div
-                        key={selectedService + '-content'}
+                        key={service._id + '-content'}
                         className="banner-content"
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -189,7 +180,15 @@ const ServiceBanner: React.FC<ServiceBannerProps> = ({ selectedService }) => {
                             animate={{ opacity: 1 }}
                             transition={{ delay: 0.1 }}
                         >
-                            {content.title}
+                            {bannerStyle.title}
+                        </motion.p>
+                        <motion.p
+                            className="text-sm font-medium text-gray-600 mb-4 max-w-lg mx-auto"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            transition={{ delay: 0.15 }}
+                        >
+                            {service.description}
                         </motion.p>
                         <motion.h2
                             className="banner-title"
@@ -197,15 +196,15 @@ const ServiceBanner: React.FC<ServiceBannerProps> = ({ selectedService }) => {
                             animate={{ opacity: 1 }}
                             transition={{ delay: 0.2 }}
                         >
-                            {content.subtitle}<br />
+                            {bannerStyle.subtitle}<br />
                             <motion.span
                                 className="banner-highlight"
-                                style={{ color: content.color }}
+                                style={{ color: bannerStyle.color }}
                                 initial={{ opacity: 0, scale: 0.9 }}
                                 animate={{ opacity: 1, scale: 1 }}
                                 transition={{ delay: 0.3, duration: 0.4 }}
                             >
-                                {content.highlight}
+                                {bannerStyle.highlight}
                             </motion.span>
                         </motion.h2>
                     </motion.div>
@@ -215,14 +214,14 @@ const ServiceBanner: React.FC<ServiceBannerProps> = ({ selectedService }) => {
                 <div className="banner-stripes">
                     <motion.div
                         className="stripe stripe-1"
-                        style={{ backgroundColor: '#ed0887' }}
+                        style={{ backgroundColor: bannerStyle.color }}
                         initial={{ x: 100, opacity: 0 }}
                         animate={{ x: 0, opacity: 0.9 }}
                         transition={{ duration: 0.6, delay: 0.1 }}
                     />
                     <motion.div
                         className="stripe stripe-2"
-                        style={{ backgroundColor: '#0ab2b5' }}
+                        style={{ backgroundColor: '#0ab2b5' }} // Maybe keep or make dynamic
                         initial={{ x: 100, opacity: 0 }}
                         animate={{ x: 0, opacity: 0.9 }}
                         transition={{ duration: 0.6, delay: 0.2 }}

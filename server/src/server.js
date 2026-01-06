@@ -204,6 +204,34 @@ if (existsSync(clientPublicPath)) {
   });
 }
 
+// Serve uploads folder
+// Serve uploads folder
+// Controller uses path.join(__dirname, '../../uploads/service-banners') from src/controllers
+// __dirname (src/controllers) -> ../ (src) -> ../../ (server)
+// So files are in server/uploads
+// server.js is in src. __dirname is src.
+// So we need ../uploads to reach server/uploads
+const uploadsPath = join(__dirname, "../uploads");
+
+if (existsSync(uploadsPath)) {
+  app.use("/uploads", express.static(uploadsPath));
+  console.log(`[Server] ✅ Serving uploads from: ${uploadsPath}`);
+} else {
+  // Create uploads directory if it doesn't exist
+  // This prevents startup errors if the folder is missing
+  const fs = await import('fs');
+  if (!fs.existsSync(uploadsPath)) {
+    try {
+      fs.mkdirSync(uploadsPath, { recursive: true });
+      console.log(`[Server] Created uploads directory at: ${uploadsPath}`);
+    } catch (err) {
+      console.error(`[Server] ❌ Failed to create uploads directory: ${err.message}`);
+    }
+  }
+  app.use("/uploads", express.static(uploadsPath));
+  console.log(`[Server] ✅ Serving uploads from: ${uploadsPath}`);
+}
+
 // Serve all other static files (images, fonts, etc.) from dist folder ONLY
 // This must NOT serve index.html - SSR will handle that
 // IMPORTANT: This must come AFTER SSR middleware registration but BEFORE SSR handler execution

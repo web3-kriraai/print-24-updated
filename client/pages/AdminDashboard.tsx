@@ -7117,13 +7117,22 @@ const AdminDashboard: React.FC = () => {
         <div className="mb-6">
           <BackButton fallbackPath="/" label="Back" className="text-cream-600 hover:text-cream-900 mb-4" />
         </div>
-        <div className="mb-6 sm:mb-8">
-          <h1 className="font-serif text-2xl sm:text-3xl md:text-4xl font-bold text-cream-900 mb-2">
-            Admin Dashboard
-          </h1>
-          <p className="text-sm sm:text-base text-cream-600">
-            Manage products, categories, uploads, and admin users
-          </p>
+        <div className="mb-6 sm:mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="font-serif text-2xl sm:text-3xl md:text-4xl font-bold text-cream-900 mb-2">
+              Admin Dashboard
+            </h1>
+            <p className="text-sm sm:text-base text-cream-600">
+              Manage products,categories, uploads, and admin users
+            </p>
+          </div>
+          <button
+            onClick={() => navigate("/admin/services")}
+            className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+          >
+            <Package size={20} />
+            Home
+          </button>
         </div>
 
         {/* Tabs - Production Ready Design */}

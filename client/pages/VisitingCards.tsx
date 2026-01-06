@@ -1952,6 +1952,25 @@ const VisitingCards: React.FC = () => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4, duration: 0.5 }}
           >
+            {/* Header */}
+            <div className="bg-white border-b border-gray-200 sticky top-0 z-10 shadow-sm">
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+                <div className="flex items-center">
+                  <BackButton onClick={() => {
+                    if (nestedSubCategoryId && categoryId && subCategoryId) {
+                      navigate(`/digital-print/${categoryId}/${subCategoryId}`);
+                    } else if (subCategoryId && categoryId) {
+                      navigate(`/digital-print/${categoryId}`);
+                    } else {
+                      navigate('/digital-print'); // Fallback to digital-print base if no category/subcategory
+                    }
+                  }} />
+                  <h1 className="ml-4 text-xl font-bold text-gray-900 truncate max-w-xs sm:max-w-md">
+                    {loading ? 'Loading...' : (selectedSubCategory ? selectedSubCategory.name : categoryName)}
+                  </h1>
+                </div>
+              </div>
+            </div>
             <div className="flex flex-col md:flex-row gap-10 items-start">
               <div className="flex-1">
                 <h3 className="font-serif text-2xl font-bold text-cream-900 mb-4">

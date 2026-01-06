@@ -22,20 +22,20 @@ const BackButton: React.FC<BackButtonProps> = ({
   // Track previous pathname - properly capture previous value before updating
   useEffect(() => {
     const currentPath = location.pathname;
-    
+
     // On first render, just store current path
     if (previousPathRef.current === null) {
       previousPathRef.current = currentPath;
       return;
     }
-    
+
     // Pathname changed - at this point previousPathRef.current still has the old pathname
     // We'll update it after a microtask so it's available for the current navigation check
     // but will be updated for the next navigation
     const updateTimer = setTimeout(() => {
       previousPathRef.current = currentPath;
     }, 0);
-    
+
     return () => clearTimeout(updateTimer);
   }, [location.pathname]);
 
@@ -54,15 +54,15 @@ const BackButton: React.FC<BackButtonProps> = ({
 
     // Check if there's navigation state (from Link or navigate with state)
     const hasState = location.state !== null && location.state !== undefined;
-    
+
     // Check if browser history has entries (most reliable check - prioritize this)
     const hasHistory = typeof window !== 'undefined' && window.history.length > 1;
-    
+
     // Check if we have a valid previous path that's different from current
     const currentPath = location.pathname;
     const previousPath = previousPathRef.current;
     const hasPreviousPath = previousPath && previousPath !== currentPath;
-    
+
     // Can go back if we have browser history (most reliable), state, or previous path
     const canGoBack = hasHistory || hasState || hasPreviousPath;
 
@@ -72,7 +72,7 @@ const BackButton: React.FC<BackButtonProps> = ({
       // No history - navigate to fallback path
       navigate(fallbackPath);
     }
-    
+
     // Scroll to top after navigation
     if (typeof window !== 'undefined') {
       window.scrollTo(0, 0);
@@ -86,10 +86,10 @@ const BackButton: React.FC<BackButtonProps> = ({
         e.stopPropagation();
         handleBack();
       }}
-      className={`flex items-center text-slate-500 hover:text-slate-700 transition-colors font-medium cursor-pointer ${className}`}
+      className={`flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors font-medium cursor-pointer ${className}`}
       type="button"
     >
-      <ArrowLeft className="w-4 h-4 mr-2" />
+      <ArrowLeft className="w-5 h-5" />
       {label}
     </button>
   );

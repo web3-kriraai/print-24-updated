@@ -41,10 +41,10 @@
 
 /* 2. GRID SETUP */
 .services-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-    gap: 20px;
+    display: flex;
+    flex-wrap: wrap;
     justify-content: center;
+    gap: 20px;
 }
 
 .card {
@@ -61,6 +61,7 @@
     /* Only animate opacity here, morph handles the rest */
     min-height: 120px;
     cursor: pointer;
+    flex: 0 0 260px;
 }
 
 /* Hover effect for cards */
@@ -203,7 +204,7 @@
     text-decoration: none;
     font-weight: 800;
     /* Bolder */
-    font-size: 1rem;
+    font-size: 0.75rem;
     /* Increased font size */
     text-transform: uppercase;
     position: relative;
@@ -303,4 +304,215 @@
 .page-content-spacer {
     /* content below hero */
     display: block;
+}
+
+/* ========================================
+   5. RESPONSIVE STYLES
+   ======================================== */
+
+/* Tablet and below (1024px) */
+@media (max-width: 1024px) {
+    .sticky-sub-nav {
+        padding: 0 15px;
+    }
+
+    .sticky-nav-logo-container {
+        padding: 5px 10px;
+    }
+
+    .sticky-nav-logo {
+        height: 40px;
+    }
+
+    .sub-nav-link {
+        font-size: 0.65rem;
+        padding: 12px 0;
+    }
+
+    .sub-nav-link svg {
+        width: 14px;
+        height: 14px;
+        margin-right: 6px;
+    }
+}
+
+/* Tablet portrait and below (768px) */
+@media (max-width: 768px) {
+    .sticky-sub-nav {
+        height: 50px;
+        padding: 0 10px;
+    }
+
+    .sticky-nav-logo-container {
+        padding: 5px;
+    }
+
+    .sticky-nav-logo {
+        height: 35px;
+    }
+
+    .sub-nav-link {
+        font-size: 0.55rem;
+        padding: 10px 0;
+        font-weight: 700;
+    }
+
+    .sub-nav-link svg {
+        width: 12px;
+        height: 12px;
+        margin-right: 4px;
+    }
+
+    /* Reduce separator visibility */
+    .sub-nav-link:not(:last-child)::after {
+        font-size: 0.7rem;
+    }
+}
+
+/* Mobile landscape and below (640px) */
+@media (max-width: 640px) {
+    .sticky-sub-nav {
+        height: 45px;
+        padding: 0 8px;
+    }
+
+    .sticky-nav-logo-container {
+        padding: 3px;
+    }
+
+    .sticky-nav-logo {
+        height: 30px;
+    }
+
+    .sticky-nav-links {
+        gap: 2px;
+    }
+
+    .sub-nav-link {
+        font-size: 0.5rem;
+        padding: 8px 0;
+        font-weight: 600;
+    }
+
+    .sub-nav-link svg {
+        width: 10px;
+        height: 10px;
+        margin-right: 3px;
+    }
+
+    /* Hide separators on very small screens */
+    .sub-nav-link:not(:last-child)::after {
+        display: none;
+    }
+}
+
+/* Mobile portrait (480px and below) */
+@media (max-width: 480px) {
+    .sticky-sub-nav {
+        height: 40px;
+        padding: 0 5px;
+    }
+
+    .sticky-nav-logo-container {
+        padding: 2px;
+    }
+
+    .sticky-nav-logo {
+        height: 25px;
+    }
+
+    .sub-nav-link {
+        font-size: 0.45rem;
+        padding: 6px 0;
+        font-weight: 600;
+        letter-spacing: -0.02em;
+    }
+
+    /* Hide icons on very small screens to save space */
+    .sub-nav-link svg {
+        display: none;
+    }
+
+    /* Reduce hover effects on mobile */
+    .sub-nav-link:hover {
+        transform: none;
+        filter: brightness(1.05);
+    }
+
+    .sub-nav-link.active {
+        transform: scale(1.02);
+    }
+}
+
+/* Extra small devices (360px and below) */
+@media (max-width: 360px) {
+    .sticky-sub-nav {
+        height: 35px;
+        padding: 0 3px;
+    }
+
+    .sticky-nav-logo {
+        height: 22px;
+    }
+
+    .sub-nav-link {
+        font-size: 0.4rem;
+        padding: 5px 0;
+        letter-spacing: -0.03em;
+    }
+
+    .sticky-nav-links {
+        gap: 0;
+    }
+}
+
+/* Hero section responsive */
+@media (max-width: 768px) {
+    .hero-wrapper {
+        padding: 30px 15px;
+    }
+
+    .hero-title {
+        font-size: 1.8rem;
+    }
+
+    .hero-subtitle {
+        font-size: 0.95rem;
+        margin-bottom: 35px;
+    }
+
+    .services-grid {
+        gap: 15px;
+    }
+
+    .card {
+        flex: 0 0 calc(50% - 10px);
+        min-width: 140px;
+        padding: 25px 15px;
+    }
+}
+
+@media (max-width: 480px) {
+    .hero-wrapper {
+        padding: 20px 10px;
+    }
+
+    .hero-title {
+        font-size: 1.5rem;
+    }
+
+    .hero-subtitle {
+        font-size: 0.85rem;
+        margin-bottom: 25px;
+    }
+
+    .services-grid {
+        gap: 10px;
+    }
+
+    .card {
+        flex: 0 0 100%;
+        max-width: 300px;
+        margin: 0 auto;
+    }
 }

@@ -15,6 +15,8 @@ import ServicesMorph from "../components/ServicesMorph";
 import ServiceBanner from "../components/ServiceBanner";
 import ServiceProducts from "../components/ServiceProducts";
 import { API_BASE_URL_WITH_API } from "../lib/apiConfig";
+import { fetchServices } from "../lib/serviceApi";
+import type { Service } from "../types/serviceTypes";
 
 interface Category {
   _id: string;
@@ -70,7 +72,10 @@ const Home: React.FC = () => {
   const [expandedComments, setExpandedComments] = useState<Set<string>>(
     new Set()
   );
-  const [selectedService, setSelectedService] = useState('printing'); // Default service for banner
+  // Dynamic services state
+  const [services, setServices] = useState<Service[]>([]);
+  const [loadingServices, setLoadingServices] = useState(true);
+  const [selectedService, setSelectedService] = useState<Service | null>(null);
 
   // Client-only flag for SSR hydration safety
   const isClient = useClientOnly();
@@ -88,6 +93,28 @@ const Home: React.FC = () => {
     if (typeof window === "undefined") return;
     const token = localStorage.getItem("token");
     setIsLoggedIn(!!token);
+  }, []);
+
+  // Load services from API
+  useEffect(() => {
+    const loadServices = async () => {
+      try {
+        setLoadingServices(true);
+        const data = await fetchServices(true); // Only active services
+        setServices(data);
+
+        // Set first service as default if available
+        if (data.length > 0) {
+          setSelectedService(data[0]);
+        }
+      } catch (error) {
+        console.error('Failed to load services:', error);
+      } finally {
+        setLoadingServices(false);
+      }
+    };
+
+    loadServices();
   }, []);
 
   const filteredReviews = reviews.filter((review) => {
@@ -121,16 +148,42 @@ const Home: React.FC = () => {
       ? reviews.reduce((sum, review) => sum + review.rating, 0) / totalReviews
       : 0;
 
+  // Handler to convert serviceId to Service object
+  const handleServiceSelect = (serviceId: string) => {
+    const service = services.find(s => s._id === serviceId);
+    if (service) {
+      setSelectedService(service);
+    }
+  };
+
   return (
     <div className="w-full overflow-hidden">
       {/* Morphing Services Section */}
-      <ServicesMorph onServiceSelect={setSelectedService} />
+      {!loadingServices && services.length > 0 && (
+        <>
+          <ServicesMorph
+            services={services}
+            onServiceSelect={handleServiceSelect}
+          />
 
-      {/* Service Banner */}
-      <ServiceBanner selectedService={selectedService} />
+          {/* Service Banner */}
+          {selectedService && (
+            <ServiceBanner key={selectedService._id} service={selectedService} />
+          )}
 
-      {/* Dynamic Service Products Section */}
-      <ServiceProducts selectedService={selectedService} />
+          {/* Dynamic Service Products Section */}
+          {selectedService && (
+            <ServiceProducts service={selectedService} />
+          )}
+        </>
+      )}
+
+      {/* Loading State */}
+      {loadingServices && (
+        <div className="w-full bg-white py-12 flex justify-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
+        </div>
+      )}
 
       {/* Existing Services Grid */}
 

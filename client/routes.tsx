@@ -18,6 +18,7 @@ import MyOrders from './pages/MyOrders';
 import DepartmentPortal from './pages/DepartmentPortal';
 import EmployeeDashboard from './pages/EmployeeDashboard';
 import AdminDashboard from './pages/AdminDashboard';
+import ServiceAdmin from './pages/ServiceAdmin';
 
 // Shared routes configuration for both SSR and client
 export const routes = [
@@ -56,6 +57,7 @@ export const routes = [
       { path: 'orders/:orderId', element: <OrderDetails />, errorElement: <ErrorBoundary /> },
       { path: 'order/:orderId', element: <OrderDetails />, errorElement: <ErrorBoundary /> },
       { path: 'admin/dashboard', element: <AdminDashboard />, errorElement: <ErrorBoundary /> },
+      { path: 'admin/services', element: <ServiceAdmin />, errorElement: <ErrorBoundary /> },
       { path: 'employee/dashboard', element: <EmployeeDashboard />, errorElement: <ErrorBoundary /> },
       { path: 'department-portal', element: <DepartmentPortal />, errorElement: <ErrorBoundary /> },
       { path: 'reviews', element: <Reviews />, errorElement: <ErrorBoundary /> },

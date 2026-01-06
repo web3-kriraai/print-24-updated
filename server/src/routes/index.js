@@ -140,6 +140,18 @@ import {
   searchGeocode,
 } from "../controllers/geocodingController.js";
 
+/* SERVICE CONTROLLERS */
+import {
+  getAllServices,
+  getServiceById,
+  createService,
+  updateService,
+  deleteService,
+  updateServiceOrder,
+  uploadBannerImage,
+  toggleServiceStatus,
+} from "../controllers/serviceController.js";
+
 const router = express.Router();
 
 /* =====================================
@@ -378,6 +390,22 @@ router.get("/sequences/subcategory/:subcategoryId", getSequenceBySubcategory);
 router.get("/sequences/:id", getSingleSequence);
 router.put("/sequences/:id", authMiddleware, adminAuth, updateSequence);
 router.delete("/sequences/:id", authMiddleware, adminAuth, deleteSequence);
+
+/* =====================================
+   SERVICE ROUTES
+===================================== */
+
+// Public routes
+router.get("/services", getAllServices);
+router.get("/services/:id", getServiceById);
+
+// Admin routes
+router.post("/services", authMiddleware, adminAuth, createService);
+router.put("/services/:id", authMiddleware, adminAuth, updateService);
+router.delete("/services/:id", authMiddleware, adminAuth, deleteService);
+router.patch("/services/reorder", authMiddleware, adminAuth, updateServiceOrder);
+router.post("/services/:id/banner", authMiddleware, adminAuth, uploadBannerImage);
+router.patch("/services/:id/toggle-status", authMiddleware, adminAuth, toggleServiceStatus);
 
 /* =====================================
    GEOCODING ROUTES (Nominatim Proxy)

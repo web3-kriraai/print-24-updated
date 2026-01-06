@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link, useParams, useNavigate } from 'react-router-dom';
+import { Link, useParams, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowRight, Check, Truck, Upload as UploadIcon, FileImage, CreditCard, X, Loader, Info, Lock, AlertCircle, MapPin } from 'lucide-react';
 import { Select, SelectOption } from '@/components/ui/select';
@@ -116,6 +116,7 @@ interface GlossProductSelectionProps {
 const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedProductId }) => {
   const params = useParams<{ categoryId: string; subCategoryId?: string; nestedSubCategoryId?: string; productId?: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { categoryId, subCategoryId, nestedSubCategoryId } = params;
   // Use forcedProductId if provided, otherwise fallback to params.productId
   const productId = forcedProductId || params.productId;
@@ -3072,70 +3073,60 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
         <div className="mb-4 sm:mb-6">
           <BackButton
             onClick={() => {
-              // Navigate back by removing the last segment from the URL
-              // IMPORTANT: When forcedProductId is set, the URL structure is different
-              // The product ID is in the URL but not in the productId param
+              // Ensure navbar is visible when navigating back
+              const mainNav = document.querySelector('nav');
+              if (mainNav) {
+                (mainNav as HTMLElement).style.opacity = '1';
+                (mainNav as HTMLElement).style.visibility = 'visible';
+                (mainNav as HTMLElement).style.pointerEvents = 'auto';
+              }
+
+              // Navigate back based on hierarchy
+              // Priority: Nested Subcategory -> Subcategory -> Category -> Home
 
               if (forcedProductId) {
-                // forcedProductId means VisitingCards detected a product ID in the URL
-                // and is rendering GlossProductSelection
-                // This happens when a single product is directly under a category
-                // Navigate to main digital-print page to avoid auto-redirect loop
-                navigate("/digital-print");
+                navigate("/");
+              } else if (location.state?.fromHome) {
+                // If came from home, we might want to go to category instead of home
+                // per user request "redirect to category page"
+                if (nestedSubCategoryId && subCategoryId && categoryId) {
+                  navigate(`/digital-print/${categoryId}/${subCategoryId}/${nestedSubCategoryId}`);
+                } else if (subCategoryId && categoryId) {
+                  navigate(`/digital-print/${categoryId}/${subCategoryId}`);
+                } else if (categoryId) {
+                  navigate(`/digital-print/${categoryId}`);
+                } else {
+                  navigate("/");
+                }
               } else if (selectedProduct && productId) {
                 // We're viewing a product detail via proper routing
                 if (nestedSubCategoryId && subCategoryId && categoryId) {
-                  // Product in nested subcategory → go back to nested subcategory products list
                   navigate(`/digital-print/${categoryId}/${subCategoryId}/${nestedSubCategoryId}`);
                 } else if (subCategoryId && categoryId) {
-                  // Product in subcategory → go back to subcategory products list
                   navigate(`/digital-print/${categoryId}/${subCategoryId}`);
                 } else if (categoryId) {
-                  // Product directly under category → go back to category
                   navigate(`/digital-print/${categoryId}`);
                 } else {
-                  navigate("/digital-print");
+                  navigate("/");
                 }
               } else if (nestedSubCategoryId && subCategoryId && categoryId) {
-                // Viewing nested subcategory products list → go back to parent subcategory
                 navigate(`/digital-print/${categoryId}/${subCategoryId}`);
               } else if (subCategoryId && categoryId) {
-                // Viewing subcategory products list → go back to category
                 navigate(`/digital-print/${categoryId}`);
               } else if (categoryId) {
-                // Viewing category → go back to digital print home
-                navigate("/digital-print");
+                navigate("/"); // If in a category via this component (unlikely but possible), go home
               } else {
-                // Fallback
-                navigate("/digital-print");
+                navigate("/");
               }
               window.scrollTo(0, 0);
             }}
-            fallbackPath={
-              forcedProductId
-                ? "/digital-print"
-                : selectedProduct && productId
-                  ? (nestedSubCategoryId && subCategoryId && categoryId
-                    ? `/digital-print/${categoryId}/${subCategoryId}/${nestedSubCategoryId}`
-                    : subCategoryId && categoryId
-                      ? `/digital-print/${categoryId}/${subCategoryId}`
-                      : categoryId
-                        ? `/digital-print/${categoryId}`
-                        : "/digital-print")
-                  : (nestedSubCategoryId && subCategoryId && categoryId
-                    ? `/digital-print/${categoryId}/${subCategoryId}`
-                    : subCategoryId && categoryId
-                      ? `/digital-print/${categoryId}`
-                      : categoryId
-                        ? "/digital-print"
-                        : "/digital-print")
-            }
+            fallbackPath="/"
             label={
               forcedProductId || (selectedProduct && productId)
                 ? "Back to products"
                 : subCategoryId || nestedSubCategoryId
                   ? "Back to Category"
-                  : "Back to Categories"
+                  : "Back to Home"
             }
             className="text-sm sm:text-base text-cream-600 hover:text-cream-900"
           />
