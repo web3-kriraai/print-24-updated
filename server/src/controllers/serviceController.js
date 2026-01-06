@@ -1,32 +1,12 @@
 import multer from 'multer';
-import path from 'path';
-import fs from 'fs/promises';
-import { fileURLToPath } from 'url';
+import cloudinary from '../config/cloudinary.js';
 import Service from '../models/serviceModal.js';
 import Product from '../models/productModal.js';
 import Category from '../models/categoryModal.js';
 import Subcategory from '../models/subcategoryModal.js';
 
-// ES6 module __dirname equivalent
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// Configure multer for banner image uploads
-const storage = multer.diskStorage({
-    destination: async (req, file, cb) => {
-        const uploadDir = path.join(__dirname, '../../uploads/service-banners');
-        try {
-            await fs.mkdir(uploadDir, { recursive: true });
-            cb(null, uploadDir);
-        } catch (error) {
-            cb(error);
-        }
-    },
-    filename: (req, file, cb) => {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        cb(null, 'banner-' + uniqueSuffix + path.extname(file.originalname));
-    }
-});
+// Configure multer for memory storage (Cloudinary upload)
+const storage = multer.memoryStorage();
 
 const upload = multer({
     storage: storage,
@@ -39,7 +19,7 @@ const upload = multer({
 
         // Fallback: check extension
         const allowedTypes = /jpeg|jpg|png|gif|webp|bmp|tiff/;
-        const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+        const extname = file.originalname.match(/\.(jpeg|jpg|png|gif|webp|bmp|tiff)$/i);
         const mimetype = allowedTypes.test(file.mimetype);
 
         if (mimetype && extname) {
@@ -47,8 +27,7 @@ const upload = multer({
         } else {
             console.error('File Upload Blocked:', {
                 name: file.originalname,
-                type: file.mimetype,
-                ext: path.extname(file.originalname)
+                type: file.mimetype
             });
             cb(new Error(`Only image files are allowed! Got: ${file.mimetype}`));
         }
@@ -201,13 +180,17 @@ export const deleteService = async (req, res) => {
             return res.status(404).json({ message: 'Service not found' });
         }
 
-        // Delete banner image if exists
+        // Delete banner image from Cloudinary if exists
         if (service.bannerImage) {
             try {
-                const imagePath = path.join(__dirname, '../../', service.bannerImage);
-                await fs.unlink(imagePath);
+                // Extract public_id from the URL
+                const urlParts = service.bannerImage.split('/');
+                const publicIdWithExt = urlParts.slice(-2).join('/'); // folder/filename.ext
+                const publicId = publicIdWithExt.replace(/\.[^/.]+$/, ''); // Remove extension
+
+                await cloudinary.uploader.destroy(publicId);
             } catch (err) {
-                console.warn('Failed to delete banner image:', err.message);
+                console.warn('Failed to delete banner image from Cloudinary:', err.message);
             }
         }
 
@@ -261,8 +244,7 @@ export const uploadBannerImage = (req, res) => {
             console.error('Multer upload error:', err);
             return res.status(400).json({
                 message: 'Error uploading image: ' + err.message,
-                error: err.message,
-                stack: err.stack
+                error: err.message
             });
         }
 
@@ -272,40 +254,62 @@ export const uploadBannerImage = (req, res) => {
 
         try {
             const { id } = req.params;
-            const bannerImagePath = `/uploads/service-banners/${req.file.filename}`;
 
             const service = await Service.findById(id);
 
             if (!service) {
-                // Delete uploaded file if service not found
-                await fs.unlink(req.file.path);
                 return res.status(404).json({ message: 'Service not found' });
             }
 
-            // Delete old banner image if exists
+            // Upload to Cloudinary using stream
+            const uploadPromise = new Promise((resolve, reject) => {
+                const stream = cloudinary.uploader.upload_stream(
+                    {
+                        folder: 'service-banners',
+                        resource_type: 'image',
+                        transformation: [
+                            { width: 1200, height: 350, crop: 'fill' }
+                        ]
+                    },
+                    (error, result) => {
+                        if (error) {
+                            console.error('Cloudinary upload error:', error);
+                            reject(error);
+                        } else {
+                            resolve(result);
+                        }
+                    }
+                );
+
+                stream.end(req.file.buffer);
+            });
+
+            const result = await uploadPromise;
+
+            // Delete old banner image from Cloudinary if exists
             if (service.bannerImage) {
                 try {
-                    const oldImagePath = path.join(__dirname, '../../', service.bannerImage);
-                    await fs.unlink(oldImagePath);
+                    // Extract public_id from the URL
+                    const urlParts = service.bannerImage.split('/');
+                    const publicIdWithExt = urlParts.slice(-2).join('/'); // folder/filename.ext
+                    const publicId = publicIdWithExt.replace(/\.[^/.]+$/, ''); // Remove extension
+
+                    await cloudinary.uploader.destroy(publicId);
                 } catch (err) {
-                    console.warn('Failed to delete old banner image:', err.message);
+                    console.warn('Failed to delete old banner image from Cloudinary:', err.message);
                 }
             }
 
-            service.bannerImage = bannerImagePath;
+            service.bannerImage = result.secure_url;
             await service.save();
 
             res.status(200).json({
                 message: 'Banner image uploaded successfully',
-                bannerImage: bannerImagePath,
+                bannerImage: result.secure_url,
                 service
             });
         } catch (error) {
             console.error('Error updating service with banner:', error);
-            // Delete uploaded file on error
-            if (req.file) {
-                await fs.unlink(req.file.path).catch(console.error);
-            }
             res.status(500).json({
                 message: 'Error updating service with banner',
                 error: error.message
