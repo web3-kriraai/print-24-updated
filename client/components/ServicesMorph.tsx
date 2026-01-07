@@ -1,17 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import './ServicesMorph.css';
-import {
-    Gift,
-    Printer,
-    PenTool,
-    User,
-    Package,
-    BookOpen,
-    Settings,
-    MapPin,
-    Monitor,
-    Calculator
-} from 'lucide-react';
+import * as Icons from 'lucide-react';
 
 import type { Service } from '../types/serviceTypes';
 
@@ -25,20 +14,41 @@ const ServicesMorph: React.FC<ServicesMorphProps> = ({ onServiceSelect, services
     const stickyBarRef = useRef<HTMLDivElement>(null);
     const gridContainerRef = useRef<HTMLDivElement>(null);
 
-    // Icon mapping based on service name
-    const getServiceIcon = (serviceName: string): any => {
-        const name = serviceName.toLowerCase();
-        if (name.includes('gift')) return Gift;
-        if (name.includes('print')) return Printer;
-        if (name.includes('design')) return PenTool;
-        if (name.includes('hire')) return User;
-        if (name.includes('package') || name.includes('packaging')) return Package;
-        if (name.includes('magazine')) return BookOpen;
-        if (name.includes('machine')) return Settings;
-        if (name.includes('find')) return MapPin;
-        if (name.includes('software')) return Monitor;
-        if (name.includes('calc')) return Calculator;
-        return Printer; // Default
+    // Icon mapping based on service name or explicit icon field
+    const getServiceIcon = (service: Service): any => {
+        // Prioritize navbarIcon if valid, otherwise use icon
+        let rawIconName = service.navbarIcon;
+        let iconName = rawIconName?.trim();
+
+        if (!iconName) {
+            rawIconName = service.icon;
+            iconName = rawIconName?.trim();
+        }
+
+        if (iconName) {
+            // Dynamically get icon component from lucide-react
+            const IconComponent = (Icons as any)[iconName];
+            if (IconComponent) {
+                return IconComponent;
+            }
+            console.warn(`DEBUG ServicesMorph: Icon not found for name "${iconName}" (raw: "${rawIconName}")`);
+            // Fallback to Printer if icon name not found
+            return Icons.Printer;
+        }
+
+        // Fallback to name-based logic for backward compatibility
+        const name = service.name.toLowerCase();
+        if (name.includes('gift')) return Icons.Gift;
+        if (name.includes('print')) return Icons.Printer;
+        if (name.includes('design')) return Icons.PenTool;
+        if (name.includes('hire')) return Icons.Users;
+        if (name.includes('package') || name.includes('packaging')) return Icons.Package;
+        if (name.includes('magazine')) return Icons.BookOpen;
+        if (name.includes('machine')) return Icons.Settings;
+        if (name.includes('find')) return Icons.MapPin;
+        if (name.includes('software')) return Icons.Monitor;
+        if (name.includes('calc')) return Icons.Calculator;
+        return Icons.Printer; // Default
     };
 
     // Track user interaction for auto-scroll behavior
@@ -241,7 +251,7 @@ const ServicesMorph: React.FC<ServicesMorphProps> = ({ onServiceSelect, services
                 {/* Service Links */}
                 <div className="sticky-nav-links">
                     {services.map(service => {
-                        const Icon = getServiceIcon(service.name);
+                        const Icon = getServiceIcon(service);
                         return (
                             <a
                                 key={service._id}

@@ -82,13 +82,20 @@ const Navbar: React.FC = () => {
     // { label: "CONTACT US", path: "/contact" }, // Removed as per request
   ];
 
+  const adminNavLinks = [
+    { label: "DASHBOARD", path: "/admin/dashboard" },
+    { label: "SERVICES", path: "/admin/services" },
+    { label: "ABOUT", path: "/admin/about" },
+  ];
+
   // Track if component is mounted to avoid hydration mismatch
   // Server always renders with isMounted=false, client starts false then becomes true
   // This ensures server and client initial render match
   // IMPORTANT: userData must be null on both server and client initial render
   const [isMounted, setIsMounted] = React.useState(false);
 
-  const allNavLinks = navLinks;
+  const isAdminRoute = location.pathname.startsWith('/admin');
+  const allNavLinks = isAdminRoute ? adminNavLinks : navLinks;
 
   const isActive = (path: string) => {
     if (path === "/" && location.pathname !== "/") return false;
@@ -132,9 +139,11 @@ const Navbar: React.FC = () => {
 
   return (
     <nav
-      className={`fixed w-full z-50 transition-all duration-300 ${isScrolled
-        ? "bg-white/95 backdrop-blur-md shadow-sm py-2"
-        : "bg-white py-2"
+      className={`fixed w-full z-50 transition-all duration-300 ${isAdminRoute
+        ? "bg-slate-900 text-white shadow-md py-2" // Admin Theme
+        : isScrolled
+          ? "bg-white/95 backdrop-blur-md shadow-sm py-2"
+          : "bg-white py-2"
         }`}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -184,14 +193,20 @@ const Navbar: React.FC = () => {
                   <Link
                     key={link.path}
                     to={link.path}
-                    className={`text-sm font-medium transition-colors duration-200 relative group ${isActive(link.path)
-                      ? "text-cream-800 font-semibold"
-                      : "text-cream-600 hover:text-cream-900"
+                    className={`text-sm font-medium transition-colors duration-200 relative group ${isAdminRoute
+                      ? isActive(link.path)
+                        ? "text-blue-400 font-semibold"
+                        : "text-gray-300 hover:text-white"
+                      : isActive(link.path)
+                        ? "text-cream-800 font-semibold"
+                        : "text-cream-600 hover:text-cream-900"
                       }`}
                   >
                     {link.label}
                     <span
-                      className={`absolute -bottom-1 left-0 w-0 h-0.5 bg-cream-800 transition-all duration-300 group-hover:w-full ${isActive(link.path) ? "w-full" : ""
+                      className={`absolute -bottom-1 left-0 w-0 h-0.5 transition-all duration-300 group-hover:w-full ${isAdminRoute
+                        ? isActive(link.path) ? "bg-blue-400 w-full" : "bg-blue-400"
+                        : isActive(link.path) ? "bg-cream-800 w-full" : "bg-cream-800"
                         }`}
                     />
                   </Link>

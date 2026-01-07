@@ -68,6 +68,161 @@ const serviceSchema = new mongoose.Schema({
         type: String,
         default: ''
     },
+    // Icon configuration
+    icon: {
+        type: String,
+        default: 'Printer',
+        trim: true
+    },
+    navbarIcon: {
+        type: String,
+        default: '',
+        trim: true
+    },
+    // Custom service heading and description for banner
+    serviceHeading: {
+        type: String,
+        default: '',
+        trim: true
+    },
+    serviceDescription: {
+        type: String,
+        default: '',
+        trim: true
+    },
+    // Banner configuration
+    bannerConfig: {
+        title: {
+            type: String,
+            default: 'ORDER BOOK TODAY'
+        },
+        subtitle: {
+            type: String,
+            default: 'WIDE RANGE OF'
+        },
+        highlightText: {
+            type: String,
+            default: ''
+        },
+        // Four dynamic text sections for banner
+        textSection1: {
+            type: String,
+            default: 'ORDER BOOK TODAY'
+        },
+        textSection2: {
+            type: String,
+            default: 'Personalized gifts for every occasion & corporate needs'
+        },
+        textSection3: {
+            type: String,
+            default: 'WIDE RANGE OF'
+        },
+        textSection4: {
+            type: String,
+            default: ''  // Defaults to service name
+        },
+        // Main banner icon
+        mainIcon: {
+            type: String,
+            default: ''
+        },
+        // Secondary icons for banner decoration
+        secondaryIcons: [{
+            icon: {
+                type: String,
+                required: true
+            },
+            position: {
+                type: String,
+                enum: ['left', 'right', 'center'],
+                default: 'left'
+            },
+            size: {
+                type: Number,
+                default: 24
+            }
+        }],
+        // Decorative elements (dots/shapes)
+        decorativeElements: [{
+            shape: {
+                type: String,
+                enum: ['circle', 'square', 'triangle', 'star', 'hexagon'],
+                default: 'circle'
+            },
+            top: String,
+            bottom: String,
+            left: String,
+            right: String,
+            size: {
+                type: Number,
+                default: 12
+            },
+            color: {
+                type: String,
+                default: '#93357c'
+            },
+            animation: {
+                type: String,
+                enum: ['float', 'pulse', 'spin', 'none'],
+                default: 'float'
+            }
+        }],
+        // Default shape for decorative elements
+        defaultShape: {
+            type: String,
+            enum: ['circle', 'square', 'triangle', 'star', 'hexagon', 'random'],
+            default: 'circle'
+        },
+        // Default size for decorative elements
+        defaultShapeSize: {
+            type: Number,
+            default: 12
+        },
+        primaryColor: {
+            type: String,
+            default: ''
+        },
+        secondaryColor: {
+            type: String,
+            default: '#0ab2b5'
+        },
+        accentColor: {
+            type: String,
+            default: '#f79a1c'
+        },
+        // Color palette for multiple colors
+        colorPalette: [{
+            color: {
+                type: String,
+                required: true
+            },
+            name: {
+                type: String,
+                default: ''
+            }
+        }],
+        showIcons: {
+            type: Boolean,
+            default: true
+        },
+        iconPositions: [{
+            icon: String,
+            top: String,
+            bottom: String,
+            left: String,
+            right: String,
+            size: {
+                type: Number,
+                default: 24
+            },
+            color: String,
+            animation: {
+                type: String,
+                enum: ['float', 'pulse', 'none'],
+                default: 'float'
+            }
+        }]
+    },
     titles: [serviceTitleSchema],
     isActive: {
         type: Boolean,

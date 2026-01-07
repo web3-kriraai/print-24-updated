@@ -1,5 +1,5 @@
 import React from 'react';
-import { Gift, Printer, Palette, Users, Package, FileText } from 'lucide-react';
+import * as Icons from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import './ServiceBanner.css';
 import { Service } from '../types/serviceTypes';
@@ -10,27 +10,63 @@ interface ServiceBannerProps {
 }
 
 const ServiceBanner: React.FC<ServiceBannerProps> = ({ service }) => {
-    // Helper to select icon based on service name
-    const getServiceIcon = (name: string) => {
-        const lowerName = name.toLowerCase();
-        if (lowerName.includes('gift')) return Gift;
-        if (lowerName.includes('design')) return Palette;
-        if (lowerName.includes('hire') || lowerName.includes('hiring')) return Users;
-        if (lowerName.includes('pack')) return Package;
-        if (lowerName.includes('print')) return Printer;
-        return FileText; // Default icon
+    // Helper to select icon based on service icon field or name
+    const getServiceIcon = (service: Service) => {
+        const rawIconName = service.bannerConfig?.mainIcon || service.icon;
+        const iconName = rawIconName?.trim();
+
+        if (iconName) {
+            // Dynamically get icon component from lucide-react
+            const IconComponent = (Icons as any)[iconName];
+            if (IconComponent) {
+                return IconComponent;
+            }
+            // Fallback to Printer if icon not found
+            return Icons.Printer;
+        }
+
+        // Fallback to name-based logic
+        const lowerName = service.name.toLowerCase();
+        if (lowerName.includes('gift')) return Icons.Gift;
+        if (lowerName.includes('design')) return Icons.Palette;
+        if (lowerName.includes('hire') || lowerName.includes('hiring')) return Icons.Users;
+        if (lowerName.includes('pack')) return Icons.Package;
+        if (lowerName.includes('print')) return Icons.Printer;
+        return Icons.FileText; // Default icon
     };
 
-    const IconComponent = getServiceIcon(service.name);
+    const IconComponent = getServiceIcon(service);
 
-    // Generate dynamic styles based on service color
-    const bannerStyle = {
+    // Get banner configuration with defaults
+    const bannerConfig = service.bannerConfig || {
         title: 'ORDER BOOK TODAY',
         subtitle: 'WIDE RANGE OF',
-        highlight: `${service.name} SERVICES`.toUpperCase(),
-        color: service.color || '#93357c',
+        highlightText: '',
+        textSection1: '',
+        textSection2: '',
+        textSection3: '',
+        textSection4: '',
+        primaryColor: '',
+        secondaryColor: '#0ab2b5',
+        accentColor: '#f79a1c',
+        showIcons: true,
+        iconPositions: [],
+        mainIcon: '',
+        secondaryIcons: [],
+        decorativeElements: [],
+        colorPalette: [],
+    };
+
+    // Generate dynamic styles based on service color and banner config
+    const bannerStyle = {
+        title: bannerConfig.title,
+        subtitle: bannerConfig.subtitle,
+        highlight: (bannerConfig.highlightText || `${service.name} SERVICES`).toUpperCase(),
+        color: bannerConfig.primaryColor || service.color || '#93357c',
+        secondaryColor: bannerConfig.secondaryColor,
+        accentColor: bannerConfig.accentColor,
         // Create a light gradient version of the color
-        gradient: `linear-gradient(90deg, ${service.color}15 0%, ${service.color}05 50%, #ffffff 100%)`
+        gradient: `linear-gradient(90deg, ${bannerConfig.primaryColor || service.color}15 0%, ${bannerConfig.primaryColor || service.color}05 50%, #ffffff 100%)`
     };
 
     // Construct image URL if it exists
@@ -64,61 +100,156 @@ const ServiceBanner: React.FC<ServiceBannerProps> = ({ service }) => {
                 animate={{ background: bannerStyle.gradient }}
                 transition={{ duration: 0.6, ease: "easeInOut" }}
             >
-                {/* Decorative Background Dots */}
-                <div className="banner-dots">
-                    <motion.span
-                        className="dot"
-                        style={{ top: '15%', left: '8%', backgroundColor: service.color }}
-                        animate={{ y: [0, -10, 0] }}
-                        transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-                    />
-                    {/* ... (Keeping other dots with dynamic or variety colors? Let's just use service color and variants or hardcoded palette matching service color)
-                         Actually, let's keep the colorful dots but maybe tint them?
-                         Or just keep existing colorful dots for vibrancy.
-                      */}
-                    <motion.span
-                        className="dot dot-orange"
-                        style={{ top: '25%', left: '25%' }}
-                        animate={{ y: [0, -10, 0] }}
-                        transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", delay: 0.2 }}
-                    />
-                    <motion.span
-                        className="dot dot-yellow"
-                        style={{ top: '10%', left: '40%' }}
-                        animate={{ y: [0, -10, 0] }}
-                        transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", delay: 0.4 }}
-                    />
-                    <motion.span
-                        className="dot dot-teal"
-                        style={{ top: '30%', right: '35%' }}
-                        animate={{ y: [0, -10, 0] }}
-                        transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", delay: 0.6 }}
-                    />
-                    <motion.span
-                        className="dot"
-                        style={{ top: '15%', right: '15%', backgroundColor: service.color }} // Dynamic
-                        animate={{ y: [0, -10, 0] }}
-                        transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", delay: 0.8 }}
-                    />
-                    <motion.span
-                        className="dot dot-white"
-                        style={{ top: '35%', left: '15%' }}
-                        animate={{ y: [0, -10, 0] }}
-                        transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", delay: 1.0 }}
-                    />
-                    <motion.span
-                        className="dot"
-                        style={{ bottom: '20%', left: '30%', backgroundColor: service.color }} // Dynamic
-                        animate={{ y: [0, -10, 0] }}
-                        transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", delay: 1.2 }}
-                    />
-                    <motion.span
-                        className="dot dot-teal"
-                        style={{ bottom: '25%', right: '25%' }}
-                        animate={{ y: [0, -10, 0] }}
-                        transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", delay: 1.4 }}
-                    />
-                </div>
+                {/* Decorative Background Elements - Dynamic */}
+                {bannerConfig.showIcons && bannerConfig.decorativeElements && bannerConfig.decorativeElements.length > 0 ? (
+                    <div className="banner-dots">
+                        {bannerConfig.decorativeElements.map((element, index) => {
+                            const shapeStyles: React.CSSProperties = {
+                                position: 'absolute',
+                                top: element.top,
+                                bottom: element.bottom,
+                                left: element.left,
+                                right: element.right,
+                                width: `${element.size}px`,
+                                height: `${element.size}px`,
+                                backgroundColor: element.color,
+                            };
+
+                            // Different shapes
+                            if (element.shape === 'circle') {
+                                shapeStyles.borderRadius = '50%';
+                            } else if (element.shape === 'square') {
+                                shapeStyles.borderRadius = '0';
+                            } else if (element.shape === 'triangle') {
+                                // Triangle using border trick
+                                return (
+                                    <motion.div
+                                        key={index}
+                                        style={{
+                                            position: 'absolute',
+                                            top: element.top,
+                                            bottom: element.bottom,
+                                            left: element.left,
+                                            right: element.right,
+                                            width: 0,
+                                            height: 0,
+                                            borderLeft: `${element.size / 2}px solid transparent`,
+                                            borderRight: `${element.size / 2}px solid transparent`,
+                                            borderBottom: `${element.size}px solid ${element.color}`,
+                                        }}
+                                        animate={
+                                            element.animation === 'float' ? { y: [0, -10, 0] } :
+                                                element.animation === 'pulse' ? { scale: [1, 1.1, 1] } :
+                                                    element.animation === 'spin' ? { rotate: [0, 360] } : {}
+                                        }
+                                        transition={{
+                                            duration: element.animation === 'spin' ? 8 : 3,
+                                            repeat: element.animation !== 'none' ? Infinity : 0,
+                                            ease: "easeInOut",
+                                            delay: index * 0.2
+                                        }}
+                                    />
+                                );
+                            } else if (element.shape === 'star') {
+                                // Star shape using clip-path
+                                shapeStyles.clipPath = 'polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)';
+                            } else if (element.shape === 'hexagon') {
+                                shapeStyles.clipPath = 'polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)';
+                            }
+
+                            return (
+                                <motion.span
+                                    key={index}
+                                    className="dot"
+                                    style={shapeStyles}
+                                    animate={
+                                        element.animation === 'float' ? { y: [0, -10, 0] } :
+                                            element.animation === 'pulse' ? { scale: [1, 1.1, 1] } :
+                                                element.animation === 'spin' ? { rotate: [0, 360] } : {}
+                                    }
+                                    transition={{
+                                        duration: element.animation === 'spin' ? 8 : 3,
+                                        repeat: element.animation !== 'none' ? Infinity : 0,
+                                        ease: "easeInOut",
+                                        delay: index * 0.2
+                                    }}
+                                />
+                            );
+                        })}
+                    </div>
+                ) : bannerConfig.showIcons ? (
+                    // Fallback to default dots if no decorative elements configured, using defaultShape
+                    <div className="banner-dots">
+                        {[
+                            { top: '15%', left: '8%', color: bannerStyle.color, delay: 0 },
+                            { top: '25%', left: '25%', color: bannerStyle.accentColor, delay: 0.2 },
+                            { top: '10%', left: '40%', color: bannerStyle.secondaryColor, delay: 0.4 },
+                            { top: '30%', right: '35%', color: bannerStyle.secondaryColor, delay: 0.6 },
+                            { top: '15%', right: '15%', color: bannerStyle.color, delay: 0.8 },
+                            { top: '35%', left: '15%', color: 'white', className: 'dot-white', delay: 1.0 },
+                            { bottom: '20%', left: '30%', color: bannerStyle.color, delay: 1.2 },
+                            { bottom: '25%', right: '25%', color: bannerStyle.secondaryColor, delay: 1.4 }
+                        ].map((dot, index) => {
+                            const shape = bannerConfig.defaultShape || 'circle';
+                            const isRandom = shape === 'random';
+                            const currentShape = isRandom
+                                ? ['circle', 'square', 'triangle', 'star', 'hexagon'][Math.floor(Math.random() * 5)]
+                                : shape;
+
+                            const size = bannerConfig.defaultShapeSize || 12;
+                            const commonStyle: React.CSSProperties = {
+                                position: 'absolute',
+                                top: dot.top,
+                                bottom: dot.bottom,
+                                left: dot.left,
+                                right: dot.right,
+                                width: `${size}px`,
+                                height: `${size}px`,
+                                backgroundColor: dot.color === 'white' ? 'rgba(255,255,255,0.2)' : dot.color,
+                            };
+
+                            if (currentShape === 'circle') {
+                                commonStyle.borderRadius = '50%';
+                            } else if (currentShape === 'square') {
+                                commonStyle.borderRadius = '0';
+                            } else if (currentShape === 'triangle') {
+                                return (
+                                    <motion.div
+                                        key={index}
+                                        style={{
+                                            position: 'absolute',
+                                            top: dot.top,
+                                            bottom: dot.bottom,
+                                            left: dot.left,
+                                            right: dot.right,
+                                            width: 0,
+                                            height: 0,
+                                            borderLeft: `${size / 2}px solid transparent`,
+                                            borderRight: `${size / 2}px solid transparent`,
+                                            borderBottom: `${size}px solid ${dot.color === 'white' ? 'rgba(255,255,255,0.2)' : dot.color}`,
+                                        }}
+                                        animate={{ y: [0, -10, 0] }}
+                                        transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", delay: dot.delay }}
+                                    />
+                                );
+                            } else if (currentShape === 'star') {
+                                commonStyle.clipPath = 'polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)';
+                            } else if (currentShape === 'hexagon') {
+                                commonStyle.clipPath = 'polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)';
+                            }
+
+                            return (
+                                <motion.span
+                                    key={index}
+                                    className={`dot ${dot.className || ''}`}
+                                    style={commonStyle}
+                                    animate={{ y: [0, -10, 0] }}
+                                    transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", delay: dot.delay }}
+                                />
+                            );
+                        })}
+                    </div>
+                ) : null}
 
                 {/* Left Side - Icon Graphics */}
                 <AnimatePresence mode="wait">
@@ -139,27 +270,47 @@ const ServiceBanner: React.FC<ServiceBannerProps> = ({ service }) => {
                             >
                                 <IconComponent size={40} color="white" />
                             </motion.div>
-                            <motion.div
-                                className="cluster-icon secondary"
-                                animate={{ y: [0, -5, 0] }}
-                                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut", delay: 0.2 }}
-                            >
-                                <Printer size={24} color="#333" />
-                            </motion.div>
-                            <motion.div
-                                className="cluster-icon secondary"
-                                animate={{ y: [0, -5, 0] }}
-                                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut", delay: 0.4 }}
-                            >
-                                <Palette size={24} color="#333" />
-                            </motion.div>
-                            <motion.div
-                                className="cluster-icon secondary"
-                                animate={{ y: [0, -5, 0] }}
-                                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut", delay: 0.6 }}
-                            >
-                                <Package size={24} color="#333" />
-                            </motion.div>
+                            {/* Secondary Icons from Config */}
+                            {bannerConfig.secondaryIcons && bannerConfig.secondaryIcons.length > 0 ? (
+                                bannerConfig.secondaryIcons.map((secIcon, idx) => {
+                                    const SecIconComponent = (Icons as any)[secIcon.icon] || Icons.Printer;
+                                    return (
+                                        <motion.div
+                                            key={idx}
+                                            className="cluster-icon secondary"
+                                            animate={{ y: [0, -5, 0] }}
+                                            transition={{ duration: 2, repeat: Infinity, ease: "easeInOut", delay: 0.2 + (idx * 0.2) }}
+                                        >
+                                            <SecIconComponent size={secIcon.size || 24} color="#333" />
+                                        </motion.div>
+                                    );
+                                })
+                            ) : (
+                                /* Fallback if no secondary icons configured */
+                                <>
+                                    <motion.div
+                                        className="cluster-icon secondary"
+                                        animate={{ y: [0, -5, 0] }}
+                                        transition={{ duration: 2, repeat: Infinity, ease: "easeInOut", delay: 0.2 }}
+                                    >
+                                        <Icons.Printer size={24} color="#333" />
+                                    </motion.div>
+                                    <motion.div
+                                        className="cluster-icon secondary"
+                                        animate={{ y: [0, -5, 0] }}
+                                        transition={{ duration: 2, repeat: Infinity, ease: "easeInOut", delay: 0.4 }}
+                                    >
+                                        <Icons.Palette size={24} color="#333" />
+                                    </motion.div>
+                                    <motion.div
+                                        className="cluster-icon secondary"
+                                        animate={{ y: [0, -5, 0] }}
+                                        transition={{ duration: 2, repeat: Infinity, ease: "easeInOut", delay: 0.6 }}
+                                    >
+                                        <Icons.Package size={24} color="#333" />
+                                    </motion.div>
+                                </>
+                            )}
                         </div>
                     </motion.div>
                 </AnimatePresence>
@@ -174,29 +325,36 @@ const ServiceBanner: React.FC<ServiceBannerProps> = ({ service }) => {
                         exit={{ opacity: 0, y: -20 }}
                         transition={{ duration: 0.5, ease: "easeOut" }}
                     >
+                        {/* Text Section 1 - Top subtitle */}
                         <motion.p
                             className="banner-subtitle"
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             transition={{ delay: 0.1 }}
                         >
-                            {bannerStyle.title}
+                            {bannerConfig.textSection1 || bannerConfig.title || 'ORDER BOOK TODAY'}
                         </motion.p>
+
+                        {/* Text Section 2 - Service description */}
                         <motion.p
                             className="text-sm font-medium text-gray-600 mb-4 max-w-lg mx-auto"
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             transition={{ delay: 0.15 }}
                         >
-                            {service.description}
+                            {bannerConfig.textSection2 || service.serviceDescription || service.description}
                         </motion.p>
+
+                        {/* Text Section 3 - Main heading */}
                         <motion.h2
                             className="banner-title"
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             transition={{ delay: 0.2 }}
                         >
-                            {bannerStyle.subtitle}<br />
+                            {bannerConfig.textSection3 || bannerConfig.subtitle || 'WIDE RANGE OF'}<br />
+
+                            {/* Text Section 4 - Highlighted service name */}
                             <motion.span
                                 className="banner-highlight"
                                 style={{ color: bannerStyle.color }}
@@ -204,43 +362,45 @@ const ServiceBanner: React.FC<ServiceBannerProps> = ({ service }) => {
                                 animate={{ opacity: 1, scale: 1 }}
                                 transition={{ delay: 0.3, duration: 0.4 }}
                             >
-                                {bannerStyle.highlight}
+                                {bannerConfig.textSection4 || bannerConfig.highlightText || service.serviceHeading || `${service.name} SERVICES`}
                             </motion.span>
                         </motion.h2>
                     </motion.div>
                 </AnimatePresence>
 
                 {/* Top-Right - Decorative Stripes */}
-                <div className="banner-stripes">
-                    <motion.div
-                        className="stripe stripe-1"
-                        style={{ backgroundColor: bannerStyle.color }}
-                        initial={{ x: 100, opacity: 0 }}
-                        animate={{ x: 0, opacity: 0.9 }}
-                        transition={{ duration: 0.6, delay: 0.1 }}
-                    />
-                    <motion.div
-                        className="stripe stripe-2"
-                        style={{ backgroundColor: '#0ab2b5' }} // Maybe keep or make dynamic
-                        initial={{ x: 100, opacity: 0 }}
-                        animate={{ x: 0, opacity: 0.9 }}
-                        transition={{ duration: 0.6, delay: 0.2 }}
-                    />
-                    <motion.div
-                        className="stripe stripe-3"
-                        style={{ backgroundColor: '#f79a1c' }}
-                        initial={{ x: 100, opacity: 0 }}
-                        animate={{ x: 0, opacity: 0.9 }}
-                        transition={{ duration: 0.6, delay: 0.3 }}
-                    />
-                    <motion.div
-                        className="stripe stripe-4"
-                        style={{ backgroundColor: '#c9d729' }}
-                        initial={{ x: 100, opacity: 0 }}
-                        animate={{ x: 0, opacity: 0.9 }}
-                        transition={{ duration: 0.6, delay: 0.4 }}
-                    />
-                </div>
+                {bannerConfig.showIcons && (
+                    <div className="banner-stripes">
+                        <motion.div
+                            className="stripe stripe-1"
+                            style={{ backgroundColor: bannerStyle.color }}
+                            initial={{ x: 100, opacity: 0 }}
+                            animate={{ x: 0, opacity: 0.9 }}
+                            transition={{ duration: 0.6, delay: 0.1 }}
+                        />
+                        <motion.div
+                            className="stripe stripe-2"
+                            style={{ backgroundColor: bannerStyle.secondaryColor }}
+                            initial={{ x: 100, opacity: 0 }}
+                            animate={{ x: 0, opacity: 0.9 }}
+                            transition={{ duration: 0.6, delay: 0.2 }}
+                        />
+                        <motion.div
+                            className="stripe stripe-3"
+                            style={{ backgroundColor: bannerStyle.accentColor }}
+                            initial={{ x: 100, opacity: 0 }}
+                            animate={{ x: 0, opacity: 0.9 }}
+                            transition={{ duration: 0.6, delay: 0.3 }}
+                        />
+                        <motion.div
+                            className="stripe stripe-4"
+                            style={{ backgroundColor: bannerConfig.colorPalette?.[0]?.color || '#c9d729' }}
+                            initial={{ x: 100, opacity: 0 }}
+                            animate={{ x: 0, opacity: 0.9 }}
+                            transition={{ duration: 0.6, delay: 0.4 }}
+                        />
+                    </div>
+                )}
             </motion.div>
         </div>
     );

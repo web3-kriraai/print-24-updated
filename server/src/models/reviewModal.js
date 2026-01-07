@@ -21,6 +21,29 @@ const ReviewSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    // Dynamic display control fields
+    service: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Service",
+      required: false, // Optional - for service-specific reviews
+    },
+    displayOrder: {
+      type: Number,
+      default: 0,
+    },
+    isVisible: {
+      type: Boolean,
+      default: true,
+    },
+    isFeatured: {
+      type: Boolean,
+      default: false,
+    },
+    placement: {
+      type: String,
+      enum: ['global', 'service-specific', 'both'],
+      default: 'global',
+    },
   },
   { timestamps: true }
 );

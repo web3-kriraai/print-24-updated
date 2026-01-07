@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { fetchServiceById } from '../lib/serviceApi';
 import { API_BASE_URL_WITH_API } from '../lib/apiConfig';
 import type { Service } from '../types/serviceTypes';
+import CustomerReviews from './CustomerReviews';
 
 interface ServiceProductsProps {
     service: Service;
@@ -12,6 +13,8 @@ interface ServiceProductsProps {
 const ServiceProducts: React.FC<ServiceProductsProps> = ({ service }) => {
     const [serviceData, setServiceData] = useState<Service | null>(service);
     const [loading, setLoading] = useState(false);
+    const [reviews, setReviews] = useState<any[]>([]);
+    const [loadingReviews, setLoadingReviews] = useState(true);
 
     useEffect(() => {
         const loadServiceWithItems = async () => {
@@ -29,6 +32,26 @@ const ServiceProducts: React.FC<ServiceProductsProps> = ({ service }) => {
         };
 
         loadServiceWithItems();
+    }, [service._id]);
+
+    // Load reviews for this service
+    useEffect(() => {
+        const loadReviews = async () => {
+            try {
+                setLoadingReviews(true);
+                const response = await fetch(`${API_BASE_URL_WITH_API}/reviews/service/${service._id}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    setReviews(data);
+                }
+            } catch (error) {
+                console.error('Failed to load reviews:', error);
+            } finally {
+                setLoadingReviews(false);
+            }
+        };
+
+        loadReviews();
     }, [service._id]);
 
     const getItemLink = (item: any): string => {
@@ -86,7 +109,7 @@ const ServiceProducts: React.FC<ServiceProductsProps> = ({ service }) => {
                         className="text-3xl md:text-4xl font-bold uppercase mb-4"
                         style={{ color: serviceData.color }}
                     >
-                        {serviceData.name} SERVICES
+                        {serviceData.serviceHeading || `${serviceData.name} SERVICES`}
                     </motion.h2>
                     <motion.p
                         key={serviceData.description}
@@ -95,7 +118,7 @@ const ServiceProducts: React.FC<ServiceProductsProps> = ({ service }) => {
                         transition={{ duration: 0.5, delay: 0.2 }}
                         className="text-gray-600 text-lg max-w-3xl mx-auto"
                     >
-                        {serviceData.description}
+                        {serviceData.serviceDescription || serviceData.description}
                     </motion.p>
                 </div>
 
@@ -198,6 +221,13 @@ const ServiceProducts: React.FC<ServiceProductsProps> = ({ service }) => {
                 )}
 
             </div>
+
+            {/* Service-Specific Reviews */}
+            {!loadingReviews && reviews.length > 0 && (
+                <div className="mt-16">
+                    <CustomerReviews reviews={reviews} serviceId={service._id} limit={6} />
+                </div>
+            )}
         </div>
     );
 };
