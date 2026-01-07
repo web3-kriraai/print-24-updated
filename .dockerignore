@@ -10,6 +10,9 @@
 client/.vite
 client/dist
 
+# Server should not have client folder
+server/client
+
 # Environment files (will be set in Cloud Run)
 **/.env
 **/.env.local
