@@ -18,11 +18,7 @@ const AttributeRuleSchema = new mongoose.Schema(
         required: true,
       },
       value: {
-<<<<<<< HEAD
         type: String, // SubAttribute.value
-=======
-        type: String,
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
         required: true,
       },
     },
@@ -50,21 +46,12 @@ const AttributeRuleSchema = new mongoose.Schema(
         },
 
         /* UI ACTION DATA */
-<<<<<<< HEAD
         allowedValues: [String],
         defaultValue: String,
 
         /* PRICING SIGNAL ONLY */
         pricingSignal: {
           pricingKey: String,
-=======
-        allowedValues: [String], // SHOW_ONLY
-        defaultValue: String,    // SET_DEFAULT
-
-        /* PRICING ACTION DATA */
-        pricingSignal: {
-          pricingKey: String, // maps to pricing engine
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
           scope: {
             type: String,
             enum: ["GLOBAL", "ZONE", "SEGMENT", "PRODUCT", "ATTRIBUTE"],
@@ -90,7 +77,6 @@ const AttributeRuleSchema = new mongoose.Schema(
       ref: "Product",
     },
 
-<<<<<<< HEAD
     applicableUserSegments: [
       {
         type: mongoose.Schema.Types.ObjectId,
@@ -105,8 +91,6 @@ const AttributeRuleSchema = new mongoose.Schema(
       },
     ],
 
-=======
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
     priority: {
       type: Number,
       default: 0,
@@ -126,11 +110,8 @@ const AttributeRuleSchema = new mongoose.Schema(
 AttributeRuleSchema.index({ priority: -1 });
 AttributeRuleSchema.index({ applicableCategory: 1 });
 AttributeRuleSchema.index({ applicableProduct: 1 });
-<<<<<<< HEAD
 AttributeRuleSchema.index({ applicableUserSegments: 1 });
 AttributeRuleSchema.index({ applicableGeoZones: 1 });
-=======
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
 AttributeRuleSchema.index({ isActive: 1 });
 
 export default mongoose.model("AttributeRule", AttributeRuleSchema);

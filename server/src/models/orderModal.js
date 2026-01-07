@@ -65,7 +65,6 @@ const OrderSchema = new mongoose.Schema(
        🔒 PRICE SNAPSHOT (IMMUTABLE)
     ====================== */
     priceSnapshot: {
-<<<<<<< HEAD
       type: {
         basePrice: { type: Number, required: true },
         unitPrice: { type: Number, required: true },  // Same as basePrice
@@ -107,38 +106,6 @@ const OrderSchema = new mongoose.Schema(
       },
       required: true,
       immutable: true,  // 🚨 CRITICAL: Prevents price tampering
-=======
-      basePrice: { type: Number, required: true },
-
-      quantity: { type: Number, required: true },
-
-      appliedModifiers: [
-        {
-          pricingKey: String,
-          modifierType: {
-            type: String,
-            enum: ["PERCENT_INC", "PERCENT_DEC", "FLAT_INC", "FLAT_DEC"],
-          },
-          value: Number,
-          source: {
-            type: String,
-            enum: ["GLOBAL", "ZONE", "SEGMENT", "PRODUCT", "ATTRIBUTE"],
-          },
-          modifierId: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: "PriceModifier",
-          },
-        },
-      ],
-
-      subtotal: { type: Number, required: true },
-      gstPercentage: { type: Number, default: 0 },
-      gstAmount: { type: Number, default: 0 },
-      totalPayable: { type: Number, required: true },
-
-      currency: { type: String, default: "INR" },
-      calculatedAt: { type: Date, default: Date.now },
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
     },
 
     /* =====================
@@ -200,7 +167,6 @@ const OrderSchema = new mongoose.Schema(
     ====================== */
     notes: String,
     adminNotes: String,
-<<<<<<< HEAD
 
     /* =====================
        NEW FIELDS - Production & Logistics
@@ -288,8 +254,6 @@ const OrderSchema = new mongoose.Schema(
       feedback: String,
       ratedAt: Date,
     },
-=======
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
   },
   { timestamps: true }
 );
@@ -299,14 +263,11 @@ const OrderSchema = new mongoose.Schema(
 ====================== */
 OrderSchema.index({ user: 1, createdAt: -1 });
 OrderSchema.index({ status: 1 });
-<<<<<<< HEAD
 // New indexes for delivery and production tracking
 OrderSchema.index({ deliveryStatus: 1, estimatedDeliveryDate: 1 });
 OrderSchema.index({ productionJobId: 1, status: 1 });
 OrderSchema.index({ docketId: 1 });
 OrderSchema.index({ parentOrderId: 1 });
-=======
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
 
 /* =====================
    ORDER NUMBER
@@ -320,7 +281,6 @@ OrderSchema.pre("save", function (next) {
   next();
 });
 
-<<<<<<< HEAD
 /* =====================
    BACKWARD COMPATIBILITY
 ====================== */
@@ -333,6 +293,4 @@ OrderSchema.virtual('totalPrice').get(function () {
 OrderSchema.set('toJSON', { virtuals: true });
 OrderSchema.set('toObject', { virtuals: true });
 
-=======
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
 export default mongoose.model("Order", OrderSchema);

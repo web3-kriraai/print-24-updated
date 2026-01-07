@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 import mongoose from "mongoose";
 
 /**
@@ -306,13 +305,3 @@ PriceBookSchema.statics.getBookForContext = async function(zoneId, segmentId) {
 };
 
 export default mongoose.model("PriceBook", PriceBookSchema);
-=======
-const PriceBookSchema = new mongoose.Schema({
-    name: String,
-    currency: String,
-    isDefault: { type: Boolean, default: false }
-  });
-  
-  export default mongoose.model("PriceBook", PriceBookSchema);
-  
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6

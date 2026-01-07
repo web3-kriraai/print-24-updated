@@ -1,6 +1,5 @@
 import mongoose from "mongoose";
 
-<<<<<<< HEAD
 /**
  * UserSegment Schema
  * 
@@ -83,17 +82,4 @@ UserSegmentSchema.statics.getByCode = async function (code) {
   return await this.findOne({ code: code?.toUpperCase(), isActive: true });
 };
 
-=======
-const UserSegmentSchema = new mongoose.Schema({
-  code: {
-    type: String,
-    enum: ["RETAIL", "PRINT_PARTNER", "CORPORATE", "VIP"],
-    unique: true,
-    required: true
-  },
-  name: String,
-  isDefault: { type: Boolean, default: false }
-}, { timestamps: true });
-
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
 export default mongoose.model("UserSegment", UserSegmentSchema);

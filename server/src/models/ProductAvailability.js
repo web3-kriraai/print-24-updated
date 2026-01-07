@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 import mongoose from "mongoose";
 
 /**
@@ -113,14 +112,3 @@ ProductAvailabilitySchema.statics.getRestrictionReason = async function (product
 };
 
 export default mongoose.model("ProductAvailability", ProductAvailabilitySchema);
-=======
-const ProductAvailabilitySchema = new mongoose.Schema({
-    product: { type: mongoose.Schema.Types.ObjectId, ref: "Product" },
-    geoZone: { type: mongoose.Schema.Types.ObjectId, ref: "GeoZone" },
-    isSellable: Boolean,
-    reason: String
-  });
-  
-  export default mongoose.model("ProductAvailability", ProductAvailabilitySchema);
-  
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6

@@ -5,11 +5,8 @@ import { User } from "../models/User.js";
 import sharp from "sharp";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-<<<<<<< HEAD
 import PricingService from "../services/pricing/PricingService.js";
 import ModifierEngine from "../services/ModifierEngine.js";
-=======
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
 // Email service temporarily disabled - uncomment when email configuration is ready
 // import { sendAccountCreationEmail, sendOrderConfirmationEmail } from "../utils/emailService.js";
 
@@ -23,16 +20,11 @@ export const createOrder = async (req, res) => {
       finish,
       shape,
       selectedOptions,
-<<<<<<< HEAD
-=======
-      totalPrice,
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
       pincode,
       address,
       mobileNumber,
       uploadedDesign,
       notes,
-<<<<<<< HEAD
       promoCodes,  // NEW: Promo code support
     } = req.body;
 
@@ -40,14 +32,6 @@ export const createOrder = async (req, res) => {
     if (!productId || !quantity || !finish || !shape || !pincode || !address || !mobileNumber) {
       return res.status(400).json({
         error: "Missing required fields: productId, quantity, finish, shape, pincode, address, mobileNumber",
-=======
-    } = req.body;
-
-    // Validate required fields
-    if (!productId || !quantity || !finish || !shape || !totalPrice || !pincode || !address || !mobileNumber) {
-      return res.status(400).json({
-        error: "Missing required fields: productId, quantity, finish, shape, totalPrice, pincode, address, mobileNumber",
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
       });
     }
 
@@ -61,11 +45,6 @@ export const createOrder = async (req, res) => {
     let processedDesign = null;
     if (uploadedDesign) {
       processedDesign = {};
-<<<<<<< HEAD
-
-=======
-      
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
       if (uploadedDesign.frontImage && uploadedDesign.frontImage.data) {
         try {
           // Handle both base64 string and data URL format
@@ -80,17 +59,10 @@ export const createOrder = async (req, res) => {
           if (!base64Data || base64Data.trim().length === 0) {
             return res.status(400).json({ error: "Front image data is empty." });
           }
-<<<<<<< HEAD
 
           // Convert base64 to Buffer
           const imageBuffer = Buffer.from(base64Data, "base64");
 
-=======
-          
-          // Convert base64 to Buffer
-          const imageBuffer = Buffer.from(base64Data, "base64");
-          
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
           // Convert image to CMYK format using sharp
           const cmykBuffer = await sharp(imageBuffer)
             .toColourspace("cmyk")
@@ -99,11 +71,6 @@ export const createOrder = async (req, res) => {
               chromaSubsampling: '4:4:4'
             })
             .toBuffer();
-<<<<<<< HEAD
-
-=======
-          
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
           processedDesign.frontImage = {
             data: cmykBuffer,
             contentType: "image/jpeg", // CMYK images are stored as JPEG
@@ -112,11 +79,7 @@ export const createOrder = async (req, res) => {
         } catch (err) {
           console.error("Error processing front image:", err);
           console.error("Error details:", err.message);
-<<<<<<< HEAD
           return res.status(400).json({
-=======
-          return res.status(400).json({ 
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
             error: "Invalid front image data format or conversion failed.",
             details: process.env.NODE_ENV === 'development' ? err.message : undefined
           });
@@ -124,11 +87,6 @@ export const createOrder = async (req, res) => {
       } else {
         return res.status(400).json({ error: "Front image is required." });
       }
-<<<<<<< HEAD
-
-=======
-      
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
       if (uploadedDesign.backImage && uploadedDesign.backImage.data) {
         try {
           // Handle both base64 string and data URL format
@@ -142,11 +100,6 @@ export const createOrder = async (req, res) => {
             if (base64Data && base64Data.trim().length > 0) {
               // Convert base64 to Buffer
               const imageBuffer = Buffer.from(base64Data, "base64");
-<<<<<<< HEAD
-
-=======
-              
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
               // Convert image to CMYK format using sharp
               const cmykBuffer = await sharp(imageBuffer)
                 .toColourspace("cmyk")
@@ -155,11 +108,6 @@ export const createOrder = async (req, res) => {
                   chromaSubsampling: '4:4:4'
                 })
                 .toBuffer();
-<<<<<<< HEAD
-
-=======
-              
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
               processedDesign.backImage = {
                 data: cmykBuffer,
                 contentType: "image/jpeg", // CMYK images are stored as JPEG
@@ -223,11 +171,6 @@ export const createOrder = async (req, res) => {
                 if (base64Data && base64Data.trim().length > 0) {
                   // Convert base64 to Buffer
                   const imageBuffer = Buffer.from(base64Data, "base64");
-<<<<<<< HEAD
-
-=======
-                  
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
                   // Convert image to CMYK format using sharp (same as design images)
                   const cmykBuffer = await sharp(imageBuffer)
                     .toColourspace("cmyk")
@@ -236,11 +179,6 @@ export const createOrder = async (req, res) => {
                       chromaSubsampling: '4:4:4'
                     })
                     .toBuffer();
-<<<<<<< HEAD
-
-=======
-                  
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
                   processedUploadedImages.push({
                     data: cmykBuffer,
                     contentType: "image/jpeg",
@@ -254,11 +192,6 @@ export const createOrder = async (req, res) => {
             }
           }
         }
-<<<<<<< HEAD
-
-=======
-        
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
         processedDynamicAttributes.push({
           attributeTypeId: attr.attributeTypeId || attr.attributeType?._id || null,
           attributeName: attr.attributeName || attr.attributeType?.attributeName || "Attribute",
@@ -288,30 +221,16 @@ export const createOrder = async (req, res) => {
           const value = req.body.selectedDynamicAttributes[attrTypeId];
           if (value !== null && value !== undefined && value !== "") {
             // Check if this is an object with uploadedImages (new format from frontend)
-<<<<<<< HEAD
             const attrData = typeof value === 'object' && value !== null && !Array.isArray(value)
               ? value
               : { attributeValue: value };
 
             const actualValue = attrData.attributeValue !== undefined ? attrData.attributeValue : value;
 
-=======
-            const attrData = typeof value === 'object' && value !== null && !Array.isArray(value) 
-              ? value 
-              : { attributeValue: value };
-            
-            const actualValue = attrData.attributeValue !== undefined ? attrData.attributeValue : value;
-            
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
             // Find the attribute in product
             const productAttr = productWithAttrs.dynamicAttributes.find(
               (attr) => attr.attributeType?._id?.toString() === attrTypeId
             );
-<<<<<<< HEAD
-
-=======
-            
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
             if (productAttr && productAttr.attributeType) {
               const attrType = productAttr.attributeType;
               const customValues = productAttr.customValues || [];
@@ -341,11 +260,6 @@ export const createOrder = async (req, res) => {
                       if (base64Data && base64Data.trim().length > 0) {
                         // Convert base64 to Buffer
                         const imageBuffer = Buffer.from(base64Data, "base64");
-<<<<<<< HEAD
-
-=======
-                        
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
                         // Convert image to CMYK format using sharp (same as design images)
                         const cmykBuffer = await sharp(imageBuffer)
                           .toColourspace("cmyk")
@@ -354,11 +268,6 @@ export const createOrder = async (req, res) => {
                             chromaSubsampling: '4:4:4'
                           })
                           .toBuffer();
-<<<<<<< HEAD
-
-=======
-                        
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
                         processedUploadedImages.push({
                           data: cmykBuffer,
                           contentType: "image/jpeg",
@@ -423,7 +332,6 @@ export const createOrder = async (req, res) => {
       }
     }
 
-<<<<<<< HEAD
     // Calculate pricing using PricingService (NEW)
     const pricingResult = await PricingService.resolvePrice({
       userId,
@@ -443,19 +351,12 @@ export const createOrder = async (req, res) => {
     const orderData = {
       user: userId,
       orderNumber: orderNumber,
-=======
-    // Create order
-    const orderData = {
-      user: userId,
-      orderNumber: orderNumber, // Set orderNumber explicitly
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
       product: productId,
       quantity: parseInt(quantity),
       finish,
       shape,
       selectedOptions: enhancedSelectedOptions,
       selectedDynamicAttributes: processedDynamicAttributes,
-<<<<<<< HEAD
       priceSnapshot: {
         basePrice: pricingResult.basePrice,
         unitPrice: pricingResult.basePrice,
@@ -468,9 +369,6 @@ export const createOrder = async (req, res) => {
         currency: pricingResult.currency,
         calculatedAt: pricingResult.calculatedAt,
       },
-=======
-      totalPrice: parseFloat(totalPrice),
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
       pincode,
       address,
       mobileNumber,
@@ -478,17 +376,9 @@ export const createOrder = async (req, res) => {
       notes: notes || "",
       status: "request",
       departmentStatuses: departmentStatuses,
-<<<<<<< HEAD
       advancePaid: req.body.advancePaid ? parseFloat(req.body.advancePaid) : 0,
       paymentStatus: req.body.paymentStatus || "pending",
       paymentGatewayInvoiceId: req.body.paymentGatewayInvoiceId || null,
-=======
-      // Payment information - only set if provided (order created after payment)
-      advancePaid: req.body.advancePaid ? parseFloat(req.body.advancePaid) : 0,
-      paymentStatus: req.body.paymentStatus || "pending",
-      paymentGatewayInvoiceId: req.body.paymentGatewayInvoiceId || null,
-      // Legacy product specifications (kept for backward compatibility)
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
       paperGSM: req.body.paperGSM || null,
       paperQuality: req.body.paperQuality || null,
       laminationType: req.body.laminationType || null,
@@ -496,7 +386,6 @@ export const createOrder = async (req, res) => {
     };
 
     const order = new Order(orderData);
-<<<<<<< HEAD
     await order.save();
 
     // FIX 4: Increment promo usage count (CRITICAL)
@@ -510,13 +399,6 @@ export const createOrder = async (req, res) => {
     await order.populate({
       path: "product",
       select: "name image subcategory options discount description instructions attributes minFileWidth maxFileWidth minFileHeight maxFileHeight filters gstPercentage additionalDesignCharge productionSequence",
-=======
-
-    await order.save();
-    await order.populate({
-      path: "product",
-      select: "name image basePrice subcategory options discount description instructions attributes minFileWidth maxFileWidth minFileHeight maxFileHeight filters gstPercentage additionalDesignCharge productionSequence",
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
       populate: [
         { path: "subcategory", select: "name" },
         { path: "productionSequence", select: "name sequence" }
@@ -537,11 +419,6 @@ export const createOrder = async (req, res) => {
     console.error("Error name:", error.name);
     console.error("Error message:", error.message);
     console.error("Error stack:", error.stack);
-<<<<<<< HEAD
-
-=======
-    
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
     if (error.name === 'ValidationError') {
       console.error("Validation errors:", error.errors);
       const validationDetails = Object.keys(error.errors).map(key => ({
@@ -549,41 +426,25 @@ export const createOrder = async (req, res) => {
         message: error.errors[key].message
       }));
       console.error("Validation details:", validationDetails);
-<<<<<<< HEAD
       return res.status(400).json({
-=======
-      return res.status(400).json({ 
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
         error: "Validation error",
         details: validationDetails
       });
     }
     if (error.name === 'MongoServerError' && error.code === 11000) {
       console.error("Duplicate key error:", error.keyValue);
-<<<<<<< HEAD
       return res.status(400).json({
-=======
-      return res.status(400).json({ 
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
         error: "Duplicate order number. Please try again."
       });
     }
     if (error.name === 'CastError') {
       console.error("Cast error:", error.path, error.value);
-<<<<<<< HEAD
       return res.status(400).json({
-=======
-      return res.status(400).json({ 
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
         error: `Invalid value for field: ${error.path}`,
         details: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
     }
-<<<<<<< HEAD
     res.status(500).json({
-=======
-    res.status(500).json({ 
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
       error: "Failed to create order.",
       details: process.env.NODE_ENV === 'development' ? error.message : undefined,
       errorType: error.name
@@ -606,18 +467,11 @@ export const createOrderWithAccount = async (req, res) => {
       shape,
       selectedOptions,
       selectedDynamicAttributes,
-<<<<<<< HEAD
-=======
-      totalPrice,
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
       pincode,
       address,
       uploadedDesign,
       notes,
-<<<<<<< HEAD
       promoCodes,  // NEW: Promo code support
-=======
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
       // Payment information
       advancePaid,
       paymentStatus,
@@ -636,15 +490,9 @@ export const createOrderWithAccount = async (req, res) => {
       });
     }
 
-<<<<<<< HEAD
     if (!productId || !quantity || !finish || !shape || !pincode || !address) {
       return res.status(400).json({
         error: "Missing required order fields: productId, quantity, finish, shape, pincode, address",
-=======
-    if (!productId || !quantity || !finish || !shape || !totalPrice || !pincode || !address) {
-      return res.status(400).json({
-        error: "Missing required order fields: productId, quantity, finish, shape, totalPrice, pincode, address",
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
       });
     }
 
@@ -656,11 +504,6 @@ export const createOrderWithAccount = async (req, res) => {
     if (!user) {
       // Generate a random password
       tempPassword = Math.random().toString(36).slice(-12) + Math.random().toString(36).slice(-12).toUpperCase() + "!@#";
-<<<<<<< HEAD
-
-=======
-      
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
       // Hash password
       const hashed = await bcrypt.hash(tempPassword, 10);
 
@@ -687,11 +530,6 @@ export const createOrderWithAccount = async (req, res) => {
     let processedDesign = null;
     if (uploadedDesign) {
       processedDesign = {};
-<<<<<<< HEAD
-
-=======
-      
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
       if (uploadedDesign.frontImage && uploadedDesign.frontImage.data) {
         try {
           let base64Data = uploadedDesign.frontImage.data;
@@ -704,11 +542,6 @@ export const createOrderWithAccount = async (req, res) => {
           if (!base64Data || base64Data.trim().length === 0) {
             return res.status(400).json({ error: "Front image data is empty." });
           }
-<<<<<<< HEAD
-
-=======
-          
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
           const imageBuffer = Buffer.from(base64Data, "base64");
           const cmykBuffer = await sharp(imageBuffer)
             .toColourspace("cmyk")
@@ -717,11 +550,6 @@ export const createOrderWithAccount = async (req, res) => {
               chromaSubsampling: '4:4:4'
             })
             .toBuffer();
-<<<<<<< HEAD
-
-=======
-          
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
           processedDesign.frontImage = {
             data: cmykBuffer,
             contentType: "image/jpeg",
@@ -729,11 +557,7 @@ export const createOrderWithAccount = async (req, res) => {
           };
         } catch (err) {
           console.error("Error processing front image:", err);
-<<<<<<< HEAD
           return res.status(400).json({
-=======
-          return res.status(400).json({ 
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
             error: "Invalid front image data format or conversion failed.",
             details: process.env.NODE_ENV === 'development' ? err.message : undefined
           });
@@ -741,11 +565,6 @@ export const createOrderWithAccount = async (req, res) => {
       } else {
         return res.status(400).json({ error: "Front image is required." });
       }
-<<<<<<< HEAD
-
-=======
-      
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
       if (uploadedDesign.backImage && uploadedDesign.backImage.data) {
         try {
           let base64Data = uploadedDesign.backImage.data;
@@ -764,11 +583,6 @@ export const createOrderWithAccount = async (req, res) => {
                   chromaSubsampling: '4:4:4'
                 })
                 .toBuffer();
-<<<<<<< HEAD
-
-=======
-              
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
               processedDesign.backImage = {
                 data: cmykBuffer,
                 contentType: "image/jpeg",
@@ -860,11 +674,6 @@ export const createOrderWithAccount = async (req, res) => {
                         if (base64Data && base64Data.trim().length > 0) {
                           // Convert base64 to Buffer
                           const imageBuffer = Buffer.from(base64Data, "base64");
-<<<<<<< HEAD
-
-=======
-                          
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
                           // Convert image to CMYK format using sharp (same as design images)
                           const cmykBuffer = await sharp(imageBuffer)
                             .toColourspace("cmyk")
@@ -873,11 +682,6 @@ export const createOrderWithAccount = async (req, res) => {
                               chromaSubsampling: '4:4:4'
                             })
                             .toBuffer();
-<<<<<<< HEAD
-
-=======
-                          
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
                           processedUploadedImages.push({
                             data: cmykBuffer,
                             contentType: "image/jpeg",
@@ -891,11 +695,6 @@ export const createOrderWithAccount = async (req, res) => {
                     }
                   }
                 }
-<<<<<<< HEAD
-
-=======
-                
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
                 if (Array.isArray(selectedValueDetails)) {
                   const labels = selectedValueDetails.map((sv) => sv.label || sv.value).join(", ");
                   const totalPriceMultiplier = selectedValueDetails.reduce((sum, sv) => sum + (sv.priceMultiplier || 0), 0);
@@ -941,7 +740,6 @@ export const createOrderWithAccount = async (req, res) => {
       }
     }
 
-<<<<<<< HEAD
     // Calculate pricing using PricingService (NEW)
     const pricingResult = await PricingService.resolvePrice({
       userId: user._id.toString(),
@@ -958,9 +756,6 @@ export const createOrderWithAccount = async (req, res) => {
     });
 
     // Create order with immutable priceSnapshot
-=======
-    // Create order
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
     const orderData = {
       user: user._id,
       orderNumber: orderNumber,
@@ -970,7 +765,6 @@ export const createOrderWithAccount = async (req, res) => {
       shape,
       selectedOptions: enhancedSelectedOptions,
       selectedDynamicAttributes: processedDynamicAttributes,
-<<<<<<< HEAD
       priceSnapshot: {
         basePrice: pricingResult.basePrice,
         unitPrice: pricingResult.basePrice,
@@ -983,9 +777,6 @@ export const createOrderWithAccount = async (req, res) => {
         currency: pricingResult.currency,
         calculatedAt: pricingResult.calculatedAt,
       },
-=======
-      totalPrice: parseFloat(totalPrice),
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
       pincode,
       address,
       mobileNumber,
@@ -1004,7 +795,6 @@ export const createOrderWithAccount = async (req, res) => {
 
     const order = new Order(orderData);
     await order.save();
-<<<<<<< HEAD
 
     // FIX 4: Increment promo usage count (CRITICAL)
     const promoModifierIds = pricingResult.appliedModifiers
@@ -1018,12 +808,6 @@ export const createOrderWithAccount = async (req, res) => {
     await order.populate({
       path: "product",
       select: "name image subcategory options discount description instructions attributes minFileWidth maxFileWidth minFileHeight maxFileHeight filters gstPercentage additionalDesignCharge productionSequence",
-=======
-    
-    await order.populate({
-      path: "product",
-      select: "name image basePrice subcategory options discount description instructions attributes minFileWidth maxFileWidth minFileHeight maxFileHeight filters gstPercentage additionalDesignCharge productionSequence",
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
       populate: [
         { path: "subcategory", select: "name" },
         { path: "productionSequence", select: "name sequence" }
@@ -1070,49 +854,28 @@ export const createOrderWithAccount = async (req, res) => {
     });
   } catch (error) {
     console.error("Create order with account error:", error);
-<<<<<<< HEAD
-
-=======
-    
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
     if (error.name === 'ValidationError') {
       const validationDetails = Object.keys(error.errors).map(key => ({
         field: key,
         message: error.errors[key].message
       }));
-<<<<<<< HEAD
       return res.status(400).json({
-=======
-      return res.status(400).json({ 
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
         error: "Validation error",
         details: validationDetails
       });
     }
     if (error.name === 'MongoServerError' && error.code === 11000) {
-<<<<<<< HEAD
       return res.status(400).json({
-=======
-      return res.status(400).json({ 
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
         error: "Email already registered or duplicate order number. Please try again."
       });
     }
     if (error.name === 'CastError') {
-<<<<<<< HEAD
       return res.status(400).json({
-=======
-      return res.status(400).json({ 
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
         error: `Invalid value for field: ${error.path}`,
         details: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
     }
-<<<<<<< HEAD
     res.status(500).json({
-=======
-    res.status(500).json({ 
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
       error: "Failed to create order.",
       details: process.env.NODE_ENV === 'development' ? error.message : undefined,
       errorType: error.name
@@ -1125,11 +888,6 @@ export const getSingleOrder = async (req, res) => {
   try {
     const { orderId } = req.params;
     const userId = req.user.id;
-<<<<<<< HEAD
-
-=======
-    
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
     // Validate orderId is a valid ObjectId
     if (!orderId || !/^[0-9a-fA-F]{24}$/.test(orderId)) {
       return res.status(400).json({ error: "Invalid order ID format." });
@@ -1140,13 +898,8 @@ export const getSingleOrder = async (req, res) => {
       .populate({
         path: "product",
         select: "name image basePrice subcategory options discount description instructions attributes minFileWidth maxFileWidth minFileHeight maxFileHeight filters gstPercentage additionalDesignCharge maxFileSizeMB",
-<<<<<<< HEAD
         populate: {
           path: "subcategory",
-=======
-        populate: { 
-          path: "subcategory", 
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
           select: "name image",
           populate: {
             path: "category",
@@ -1160,17 +913,6 @@ export const getSingleOrder = async (req, res) => {
         select: "name sequence",
       })
       .populate({
-<<<<<<< HEAD
-=======
-        path: "departmentStatuses.department",
-        select: "name sequence",
-      })
-      .populate({
-        path: "departmentStatuses.operator",
-        select: "name email",
-      })
-      .populate({
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
         path: "designerAssigned",
         select: "name email",
       })
@@ -1182,18 +924,7 @@ export const getSingleOrder = async (req, res) => {
         path: "designTimeline.operator",
         select: "name email",
       })
-<<<<<<< HEAD
       // Note: departmentStatuses and productionTimeline fields removed from schema per user request
-=======
-      .populate({
-        path: "productionTimeline.operator",
-        select: "name email",
-      })
-      .populate({
-        path: "productionTimeline.department",
-        select: "name",
-      })
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
       .lean(); // Use lean() for faster queries - returns plain JavaScript objects
 
     if (!order) {
@@ -1250,13 +981,8 @@ export const getMyOrders = async (req, res) => {
       .populate({
         path: "product",
         select: "name image basePrice subcategory gstPercentage", // Minimal product fields
-<<<<<<< HEAD
         populate: {
           path: "subcategory",
-=======
-        populate: { 
-          path: "subcategory", 
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
           select: "name image",
           populate: {
             path: "category",
@@ -1268,17 +994,6 @@ export const getMyOrders = async (req, res) => {
         path: "currentDepartment",
         select: "name sequence",
       })
-<<<<<<< HEAD
-=======
-      .populate({
-        path: "departmentStatuses.department",
-        select: "name sequence",
-      })
-      .populate({
-        path: "departmentStatuses.operator",
-        select: "name email",
-      })
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
       .sort({ createdAt: -1 })
       .limit(limit)
       .skip(skip)
@@ -1309,27 +1024,11 @@ export const getAllOrders = async (req, res) => {
         path: "currentDepartment",
         select: "name sequence",
       })
-<<<<<<< HEAD
-=======
-      .populate({
-        path: "departmentStatuses.department",
-        select: "name sequence",
-      })
-      .populate({
-        path: "departmentStatuses.operator",
-        select: "name email",
-      })
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
       .sort({ createdAt: -1 });
 
     // Convert uploaded design buffers to base64 for frontend
     const ordersWithImages = orders.map((order) => {
       const orderObj = order.toObject();
-<<<<<<< HEAD
-
-=======
-      
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
       if (order.uploadedDesign?.frontImage?.data) {
         orderObj.uploadedDesign.frontImage.data = `data:${order.uploadedDesign.frontImage.contentType};base64,${order.uploadedDesign.frontImage.data.toString("base64")}`;
       }
@@ -1382,15 +1081,9 @@ export const updateOrderStatus = async (req, res) => {
     if (adminNotes !== undefined) order.adminNotes = adminNotes;
 
     // If admin approves order (request -> approved) or starts production (production_ready -> approved), send to first department
-<<<<<<< HEAD
     if ((previousStatus === "request" && (status === "approved" || status === "processing")) ||
       (previousStatus === "production_ready" && status === "approved") ||
       action === "start_production") {
-=======
-    if ((previousStatus === "request" && (status === "approved" || status === "processing")) || 
-        (previousStatus === "production_ready" && status === "approved") ||
-        action === "start_production") {
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
       // Set status to "approved" (not "processing" yet - processing starts when first dept starts)
       if (status === "processing") {
         order.status = "approved";
@@ -1408,15 +1101,9 @@ export const updateOrderStatus = async (req, res) => {
       let departmentsToUse = [];
       if (product.productionSequence && product.productionSequence.length > 0) {
         const deptIds = product.productionSequence.map(dept => typeof dept === 'object' ? dept._id : dept);
-<<<<<<< HEAD
         const departments = await Department.find({
           _id: { $in: deptIds },
           isEnabled: true
-=======
-        const departments = await Department.find({ 
-          _id: { $in: deptIds },
-          isEnabled: true 
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
         });
         // Create a map for O(1) lookup instead of O(n) find
         const deptMap = new Map(departments.map(d => [d._id.toString(), d]));
@@ -1434,11 +1121,6 @@ export const updateOrderStatus = async (req, res) => {
       if (departmentsToUse.length > 0) {
         const firstDept = departmentsToUse[0];
         const now = new Date();
-<<<<<<< HEAD
-
-=======
-        
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
         // Initialize departmentStatuses array if it doesn't exist
         if (!order.departmentStatuses) {
           order.departmentStatuses = [];
@@ -1506,17 +1188,10 @@ export const updateOrderStatus = async (req, res) => {
     if (order.productionTimeline && order.productionTimeline.length > 0) {
       order.markModified('productionTimeline');
     }
-<<<<<<< HEAD
 
     // Save the order
     await order.save();
 
-=======
-    
-    // Save the order
-    await order.save();
-    
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
     await order.populate({
       path: "product",
       select: "name image basePrice subcategory options discount description instructions attributes minFileWidth maxFileWidth minFileHeight maxFileHeight filters gstPercentage additionalDesignCharge productionSequence",

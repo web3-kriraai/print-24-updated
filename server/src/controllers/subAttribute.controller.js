@@ -44,20 +44,14 @@ const updateParentAttributeHasSubAttributes = async (parentAttributeId, parentVa
     if (attributeValueIndex === -1) {
       console.log(`[UPDATE] Exact match not found, trying case-insensitive match...`);
       attributeValueIndex = attributeType.attributeValues.findIndex(
-<<<<<<< HEAD
         (av) => String(av.value).trim().toLowerCase() === pValue.toLowerCase() ||
           String(av.label).trim().toLowerCase() === pValue.toLowerCase()
-=======
-        (av) => String(av.value).trim().toLowerCase() === pValue.toLowerCase() || 
-                String(av.label).trim().toLowerCase() === pValue.toLowerCase()
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
       );
     }
 
     if (attributeValueIndex !== -1) {
       const oldValue = attributeType.attributeValues[attributeValueIndex].hasSubAttributes;
       const newValue = subAttributesCount > 0;
-<<<<<<< HEAD
 
       console.log(`[UPDATE] Found attribute value at index ${attributeValueIndex}`);
       console.log(`[UPDATE] Current hasSubAttributes: ${oldValue}, New value: ${newValue}`);
@@ -79,38 +73,10 @@ const updateParentAttributeHasSubAttributes = async (parentAttributeId, parentVa
       const verify = await AttributeType.findById(attrId);
       const verifiedValue = verify.attributeValues[attributeValueIndex].hasSubAttributes;
 
-=======
-      
-      console.log(`[UPDATE] Found attribute value at index ${attributeValueIndex}`);
-      console.log(`[UPDATE] Current hasSubAttributes: ${oldValue}, New value: ${newValue}`);
-      
-      // Update the hasSubAttributes field
-      attributeType.attributeValues[attributeValueIndex].hasSubAttributes = newValue;
-      
-      // Mark the array as modified to ensure Mongoose saves it
-      // This is critical for nested array updates in Mongoose
-      attributeType.markModified('attributeValues');
-      
-      // Also mark the specific nested object as modified (extra safety)
-      attributeType.markModified(`attributeValues.${attributeValueIndex}`);
-      
-      // Save the document with validation
-      const saved = await attributeType.save({ validateBeforeSave: true });
-      
-      // Verify the save worked
-      const verify = await AttributeType.findById(attrId);
-      const verifiedValue = verify.attributeValues[attributeValueIndex].hasSubAttributes;
-      
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
       console.log(
         `[UPDATE] ✓ Successfully updated hasSubAttributes for "${attributeType.attributeName}" value "${pValue}": ${oldValue} → ${newValue} (${subAttributesCount} enabled sub-attributes)`
       );
       console.log(`[UPDATE] Verification: saved value is ${verifiedValue}`);
-<<<<<<< HEAD
-
-=======
-      
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
       if (verifiedValue !== newValue) {
         console.error(`[UPDATE] WARNING: Verification failed! Expected ${newValue} but got ${verifiedValue}`);
       }
@@ -140,25 +106,15 @@ export const createSubAttribute = async (req, res) => {
     const value = req.body.value;
     const label = req.body.label;
     const image = req.body.image;
-<<<<<<< HEAD
     const pricingKey = req.body.pricingKey; // ✅ CORRECT: matches schema
     const isEnabled = req.body.isEnabled;
 
-=======
-    const priceAdd = req.body.priceAdd;
-    const isEnabled = req.body.isEnabled;
-    
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
     console.log('[CREATE] Received sub-attribute data:', {
       parentAttribute,
       parentValue,
       value,
       label,
-<<<<<<< HEAD
       pricingKey, // ✅ CORRECT
-=======
-      priceAdd,
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
       isEnabled
     });
 
@@ -178,14 +134,11 @@ export const createSubAttribute = async (req, res) => {
       return res.status(400).json({ error: "Label is required" });
     }
 
-<<<<<<< HEAD
     // ✅ CRITICAL: Validate pricingKey (required by schema)
     if (!pricingKey) {
       return res.status(400).json({ error: "pricingKey is required" });
     }
 
-=======
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
     // Validate parentAttribute exists
     console.log('[CREATE] Looking up parent attribute with ID:', parentAttribute);
     const attributeType = await AttributeType.findById(parentAttribute);
@@ -236,11 +189,7 @@ export const createSubAttribute = async (req, res) => {
       value,
       label,
       image: imageUrl,
-<<<<<<< HEAD
       pricingKey: pricingKey.toUpperCase().trim(), // ✅ CORRECT: uppercase as per schema
-=======
-      priceAdd: priceAdd !== undefined ? parseFloat(priceAdd) : 0,
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
       isEnabled: isEnabled !== undefined ? isEnabled : true,
     });
 
@@ -322,11 +271,7 @@ export const getAllSubAttributes = async (req, res) => {
 export const updateSubAttribute = async (req, res) => {
   try {
     const subAttributeId = req.params.id;
-<<<<<<< HEAD
     const { parentAttribute, parentValue, value, label, image, pricingKey, isEnabled } = req.body; // ✅ CORRECT
-=======
-    const { parentAttribute, parentValue, value, label, image, priceAdd, isEnabled } = req.body;
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
 
     // Get existing sub-attribute first to preserve image if no new one uploaded
     const existingSubAttribute = await SubAttribute.findById(subAttributeId);
@@ -380,14 +325,11 @@ export const updateSubAttribute = async (req, res) => {
       return res.status(400).json({ error: "Label is required" });
     }
 
-<<<<<<< HEAD
     // ✅ CRITICAL: Validate pricingKey (required by schema)
     if (!pricingKey) {
       return res.status(400).json({ error: "pricingKey is required" });
     }
 
-=======
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
     // Validate parentAttribute exists
     const attributeType = await AttributeType.findById(parentAttribute);
     if (!attributeType) {
@@ -421,11 +363,7 @@ export const updateSubAttribute = async (req, res) => {
         value,
         label,
         image: imageUrl, // Use uploaded image or preserve existing
-<<<<<<< HEAD
         pricingKey: pricingKey.toUpperCase().trim(), // ✅ CORRECT: uppercase as per schema
-=======
-        priceAdd: priceAdd !== undefined ? parseFloat(priceAdd) : 0,
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
         isEnabled: isEnabled !== undefined ? isEnabled : true,
       },
       { new: true }
@@ -433,19 +371,11 @@ export const updateSubAttribute = async (req, res) => {
 
     // Update parent attribute's hasSubAttributes field for both old and new parent values
     // (in case parentValue or parentAttribute changed)
-<<<<<<< HEAD
 
     // Check if parent value or parent attribute changed
     const parentValueChanged = oldParentValue !== parentValue;
     const parentAttributeChanged = oldParentAttribute !== newParentAttribute;
 
-=======
-    
-    // Check if parent value or parent attribute changed
-    const parentValueChanged = oldParentValue !== parentValue;
-    const parentAttributeChanged = oldParentAttribute !== newParentAttribute;
-    
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
     // Wrap in try-catch to ensure it doesn't break the response if update fails
     try {
       // Update old parent value (set to false if no sub-attributes remain)
@@ -453,11 +383,6 @@ export const updateSubAttribute = async (req, res) => {
       if ((parentValueChanged || parentAttributeChanged) && oldParentValue && oldParentAttribute) {
         await updateParentAttributeHasSubAttributes(oldParentAttribute, oldParentValue);
       }
-<<<<<<< HEAD
-
-=======
-      
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
       // Update new parent value (always update to reflect current state)
       await updateParentAttributeHasSubAttributes(newParentAttribute, parentValue);
     } catch (updateError) {

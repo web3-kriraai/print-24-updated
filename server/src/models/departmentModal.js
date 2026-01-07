@@ -22,7 +22,6 @@ const DepartmentSchema = new mongoose.Schema(
         ref: "User",
       },
     ],
-<<<<<<< HEAD
 
     /* =====================
        NEW FIELDS - Production Workflow Control
@@ -70,16 +69,6 @@ const DepartmentSchema = new mongoose.Schema(
         trim: true,
       },
     ],
-=======
-    createdAt: {
-      type: Date,
-      default: Date.now,
-    },
-    updatedAt: {
-      type: Date,
-      default: Date.now,
-    },
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
   },
   { timestamps: true }
 );

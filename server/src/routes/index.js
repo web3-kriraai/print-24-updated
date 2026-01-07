@@ -97,17 +97,11 @@ import {
 import {
   createAttributeRule,
   getAllAttributeRules,
-<<<<<<< HEAD
   getSingleAttributeRule,
   updateAttributeRule,
   deleteAttributeRule,
   // ❌ evaluateRules REMOVED - now in service layer
 } from "../controllers/attributeRuleController.js";
-=======
-  updateAttributeRule,
-  deleteAttributeRule,
-} from "../controllers/attributeRule.controller.js";
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
 
 /* SUB-ATTRIBUTE CONTROLLERS */
 import {
@@ -148,7 +142,6 @@ import {
   searchGeocode,
 } from "../controllers/geocodingController.js";
 
-<<<<<<< HEAD
 /* MODIFIER ROUTES */
 import modifierRoutes from "./modifierRoutes.js";
 import { requireAdmin } from "../middlewares/authMiddleware.js";
@@ -158,8 +151,6 @@ import pricingRoutes from "./pricingRoutes.js";
 import pricingAdminRoutes from "./admin/pricingAdminRoutes.js";
 import pricingAdvancedRoutes from "./admin/pricingAdvancedRoutes.js";
 
-=======
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
 const router = express.Router();
 
 /* =====================================
@@ -350,15 +341,11 @@ router.delete(
 
 router.post("/admin/attribute-rules", authMiddleware, adminAuth, createAttributeRule);
 router.get("/admin/attribute-rules", authMiddleware, adminAuth, getAllAttributeRules);
-<<<<<<< HEAD
 router.get("/admin/attribute-rules/:id", authMiddleware, adminAuth, getSingleAttributeRule);
-=======
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
 router.put("/admin/attribute-rules/:id", authMiddleware, adminAuth, updateAttributeRule);
 router.delete("/admin/attribute-rules/:id", authMiddleware, adminAuth, deleteAttributeRule);
 
 /* =====================================
-<<<<<<< HEAD
    RULE EVALUATION (Public)
 ===================================== */
 
@@ -376,8 +363,6 @@ router.post("/rules/evaluate", async (req, res) => {
 });
 
 /* =====================================
-=======
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
    SUB-ATTRIBUTE ROUTES (Admin)
 ===================================== */
 
@@ -433,7 +418,6 @@ router.get("/geocoding/reverse", reverseGeocode);
 // Forward geocoding - search by postalcode/address
 router.get("/geocoding/search", searchGeocode);
 
-<<<<<<< HEAD
 /* =====================================
    MODIFIER ADMIN ROUTES
 ===================================== */
@@ -460,6 +444,3 @@ router.use("/pricing", pricingRoutes);
 export default router;
 
 
-=======
-export default router;
->>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
