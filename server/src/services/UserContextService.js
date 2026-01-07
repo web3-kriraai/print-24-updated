@@ -34,32 +34,50 @@ class UserContextService {
 
             // 1. Resolve User Segment
             let userSegment;
+
+            console.log(`\n🔍 USER SEGMENT RESOLUTION for user: ${user.email || user._id}`);
+            console.log(`   userType: ${user.userType}`);
+            console.log(`   userSegment field: ${user.userSegment ? (typeof user.userSegment === 'object' ? JSON.stringify(user.userSegment) : user.userSegment) : 'NOT SET'}`);
+
             if (user.userSegment) {
                 // User has assigned segment
+                console.log(`✅ User has explicit userSegment assigned`);
                 if (typeof user.userSegment === 'object' && user.userSegment._id) {
                     userSegment = user.userSegment; // Already populated
+                    console.log(`   → Using populated segment: ${userSegment.name} (${userSegment.code})`);
                 } else {
                     userSegment = await UserSegment.findById(user.userSegment).lean();
+                    console.log(`   → Fetched segment from DB: ${userSegment ? `${userSegment.name} (${userSegment.code})` : 'NOT FOUND'}`);
                 }
             } else {
                 // No explicit segment assigned - derive from userType
-                // Map userType to segment code
+                console.log(`📌 No explicit userSegment - deriving from userType`);
+
+                // Map userType to segment code (normalize to lowercase for consistent matching)
                 const userTypeToSegment = {
                     'print partner': 'PRINT_PARTNER',
                     'corporate': 'CORPORATE',
                     'customer': 'RETAIL',
                     'guest': 'RETAIL'
                 };
-                
-                const segmentCode = userTypeToSegment[user.userType] || 'RETAIL';
-                
-                console.log(`📌 No userSegment assigned. Mapping userType '${user.userType}' → Segment '${segmentCode}'`);
-                
+
+                // Normalize userType to lowercase and trim whitespace
+                const normalizedUserType = (user.userType || 'customer').toLowerCase().trim();
+
+                const segmentCode = userTypeToSegment[normalizedUserType] || 'RETAIL';
+
+                console.log(`   Original userType: '${user.userType}'`);
+                console.log(`   Normalized userType: '${normalizedUserType}'`);
+                console.log(`   Mapped to segment: '${segmentCode}'`);
+
                 userSegment = await UserSegment.findOne({ code: segmentCode }).lean();
-                
+
                 // If specific segment not found, try default
                 if (!userSegment) {
+                    console.log(`⚠️ Segment '${segmentCode}' not found in database. Using default segment.`);
                     userSegment = await UserSegment.findOne({ isDefault: true }).lean();
+                } else {
+                    console.log(`   → Found segment: ${userSegment.name} (${userSegment.code})`);
                 }
             }
 
@@ -118,7 +136,7 @@ class UserContextService {
         try {
             // Get default RETAIL segment
             let retailSegment = await UserSegment.findOne({ code: "RETAIL" }).lean();
-            
+
             if (!retailSegment) {
                 retailSegment = await UserSegment.findOne({ isDefault: true }).lean();
             }
@@ -206,10 +224,10 @@ class UserContextService {
      */
     async buildContextFromRequest(req) {
         const user = req.user || null;
-        
+
         // Extract pincode with fallback chain
         let pincode = this.extractPincode(req, user);
-        
+
         // If no pincode found, try IP detection (works for ALL users)
         if (!pincode) {
             pincode = await this.getPincodeFromIP(req);
@@ -254,10 +272,10 @@ class UserContextService {
     async getPincodeFromIP(req) {
         try {
             // Get client IP
-            let ip = req.headers['x-forwarded-for']?.split(',')[0] || 
-                     req.connection?.remoteAddress || 
-                     req.socket?.remoteAddress || 
-                     req.ip;
+            let ip = req.headers['x-forwarded-for']?.split(',')[0] ||
+                req.connection?.remoteAddress ||
+                req.socket?.remoteAddress ||
+                req.ip;
 
             // Clean IP (remove IPv6 prefix, port, etc.)
             ip = ip.replace(/^::ffff:/, '').split(':')[0];
@@ -267,7 +285,7 @@ class UserContextService {
                 console.log('🏠 Localhost detected, using default pincode');
                 return this.getDefaultPincode();
             }
-            
+
             // Skip private network ranges (LAN)
             if (ip.startsWith('192.168.') || ip.startsWith('10.') || ip.startsWith('172.')) {
                 console.log('🏠 Private network detected, using default pincode');

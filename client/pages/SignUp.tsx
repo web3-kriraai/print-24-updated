@@ -1,7 +1,7 @@
 import React, { useState, Suspense, lazy } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User, Building2, Briefcase, Loader, ArrowLeft } from 'lucide-react';
+import { User, Building2, Briefcase, Loader, ArrowLeft, Mail, Lock, AlertCircle } from 'lucide-react';
 import BackButton from '../components/BackButton';
 
 // Lazy load heavy components for code splitting
@@ -217,26 +217,33 @@ const SignUp: React.FC = () => {
                     <label className="block text-sm font-medium text-cream-700 mb-1">
                       Email Address
                     </label>
-                    <input
-                      type="email"
-                      value={email}
-                      onChange={(e) => {
-                        setEmail(e.target.value);
-                        setErrors({});
-                      }}
-                      className={`w-full px-4 py-3 border ${errors.email ? 'border-red-300' : 'border-cream-200'
-                        } rounded-xl focus:outline-none focus:ring-2 focus:ring-cream-900`}
-                      placeholder="your@email.com"
-                      autoFocus
-                    />
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <Mail className="h-5 w-5 text-cream-400" />
+                      </div>
+                      <input
+                        type="email"
+                        value={email}
+                        onChange={(e) => {
+                          setEmail(e.target.value);
+                          setErrors({});
+                        }}
+                        className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${errors.email
+                            ? "border-red-300 focus:ring-red-500 focus:border-red-500"
+                            : "border-cream-200 focus:ring-cream-900 focus:border-cream-900"
+                          } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
+                        placeholder="your@email.com"
+                        autoFocus
+                      />
+                    </div>
                     {errors.email && (
-                      <p className="mt-1 text-sm text-red-500">{errors.email}</p>
+                      <p className="mt-1 text-xs text-red-500">{errors.email}</p>
                     )}
                   </div>
 
                   <button
                     type="submit"
-                    className="w-full bg-cream-900 text-white py-3 rounded-xl font-medium hover:bg-cream-800 transition-colors"
+                    className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-bold rounded-xl text-cream-50 bg-cream-900 hover:bg-cream-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cream-500 transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5"
                   >
                     Continue
                   </button>
@@ -292,19 +299,26 @@ const SignUp: React.FC = () => {
                     <label className="block text-sm font-medium text-cream-700 mb-1">
                       Password
                     </label>
-                    <input
-                      type="password"
-                      value={password}
-                      onChange={(e) => {
-                        setPassword(e.target.value);
-                        setErrors({});
-                      }}
-                      className={`w-full px-4 py-3 border ${errors.password ? 'border-red-300' : 'border-cream-200'
-                        } rounded-xl focus:outline-none focus:ring-2 focus:ring-cream-900`}
-                      placeholder="Enter password"
-                    />
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <Lock className="h-5 w-5 text-cream-400" />
+                      </div>
+                      <input
+                        type="password"
+                        value={password}
+                        onChange={(e) => {
+                          setPassword(e.target.value);
+                          setErrors({});
+                        }}
+                        className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${errors.password
+                            ? "border-red-300 focus:ring-red-500 focus:border-red-500"
+                            : "border-cream-200 focus:ring-cream-900 focus:border-cream-900"
+                          } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
+                        placeholder="Enter password"
+                      />
+                    </div>
                     {errors.password && (
-                      <p className="mt-1 text-sm text-red-500">{errors.password}</p>
+                      <p className="mt-1 text-xs text-red-500">{errors.password}</p>
                     )}
                   </div>
 
@@ -312,34 +326,44 @@ const SignUp: React.FC = () => {
                     <label className="block text-sm font-medium text-cream-700 mb-1">
                       Confirm Password
                     </label>
-                    <input
-                      type="password"
-                      value={confirmPassword}
-                      onChange={(e) => {
-                        setConfirmPassword(e.target.value);
-                        setErrors({});
-                      }}
-                      className={`w-full px-4 py-3 border ${errors.confirmPassword ? 'border-red-300' : 'border-cream-200'
-                        } rounded-xl focus:outline-none focus:ring-2 focus:ring-cream-900`}
-                      placeholder="Confirm password"
-                    />
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <Lock className="h-5 w-5 text-cream-400" />
+                      </div>
+                      <input
+                        type="password"
+                        value={confirmPassword}
+                        onChange={(e) => {
+                          setConfirmPassword(e.target.value);
+                          setErrors({});
+                        }}
+                        className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${errors.confirmPassword
+                            ? "border-red-300 focus:ring-red-500 focus:border-red-500"
+                            : "border-cream-200 focus:ring-cream-900 focus:border-cream-900"
+                          } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
+                        placeholder="Confirm password"
+                      />
+                    </div>
                     {errors.confirmPassword && (
-                      <p className="mt-1 text-sm text-red-500">{errors.confirmPassword}</p>
+                      <p className="mt-1 text-xs text-red-500">{errors.confirmPassword}</p>
                     )}
                   </div>
 
                   {errors.general && (
-                    <p className="text-sm text-red-500">{errors.general}</p>
+                    <div className="bg-red-50 border border-red-100 text-red-600 px-4 py-3 rounded-lg text-sm flex items-center gap-2">
+                      <AlertCircle size={16} />
+                      {errors.general}
+                    </div>
                   )}
 
                   <button
                     type="submit"
                     disabled={isLoading}
-                    className="w-full bg-cream-900 text-white py-3 rounded-xl font-medium hover:bg-cream-800 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                    className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-bold rounded-xl text-cream-50 bg-cream-900 hover:bg-cream-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cream-500 transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 disabled:opacity-70 disabled:cursor-not-allowed"
                   >
                     {isLoading ? (
                       <>
-                        <Loader className="h-5 w-5 animate-spin" />
+                        <Loader className="animate-spin h-5 w-5 mr-2" />
                         Creating Account...
                       </>
                     ) : (
@@ -416,7 +440,7 @@ const SignUp: React.FC = () => {
 
                 <button
                   onClick={() => navigate('/login')}
-                  className="w-full bg-cream-900 text-white py-3 rounded-xl font-medium hover:bg-cream-800 transition-colors"
+                  className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-bold rounded-xl text-cream-50 bg-cream-900 hover:bg-cream-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cream-500 transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5"
                 >
                   {intent === 'CUSTOMER' ? 'Go to Login' : 'Return to Home'}
                 </button>

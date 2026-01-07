@@ -490,25 +490,33 @@ export const updateUserEmail = async (req, res) => {
   }
 };
 
-// FORGOT PASSWORD - Send OTP to mobile number
+// FORGOT PASSWORD - SEND OTP (EMAIL-BASED)
 export const forgotPassword = async (req, res) => {
   try {
-    const { mobileNumber } = req.body;
+    const { email } = req.body;
 
-    // Validate mobile number
-    if (!mobileNumber) {
+    if (!email) {
       return res.status(400).json({
         success: false,
-        message: "Mobile number is required.",
+        message: "Email is required.",
       });
     }
 
-    // Check if user exists with this mobile number
-    const user = await User.findOne({ mobileNumber });
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid email format.",
+      });
+    }
+
+    // Check if user exists
+    const user = await User.findOne({ email: email.trim().toLowerCase() });
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: "No account found with this mobile number.",
+        message: "User not found with this email address.",
       });
     }
 
@@ -518,27 +526,30 @@ export const forgotPassword = async (req, res) => {
     const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes expiry
 
     // Store hashed OTP for password reset
-    otpStore.set(mobileNumber, {
+    otpStore.set(email.trim().toLowerCase(), {
       otpHash,
       expiresAt,
       purpose: "password_reset",
-      userId: user._id.toString(),
     });
+
+    // Send OTP via email
+    const emailResult = await sendOtpEmail(email.trim(), otp);
+    if (!emailResult.success) {
+      return res.status(500).json({
+        success: false,
+        message: "Failed to send OTP email. Please try again.",
+      });
+    }
 
     // Log OTP to console for testing
     console.log("=".repeat(50));
-    console.log(`Password Reset OTP for ${mobileNumber}: ${otp}`);
+    console.log(`Password Reset OTP for ${email}: ${otp}`);
     console.log(`Expires at: ${new Date(expiresAt).toLocaleString()}`);
     console.log("=".repeat(50));
 
-    // Send OTP via email if user has email
-    if (user.email) {
-      await sendOtpEmail(user.email, otp);
-    }
-
     return res.status(200).json({
       success: true,
-      message: "OTP sent successfully to your mobile number.",
+      message: "OTP sent successfully to your email address.",
       ...(process.env.NODE_ENV === 'development' && { otp }),
     });
   } catch (error) {
@@ -551,20 +562,22 @@ export const forgotPassword = async (req, res) => {
   }
 };
 
-// VERIFY OTP FOR PASSWORD RESET
+// VERIFY OTP FOR PASSWORD RESET (EMAIL-BASED)
 export const verifyOtpForPasswordReset = async (req, res) => {
   try {
-    const { mobileNumber, otp } = req.body;
+    const { email, otp } = req.body;
 
-    if (!mobileNumber || !otp) {
+    if (!email || !otp) {
       return res.status(400).json({
         success: false,
-        message: "Mobile number and OTP are required.",
+        message: "Email and OTP are required.",
       });
     }
 
+    const emailLower = email.trim().toLowerCase();
+
     // Get stored OTP data
-    const storedOtpData = otpStore.get(mobileNumber);
+    const storedOtpData = otpStore.get(emailLower);
     if (!storedOtpData) {
       return res.status(400).json({
         success: false,
@@ -582,7 +595,7 @@ export const verifyOtpForPasswordReset = async (req, res) => {
 
     // Check expiry
     if (storedOtpData.expiresAt < Date.now()) {
-      otpStore.delete(mobileNumber);
+      otpStore.delete(emailLower);
       return res.status(400).json({
         success: false,
         message: "OTP has expired. Please request a new OTP.",
@@ -613,15 +626,15 @@ export const verifyOtpForPasswordReset = async (req, res) => {
   }
 };
 
-// RESET PASSWORD
+// RESET PASSWORD (EMAIL-BASED)
 export const resetPassword = async (req, res) => {
   try {
-    const { mobileNumber, otp, newPassword } = req.body;
+    const { email, otp, newPassword } = req.body;
 
-    if (!mobileNumber || !otp || !newPassword) {
+    if (!email || !otp || !newPassword) {
       return res.status(400).json({
         success: false,
-        message: "Mobile number, OTP, and new password are required.",
+        message: "Email, OTP, and new password are required.",
       });
     }
 
@@ -633,8 +646,10 @@ export const resetPassword = async (req, res) => {
       });
     }
 
+    const emailLower = email.trim().toLowerCase();
+
     // Get stored OTP data
-    const storedOtpData = otpStore.get(mobileNumber);
+    const storedOtpData = otpStore.get(emailLower);
     if (!storedOtpData) {
       return res.status(400).json({
         success: false,
@@ -652,7 +667,7 @@ export const resetPassword = async (req, res) => {
 
     // Check expiry
     if (storedOtpData.expiresAt < Date.now()) {
-      otpStore.delete(mobileNumber);
+      otpStore.delete(emailLower);
       return res.status(400).json({
         success: false,
         message: "OTP has expired. Please request a new OTP.",
@@ -669,7 +684,7 @@ export const resetPassword = async (req, res) => {
     }
 
     // Find user
-    const user = await User.findOne({ mobileNumber });
+    const user = await User.findOne({ email: emailLower });
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -683,7 +698,7 @@ export const resetPassword = async (req, res) => {
     await user.save();
 
     // Delete OTP after successful password reset
-    otpStore.delete(mobileNumber);
+    otpStore.delete(emailLower);
 
     return res.status(200).json({
       success: true,
@@ -1115,12 +1130,12 @@ export const submitPrintPartnerRequest = async (req, res) => {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Get retail segment
-    const retailSegment = await UserSegment.findOne({ code: 'RETAIL' });
-    if (!retailSegment) {
+    // Get PRINT_PARTNER segment (not RETAIL!)
+    const printPartnerSegment = await UserSegment.findOne({ code: 'PRINT_PARTNER' });
+    if (!printPartnerSegment) {
       return res.status(500).json({
         success: false,
-        message: 'System configuration error. Please contact support.',
+        message: 'System configuration error: PRINT_PARTNER segment not found. Please contact support.',
       });
     }
 
@@ -1136,7 +1151,7 @@ export const submitPrintPartnerRequest = async (req, res) => {
           password: hashedPassword,
           role: "user",
           userType: "print partner",
-          userSegment: retailSegment._id,
+          userSegment: printPartnerSegment._id,
           approvalStatus: 'pending',
           signupIntent: 'PRINT_PARTNER',
           isEmailVerified: false,
@@ -1152,7 +1167,7 @@ export const submitPrintPartnerRequest = async (req, res) => {
         password: hashedPassword,
         role: "user",
         userType: "print partner",
-        userSegment: retailSegment._id,
+        userSegment: printPartnerSegment._id,
         approvalStatus: 'pending',
         signupIntent: 'PRINT_PARTNER',
         isEmailVerified: false,
@@ -1845,12 +1860,12 @@ export const submitCorporateRequest = async (req, res) => {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Get retail segment
-    const retailSegment = await UserSegment.findOne({ code: 'RETAIL' });
-    if (!retailSegment) {
+    // Get CORPORATE segment (not RETAIL!)
+    const corporateSegment = await UserSegment.findOne({ code: 'CORPORATE' });
+    if (!corporateSegment) {
       return res.status(500).json({
         success: false,
-        message: 'System configuration error. Please contact support.',
+        message: 'System configuration error: CORPORATE segment not found. Please contact support.',
       });
     }
 
@@ -1866,7 +1881,7 @@ export const submitCorporateRequest = async (req, res) => {
           password: hashedPassword,
           role: "user",
           userType: "corporate",
-          userSegment: retailSegment._id,
+          userSegment: corporateSegment._id,
           approvalStatus: 'pending',
           signupIntent: 'CORPORATE',
           isEmailVerified: false,
@@ -1882,7 +1897,7 @@ export const submitCorporateRequest = async (req, res) => {
         password: hashedPassword,
         role: "user",
         userType: "corporate",
-        userSegment: retailSegment._id,
+        userSegment: corporateSegment._id,
         approvalStatus: 'pending',
         signupIntent: 'CORPORATE',
         isEmailVerified: false,

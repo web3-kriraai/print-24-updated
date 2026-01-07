@@ -89,16 +89,15 @@ const Login: React.FC = () => {
 
   // Forgot password states
   const [showForgotPassword, setShowForgotPassword] = useState(false);
-  const [forgotPasswordStep, setForgotPasswordStep] = useState<"mobile" | "otp" | "newPassword">("mobile");
+  const [forgotPasswordStep, setForgotPasswordStep] = useState<"email" | "otp" | "newPassword">("email");
   const [forgotPasswordData, setForgotPasswordData] = useState({
-    mobileNumber: "",
-    countryCode: "+91",
+    email: "",
     otp: "",
     newPassword: "",
     confirmPassword: "",
   });
   const [forgotPasswordErrors, setForgotPasswordErrors] = useState<{
-    mobileNumber?: string;
+    email?: string;
     otp?: string;
     newPassword?: string;
     confirmPassword?: string;
@@ -179,7 +178,7 @@ const Login: React.FC = () => {
       setFilteredCountries([]);
       return;
     }
-    
+
     if (!countrySearchQuery || countrySearchQuery.trim() === "") {
       setFilteredCountries(countryCodes);
       return;
@@ -247,32 +246,27 @@ const Login: React.FC = () => {
     }
 
     setErrors(newErrors);
-    
+
     // Auto-scroll to first invalid field
     if (Object.keys(newErrors).length > 0) {
       const firstErrorField = Object.keys(newErrors)[0];
       scrollToInvalidField(firstErrorField, firstErrorField);
     }
-    
+
     return Object.keys(newErrors).length === 0;
   };
 
 
   // Forgot Password Handlers
-  const handleForgotPasswordMobile = async () => {
-    // Validate mobile number
-    if (!forgotPasswordData.mobileNumber.trim()) {
-      setForgotPasswordErrors({ mobileNumber: "Mobile number is required" });
+  const handleForgotPasswordEmail = async () => {
+    // Validate email
+    if (!forgotPasswordData.email.trim()) {
+      setForgotPasswordErrors({ email: "Email is required" });
       return;
     }
 
-    if (!/^\d+$/.test(forgotPasswordData.mobileNumber)) {
-      setForgotPasswordErrors({ mobileNumber: "Mobile number must contain only digits" });
-      return;
-    }
-
-    if (forgotPasswordData.mobileNumber.length < 8) {
-      setForgotPasswordErrors({ mobileNumber: "Mobile number must be at least 8 digits" });
+    if (!/\S+@\S+\.\S+/.test(forgotPasswordData.email)) {
+      setForgotPasswordErrors({ email: "Please enter a valid email address" });
       return;
     }
 
@@ -280,15 +274,13 @@ const Login: React.FC = () => {
     setForgotPasswordErrors({});
 
     try {
-      const fullMobileNumber = `${forgotPasswordData.countryCode}${forgotPasswordData.mobileNumber.trim()}`;
-      
       const response = await fetch(`${API_BASE_URL_WITH_API}/auth/forgot-password`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          mobileNumber: fullMobileNumber,
+          email: forgotPasswordData.email.trim(),
         }),
       });
 
@@ -296,10 +288,10 @@ const Login: React.FC = () => {
 
       if (!response.ok) {
         setIsSendingOtp(false);
-        // If user not found (404), show validation error on mobile number field
+        // If user not found (404), show validation error on email field
         if (response.status === 404) {
           setForgotPasswordErrors({
-            mobileNumber: data.message || "No account found with this mobile number. Please check and try again.",
+            email: data.message || "No account found with this email address. Please check and try again.",
           });
         } else {
           setForgotPasswordErrors({
@@ -309,7 +301,7 @@ const Login: React.FC = () => {
         return;
       }
 
-      setOtpSentTo(fullMobileNumber);
+      setOtpSentTo(forgotPasswordData.email.trim());
       setForgotPasswordStep("otp");
       setIsSendingOtp(false);
     } catch (error) {
@@ -331,15 +323,13 @@ const Login: React.FC = () => {
     setForgotPasswordErrors({});
 
     try {
-      const fullMobileNumber = `${forgotPasswordData.countryCode}${forgotPasswordData.mobileNumber.trim()}`;
-      
       const response = await fetch(`${API_BASE_URL_WITH_API}/auth/verify-otp-password-reset`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          mobileNumber: fullMobileNumber,
+          email: forgotPasswordData.email.trim(),
           otp: forgotPasswordData.otp,
         }),
       });
@@ -390,15 +380,14 @@ const Login: React.FC = () => {
     setForgotPasswordErrors({});
 
     try {
-      const fullMobileNumber = `${forgotPasswordData.countryCode}${forgotPasswordData.mobileNumber.trim()}`;
-      
       const response = await fetch(`${API_BASE_URL_WITH_API}/auth/reset-password`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          mobileNumber: fullMobileNumber,
+          email: forgotPasswordData.email.trim(),
+          otp: forgotPasswordData.otp,
           newPassword: forgotPasswordData.newPassword,
         }),
       });
@@ -415,17 +404,16 @@ const Login: React.FC = () => {
 
       // Success - close modal and show success message
       setShowForgotPassword(false);
-      setForgotPasswordStep("mobile");
+      setForgotPasswordStep("email");
       setForgotPasswordData({
-        mobileNumber: "",
-        countryCode: "+91",
+        email: "",
         otp: "",
         newPassword: "",
         confirmPassword: "",
       });
       setForgotPasswordErrors({});
       setOtpSentTo("");
-      
+
       // Show success message (you can add a toast notification here)
       alert("Password reset successfully! You can now login with your new password.");
     } catch (error) {
@@ -564,11 +552,10 @@ const Login: React.FC = () => {
                   type="email"
                   value={formData.email}
                   onChange={handleChange}
-                  className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${
-                    errors.email
-                      ? "border-red-300 focus:ring-red-500 focus:border-red-500"
-                      : "border-cream-200 focus:ring-cream-900 focus:border-cream-900"
-                  } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
+                  className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${errors.email
+                    ? "border-red-300 focus:ring-red-500 focus:border-red-500"
+                    : "border-cream-200 focus:ring-cream-900 focus:border-cream-900"
+                    } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
                   placeholder="Enter your email address"
                 />
               </div>
@@ -594,11 +581,10 @@ const Login: React.FC = () => {
                   type="password"
                   value={formData.password}
                   onChange={handleChange}
-                  className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${
-                    errors.password
-                      ? "border-red-300 focus:ring-red-500 focus:border-red-500"
-                      : "border-cream-200 focus:ring-cream-900 focus:border-cream-900"
-                  } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
+                  className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${errors.password
+                    ? "border-red-300 focus:ring-red-500 focus:border-red-500"
+                    : "border-cream-200 focus:ring-cream-900 focus:border-cream-900"
+                    } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
                   placeholder="Enter your password"
                 />
               </div>
@@ -614,10 +600,9 @@ const Login: React.FC = () => {
                 type="button"
                 onClick={() => {
                   setShowForgotPassword(true);
-                  setForgotPasswordStep("mobile");
+                  setForgotPasswordStep("email");
                   setForgotPasswordData({
-                    mobileNumber: "",
-                    countryCode: "+91",
+                    email: "",
                     otp: "",
                     newPassword: "",
                     confirmPassword: "",
@@ -694,18 +679,18 @@ const Login: React.FC = () => {
                 </button>
               )}
 
-              {/* Step 1: Mobile Number */}
-              {forgotPasswordStep === "mobile" && (
+              {/* Step 1: Email */}
+              {forgotPasswordStep === "email" && (
                 <div>
                   <div className="text-center mb-6">
                     <div className="mx-auto w-16 h-16 bg-cream-100 rounded-full flex items-center justify-center mb-4">
-                      <Phone className="h-8 w-8 text-cream-900" />
+                      <Mail className="h-8 w-8 text-cream-900" />
                     </div>
                     <h3 className="text-2xl font-bold text-cream-900 mb-2">
                       Forgot Password?
                     </h3>
                     <p className="text-sm text-cream-600">
-                      Enter your mobile number to receive a verification code
+                      Enter your email address to receive a verification code
                     </p>
                   </div>
 
@@ -719,192 +704,34 @@ const Login: React.FC = () => {
                   <div className="space-y-4">
                     <div>
                       <label className="block text-sm font-medium text-cream-700 mb-1">
-                        Mobile Number
+                        Email Address
                       </label>
-                      <div className="flex gap-2">
-                        {/* Country Code Dropdown */}
-                        <div className="relative" ref={countryDropdownRef}>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const isOpening = !showCountryDropdown;
-                              setShowCountryDropdown(isOpening);
-                              if (isOpening && forgotPasswordData.countryCode && !countrySearchQuery) {
-                                const selectedCountry = getCountryByCode(forgotPasswordData.countryCode, countryCodes);
-                                if (selectedCountry) {
-                                  setCountrySearchQuery(selectedCountry.name);
-                                }
-                              }
-                            }}
-                            className={`flex items-center gap-2 px-3 py-3 border ${
-                              forgotPasswordErrors.mobileNumber
-                                ? "border-red-300 focus:ring-red-500"
-                                : "border-cream-200 focus:ring-cream-900"
-                            } text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all bg-white min-w-[140px] justify-between hover:bg-cream-50`}
-                          >
-                            <span className="flex items-center gap-2">
-                              {isLoadingCountries ? (
-                                <Loader className="h-4 w-4 animate-spin text-cream-400" />
-                              ) : (
-                                <>
-                                  <img
-                                    src={getCountryByCode(forgotPasswordData.countryCode, countryCodes)?.flagUrl || "https://flagcdn.com/w40/in.png"}
-                                    alt={getCountryByCode(forgotPasswordData.countryCode, countryCodes)?.name || "Country"}
-                                    className="w-6 h-4 object-cover rounded"
-                                    onError={(e) => {
-                                      const target = e.target as HTMLImageElement;
-                                      target.src = `https://flagcdn.com/w40/${getCountryByCode(forgotPasswordData.countryCode, countryCodes)?.country.toLowerCase() || 'in'}.png`;
-                                    }}
-                                  />
-                                  <span className="font-medium">
-                                    {forgotPasswordData.countryCode}
-                                  </span>
-                                </>
-                              )}
-                            </span>
-                            <ChevronDown 
-                              className={`h-4 w-4 text-cream-400 transition-transform ${
-                                showCountryDropdown ? "rotate-180" : ""
-                              }`}
-                            />
-                          </button>
-
-                          {/* Dropdown Menu */}
-                          <AnimatePresence>
-                            {showCountryDropdown && (
-                              <>
-                                <div
-                                  className="fixed inset-0 z-40"
-                                  onClick={() => setShowCountryDropdown(false)}
-                                />
-                                <motion.div
-                                  initial={{ opacity: 0, y: -10, scale: 0.95 }}
-                                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                                  exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                                  transition={{ duration: 0.2 }}
-                                  className="absolute z-50 mt-1 w-72 bg-white border border-cream-200 rounded-xl shadow-2xl"
-                                >
-                                  {/* Search Input */}
-                                  <div className="p-2 border-b border-cream-200">
-                                    <div className="relative">
-                                      <div className="relative w-full">
-                                        <input
-                                          type="text"
-                                          placeholder="Search country or code..."
-                                          value={countrySearchQuery}
-                                          onChange={(e) => {
-                                            const value = e.target.value;
-                                            setCountrySearchQuery(value);
-                                          }}
-                                          onKeyDown={(e) => {
-                                            if (e.key === "Enter") {
-                                              e.preventDefault();
-                                            }
-                                          }}
-                                          className="w-full px-3 py-2 pl-9 pr-8 border border-cream-200 rounded-lg text-sm text-cream-900 focus:outline-none focus:ring-2 focus:ring-cream-900 transition-all"
-                                          autoFocus
-                                        />
-                                        <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-cream-400" />
-                                        {countrySearchQuery && (
-                                          <button
-                                            type="button"
-                                            onClick={() => setCountrySearchQuery("")}
-                                            className="absolute right-2 top-1/2 transform -translate-y-1/2 text-cream-400 hover:text-cream-900 transition-colors"
-                                          >
-                                            <X className="h-4 w-4" />
-                                          </button>
-                                        )}
-                                      </div>
-                                    </div>
-                                    {countrySearchQuery && filteredCountries.length > 0 && (
-                                      <p className="text-xs text-cream-500 mt-1 px-1">
-                                        {filteredCountries.length} {filteredCountries.length === 1 ? 'country' : 'countries'} found
-                                      </p>
-                                    )}
-                                  </div>
-
-                                  {/* Countries List */}
-                                  <div className="overflow-y-auto" style={{ maxHeight: "400px" }}>
-                                    {isLoadingCountries ? (
-                                      <div className="p-8 text-center">
-                                        <Loader className="h-6 w-6 animate-spin text-cream-400 mx-auto mb-2" />
-                                        <p className="text-sm text-cream-600">Loading countries...</p>
-                                      </div>
-                                    ) : filteredCountries.length === 0 ? (
-                                      <div className="p-8 text-center">
-                                        <p className="text-sm text-cream-600">No countries found</p>
-                                      </div>
-                                    ) : (
-                                      <div className="p-2">
-                                        {filteredCountries.map((country, index) => (
-                                          <button
-                                            key={country.uniqueId || `${country.code}-${country.country}-${index}`}
-                                            type="button"
-                                            onClick={() => handleCountryCodeChange(country.code)}
-                                            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-cream-50 transition-colors text-left ${
-                                              forgotPasswordData.countryCode === country.code
-                                                ? "bg-cream-100 border border-cream-300"
-                                                : ""
-                                            }`}
-                                          >
-                                            <img
-                                              src={country.flagUrl}
-                                              alt={country.name}
-                                              className="w-8 h-6 object-cover rounded flex-shrink-0"
-                                              onError={(e) => {
-                                                const target = e.target as HTMLImageElement;
-                                                target.src = `https://flagcdn.com/w40/${country.country.toLowerCase()}.png`;
-                                              }}
-                                            />
-                                            <div className="flex-1 min-w-0">
-                                              <div className="font-medium text-cream-900 text-sm">
-                                                {country.name} ({country.code})
-                                              </div>
-                                            </div>
-                                            {forgotPasswordData.countryCode === country.code && (
-                                              <CheckCircle className="h-4 w-4 text-cream-900 flex-shrink-0" />
-                                            )}
-                                          </button>
-                                        ))}
-                                      </div>
-                                    )}
-                                  </div>
-                                </motion.div>
-                              </>
-                            )}
-                          </AnimatePresence>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                          <Mail className="h-5 w-5 text-cream-400" />
                         </div>
-
-                        {/* Mobile Number Input */}
-                        <div className="relative flex-1">
-                          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <Phone className="h-5 w-5 text-cream-400" />
-                          </div>
-                          <input
-                            type="tel"
-                            value={forgotPasswordData.mobileNumber}
-                            onChange={(e) => {
-                              const value = e.target.value.replace(/\D/g, "");
-                              setForgotPasswordData({ ...forgotPasswordData, mobileNumber: value });
-                              setForgotPasswordErrors({ ...forgotPasswordErrors, mobileNumber: undefined });
-                            }}
-                            className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${
-                              forgotPasswordErrors.mobileNumber
-                                ? "border-red-300 focus:ring-red-500 focus:border-red-500"
-                                : "border-cream-200 focus:ring-cream-900 focus:border-cream-900"
+                        <input
+                          type="email"
+                          value={forgotPasswordData.email}
+                          onChange={(e) => {
+                            setForgotPasswordData({ ...forgotPasswordData, email: e.target.value });
+                            setForgotPasswordErrors({ ...forgotPasswordErrors, email: undefined });
+                          }}
+                          className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${forgotPasswordErrors.email
+                            ? "border-red-300 focus:ring-red-500 focus:border-red-500"
+                            : "border-cream-200 focus:ring-cream-900 focus:border-cream-900"
                             } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
-                            placeholder="Enter your mobile number"
-                          />
-                        </div>
+                          placeholder="Enter your email address"
+                        />
                       </div>
-                      {forgotPasswordErrors.mobileNumber && (
-                        <p className="mt-1 text-xs text-red-500">{forgotPasswordErrors.mobileNumber}</p>
+                      {forgotPasswordErrors.email && (
+                        <p className="mt-1 text-xs text-red-500">{forgotPasswordErrors.email}</p>
                       )}
                     </div>
 
                     <button
-                      onClick={handleForgotPasswordMobile}
-                      disabled={isSendingOtp || !forgotPasswordData.mobileNumber}
+                      onClick={handleForgotPasswordEmail}
+                      disabled={isSendingOtp || !forgotPasswordData.email}
                       className="w-full bg-cream-900 text-cream-50 py-3 px-4 rounded-xl font-medium hover:bg-cream-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                     >
                       {isSendingOtp ? (
@@ -963,11 +790,10 @@ const Login: React.FC = () => {
                           setForgotPasswordData({ ...forgotPasswordData, otp: value });
                           setForgotPasswordErrors({ ...forgotPasswordErrors, otp: undefined });
                         }}
-                        className={`w-full px-4 py-3 border-2 ${
-                          forgotPasswordErrors.otp
-                            ? "border-red-300 focus:ring-red-500 focus:border-red-500"
-                            : "border-cream-200 focus:ring-cream-900 focus:border-cream-900"
-                        } rounded-xl focus:outline-none focus:ring-2 text-center text-3xl font-bold tracking-widest bg-cream-50`}
+                        className={`w-full px-4 py-3 border-2 ${forgotPasswordErrors.otp
+                          ? "border-red-300 focus:ring-red-500 focus:border-red-500"
+                          : "border-cream-200 focus:ring-cream-900 focus:border-cream-900"
+                          } rounded-xl focus:outline-none focus:ring-2 text-center text-3xl font-bold tracking-widest bg-cream-50`}
                         placeholder="------"
                         maxLength={6}
                         autoFocus
@@ -994,7 +820,7 @@ const Login: React.FC = () => {
                         )}
                       </button>
                       <button
-                        onClick={handleForgotPasswordMobile}
+                        onClick={handleForgotPasswordEmail}
                         disabled={isSendingOtp || isVerifyingOtp}
                         className="px-4 py-3 bg-cream-100 text-cream-900 rounded-xl font-medium hover:bg-cream-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
                       >
@@ -1004,13 +830,13 @@ const Login: React.FC = () => {
 
                     <button
                       onClick={() => {
-                        setForgotPasswordStep("mobile");
+                        setForgotPasswordStep("email");
                         setForgotPasswordData({ ...forgotPasswordData, otp: "" });
                         setForgotPasswordErrors({});
                       }}
                       className="w-full text-sm text-cream-600 hover:text-cream-900 underline"
                     >
-                      Change mobile number
+                      Change email address
                     </button>
                   </div>
                 </div>
@@ -1050,11 +876,10 @@ const Login: React.FC = () => {
                           setForgotPasswordData({ ...forgotPasswordData, newPassword: e.target.value });
                           setForgotPasswordErrors({ ...forgotPasswordErrors, newPassword: undefined });
                         }}
-                        className={`w-full px-3 py-2 border ${
-                          forgotPasswordErrors.newPassword
-                            ? "border-red-300 focus:ring-red-500"
-                            : "border-cream-200 focus:ring-cream-900"
-                        } rounded-lg focus:outline-none focus:ring-2 text-sm`}
+                        className={`w-full px-3 py-2 border ${forgotPasswordErrors.newPassword
+                          ? "border-red-300 focus:ring-red-500"
+                          : "border-cream-200 focus:ring-cream-900"
+                          } rounded-lg focus:outline-none focus:ring-2 text-sm`}
                         placeholder="Enter new password (min 6 characters)"
                         autoFocus
                       />
@@ -1074,11 +899,10 @@ const Login: React.FC = () => {
                           setForgotPasswordData({ ...forgotPasswordData, confirmPassword: e.target.value });
                           setForgotPasswordErrors({ ...forgotPasswordErrors, confirmPassword: undefined });
                         }}
-                        className={`w-full px-3 py-2 border ${
-                          forgotPasswordErrors.confirmPassword
-                            ? "border-red-300 focus:ring-red-500"
-                            : "border-cream-200 focus:ring-cream-900"
-                        } rounded-lg focus:outline-none focus:ring-2 text-sm`}
+                        className={`w-full px-3 py-2 border ${forgotPasswordErrors.confirmPassword
+                          ? "border-red-300 focus:ring-red-500"
+                          : "border-cream-200 focus:ring-cream-900"
+                          } rounded-lg focus:outline-none focus:ring-2 text-sm`}
                         placeholder="Confirm new password"
                       />
                       {forgotPasswordErrors.confirmPassword && (

@@ -3682,25 +3682,6 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                   })()}
                                 </div>
                               </div>
-
-                              {/* Per Unit Price Display - Top Right */}
-                              <div className="mt-4 sm:mt-0 sm:absolute sm:top-0 sm:right-0 bg-cream-50 p-4 rounded-lg border border-cream-200 min-w-[200px] shadow-sm">
-                                <p className="text-xs sm:text-sm text-cream-600 mb-1">Price Per Unit</p>
-                                <div className="text-2xl sm:text-3xl font-bold text-cream-900">
-                                  {(() => {
-                                    // Use stored per unit price excluding GST
-                                    const showIncludingGst = selectedProduct?.showPriceIncludingGst || false;
-                                    if (showIncludingGst && quantity > 0) {
-                                      const gstPerUnit = gstAmount / quantity;
-                                      return `₹${(perUnitPriceExcludingGst + gstPerUnit).toFixed(2)}`;
-                                    }
-                                    return `₹${perUnitPriceExcludingGst.toFixed(2)}`;
-                                  })()}
-                                </div>
-                                <p className="text-xs text-cream-500 mt-1">
-                                  {selectedProduct?.showPriceIncludingGst ? 'including GST' : 'excluding GST'}
-                                </p>
-                              </div>
                             </div>
                           </div>
 
