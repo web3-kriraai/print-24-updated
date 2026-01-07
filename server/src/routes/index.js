@@ -50,6 +50,12 @@ import {
 import {
   createReview,
   getAllReviews,
+  updateReviewSettings,
+  getReviewsByService,
+  updateReviewOrder,
+  toggleReviewVisibility,
+  toggleReviewFeatured,
+  deleteReview,
 } from "../controllers/reviewController.js";
 
 /* IMAGE UPLOAD CONTROLLER */
@@ -273,6 +279,14 @@ router.put(
 // Reviews route - authentication is optional (handled in controller)
 router.post("/reviews", optionalAuthMiddleware, createReview);
 router.get("/reviews", getAllReviews);
+router.get("/reviews/service/:serviceId", getReviewsByService);
+
+// Admin review management routes
+router.patch("/reviews/:id/settings", authMiddleware, adminAuth, updateReviewSettings);
+router.patch("/reviews/reorder", authMiddleware, adminAuth, updateReviewOrder);
+router.patch("/reviews/:id/visibility", authMiddleware, adminAuth, toggleReviewVisibility);
+router.patch("/reviews/:id/featured", authMiddleware, adminAuth, toggleReviewFeatured);
+router.delete("/reviews/:id", authMiddleware, adminAuth, deleteReview);
 
 /* =====================================
    IMAGE UPLOAD ROUTES (for CKEditor)

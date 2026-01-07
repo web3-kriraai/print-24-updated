@@ -21,6 +21,62 @@ export interface ServiceTitle {
     updatedAt?: string;
 }
 
+export interface BannerDecorativeElement {
+    shape: 'circle' | 'square' | 'triangle' | 'star' | 'hexagon';
+    top?: string;
+    bottom?: string;
+    left?: string;
+    right?: string;
+    size: number;
+    color: string;
+    animation: 'float' | 'pulse' | 'spin' | 'none';
+}
+
+export interface BannerSecondaryIcon {
+    icon: string;
+    position: 'left' | 'right' | 'center';
+    size: number;
+}
+
+export interface BannerColorPalette {
+    color: string;
+    name?: string;
+}
+
+export interface BannerIconConfig {
+    icon: string;
+    top?: string;
+    bottom?: string;
+    left?: string;
+    right?: string;
+    size: number;
+    color?: string;
+    animation?: 'float' | 'pulse' | 'none';
+}
+
+export interface BannerConfig {
+    // Legacy fields
+    title: string;
+    subtitle: string;
+    highlightText: string;
+    // Four dynamic text sections
+    textSection1?: string;
+    textSection2?: string;
+    textSection3?: string;
+    textSection4?: string;
+    mainIcon?: string;
+    secondaryIcons: BannerSecondaryIcon[];
+    decorativeElements: BannerDecorativeElement[];
+    primaryColor: string;
+    secondaryColor: string;
+    accentColor: string;
+    colorPalette: BannerColorPalette[];
+    defaultShape?: 'circle' | 'square' | 'triangle' | 'star' | 'hexagon' | 'random';
+    defaultShapeSize?: number;
+    showIcons: boolean;
+    iconPositions: BannerIconConfig[];
+}
+
 export interface Service {
     _id: string;
     name: string;
@@ -28,6 +84,11 @@ export interface Service {
     color: string;
     sortOrder: number;
     bannerImage: string;
+    icon?: string;
+    navbarIcon?: string;
+    serviceHeading?: string;
+    serviceDescription?: string;
+    bannerConfig?: BannerConfig;
     titles: ServiceTitle[];
     isActive: boolean;
     createdAt: string;
@@ -40,6 +101,11 @@ export interface CreateServiceData {
     color?: string;
     sortOrder?: number;
     bannerImage?: string;
+    icon?: string;
+    navbarIcon?: string;
+    serviceHeading?: string;
+    serviceDescription?: string;
+    bannerConfig?: BannerConfig;
     titles?: Omit<ServiceTitle, '_id' | 'createdAt' | 'updatedAt'>[];
 }
 
