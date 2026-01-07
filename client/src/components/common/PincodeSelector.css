@@ -1,0 +1,247 @@
+/* PincodeSelector Component Styles */
+.pincode-selector {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    padding: 16px;
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+    max-width: 400px;
+}
+
+.pincode-selector.compact {
+    padding: 8px;
+    box-shadow: none;
+    background: transparent;
+}
+
+/* Current Location */
+.current-location {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+    padding: 12px;
+    background: linear-gradient(135deg, #f0fdf4, #dcfce7);
+    border-radius: 8px;
+    font-size: 14px;
+}
+
+.location-icon {
+    font-size: 18px;
+}
+
+.location-text {
+    color: #166534;
+    flex: 1;
+}
+
+.location-text strong {
+    font-weight: 600;
+    color: #15803d;
+}
+
+/* Form */
+.pincode-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.input-group {
+    display: flex;
+    gap: 8px;
+}
+
+.pincode-input {
+    flex: 1;
+    padding: 12px 16px;
+    border: 2px solid #e5e7eb;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 500;
+    transition: all 0.2s;
+    outline: none;
+}
+
+.pincode-input:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.pincode-input.error {
+    border-color: #ef4444;
+}
+
+.pincode-input:disabled {
+    background: #f9fafb;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.pincode-submit {
+    padding: 12px 24px;
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    min-width: 80px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.pincode-submit:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+.pincode-submit:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.pincode-submit:disabled {
+    background: #9ca3af;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.loading-spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Detect Location Button */
+.detect-location-btn {
+    width: 100%;
+    padding: 10px;
+    background: white;
+    border: 2px solid #e5e7eb;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    color: #374151;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.detect-location-btn:hover:not(:disabled) {
+    background: #f9fafb;
+    border-color: #d1d5db;
+}
+
+.detect-location-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Error Message */
+.error-message {
+    padding: 10px 12px;
+    background: #fef2f2;
+    border-left: 3px solid #ef4444;
+    border-radius: 6px;
+    color: #991b1b;
+    font-size: 13px;
+    margin-top: -4px;
+}
+
+/* Pincode Hint */
+.pincode-hint {
+    font-size: 12px;
+    color: #6b7280;
+    padding: 8px 12px;
+    background: #f9fafb;
+    border-radius: 6px;
+}
+
+/* Serviceability Info */
+.serviceability-info {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid #e5e7eb;
+}
+
+.serviceability-info details {
+    cursor: pointer;
+}
+
+.serviceability-info summary {
+    font-size: 13px;
+    font-weight: 600;
+    color: #374151;
+    padding: 8px 0;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.serviceability-info summary::-webkit-details-marker {
+    display: none;
+}
+
+.serviceability-info summary::before {
+    content: '▶';
+    font-size: 10px;
+    transition: transform 0.2s;
+}
+
+.serviceability-info details[open] summary::before {
+    transform: rotate(90deg);
+}
+
+.serviceability-content {
+    padding: 12px;
+    background: #f9fafb;
+    border-radius: 8px;
+    margin-top: 8px;
+}
+
+.serviceability-content p {
+    margin: 0 0 12px;
+    font-size: 13px;
+    color: #6b7280;
+}
+
+.serviceability-content ul {
+    margin: 0;
+    padding-left: 20px;
+    list-style: none;
+}
+
+.serviceability-content li {
+    font-size: 13px;
+    color: #374151;
+    margin: 6px 0;
+    position: relative;
+    padding-left: 4px;
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+    .pincode-selector {
+        padding: 12px;
+    }
+
+    .input-group {
+        flex-direction: column;
+    }
+
+    .pincode-submit {
+        width: 100%;
+    }
+}
