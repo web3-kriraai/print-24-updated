@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import mongoose from "mongoose";
 
 /**
@@ -233,3 +234,13 @@ GeoZoneSchema.statics.getMostSpecific = function (zones) {
 };
 
 export default mongoose.model("GeoZone", GeoZoneSchema);
+=======
+const GeoZoneSchema = new mongoose.Schema({
+    name: String,
+    currency: { type: String, default: "INR" },
+    isRestricted: { type: Boolean, default: false }
+  });
+  
+  export default mongoose.model("GeoZone", GeoZoneSchema);
+  
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6

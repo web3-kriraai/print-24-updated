@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import mongoose from "mongoose";
 
 /**
@@ -91,3 +92,13 @@ SegmentPriceBookSchema.statics.getPriceBookForSegment = async function (segmentI
 };
 
 export default mongoose.model("SegmentPriceBook", SegmentPriceBookSchema);
+=======
+const SegmentPriceBookSchema = new mongoose.Schema({
+    userSegment: { type: mongoose.Schema.Types.ObjectId, ref: "UserSegment" },
+    priceBook: { type: mongoose.Schema.Types.ObjectId, ref: "PriceBook" },
+    priority: Number
+  });
+  
+  export default mongoose.model("SegmentPriceBook", SegmentPriceBookSchema);
+  
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6

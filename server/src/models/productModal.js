@@ -12,6 +12,10 @@ const ProductSchema = new mongoose.Schema(
       index: true,
     },
 
+<<<<<<< HEAD
+=======
+    // Backward compatibility (OK for now)
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
     subcategory: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "SubCategory",
@@ -29,7 +33,10 @@ const ProductSchema = new mongoose.Schema(
       default: "",
     },
 
+<<<<<<< HEAD
     // ⚠️ LEGACY SUPPORT ONLY
+=======
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
     descriptionArray: {
       type: [String],
       default: [],
@@ -47,8 +54,13 @@ const ProductSchema = new mongoose.Schema(
     },
 
     /* =======================
+<<<<<<< HEAD
        UI DISPLAY OPTIONS ONLY
        (NO PRICING / NO LOGIC)
+=======
+       NON-PRICING OPTIONS
+       (UI / INFORMATION ONLY)
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
     ======================= */
     options: [
       {
@@ -60,12 +72,59 @@ const ProductSchema = new mongoose.Schema(
 
     /* =======================
        LEGACY FILTERS
+<<<<<<< HEAD
        ⚠️ READ-ONLY
        ⚠️ DO NOT USE IN NEW CODE
     ======================= */
     filters: {
       type: Object,
       select: false, // hides from normal queries
+=======
+       (READ-ONLY / MIGRATION)
+    ======================= */
+    filters: {
+      printingOption: {
+        type: [String],
+        default: [],
+      },
+
+      deliverySpeed: {
+        type: [String],
+        default: [],
+      },
+
+      textureType: {
+        type: [String],
+        default: [],
+      },
+
+      /**
+       * ⚠️ IMPORTANT
+       * This stays ONLY for backward compatibility.
+       * Do NOT use it for new pricing logic.
+       */
+      orderQuantity: {
+        quantityType: {
+          type: String,
+          enum: ["SIMPLE", "STEP_WISE", "RANGE_WISE"],
+          default: "SIMPLE",
+        },
+
+        min: Number,
+        max: Number,
+        multiples: Number,
+
+        stepWiseQuantities: [Number],
+
+        rangeWiseQuantities: [
+          {
+            min: Number,
+            max: Number,
+            label: String,
+          },
+        ],
+      },
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
     },
 
     /* =======================
@@ -146,7 +205,11 @@ const ProductSchema = new mongoose.Schema(
     },
 
     /* =======================
+<<<<<<< HEAD
        TAX & DISPLAY
+=======
+       TAX & DISPLAY SETTINGS
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
     ======================= */
     additionalDesignCharge: {
       type: Number,
@@ -171,6 +234,7 @@ const ProductSchema = new mongoose.Schema(
     },
 
     /* =======================
+<<<<<<< HEAD
        PRODUCT LIFECYCLE
     ======================= */
     isActive: {
@@ -180,6 +244,8 @@ const ProductSchema = new mongoose.Schema(
     },
 
     /* =======================
+=======
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
        PRODUCTION WORKFLOW
     ======================= */
     productionSequence: [
@@ -188,6 +254,7 @@ const ProductSchema = new mongoose.Schema(
         ref: "Department",
       },
     ],
+<<<<<<< HEAD
 
     /* =======================
        NEW FIELDS - Zoho Integration
@@ -260,6 +327,8 @@ const ProductSchema = new mongoose.Schema(
         reason: String,
       },
     ],
+=======
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
   },
   { timestamps: true }
 );

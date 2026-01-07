@@ -1,5 +1,9 @@
 import jwt from "jsonwebtoken";
+<<<<<<< HEAD
 import { User } from "../models/User.js";
+=======
+import {User} from "../models/User.js";
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
 
 export const authMiddleware = async (req, res, next) => {
   try {
@@ -15,7 +19,11 @@ export const authMiddleware = async (req, res, next) => {
       return res.status(401).json({ error: "No token provided" });
 
     const token = authHeader.split(" ")[1];
+<<<<<<< HEAD
 
+=======
+    
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
     if (!token) {
       return res.status(401).json({ error: "Token is missing" });
     }
@@ -45,6 +53,7 @@ export const authMiddleware = async (req, res, next) => {
     return res.status(401).json({ error: "Authentication failed" });
   }
 };
+<<<<<<< HEAD
 
 /**
  * =========================================================================
@@ -67,3 +76,5 @@ export const requireAdmin = (req, res, next) => {
   next();
 };
 
+=======
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6

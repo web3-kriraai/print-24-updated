@@ -1,12 +1,18 @@
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { User } from "../../models/User.js";
+<<<<<<< HEAD
 import PrintPartnerProfile from "../../models/PrintPartnerProfile.js";
 import CorporateProfile from "../../models/CorporateProfile.js";
 import UserSegment from "../../models/UserSegment.js";
 import cloudinary from "../../config/cloudinary.js";
 import streamifier from "streamifier";
 import { sendOtpEmail } from "../../utils/emailService.js";
+=======
+import PrintPartnerRequest from "../../models/printPartnerRequestModal.js";
+import cloudinary from "../../config/cloudinary.js";
+import streamifier from "streamifier";
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
 
 // In-memory OTP storage (for development/testing)
 // In production, use Redis or a database
@@ -115,11 +121,19 @@ export const loginUser = async (req, res) => {
     } else if (mobileNumber) {
       // Extract digits from mobile number to handle different formats
       const mobileDigits = mobileNumber.replace(/\D/g, "");
+<<<<<<< HEAD
 
       // Try to find user with different mobile number formats
       // 1. Try exact match
       user = await User.findOne({ mobileNumber });
 
+=======
+      
+      // Try to find user with different mobile number formats
+      // 1. Try exact match
+      user = await User.findOne({ mobileNumber });
+      
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
       // 2. If not found, try with country code variations
       if (!user) {
         // If input has country code, try without it
@@ -187,7 +201,11 @@ export const loginUser = async (req, res) => {
     });
   } catch (error) {
     console.error("Login error:", error);
+<<<<<<< HEAD
     return res.status(500).json({
+=======
+    return res.status(500).json({ 
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
       message: "Server error",
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
@@ -259,11 +277,14 @@ export const sendOtp = async (req, res) => {
     console.log("=".repeat(50));
 
     // In production, send OTP via SMS service (Twilio, AWS SNS, etc.)
+<<<<<<< HEAD
     // Send OTP via email if email is provided
     if (email) {
       await sendOtpEmail(email, otp);
     }
 
+=======
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
     // For now, we'll just return success
 
     return res.status(200).json({
@@ -285,6 +306,7 @@ export const sendOtp = async (req, res) => {
 // VERIFY OTP AND REGISTER (Customer signup)
 export const verifyOtpAndRegister = async (req, res) => {
   try {
+<<<<<<< HEAD
     const {
       firstName,
       lastName,
@@ -293,6 +315,16 @@ export const verifyOtpAndRegister = async (req, res) => {
       email,
       password,
       otp
+=======
+    const { 
+      firstName, 
+      lastName, 
+      countryCode, 
+      mobileNumber, 
+      email, 
+      password, 
+      otp 
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
     } = req.body;
 
     // Validate required fields
@@ -531,11 +563,14 @@ export const forgotPassword = async (req, res) => {
     console.log(`Expires at: ${new Date(expiresAt).toLocaleString()}`);
     console.log("=".repeat(50));
 
+<<<<<<< HEAD
     // Send OTP via email if user has email
     if (user.email) {
       await sendOtpEmail(user.email, otp);
     }
 
+=======
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
     return res.status(200).json({
       success: true,
       message: "OTP sent successfully to your mobile number.",
@@ -703,10 +738,15 @@ export const resetPassword = async (req, res) => {
 export const getUserProfile = async (req, res) => {
   try {
     const userId = req.user._id || req.user.id;
+<<<<<<< HEAD
     const user = await User.findById(userId)
       .select("-password -emailOtp -emailOtpExpiresAt")
       .populate("userSegment", "name code description");
 
+=======
+    const user = await User.findById(userId).select("-password");
+    
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -714,6 +754,7 @@ export const getUserProfile = async (req, res) => {
       });
     }
 
+<<<<<<< HEAD
     // Base user data
     const userData = {
       id: user._id,
@@ -777,6 +818,33 @@ export const getUserProfile = async (req, res) => {
     return res.status(200).json({
       success: true,
       user: userData,
+=======
+    return res.status(200).json({
+      success: true,
+      user: {
+        id: user._id,
+        name: user.name,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        mobileNumber: user.mobileNumber,
+        countryCode: user.countryCode,
+        role: user.role,
+        userType: user.userType || "customer",
+        // Print Partner specific fields
+        businessName: user.businessName,
+        ownerName: user.ownerName,
+        whatsappNumber: user.whatsappNumber,
+        gstNumber: user.gstNumber,
+        fullBusinessAddress: user.fullBusinessAddress,
+        city: user.city,
+        state: user.state,
+        pincode: user.pincode,
+        proofFileUrl: user.proofFileUrl,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+      },
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
     });
   } catch (error) {
     console.error("Get user profile error:", error);
@@ -872,7 +940,11 @@ export const updateUserProfile = async (req, res) => {
     }
     if (mobileNumber !== undefined) user.mobileNumber = mobileNumber;
     if (countryCode !== undefined) user.countryCode = countryCode;
+<<<<<<< HEAD
 
+=======
+    
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
     // Update name if firstName or lastName changed
     if (firstName || lastName) {
       user.name = `${user.firstName || ""} ${user.lastName || ""}`.trim() || user.name;
@@ -980,7 +1052,11 @@ export const submitPrintPartnerRequest = async (req, res) => {
 
     // Validate required fields
     if (!businessName || !ownerName || !mobileNumber || !whatsappNumber || !emailAddress || !password ||
+<<<<<<< HEAD
       !fullBusinessAddress || !city || !state || !pincode) {
+=======
+        !fullBusinessAddress || !city || !state || !pincode) {
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
       return res.status(400).json({
         success: false,
         message: "All required fields must be provided.",
@@ -1005,22 +1081,64 @@ export const submitPrintPartnerRequest = async (req, res) => {
     }
 
     // Validate mobile numbers (can include country code like +919876543210)
+<<<<<<< HEAD
     const mobileDigits = mobileNumber.replace(/\D/g, "");
     const whatsappDigits = whatsappNumber.replace(/\D/g, "");
 
+=======
+    // Extract just the digits for validation
+    const mobileDigits = mobileNumber.replace(/\D/g, "");
+    const whatsappDigits = whatsappNumber.replace(/\D/g, "");
+    
+    // Mobile number should be 10-15 digits (allowing for country codes)
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
     if (mobileDigits.length < 10 || mobileDigits.length > 15) {
       return res.status(400).json({
         success: false,
         message: "Mobile number must be between 10-15 digits.",
       });
     }
+<<<<<<< HEAD
 
+=======
+    
+    // Extract the actual number (last 10 digits for India, or full number for other countries)
+    let mobileNumberToStore = mobileNumber;
+    // If it starts with a country code like +91, extract just the number part
+    if (mobileNumber.startsWith("+")) {
+      // For India (+91), extract the 10 digits after +91
+      if (mobileNumber.startsWith("+91") && mobileDigits.length >= 12) {
+        mobileNumberToStore = mobileDigits.slice(2); // Remove +91, keep the 10 digits
+      } else {
+        // For other countries, keep the full number with country code
+        mobileNumberToStore = mobileNumber;
+      }
+    }
+
+    // WhatsApp number validation
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
     if (whatsappDigits.length < 10 || whatsappDigits.length > 15) {
       return res.status(400).json({
         success: false,
         message: "WhatsApp number must be between 10-15 digits.",
       });
     }
+<<<<<<< HEAD
+=======
+    
+    // Extract the actual WhatsApp number
+    let whatsappNumberToStore = whatsappNumber;
+    // If it starts with a country code like +91, extract just the number part
+    if (whatsappNumber.startsWith("+")) {
+      // For India (+91), extract the 10 digits after +91
+      if (whatsappNumber.startsWith("+91") && whatsappDigits.length >= 12) {
+        whatsappNumberToStore = whatsappDigits.slice(2); // Remove +91, keep the 10 digits
+      } else {
+        // For other countries, keep the full number with country code
+        whatsappNumberToStore = whatsappNumber;
+      }
+    }
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
 
     // Validate pincode (6 digits)
     if (pincode.length !== 6 || !/^\d{6}$/.test(pincode)) {
@@ -1038,6 +1156,7 @@ export const submitPrintPartnerRequest = async (req, res) => {
       });
     }
 
+<<<<<<< HEAD
     // Check if email already exists
     let existingUser = await User.findOne({ email: emailAddress.toLowerCase() });
 
@@ -1079,6 +1198,64 @@ export const submitPrintPartnerRequest = async (req, res) => {
           message: "GST number already registered.",
         });
       }
+=======
+    // Check if email or mobile number already exists in User collection
+    // Try both with and without country code
+    const existingUser = await User.findOne({
+      $or: [
+        { email: emailAddress },
+        { mobileNumber: mobileNumberToStore },
+        { mobileNumber: `+91${mobileNumberToStore}` },
+        { mobileNumber: mobileNumber },
+      ],
+    });
+
+    if (existingUser) {
+      return res.status(409).json({
+        success: false,
+        message: "Email or mobile number already registered. Please login or use different credentials.",
+      });
+    }
+
+    // Check if GST number is provided and already exists in User collection
+    if (gstNumber && gstNumber.trim()) {
+      const existingGstUser = await User.findOne({ gstNumber: gstNumber.trim() });
+      if (existingGstUser) {
+        return res.status(409).json({
+          success: false,
+          message: "GST number already registered. Please use a different GST number or contact support.",
+        });
+      }
+
+      // Also check in pending requests
+      const existingGstRequest = await PrintPartnerRequest.findOne({
+        gstNumber: gstNumber.trim(),
+        status: { $in: ["pending", "approved"] },
+      });
+      if (existingGstRequest) {
+        return res.status(409).json({
+          success: false,
+          message: "GST number already exists in a pending or approved request.",
+        });
+      }
+    }
+
+    // Check if there's already a pending request with same email or mobile
+    const existingRequest = await PrintPartnerRequest.findOne({
+      $or: [
+        { emailAddress },
+        { mobileNumber: mobileNumberToStore },
+        { mobileNumber: mobileNumber },
+      ],
+      status: "pending",
+    });
+
+    if (existingRequest) {
+      return res.status(409).json({
+        success: false,
+        message: "A pending request already exists with this email or mobile number.",
+      });
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
     }
 
     // Upload proof file to Cloudinary
@@ -1114,6 +1291,7 @@ export const submitPrintPartnerRequest = async (req, res) => {
       });
     }
 
+<<<<<<< HEAD
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
@@ -1183,10 +1361,35 @@ export const submitPrintPartnerRequest = async (req, res) => {
       },
       { upsert: true, new: true }
     );
+=======
+    // Hash password before storing
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Create print partner request
+    const printPartnerRequest = await PrintPartnerRequest.create({
+      businessName: businessName.trim(),
+      ownerName: ownerName.trim(),
+      mobileNumber: mobileNumberToStore.trim(),
+      whatsappNumber: whatsappNumberToStore.trim(),
+      emailAddress: emailAddress.trim().toLowerCase(),
+      password: hashedPassword,
+      gstNumber: gstNumber ? gstNumber.trim() : "",
+      fullBusinessAddress: fullBusinessAddress.trim(),
+      city: city.trim(),
+      state: state.trim(),
+      pincode: pincode.trim(),
+      proofFileUrl,
+      status: "pending",
+    });
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
 
     return res.status(201).json({
       success: true,
       message: "Print partner request submitted successfully. Our team will review your application.",
+<<<<<<< HEAD
+=======
+      requestId: printPartnerRequest._id,
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
     });
   } catch (error) {
     console.error("Submit print partner request error:", error);
@@ -1199,6 +1402,7 @@ export const submitPrintPartnerRequest = async (req, res) => {
 };
 
 // GET ALL PRINT PARTNER REQUESTS (Admin only)
+<<<<<<< HEAD
 // GET ALL PRINT PARTNER REQUESTS (Admin only)
 // Now uses PrintPartnerProfile model with verificationStatus
 export const getAllPrintPartnerRequests = async (req, res) => {
@@ -1213,6 +1417,20 @@ export const getAllPrintPartnerRequests = async (req, res) => {
     const requests = await PrintPartnerProfile.find(query)
       .populate("user", "name email mobileNumber approvalStatus createdAt")
       .populate("verifiedBy", "name email")
+=======
+export const getAllPrintPartnerRequests = async (req, res) => {
+  try {
+    const { status } = req.query; // Optional filter by status
+
+    const query = {};
+    if (status && ["pending", "approved", "rejected"].includes(status)) {
+      query.status = status;
+    }
+
+    const requests = await PrintPartnerRequest.find(query)
+      .populate("approvedBy", "name email")
+      .populate("userId", "name email mobileNumber")
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
       .sort({ createdAt: -1 });
 
     return res.status(200).json({
@@ -1230,21 +1448,30 @@ export const getAllPrintPartnerRequests = async (req, res) => {
 };
 
 // APPROVE PRINT PARTNER REQUEST (Admin only)
+<<<<<<< HEAD
 // Updates PrintPartnerProfile verificationStatus and User approvalStatus
+=======
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
 export const approvePrintPartnerRequest = async (req, res) => {
   try {
     const { requestId } = req.params;
     const adminId = req.user._id || req.user.id;
 
+<<<<<<< HEAD
     // Find the print partner profile
     const profile = await PrintPartnerProfile.findById(requestId);
     if (!profile) {
+=======
+    const request = await PrintPartnerRequest.findById(requestId);
+    if (!request) {
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
       return res.status(404).json({
         success: false,
         message: "Print partner request not found.",
       });
     }
 
+<<<<<<< HEAD
     if (profile.verificationStatus !== "PENDING") {
       return res.status(400).json({
         success: false,
@@ -1276,6 +1503,90 @@ export const approvePrintPartnerRequest = async (req, res) => {
         mobileNumber: user.mobileNumber,
         userType: user.userType,
       } : null,
+=======
+    if (request.status !== "pending") {
+      return res.status(400).json({
+        success: false,
+        message: `Request is already ${request.status}.`,
+      });
+    }
+
+    // Check if email or mobile already exists in User collection
+    const existingUser = await User.findOne({
+      $or: [
+        { email: request.emailAddress },
+        { mobileNumber: request.mobileNumber },
+        { mobileNumber: `+91${request.mobileNumber}` },
+      ],
+    });
+
+    if (existingUser) {
+      return res.status(409).json({
+        success: false,
+        message: "User with this email or mobile number already exists.",
+      });
+    }
+
+    // Use the password from the request (already hashed)
+    if (!request.password) {
+      return res.status(400).json({
+        success: false,
+        message: "Password not found in request. Please resubmit the form.",
+      });
+    }
+
+    // Determine country code from mobile number
+    let countryCode = "+91"; // Default
+    if (request.mobileNumber.startsWith("+")) {
+      // Extract country code if present
+      const match = request.mobileNumber.match(/^(\+\d{1,3})/);
+      if (match) {
+        countryCode = match[1];
+      }
+    }
+
+    // Create user account with stored password and userType
+    const newUser = await User.create({
+      name: request.ownerName,
+      email: request.emailAddress,
+      mobileNumber: request.mobileNumber,
+      countryCode: countryCode,
+      password: request.password, // Already hashed when stored in request
+      role: "user",
+      userType: "print partner", // Set user type as print partner
+      // Print Partner specific fields
+      businessName: request.businessName,
+      ownerName: request.ownerName,
+      whatsappNumber: request.whatsappNumber,
+      gstNumber: request.gstNumber || null, // Store GST number if provided
+      fullBusinessAddress: request.fullBusinessAddress,
+      city: request.city,
+      state: request.state,
+      pincode: request.pincode,
+      proofFileUrl: request.proofFileUrl,
+    });
+
+    // Update request status
+    request.status = "approved";
+    request.approvedBy = adminId;
+    request.approvedAt = new Date();
+    request.userId = newUser._id;
+    await request.save();
+
+    // TODO: Send email/SMS to user with login credentials
+    // You can use the emailService here
+
+    return res.status(200).json({
+      success: true,
+      message: "Print partner request approved successfully. User account created.",
+      user: {
+        id: newUser._id,
+        name: newUser.name,
+        email: newUser.email,
+        mobileNumber: newUser.mobileNumber,
+        userType: newUser.userType,
+      },
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
     });
   } catch (error) {
     console.error("Approve print partner request error:", error);
@@ -1288,22 +1599,31 @@ export const approvePrintPartnerRequest = async (req, res) => {
 };
 
 // REJECT PRINT PARTNER REQUEST (Admin only)
+<<<<<<< HEAD
 // Updates PrintPartnerProfile verificationStatus and User approvalStatus
+=======
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
 export const rejectPrintPartnerRequest = async (req, res) => {
   try {
     const { requestId } = req.params;
     const { rejectionReason } = req.body;
     const adminId = req.user._id || req.user.id;
 
+<<<<<<< HEAD
     // Find the print partner profile
     const profile = await PrintPartnerProfile.findById(requestId);
     if (!profile) {
+=======
+    const request = await PrintPartnerRequest.findById(requestId);
+    if (!request) {
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
       return res.status(404).json({
         success: false,
         message: "Print partner request not found.",
       });
     }
 
+<<<<<<< HEAD
     if (profile.verificationStatus !== "PENDING") {
       return res.status(400).json({
         success: false,
@@ -1322,6 +1642,23 @@ export const rejectPrintPartnerRequest = async (req, res) => {
     await User.findByIdAndUpdate(profile.user, {
       approvalStatus: "rejected",
     });
+=======
+    if (request.status !== "pending") {
+      return res.status(400).json({
+        success: false,
+        message: `Request is already ${request.status}.`,
+      });
+    }
+
+    // Update request status
+    request.status = "rejected";
+    request.approvedBy = adminId;
+    request.approvedAt = new Date();
+    request.rejectionReason = rejectionReason || "Request rejected by admin";
+    await request.save();
+
+    // TODO: Send email/SMS to user about rejection
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
 
     return res.status(200).json({
       success: true,
@@ -1335,6 +1672,7 @@ export const rejectPrintPartnerRequest = async (req, res) => {
       error: process.env.NODE_ENV === 'development' ? error.message : undefined,
     });
   }
+<<<<<<< HEAD
 };
 
 // ========================================
@@ -1929,3 +2267,6 @@ export const submitCorporateRequest = async (req, res) => {
     });
   }
 };
+=======
+};
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6

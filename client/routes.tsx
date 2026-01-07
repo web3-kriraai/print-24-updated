@@ -18,8 +18,11 @@ import MyOrders from './pages/MyOrders';
 import DepartmentPortal from './pages/DepartmentPortal';
 import EmployeeDashboard from './pages/EmployeeDashboard';
 import AdminDashboard from './pages/AdminDashboard';
+<<<<<<< HEAD
 import AdminPricingDashboard from './src/components/admin/AdminPricingDashboard';
 import AdminPricingHub from './pages/AdminPricingHub';
+=======
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
 
 // Shared routes configuration for both SSR and client
 export const routes = [
@@ -58,8 +61,11 @@ export const routes = [
       { path: 'orders/:orderId', element: <OrderDetails />, errorElement: <ErrorBoundary /> },
       { path: 'order/:orderId', element: <OrderDetails />, errorElement: <ErrorBoundary /> },
       { path: 'admin/dashboard', element: <AdminDashboard />, errorElement: <ErrorBoundary /> },
+<<<<<<< HEAD
       { path: 'admin/pricing-hub', element: <AdminPricingHub />, errorElement: <ErrorBoundary /> },
       { path: 'admin/pricing', element: <AdminPricingDashboard />, errorElement: <ErrorBoundary /> },
+=======
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
       { path: 'employee/dashboard', element: <EmployeeDashboard />, errorElement: <ErrorBoundary /> },
       { path: 'department-portal', element: <DepartmentPortal />, errorElement: <ErrorBoundary /> },
       { path: 'reviews', element: <Reviews />, errorElement: <ErrorBoundary /> },

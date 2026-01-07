@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 
+<<<<<<< HEAD
 /**
  * GeoZoneMapping Schema
  * 
@@ -9,6 +10,8 @@ import mongoose from "mongoose";
  * - Pincode ranges
  * - Single zip codes
  */
+=======
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
 const GeoZoneMappingSchema = new mongoose.Schema(
   {
     geoZone: {
@@ -18,6 +21,7 @@ const GeoZoneMappingSchema = new mongoose.Schema(
       index: true,
     },
 
+<<<<<<< HEAD
     // ISO 3166-1 alpha-2 country code (e.g., "US", "IN", "DE")
     countryCode: {
       type: String,
@@ -37,10 +41,16 @@ const GeoZoneMappingSchema = new mongoose.Schema(
     // Range for pincode matching
     pincodeStart: {
       type: Number,
+=======
+    pincodeStart: {
+      type: Number,
+      required: true,
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
     },
 
     pincodeEnd: {
       type: Number,
+<<<<<<< HEAD
     },
 
     // Is this the default mapping for the country?
@@ -48,6 +58,9 @@ const GeoZoneMappingSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
       index: true,
+=======
+      required: true,
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
     },
   },
   { timestamps: true }
@@ -57,12 +70,17 @@ const GeoZoneMappingSchema = new mongoose.Schema(
    INDEXES (CRITICAL)
 ========================= */
 
+<<<<<<< HEAD
 // Fast lookup: find zone by pincode range
+=======
+// Fast lookup: find zone by pincode
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
 GeoZoneMappingSchema.index({
   pincodeStart: 1,
   pincodeEnd: 1,
 });
 
+<<<<<<< HEAD
 // Fast lookup: country + default
 GeoZoneMappingSchema.index({
   countryCode: 1,
@@ -73,6 +91,12 @@ GeoZoneMappingSchema.index({
 GeoZoneMappingSchema.index(
   { geoZone: 1, pincodeStart: 1, pincodeEnd: 1 },
   { unique: true, sparse: true }
+=======
+// Prevent exact duplicate ranges
+GeoZoneMappingSchema.index(
+  { geoZone: 1, pincodeStart: 1, pincodeEnd: 1 },
+  { unique: true }
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
 );
 
 /* =========================
@@ -80,6 +104,7 @@ GeoZoneMappingSchema.index(
 ========================= */
 
 GeoZoneMappingSchema.pre("save", function (next) {
+<<<<<<< HEAD
   // Validate pincode range
   if (this.pincodeStart && this.pincodeEnd) {
     if (this.pincodeStart > this.pincodeEnd) {
@@ -87,10 +112,17 @@ GeoZoneMappingSchema.pre("save", function (next) {
         new Error("pincodeStart cannot be greater than pincodeEnd")
       );
     }
+=======
+  if (this.pincodeStart > this.pincodeEnd) {
+    return next(
+      new Error("pincodeStart cannot be greater than pincodeEnd")
+    );
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
   }
   next();
 });
 
+<<<<<<< HEAD
 /* =========================
    STATIC METHODS
 ========================= */
@@ -127,4 +159,6 @@ GeoZoneMappingSchema.statics.findByPincodeRange = async function (pincode) {
   }).populate("geoZone");
 };
 
+=======
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
 export default mongoose.model("GeoZoneMapping", GeoZoneMappingSchema);

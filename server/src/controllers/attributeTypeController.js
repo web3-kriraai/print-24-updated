@@ -6,8 +6,14 @@ export const createAttributeType = async (req, res) => {
     const {
       attributeName,
       functionType,
+<<<<<<< HEAD
       pricingBehavior, // ✅ CORRECT: matches schema
       inputStyle,
+=======
+      isPricingAttribute,
+      inputStyle,
+      isFixedQuantityNeeded,
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
       primaryEffectType,
       effectDescription,
       isFilterable,
@@ -18,6 +24,7 @@ export const createAttributeType = async (req, res) => {
       isCommonAttribute,
       applicableCategories,
       applicableSubCategories,
+<<<<<<< HEAD
       // ✅ CORRECT: quantityConfig fields
       quantityType,
       minQuantity,
@@ -33,6 +40,17 @@ export const createAttributeType = async (req, res) => {
       pricingBehavior,
       quantityType
     }));
+=======
+      isStepQuantity,
+      isRangeQuantity,
+      stepQuantities,
+      rangeQuantities,
+    } = req.body;
+
+    // Debug log to check if effectDescription is received
+    console.log("CREATE AttributeType - Received effectDescription:", effectDescription);
+    console.log("CREATE AttributeType - Full body:", JSON.stringify({ ...req.body, attributeValues: "[array]" }));
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
 
     if (!attributeName) {
       return res.status(400).json({ error: "Attribute name is required." });
@@ -54,26 +72,45 @@ export const createAttributeType = async (req, res) => {
     let parsedAttributeValues = [];
     if (attributeValues) {
       try {
+<<<<<<< HEAD
         parsedAttributeValues = typeof attributeValues === 'string'
           ? JSON.parse(attributeValues)
           : attributeValues;
 
+=======
+        parsedAttributeValues = typeof attributeValues === 'string' 
+          ? JSON.parse(attributeValues) 
+          : attributeValues;
+        
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
         // Validate attributeValues is an array
         if (!Array.isArray(parsedAttributeValues)) {
           return res.status(400).json({ error: "attributeValues must be an array" });
         }
+<<<<<<< HEAD
 
+=======
+        
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
         // Validate attributeValues structure
         for (const av of parsedAttributeValues) {
           if (!av.value || !av.label) {
             return res.status(400).json({ error: "Each attribute value must have 'value' and 'label' fields" });
           }
         }
+<<<<<<< HEAD
 
         // For DROPDOWN, RADIO, POPUP input styles, require at least 2 options
         if (['DROPDOWN', 'RADIO', 'POPUP'].includes(inputStyle) && parsedAttributeValues.length < 2) {
           return res.status(400).json({
             error: `${inputStyle} input style requires at least 2 attribute values. Please add more options.`
+=======
+        
+        // For DROPDOWN, RADIO, POPUP input styles, require at least 2 options
+        if (['DROPDOWN', 'RADIO', 'POPUP'].includes(inputStyle) && parsedAttributeValues.length < 2) {
+          return res.status(400).json({ 
+            error: `${inputStyle} input style requires at least 2 attribute values. Please add more options.` 
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
           });
         }
       } catch (err) {
@@ -82,8 +119,13 @@ export const createAttributeType = async (req, res) => {
     } else {
       // For DROPDOWN, RADIO, POPUP input styles, attributeValues is required
       if (['DROPDOWN', 'RADIO', 'POPUP'].includes(inputStyle)) {
+<<<<<<< HEAD
         return res.status(400).json({
           error: `${inputStyle} input style requires attribute values. Please add at least 2 options.`
+=======
+        return res.status(400).json({ 
+          error: `${inputStyle} input style requires attribute values. Please add at least 2 options.` 
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
         });
       }
     }
@@ -111,6 +153,7 @@ export const createAttributeType = async (req, res) => {
       }
     }
 
+<<<<<<< HEAD
     // ✅ Parse quantity config arrays
     let parsedStepWiseQuantities = [];
     if (stepWiseQuantities !== undefined) {
@@ -181,14 +224,50 @@ export const createAttributeType = async (req, res) => {
         return res.status(400).json({
           error: `When pricingBehavior is "${effectivePricingBehavior}", all attribute values must have a pricingKey. Missing pricingKey for: ${missingPricingKey.map(av => av.label).join(', ')}`
         });
+=======
+    // Parse stepQuantities and rangeQuantities if they're strings
+    let parsedStepQuantities = [];
+    if (stepQuantities !== undefined) {
+      try {
+        parsedStepQuantities = typeof stepQuantities === 'string'
+          ? JSON.parse(stepQuantities)
+          : stepQuantities;
+        if (!Array.isArray(parsedStepQuantities)) {
+          parsedStepQuantities = [];
+        }
+      } catch (err) {
+        console.error("Error parsing stepQuantities:", err);
+        parsedStepQuantities = [];
+      }
+    }
+
+    let parsedRangeQuantities = [];
+    if (rangeQuantities !== undefined) {
+      try {
+        parsedRangeQuantities = typeof rangeQuantities === 'string'
+          ? JSON.parse(rangeQuantities)
+          : rangeQuantities;
+        if (!Array.isArray(parsedRangeQuantities)) {
+          parsedRangeQuantities = [];
+        }
+      } catch (err) {
+        console.error("Error parsing rangeQuantities:", err);
+        parsedRangeQuantities = [];
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
       }
     }
 
     const attributeType = await AttributeType.create({
       attributeName,
       functionType,
+<<<<<<< HEAD
       pricingBehavior: pricingBehavior || "NONE", // ✅ CORRECT field
       inputStyle,
+=======
+      isPricingAttribute: isPricingAttribute === true || isPricingAttribute === 'true',
+      inputStyle,
+      isFixedQuantityNeeded: isFixedQuantityNeeded === true || isFixedQuantityNeeded === 'true',
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
       primaryEffectType,
       effectDescription: effectDescription !== undefined && effectDescription !== null ? String(effectDescription) : "",
       isFilterable: isFilterable === true || isFilterable === 'true',
@@ -199,12 +278,24 @@ export const createAttributeType = async (req, res) => {
       isCommonAttribute: isCommonAttribute === true || isCommonAttribute === 'true',
       applicableCategories: parsedCategories,
       applicableSubCategories: parsedSubCategories,
+<<<<<<< HEAD
       quantityConfig, // ✅ CORRECT: nested object
     });
 
     console.log("CREATE AttributeType - Saved:", attributeType.attributeName);
 
     // Ensure effectDescription is always returned
+=======
+      isStepQuantity: isStepQuantity === true || isStepQuantity === 'true',
+      isRangeQuantity: isRangeQuantity === true || isRangeQuantity === 'true',
+      stepQuantities: parsedStepQuantities,
+      rangeQuantities: parsedRangeQuantities,
+    });
+
+    console.log("CREATE AttributeType - Saved effectDescription:", attributeType.effectDescription);
+
+    // Ensure effectDescription is always returned (convert undefined/null to empty string)
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
     const responseData = attributeType.toObject();
     if (!responseData.effectDescription) {
       responseData.effectDescription = "";
@@ -225,6 +316,7 @@ export const createAttributeType = async (req, res) => {
 export const getAllAttributeTypes = async (req, res) => {
   try {
     const { isCommonAttribute, categoryId, subCategoryId } = req.query;
+<<<<<<< HEAD
 
     let query = {};
 
@@ -232,13 +324,26 @@ export const getAllAttributeTypes = async (req, res) => {
       query.isCommonAttribute = isCommonAttribute === 'true';
     }
 
+=======
+    
+    let query = {};
+    
+    if (isCommonAttribute !== undefined) {
+      query.isCommonAttribute = isCommonAttribute === 'true';
+    }
+    
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
     if (categoryId) {
       query.$or = [
         { applicableCategories: { $size: 0 } }, // Available for all
         { applicableCategories: categoryId },
       ];
     }
+<<<<<<< HEAD
 
+=======
+    
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
     if (subCategoryId) {
       query.$or = [
         ...(query.$or || []),
@@ -276,19 +381,31 @@ export const getUnusedAttributeTypes = async (req, res) => {
   try {
     const Product = (await import("../models/productModal.js")).default;
     const mongoose = (await import("mongoose")).default;
+<<<<<<< HEAD
 
+=======
+    
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
     // Get all attribute types
     const allAttributeTypes = await AttributeType.find({})
       .sort({ displayOrder: 1, attributeName: 1 })
       .populate('applicableCategories', 'name')
       .populate('applicableSubCategories', 'name');
+<<<<<<< HEAD
 
+=======
+    
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
     // Get all attribute type IDs that are used in products
     // Filter out null/undefined values
     const usedAttributeTypeIds = (await Product.distinct("dynamicAttributes.attributeType"))
       .filter(id => id != null)
       .map(id => id.toString());
+<<<<<<< HEAD
 
+=======
+    
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
     // Filter out used attribute types and ensure effectDescription is always present
     const unusedAttributeTypes = allAttributeTypes
       .filter((attrType) => {
@@ -348,8 +465,14 @@ export const updateAttributeType = async (req, res) => {
     const {
       attributeName,
       functionType,
+<<<<<<< HEAD
       pricingBehavior, // ✅ CORRECT
       inputStyle,
+=======
+      isPricingAttribute,
+      inputStyle,
+      isFixedQuantityNeeded,
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
       primaryEffectType,
       effectDescription,
       isFilterable,
@@ -360,6 +483,7 @@ export const updateAttributeType = async (req, res) => {
       isCommonAttribute,
       applicableCategories,
       applicableSubCategories,
+<<<<<<< HEAD
       // ✅ CORRECT: quantityConfig fields
       quantityType,
       minQuantity,
@@ -369,6 +493,16 @@ export const updateAttributeType = async (req, res) => {
       rangeWiseQuantities,
     } = req.body;
 
+=======
+      isStepQuantity,
+      isRangeQuantity,
+      stepQuantities,
+      rangeQuantities,
+    } = req.body;
+
+    // Debug log to check if effectDescription is received
+    console.log("UPDATE AttributeType - Received effectDescription:", effectDescription);
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
     console.log("UPDATE AttributeType - ID:", id);
 
     const attributeType = await AttributeType.findById(id);
@@ -383,18 +517,27 @@ export const updateAttributeType = async (req, res) => {
         parsedAttributeValues = typeof attributeValues === 'string'
           ? JSON.parse(attributeValues)
           : attributeValues;
+<<<<<<< HEAD
 
+=======
+        
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
         // Validate attributeValues is an array
         if (!Array.isArray(parsedAttributeValues)) {
           return res.status(400).json({ error: "attributeValues must be an array" });
         }
+<<<<<<< HEAD
 
+=======
+        
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
         // Validate attributeValues structure
         for (const av of parsedAttributeValues) {
           if (!av.value || !av.label) {
             return res.status(400).json({ error: "Each attribute value must have 'value' and 'label' fields" });
           }
         }
+<<<<<<< HEAD
 
         // Get the inputStyle to validate (use updated value if provided, otherwise existing)
         const currentInputStyle = inputStyle !== undefined ? inputStyle : attributeType.inputStyle;
@@ -403,6 +546,16 @@ export const updateAttributeType = async (req, res) => {
         if (['DROPDOWN', 'RADIO', 'POPUP'].includes(currentInputStyle) && parsedAttributeValues.length < 2) {
           return res.status(400).json({
             error: `${currentInputStyle} input style requires at least 2 attribute values. Please add more options.`
+=======
+        
+        // Get the inputStyle to validate (use updated value if provided, otherwise existing)
+        const currentInputStyle = inputStyle !== undefined ? inputStyle : attributeType.inputStyle;
+        
+        // For DROPDOWN, RADIO, POPUP input styles, require at least 2 options
+        if (['DROPDOWN', 'RADIO', 'POPUP'].includes(currentInputStyle) && parsedAttributeValues.length < 2) {
+          return res.status(400).json({ 
+            error: `${currentInputStyle} input style requires at least 2 attribute values. Please add more options.` 
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
           });
         }
       } catch (err) {
@@ -433,6 +586,7 @@ export const updateAttributeType = async (req, res) => {
       }
     }
 
+<<<<<<< HEAD
     // ✅ Parse quantity config arrays
     let parsedStepWiseQuantities = attributeType.quantityConfig?.stepWiseQuantities || [];
     if (stepWiseQuantities !== undefined) {
@@ -461,12 +615,43 @@ export const updateAttributeType = async (req, res) => {
       } catch (err) {
         console.error("Error parsing rangeWiseQuantities:", err);
         parsedRangeWiseQuantities = [];
+=======
+    // Parse stepQuantities and rangeQuantities if they're strings
+    let parsedStepQuantities = attributeType.stepQuantities;
+    if (stepQuantities !== undefined) {
+      try {
+        parsedStepQuantities = typeof stepQuantities === 'string'
+          ? JSON.parse(stepQuantities)
+          : stepQuantities;
+        if (!Array.isArray(parsedStepQuantities)) {
+          parsedStepQuantities = [];
+        }
+      } catch (err) {
+        console.error("Error parsing stepQuantities:", err);
+        parsedStepQuantities = [];
+      }
+    }
+
+    let parsedRangeQuantities = attributeType.rangeQuantities;
+    if (rangeQuantities !== undefined) {
+      try {
+        parsedRangeQuantities = typeof rangeQuantities === 'string'
+          ? JSON.parse(rangeQuantities)
+          : rangeQuantities;
+        if (!Array.isArray(parsedRangeQuantities)) {
+          parsedRangeQuantities = [];
+        }
+      } catch (err) {
+        console.error("Error parsing rangeQuantities:", err);
+        parsedRangeQuantities = [];
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
       }
     }
 
     // Update fields
     if (attributeName !== undefined) attributeType.attributeName = attributeName;
     if (functionType !== undefined) attributeType.functionType = functionType;
+<<<<<<< HEAD
     if (pricingBehavior !== undefined) attributeType.pricingBehavior = pricingBehavior; // ✅ CORRECT
     if (inputStyle !== undefined) attributeType.inputStyle = inputStyle;
     if (primaryEffectType !== undefined) attributeType.primaryEffectType = primaryEffectType;
@@ -477,11 +662,30 @@ export const updateAttributeType = async (req, res) => {
     } else if (effectDescription === null || effectDescription === "") {
       attributeType.effectDescription = "";
     } else {
+=======
+    if (isPricingAttribute !== undefined) attributeType.isPricingAttribute = isPricingAttribute === true || isPricingAttribute === 'true';
+    if (inputStyle !== undefined) attributeType.inputStyle = inputStyle;
+    if (isFixedQuantityNeeded !== undefined) attributeType.isFixedQuantityNeeded = isFixedQuantityNeeded === true || isFixedQuantityNeeded === 'true';
+    if (primaryEffectType !== undefined) attributeType.primaryEffectType = primaryEffectType;
+    // Always update effectDescription if it's provided (even if empty string)
+    if (effectDescription !== undefined && effectDescription !== null) {
+      attributeType.effectDescription = String(effectDescription);
+      console.log("UPDATE AttributeType - Setting effectDescription to:", attributeType.effectDescription);
+    } else if (effectDescription === null || effectDescription === "") {
+      // Explicitly set to empty string if null or empty
+      attributeType.effectDescription = "";
+      console.log("UPDATE AttributeType - Setting effectDescription to empty string");
+    } else {
+      // If not provided in update, keep existing value or set to empty string
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
       if (!attributeType.effectDescription) {
         attributeType.effectDescription = "";
       }
     }
+<<<<<<< HEAD
 
+=======
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
     if (isFilterable !== undefined) attributeType.isFilterable = isFilterable === true || isFilterable === 'true';
     if (attributeValues !== undefined) attributeType.attributeValues = parsedAttributeValues;
     if (defaultValue !== undefined) attributeType.defaultValue = defaultValue;
@@ -490,6 +694,7 @@ export const updateAttributeType = async (req, res) => {
     if (isCommonAttribute !== undefined) attributeType.isCommonAttribute = isCommonAttribute === true || isCommonAttribute === 'true';
     if (applicableCategories !== undefined) attributeType.applicableCategories = parsedCategories;
     if (applicableSubCategories !== undefined) attributeType.applicableSubCategories = parsedSubCategories;
+<<<<<<< HEAD
 
     // ✅ Update quantityConfig (nested object)
     if (!attributeType.quantityConfig) {
@@ -536,12 +741,27 @@ export const updateAttributeType = async (req, res) => {
     }
 
     await attributeType.save();
+=======
+    if (isStepQuantity !== undefined) attributeType.isStepQuantity = isStepQuantity === true || isStepQuantity === 'true';
+    if (isRangeQuantity !== undefined) attributeType.isRangeQuantity = isRangeQuantity === true || isRangeQuantity === 'true';
+    if (stepQuantities !== undefined) attributeType.stepQuantities = parsedStepQuantities;
+    if (rangeQuantities !== undefined) attributeType.rangeQuantities = parsedRangeQuantities;
+
+    await attributeType.save();
+    console.log("UPDATE AttributeType - Saved effectDescription:", attributeType.effectDescription);
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
 
     const updatedAttributeType = await AttributeType.findById(id)
       .populate('applicableCategories', 'name')
       .populate('applicableSubCategories', 'name');
 
+<<<<<<< HEAD
     // Ensure effectDescription is always returned
+=======
+    console.log("UPDATE AttributeType - Retrieved effectDescription:", updatedAttributeType?.effectDescription);
+
+    // Ensure effectDescription is always returned (convert undefined/null to empty string)
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
     const responseData = updatedAttributeType.toObject();
     if (!responseData.effectDescription) {
       responseData.effectDescription = "";
@@ -563,7 +783,11 @@ export const deleteAttributeType = async (req, res) => {
   try {
     const { id } = req.params;
     const attributeType = await AttributeType.findById(id);
+<<<<<<< HEAD
 
+=======
+    
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
     if (!attributeType) {
       return res.status(404).json({ error: "Attribute type not found" });
     }
@@ -571,14 +795,24 @@ export const deleteAttributeType = async (req, res) => {
     // Check if attribute type is being used in any products
     const Product = (await import("../models/productModal.js")).default;
     const mongoose = (await import("mongoose")).default;
+<<<<<<< HEAD
 
+=======
+    
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
     // Validate that id is a valid ObjectId
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({ error: "Invalid attribute type ID" });
     }
+<<<<<<< HEAD
 
     const attributeObjectId = new mongoose.Types.ObjectId(id);
 
+=======
+    
+    const attributeObjectId = new mongoose.Types.ObjectId(id);
+    
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
     // Find products that use this attribute type in their dynamicAttributes array
     const productsUsingAttribute = await Product.find({
       "dynamicAttributes.attributeType": attributeObjectId
@@ -592,9 +826,15 @@ export const deleteAttributeType = async (req, res) => {
     if (totalProductsCount > 0) {
       const productNames = productsUsingAttribute.slice(0, 5).map(p => p.name).join(", ");
       const moreProducts = totalProductsCount > 5 ? ` and ${totalProductsCount - 5} more` : "";
+<<<<<<< HEAD
 
       return res.status(400).json({
         error: `Cannot delete attribute type "${attributeType.attributeName}". It is being used in ${totalProductsCount} product(s): ${productNames}${moreProducts}. Please remove this attribute from all products before deleting it.`
+=======
+      
+      return res.status(400).json({ 
+        error: `Cannot delete attribute type "${attributeType.attributeName}". It is being used in ${totalProductsCount} product(s): ${productNames}${moreProducts}. Please remove this attribute from all products before deleting it.` 
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
       });
     }
 
@@ -607,6 +847,7 @@ export const deleteAttributeType = async (req, res) => {
     if (sequencesUsingAttribute.length > 0) {
       const sequenceNames = sequencesUsingAttribute.slice(0, 5).map(s => s.name).join(", ");
       const moreSequences = sequencesUsingAttribute.length > 5 ? ` and ${sequencesUsingAttribute.length - 5} more` : "";
+<<<<<<< HEAD
 
       return res.status(400).json({
         error: `Cannot delete attribute type "${attributeType.attributeName}". It is being used in ${sequencesUsingAttribute.length} production sequence(s): ${sequenceNames}${moreSequences}. Please remove this attribute from all sequences before deleting it.`
@@ -628,6 +869,11 @@ export const deleteAttributeType = async (req, res) => {
 
       return res.status(400).json({
         error: `Cannot delete attribute type "${attributeType.attributeName}". It is used in ${rulesUsingAttribute.length} attribute rule(s): ${ruleNames}${moreRules}. Please remove this attribute from all rules before deleting it.`
+=======
+      
+      return res.status(400).json({ 
+        error: `Cannot delete attribute type "${attributeType.attributeName}". It is being used in ${sequencesUsingAttribute.length} production sequence(s): ${sequenceNames}${moreSequences}. Please remove this attribute from all sequences before deleting it.` 
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
       });
     }
 

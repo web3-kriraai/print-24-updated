@@ -92,6 +92,7 @@ const ComplaintSchema = new mongoose.Schema(
     escalationLevel: {
       type: Number,
       default: 0
+<<<<<<< HEAD
     },
 
     /* =====================
@@ -144,6 +145,9 @@ const ComplaintSchema = new mongoose.Schema(
         messageId: String,
       },
     ],
+=======
+    }
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
   },
   { timestamps: true }
 );

@@ -195,6 +195,7 @@ export const sendOrderConfirmationEmail = async (userEmail, userName, orderNumbe
 };
 
 
+<<<<<<< HEAD
 
 // Send OTP email
 export const sendOtpEmail = async (userEmail, otp) => {
@@ -258,3 +259,5 @@ export const sendOtpEmail = async (userEmail, otp) => {
     return { success: false, error: error.message };
   }
 };
+=======
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6

@@ -9,14 +9,21 @@ const userSchema = new mongoose.Schema(
     mobileNumber: { type: String, required: false },
     countryCode: { type: String, required: false },
     role: { type: String, enum: ["user", "admin", "emp"], default: "user" },
+<<<<<<< HEAD
     password: { type: String, required: false }, // Optional - set later in signup flow
     userSegment: { type: mongoose.Schema.Types.ObjectId, ref: "UserSegment" },
     approvalStatus: { type: String, enum: ["pending", "approved", "rejected"], default: "pending" },
     userType: { type: String, enum: ["customer", "print partner", "corporate"], default: "customer" },
+=======
+    password: { type: String, required: true },
+    userSegment: { type: mongoose.Schema.Types.ObjectId, ref: "UserSegment" },
+    approvalStatus: { type: String, enum: ["pending", "approved", "rejected"], default: "pending" },
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
     signupIntent: {
       type: String,
       enum: ["CUSTOMER", "PRINT_PARTNER", "CORPORATE"],
       required: true
+<<<<<<< HEAD
     },
     // Email verification fields
     isEmailVerified: { type: Boolean, default: false },
@@ -100,10 +107,14 @@ const userSchema = new mongoose.Schema(
         },
       ],
     },
+=======
+    }
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
   },
   { timestamps: true }
 );
 
+<<<<<<< HEAD
 /* =====================
    INDEXES
 ====================== */
@@ -113,3 +124,6 @@ userSchema.index({ assignedHub: 1 });
 
 export const User = mongoose.model("User", userSchema);
 
+=======
+export const User = mongoose.model("User", userSchema);
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6

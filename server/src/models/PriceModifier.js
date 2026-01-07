@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import mongoose from "mongoose";
 import JSONRuleEvaluator from '../services/JSONRuleEvaluator.js';
 
@@ -100,6 +101,22 @@ const PriceModifierSchema = new mongoose.Schema({
   /* =======================
      MODIFIER TYPE & VALUE
   ======================= */
+=======
+const PriceModifierSchema = new mongoose.Schema({
+  appliesTo: {
+    type: String,
+    enum: ["GLOBAL", "ZONE", "SEGMENT", "PRODUCT", "ATTRIBUTE"],
+    required: true
+  },
+
+  geoZone: { type: mongoose.Schema.Types.ObjectId, ref: "GeoZone" },
+  userSegment: { type: mongoose.Schema.Types.ObjectId, ref: "UserSegment" },
+  product: { type: mongoose.Schema.Types.ObjectId, ref: "Product" },
+
+  attributeType: { type: mongoose.Schema.Types.ObjectId, ref: "AttributeType" },
+  attributeValue: String,
+
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
   modifierType: {
     type: String,
     enum: ["PERCENT_INC", "PERCENT_DEC", "FLAT_INC", "FLAT_DEC"],
@@ -108,6 +125,7 @@ const PriceModifierSchema = new mongoose.Schema({
 
   value: {
     type: Number,
+<<<<<<< HEAD
     required: true,
     min: 0
   },
@@ -167,11 +185,26 @@ const PriceModifierSchema = new mongoose.Schema({
     type: Boolean,
     default: true,
     index: true
+=======
+    required: true
+  },
+
+  minQuantity: Number,
+  maxQuantity: Number,
+
+  validFrom: Date,
+  validTo: Date,
+
+  isStackable: {
+    type: Boolean,
+    default: true
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
   },
 
   /** higher = stronger */
   priority: {
     type: Number,
+<<<<<<< HEAD
     default: 0,
     index: true
   },
@@ -362,4 +395,19 @@ PriceModifierSchema.methods.calculateAdjustment = function (subtotal) {
   return Math.round(adjustment * 100) / 100;  // Round to 2 decimals
 };
 
+=======
+    default: 0
+  },
+
+  isActive: {
+    type: Boolean,
+    default: true
+  },
+
+  /** Optional but VERY useful */
+  reason: String
+
+}, { timestamps: true });
+
+>>>>>>> 69f63f00eb5f95529b818f8c84c9a41f95543dc6
 export default mongoose.model("PriceModifier", PriceModifierSchema);
