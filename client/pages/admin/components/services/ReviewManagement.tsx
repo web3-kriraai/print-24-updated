@@ -355,7 +355,7 @@ const ReviewManagement: React.FC = () => {
                             <motion.div
                                 key={review._id}
                                 draggable
-                                onDragStart={(e) => handleDragStart(e, index)}
+                                onDragStart={(e) => handleDragStart(e as any, index)}
                                 onDragOver={handleDragOver}
                                 onDrop={(e) => handleDrop(e, index)}
                                 initial={{ opacity: 0, y: 20 }}
@@ -425,7 +425,7 @@ const ReviewManagement: React.FC = () => {
                                             <select
                                                 value={review.service?._id || ''}
                                                 onChange={(e) => handleUpdateSettings(review._id, {
-                                                    service: e.target.value || null as any
+                                                    service: (e.target.value || null) as any
                                                 })}
                                                 className="text-sm px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                                             >
@@ -508,7 +508,7 @@ const ReviewManagement: React.FC = () => {
                     )}
                 </div>
             </div>
-        </div >
+        </div>
     );
 };
 

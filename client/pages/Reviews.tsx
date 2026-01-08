@@ -87,7 +87,7 @@ const Reviews: React.FC = () => {
 
     // Validate form with auto-scroll
     const validationErrors: string[] = [];
-    
+
     if (!reviewForm.userName.trim()) {
       validationErrors.push("Please enter your name");
       scrollToInvalidField("userName", "userName");
@@ -189,43 +189,47 @@ const Reviews: React.FC = () => {
     : 0;
 
   return (
-    <div className="min-h-screen bg-cream-50 py-6 sm:py-12">
-      <div className="container mx-auto px-4 sm:px-6">
-        <div className="mb-6">
-          <BackButton fallbackPath="/" label="Back to Home" className="text-cream-600 hover:text-cream-900" />
+    <div className="min-h-screen bg-gradient-to-br from-[#e6f7ff] via-white to-[#ffe6f5] py-6 sm:py-8 md:py-12">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="mb-4 sm:mb-6">
+          <BackButton fallbackPath="/" label="Back to Home" className="text-[#00aeef] hover:text-[#ec008c] transition-colors" />
         </div>
-        <div className="text-center mb-8 sm:mb-12">
-          <h1 className="font-serif text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-cream-900 mb-3 sm:mb-4">
-            Customer Reviews
+        <div className="text-center mb-6 sm:mb-8 md:mb-12">
+          <span className="inline-block py-1 px-3 rounded-full bg-[#ec008c]/10 text-[#ec008c] text-xs sm:text-sm font-semibold mb-3 sm:mb-4 border border-[#ec008c]/20">
+            Customer Testimonials
+          </span>
+          <h1 className="font-serif text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-3 sm:mb-4 px-4">
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#00aeef] via-[#ec008c] to-[#00aeef] bg-300% animate-gradient">
+              Customer Reviews
+            </span>
           </h1>
-          <p className="text-sm sm:text-base text-cream-600 max-w-xl mx-auto mb-4 sm:mb-6">
+          <p className="text-sm sm:text-base text-gray-600 max-w-xl mx-auto mb-4 sm:mb-6 px-4">
             Share your experience and see what others have to say about Prints24.
           </p>
-          
+
           {/* Statistics */}
           {totalReviews > 0 && (
             <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6 mb-4 sm:mb-6">
-              <div className="bg-white px-4 py-3 sm:px-6 sm:py-4 rounded-xl shadow-md border border-cream-200">
-                <p className="text-xs sm:text-sm text-cream-600 mb-1">Total Reviews</p>
-                <p className="text-xl sm:text-2xl font-bold text-cream-900">{totalReviews}</p>
+              <div className="bg-white px-4 py-3 sm:px-6 sm:py-4 rounded-xl shadow-lg border-2 border-[#00aeef] hover:shadow-[#00aeef]/30 transition-shadow">
+                <p className="text-xs sm:text-sm text-gray-600 mb-1">Total Reviews</p>
+                <p className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-[#00aeef] to-[#0088cc] bg-clip-text text-transparent">{totalReviews}</p>
               </div>
-              <div className="bg-white px-4 py-3 sm:px-6 sm:py-4 rounded-xl shadow-md border border-cream-200">
-                <p className="text-xs sm:text-sm text-cream-600 mb-1">Average Rating</p>
+              <div className="bg-white px-4 py-3 sm:px-6 sm:py-4 rounded-xl shadow-lg border-2 border-[#ec008c] hover:shadow-[#ec008c]/30 transition-shadow">
+                <p className="text-xs sm:text-sm text-gray-600 mb-1">Average Rating</p>
                 <div className="flex items-center gap-2 justify-center">
                   <div className="flex gap-1">
                     {[1, 2, 3, 4, 5].map((star) => (
                       <Star
                         key={star}
                         size={16}
-                        className={`sm:w-5 sm:h-5 ${
-                          star <= Math.round(averageRating)
-                            ? "fill-yellow-400 text-yellow-400"
-                            : "text-cream-300"
-                        }`}
+                        className={`sm:w-5 sm:h-5 ${star <= Math.round(averageRating)
+                          ? "fill-[#ffd500] text-[#ffd500]"
+                          : "text-gray-300"
+                          }`}
                       />
                     ))}
                   </div>
-                  <span className="text-lg sm:text-xl font-bold text-cream-900">
+                  <span className="text-lg sm:text-xl font-bold bg-gradient-to-r from-[#ec008c] to-[#cc0077] bg-clip-text text-transparent">
                     {averageRating.toFixed(1)}
                   </span>
                 </div>
@@ -236,13 +240,15 @@ const Reviews: React.FC = () => {
 
         {/* Review Form */}
         <div className="max-w-2xl mx-auto mb-8 sm:mb-12">
-          <div className="bg-white p-4 sm:p-6 md:p-8 rounded-xl sm:rounded-2xl shadow-lg border border-cream-200">
-            <h2 className="font-serif text-xl sm:text-2xl font-bold text-cream-900 mb-4 sm:mb-6">
-              Write a Review
+          <div className="bg-white p-4 sm:p-6 md:p-8 rounded-xl sm:rounded-2xl shadow-xl border-2 border-[#00aeef]/20">
+            <h2 className="font-serif text-xl sm:text-2xl font-bold mb-4 sm:mb-6">
+              <span className="bg-gradient-to-r from-[#00aeef] to-[#ec008c] bg-clip-text text-transparent">
+                Write a Review
+              </span>
             </h2>
             <form onSubmit={handleSubmitReview}>
               <div className="mb-6">
-                <label className="block text-sm font-medium text-cream-900 mb-2">
+                <label className="block text-sm font-medium text-gray-900 mb-2">
                   Your Name *
                 </label>
                 <input
@@ -253,17 +259,17 @@ const Reviews: React.FC = () => {
                   onChange={(e) =>
                     setReviewForm({ ...reviewForm, userName: e.target.value })
                   }
-                  className="w-full p-4 border border-cream-300 rounded-xl focus:ring-2 focus:ring-cream-900 focus:border-transparent outline-none"
+                  className="w-full p-4 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-[#00aeef] focus:border-[#00aeef] outline-none transition-all"
                   placeholder="Enter your name"
                   required
                   disabled={isLoggedIn}
                 />
                 {isLoggedIn && (
-                  <p className="text-xs text-cream-500 mt-1">Your name is pre-filled from your account</p>
+                  <p className="text-xs text-gray-500 mt-1">Your name is pre-filled from your account</p>
                 )}
               </div>
               <div className="mb-6">
-                <label className="block text-sm font-medium text-cream-900 mb-2">
+                <label className="block text-sm font-medium text-gray-900 mb-2">
                   Rating
                 </label>
                 <div className="flex gap-2">
@@ -272,22 +278,21 @@ const Reviews: React.FC = () => {
                       key={star}
                       type="button"
                       onClick={() => setReviewForm({ ...reviewForm, rating: star })}
-                      className="focus:outline-none"
+                      className="focus:outline-none transform hover:scale-110 transition-transform"
                     >
                       <Star
                         size={24}
-                        className={`sm:w-8 sm:h-8 ${
-                          star <= reviewForm.rating
-                            ? "fill-yellow-400 text-yellow-400"
-                            : "text-cream-300"
-                        } transition-colors`}
+                        className={`sm:w-8 sm:h-8 ${star <= reviewForm.rating
+                          ? "fill-[#ffd500] text-[#ffd500]"
+                          : "text-gray-300"
+                          } transition-colors`}
                       />
                     </button>
                   ))}
                 </div>
               </div>
               <div className="mb-6">
-                <label className="block text-sm font-medium text-cream-900 mb-2">
+                <label className="block text-sm font-medium text-gray-900 mb-2">
                   Your Review *
                 </label>
                 <textarea
@@ -298,24 +303,23 @@ const Reviews: React.FC = () => {
                     setReviewForm({ ...reviewForm, comment: e.target.value })
                   }
                   rows={4}
-                  className="w-full p-4 border border-cream-300 rounded-xl focus:ring-2 focus:ring-cream-900 focus:border-transparent outline-none resize-none"
+                  className="w-full p-4 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-[#ec008c] focus:border-[#ec008c] outline-none resize-none transition-all"
                   placeholder="Share your experience..."
                   required
                 />
               </div>
               {submitMessage.type && (
-                <div className={`mb-4 p-3 rounded-lg ${
-                  submitMessage.type === "success" 
-                    ? "bg-green-50 text-green-800 border border-green-200" 
-                    : "bg-red-50 text-red-800 border border-red-200"
-                }`}>
+                <div className={`mb-4 p-3 rounded-lg ${submitMessage.type === "success"
+                  ? "bg-green-50 text-green-800 border border-green-200"
+                  : "bg-red-50 text-red-800 border border-red-200"
+                  }`}>
                   {submitMessage.text}
                 </div>
               )}
               <button
                 type="submit"
                 disabled={submittingReview}
-                className="bg-cream-900 text-cream-50 px-8 py-3 rounded-xl font-medium hover:bg-cream-800 transition-all shadow-lg hover:shadow-xl hover:-translate-y-1 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="bg-gradient-to-r from-[#00aeef] to-[#ec008c] text-white px-8 py-3 rounded-xl font-medium hover:shadow-xl hover:scale-105 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Send size={18} />
                 {submittingReview ? "Submitting..." : "Submit Review"}
@@ -326,16 +330,16 @@ const Reviews: React.FC = () => {
 
         {/* Filters */}
         <div className="max-w-6xl mx-auto mb-8">
-          <div className="bg-white p-6 rounded-2xl shadow-md border border-cream-200">
+          <div className="bg-white p-6 rounded-2xl shadow-lg border-2 border-gray-100">
             <div className="flex flex-col md:flex-row gap-4 items-center">
               <div className="flex items-center gap-2">
-                <Filter size={20} className="text-cream-600" />
-                <span className="font-medium text-cream-900">Filters:</span>
+                <Filter size={20} className="text-[#ec008c]" />
+                <span className="font-medium text-gray-900">Filters:</span>
               </div>
-              
+
               {/* Rating Filter */}
               <div className="flex items-center gap-2">
-                <label className="text-sm text-cream-700">Rating:</label>
+                <label className="text-sm text-gray-700">Rating:</label>
                 <ReviewFilterDropdown
                   label="All Ratings"
                   value={filterRating}
@@ -353,7 +357,7 @@ const Reviews: React.FC = () => {
 
               {/* Date Filter */}
               <div className="flex items-center gap-2">
-                <label className="text-sm text-cream-700">Sort by:</label>
+                <label className="text-sm text-gray-700">Sort by:</label>
                 <ReviewFilterDropdown
                   label="Newest First"
                   value={filterDate}
@@ -374,7 +378,7 @@ const Reviews: React.FC = () => {
                     setFilterRating(null);
                     setFilterDate("newest");
                   }}
-                  className="ml-auto flex items-center gap-2 px-4 py-2 text-sm text-cream-700 hover:text-cream-900 border border-cream-300 rounded-lg hover:bg-cream-50 transition-colors"
+                  className="ml-auto flex items-center gap-2 px-4 py-2 text-sm text-white bg-gradient-to-r from-[#ec008c] to-[#cc0077] rounded-lg hover:shadow-lg transition-all"
                 >
                   <X size={16} />
                   Clear Filters
@@ -387,11 +391,11 @@ const Reviews: React.FC = () => {
         {/* Reviews List */}
         {loadingReviews ? (
           <div className="text-center py-12">
-            <p className="text-cream-600">Loading reviews...</p>
+            <p className="text-gray-600">Loading reviews...</p>
           </div>
         ) : sortedReviews.length === 0 ? (
           <div className="text-center py-12">
-            <p className="text-cream-600">
+            <p className="text-gray-600">
               {filterRating
                 ? `No reviews found with ${filterRating} star rating.`
                 : "No reviews yet. Be the first to review!"}
@@ -399,21 +403,25 @@ const Reviews: React.FC = () => {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
-            {sortedReviews.map((review) => (
+            {sortedReviews.map((review, idx) => (
               <motion.div
                 key={review._id}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="bg-white p-6 rounded-2xl shadow-md border border-cream-100 hover:shadow-lg transition-shadow"
+                className={`bg-white p-6 rounded-2xl shadow-lg border-2 hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 ${idx % 3 === 0 ? 'border-[#00aeef] hover:shadow-[#00aeef]/30' :
+                  idx % 3 === 1 ? 'border-[#ec008c] hover:shadow-[#ec008c]/30' :
+                    'border-[#ffd500] hover:shadow-[#ffd500]/30'
+                  }`}
               >
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="w-12 h-12 bg-cream-200 rounded-full flex items-center justify-center">
-                    <span className="text-cream-900 font-bold text-lg">
-                      {review.userName.charAt(0).toUpperCase()}
-                    </span>
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-md ${idx % 3 === 0 ? 'bg-gradient-to-br from-[#00aeef] to-[#0088cc]' :
+                    idx % 3 === 1 ? 'bg-gradient-to-br from-[#ec008c] to-[#cc0077]' :
+                      'bg-gradient-to-br from-[#ffd500] to-[#ffbb00]'
+                    }`}>
+                    {review.userName.charAt(0).toUpperCase()}
                   </div>
                   <div>
-                    <h4 className="font-semibold text-cream-900">
+                    <h4 className="font-semibold text-gray-900">
                       {review.userName}
                     </h4>
                     <div className="flex gap-1">
@@ -424,24 +432,24 @@ const Reviews: React.FC = () => {
                           className={
                             star <= review.rating
                               ? "fill-yellow-400 text-yellow-400"
-                              : "text-cream-300"
+                              : "text-gray-300"
                           }
                         />
                       ))}
                     </div>
                   </div>
                 </div>
-                <p className="text-cream-700 leading-relaxed mb-4">
+                <p className="text-gray-700 leading-relaxed mb-4">
                   {review.comment}
                 </p>
-                <p className="text-xs text-cream-500">
-                  {!isClient 
-                    ? 'Loading...' 
+                <p className="text-xs text-gray-500">
+                  {!isClient
+                    ? 'Loading...'
                     : new Date(review.createdAt).toLocaleDateString("en-US", {
-                        year: "numeric",
-                        month: "long",
-                        day: "numeric",
-                      })
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
+                    })
                   }
                 </p>
               </motion.div>

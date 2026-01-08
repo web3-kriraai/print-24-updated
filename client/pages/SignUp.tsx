@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import BackButton from "../components/BackButton";
 import PrintPartnerForm from "../components/PrintPartnerForm";
-import { Printer, User, Mail, Lock, ArrowRight, Loader, Briefcase, Building2, Phone, X, CheckCircle, ChevronDown } from "lucide-react";
+import { Printer, User, Mail, Lock, ArrowRight, Loader, Briefcase, Building2, Phone, X, CheckCircle, ChevronDown, AlertCircle } from "lucide-react";
 import { API_BASE_URL_WITH_API } from "../lib/apiConfig";
 import { scrollToInvalidField } from "../lib/validationUtils";
 
@@ -138,7 +138,7 @@ const SignUp: React.FC = () => {
       setFilteredCountries([]);
       return;
     }
-    
+
     if (!countrySearchQuery || countrySearchQuery.trim() === "") {
       setFilteredCountries(countryCodes);
       return;
@@ -197,7 +197,7 @@ const SignUp: React.FC = () => {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    
+
     // For mobile number, only allow digits
     if (name === "mobileNo") {
       const digitsOnly = value.replace(/\D/g, "");
@@ -208,7 +208,7 @@ const SignUp: React.FC = () => {
         setFormData((prev) => ({ ...prev, [name]: digitsOnly.slice(0, 15) }));
       }
     } else {
-    setFormData((prev) => ({ ...prev, [name]: value }));
+      setFormData((prev) => ({ ...prev, [name]: value }));
     }
 
     // Clear errors when user types (for better UX)
@@ -244,7 +244,7 @@ const SignUp: React.FC = () => {
       if (!formData.firstName.trim()) newErrors.firstName = "First name is required";
       if (!formData.lastName.trim()) newErrors.lastName = "Last name is required";
       if (!formData.countryCode) newErrors.countryCode = "Country code is required";
-      
+
       // Country-specific mobile number validation
       const country = getCountryByCode(formData.countryCode, countryCodes);
       if (!formData.mobileNo.trim()) {
@@ -275,7 +275,7 @@ const SignUp: React.FC = () => {
       }
     } else {
       // For other signup types
-    if (!formData.name.trim()) newErrors.name = "Name is required";
+      if (!formData.name.trim()) newErrors.name = "Name is required";
     }
 
     // Email is optional for customer signup, but if provided, must be valid
@@ -294,13 +294,13 @@ const SignUp: React.FC = () => {
     }
 
     setErrors(newErrors);
-    
+
     // Auto-scroll to first invalid field
     if (Object.keys(newErrors).length > 0) {
       const firstErrorField = Object.keys(newErrors)[0];
       scrollToInvalidField(firstErrorField, firstErrorField);
     }
-    
+
     return Object.keys(newErrors).length === 0;
   };
 
@@ -312,7 +312,7 @@ const SignUp: React.FC = () => {
 
     try {
       const fullMobileNumber = `${formData.countryCode}${formData.mobileNo.trim()}`;
-      
+
       const response = await fetch(
         `${API_BASE_URL_WITH_API}/auth/send-otp`,
         {
@@ -343,7 +343,7 @@ const SignUp: React.FC = () => {
       setOtpSentTo(fullMobileNumber);
       setShowOtpPopup(true);
       setIsSendingOtp(false);
-      
+
       // Log OTP to console if available (for testing)
       if (data.otp) {
         console.log("=".repeat(50));
@@ -368,7 +368,7 @@ const SignUp: React.FC = () => {
 
     try {
       const fullMobileNumber = `${formData.countryCode}${formData.mobileNo.trim()}`;
-      
+
       const response = await fetch(
         `${API_BASE_URL_WITH_API}/auth/verify-otp-and-register`,
         {
@@ -406,10 +406,10 @@ const SignUp: React.FC = () => {
       localStorage.setItem("user", JSON.stringify(data.user));
       setIsVerifyingOtp(false);
       setShowOtpPopup(false);
-      
+
       // Show success popup
       setShowSuccessPopup(true);
-      
+
       // Redirect to profile after 2 seconds
       setTimeout(() => {
         navigate("/profile");
@@ -423,7 +423,7 @@ const SignUp: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // For customer signup, send OTP first
     if (selectedIntentId === "personal") {
       await sendOtp();
@@ -441,7 +441,7 @@ const SignUp: React.FC = () => {
         {
           method: "POST",
           headers: {
-          "Content-Type": "application/json",
+            "Content-Type": "application/json",
           },
           body: JSON.stringify({
             name: formData.name,
@@ -502,12 +502,12 @@ const SignUp: React.FC = () => {
       {/* Back Button */}
       <div className="absolute top-4 left-4 z-20">
         {step === 1 ? (
-           <BackButton fallbackPath="/login" label="Back to Login" className="text-cream-600 hover:text-cream-900" />
+          <BackButton fallbackPath="/login" label="Back to Login" className="text-cream-600 hover:text-cream-900" />
         ) : (
-           <button onClick={() => setStep(1)} className="flex items-center text-cream-600 hover:text-cream-900 font-medium transition-colors">
-              <ArrowRight className="h-4 w-4 mr-2 rotate-180" />
-              Back to Selection
-           </button>
+          <button onClick={() => setStep(1)} className="flex items-center text-cream-600 hover:text-cream-900 font-medium transition-colors">
+            <ArrowRight className="h-4 w-4 mr-2 rotate-180" />
+            Back to Selection
+          </button>
         )}
       </div>
 
@@ -521,9 +521,9 @@ const SignUp: React.FC = () => {
       >
         <div className="text-center">
           {step === 1 && (
-          <div className="mx-auto h-12 w-12 sm:h-16 sm:w-16 bg-cream-900 rounded-full flex items-center justify-center text-cream-50 mb-3 sm:mb-4 shadow-lg">
-            <Printer size={24} className="sm:w-8 sm:h-8" />
-          </div>
+            <div className="mx-auto h-12 w-12 sm:h-16 sm:w-16 bg-cream-900 rounded-full flex items-center justify-center text-cream-50 mb-3 sm:mb-4 shadow-lg">
+              <Printer size={24} className="sm:w-8 sm:h-8" />
+            </div>
           )}
           {step === 1 && (
             <>
@@ -548,456 +548,25 @@ const SignUp: React.FC = () => {
         </div>
 
         {step === 1 ? (
-           <div className="space-y-4 mt-8">
-             {intentOptions.map((option) => (
-                <button
-                  key={option.id}
-                  onClick={() => handleIntentSelect(option.id, option.label)}
-                  className="w-full text-left p-4 rounded-xl border border-cream-200 hover:border-cream-900 hover:bg-cream-50 transition-all group flex items-start gap-4"
-                >
-                  <div className="p-2 bg-cream-100 rounded-lg group-hover:bg-cream-200 transition-colors">
-                    <option.icon className="h-6 w-6 text-cream-900" />
-                  </div>
-                  <div>
-                    <h3 className="font-medium text-cream-900">{option.label}</h3>
-                  </div>
-                  <div className="ml-auto self-center">
-                     <ArrowRight className="h-5 w-5 text-cream-400 group-hover:text-cream-900 transition-colors" />
-                  </div>
-                </button>
-             ))}
-              <div className="text-center mt-6">
-                <p className="text-sm text-cream-600">
-                  Already have an account?{" "}
-                  <Link
-                    to="/login"
-                    className="font-bold text-cream-900 hover:text-cream-700 underline transition-colors"
-                  >
-                    Login
-                  </Link>
-                </p>
-              </div>
-           </div>
-        ) : (
-        <>
-            {/* Print Partner Form (Option 2) */}
-            {selectedIntentId === "all_business" ? (
-              <PrintPartnerForm onBack={() => setStep(1)} />
-            ) : (
-            <>
-            <form className="mt-8 space-y-4" onSubmit={handleSubmit}>
-              {/* Customer-specific fields (Option 1) */}
-              {selectedIntentId === "personal" ? (
-                <>
-                  {/* First Name and Last Name */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label
-                        htmlFor="firstName"
-                        className="block text-sm font-medium text-cream-700 mb-1"
-                      >
-                        First Name
-                      </label>
-                      <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                          <User className="h-5 w-5 text-cream-400" />
-                        </div>
-                        <input
-                          id="firstName"
-                          name="firstName"
-                          type="text"
-                          value={formData.firstName}
-                          onChange={handleChange}
-                          className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${
-                            errors.firstName
-                              ? "border-red-300 focus:ring-red-500"
-                              : "border-cream-200 focus:ring-cream-900"
-                          } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
-                          placeholder="John"
-                        />
-                      </div>
-                      {errors.firstName && (
-                        <p className="mt-1 text-xs text-red-500">{errors.firstName}</p>
-                      )}
-                    </div>
-
-                    <div>
-                      <label
-                        htmlFor="lastName"
-                        className="block text-sm font-medium text-cream-700 mb-1"
-                      >
-                        Last Name
-                      </label>
-                      <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                          <User className="h-5 w-5 text-cream-400" />
-                        </div>
-                        <input
-                          id="lastName"
-                          name="lastName"
-                          type="text"
-                          value={formData.lastName}
-                          onChange={handleChange}
-                          className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${
-                            errors.lastName
-                              ? "border-red-300 focus:ring-red-500"
-                              : "border-cream-200 focus:ring-cream-900"
-                          } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
-                          placeholder="Doe"
-                        />
-                      </div>
-                      {errors.lastName && (
-                        <p className="mt-1 text-xs text-red-500">{errors.lastName}</p>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Country Code and Mobile Number */}
-                  <div>
-                    <label
-                      htmlFor="mobileNo"
-                      className="block text-sm font-medium text-cream-700 mb-1"
-                    >
-                      Mobile Number
-                    </label>
-                    <div className="flex gap-2">
-                      {/* Country Code Dropdown */}
-                      <div className="relative" ref={countryDropdownRef}>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const isOpening = !showCountryDropdown;
-                            setShowCountryDropdown(isOpening);
-                            // When opening dropdown, populate search with selected country name if available
-                            if (isOpening && formData.countryCode && !countrySearchQuery) {
-                              const selectedCountry = getCountryByCode(formData.countryCode, countryCodes);
-                              if (selectedCountry) {
-                                setCountrySearchQuery(selectedCountry.name);
-                              }
-                            }
-                          }}
-                          className={`flex items-center gap-2 px-3 py-3 border ${
-                            errors.countryCode
-                              ? "border-red-300 focus:ring-red-500"
-                              : "border-cream-200 focus:ring-cream-900"
-                          } text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all bg-white min-w-[140px] justify-between hover:bg-cream-50`}
-                        >
-                          <span className="flex items-center gap-2">
-                            {isLoadingCountries ? (
-                              <Loader className="h-4 w-4 animate-spin text-cream-400" />
-                            ) : (
-                              <>
-                                <img
-                                  src={getCountryByCode(formData.countryCode, countryCodes)?.flagUrl || "https://flagcdn.com/w40/in.png"}
-                                  alt={getCountryByCode(formData.countryCode, countryCodes)?.name || "Country"}
-                                  className="w-6 h-4 object-cover rounded"
-                                  onError={(e) => {
-                                    const target = e.target as HTMLImageElement;
-                                    target.src = `https://flagcdn.com/w40/${getCountryByCode(formData.countryCode, countryCodes)?.country.toLowerCase() || 'in'}.png`;
-                                  }}
-                                />
-                                <span className="font-medium">
-                                  {formData.countryCode}
-                                </span>
-                              </>
-                            )}
-                          </span>
-                          <ChevronDown 
-                            className={`h-4 w-4 text-cream-400 transition-transform ${
-                              showCountryDropdown ? "rotate-180" : ""
-                            }`}
-                          />
-                        </button>
-
-                        {/* Dropdown Menu */}
-                        <AnimatePresence>
-                          {showCountryDropdown && (
-                            <>
-                              {/* Backdrop */}
-                              <div
-                                className="fixed inset-0 z-40"
-                                onClick={() => setShowCountryDropdown(false)}
-                              />
-                              <motion.div
-                                initial={{ opacity: 0, y: -10, scale: 0.95 }}
-                                animate={{ opacity: 1, y: 0, scale: 1 }}
-                                exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                                transition={{ duration: 0.2 }}
-                                className="absolute z-50 mt-1 w-72 bg-white border border-cream-200 rounded-xl shadow-2xl"
-                              >
-                                {/* Search Input */}
-                                <div className="p-2 border-b border-cream-200">
-                                  <div className="relative">
-                                    <div className="relative w-full">
-                                      <input
-                                        type="text"
-                                        placeholder="Search country or code..."
-                                        value={countrySearchQuery}
-                                        onChange={(e) => {
-                                          const value = e.target.value;
-                                          setCountrySearchQuery(value);
-                                          // Live filtering happens automatically via useEffect
-                                        }}
-                                        onKeyDown={(e) => {
-                                          // Allow Enter to trigger search
-                                          if (e.key === "Enter") {
-                                            e.preventDefault();
-                                            // Filter is already applied via useEffect, but we can ensure it's triggered
-                                          }
-                                        }}
-                                        className="w-full px-3 py-2 pl-9 pr-8 border border-cream-200 rounded-lg text-sm text-cream-900 focus:outline-none focus:ring-2 focus:ring-cream-900 transition-all"
-                                        autoFocus
-                                      />
-                                      <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-cream-400" />
-                                      {countrySearchQuery && (
-                                        <button
-                                          type="button"
-                                          onClick={() => setCountrySearchQuery("")}
-                                          className="absolute right-2 top-1/2 transform -translate-y-1/2 text-cream-400 hover:text-cream-900 transition-colors"
-                                        >
-                                          <X className="h-4 w-4" />
-                                        </button>
-                                      )}
-                                    </div>
-                                  </div>
-                                  {countrySearchQuery && filteredCountries.length > 0 && (
-                                    <p className="text-xs text-cream-500 mt-1 px-1">
-                                      {filteredCountries.length} {filteredCountries.length === 1 ? 'country' : 'countries'} found
-                                    </p>
-                                  )}
-                                </div>
-
-                                {/* Countries List */}
-                                <div className="overflow-y-auto" style={{ maxHeight: "400px" }}>
-                                  {isLoadingCountries ? (
-                                    <div className="p-8 text-center">
-                                      <Loader className="h-6 w-6 animate-spin text-cream-400 mx-auto mb-2" />
-                                      <p className="text-sm text-cream-600">Loading countries...</p>
-                                    </div>
-                                  ) : filteredCountries.length === 0 ? (
-                                    <div className="p-8 text-center">
-                                      <p className="text-sm text-cream-600">No countries found</p>
-                                    </div>
-                                  ) : (
-                                    <div className="p-2">
-                                      {filteredCountries.map((country, index) => (
-                                        <button
-                                          key={country.uniqueId || `${country.code}-${country.country}-${index}`}
-                                          type="button"
-                                          onClick={() => handleCountryCodeChange(country.code)}
-                                          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-cream-50 transition-colors text-left ${
-                                            formData.countryCode === country.code
-                                              ? "bg-cream-100 border border-cream-300"
-                                              : ""
-                                          }`}
-                                        >
-                                          <img
-                                            src={country.flagUrl}
-                                            alt={country.name}
-                                            className="w-8 h-6 object-cover rounded flex-shrink-0"
-                                            onError={(e) => {
-                                              const target = e.target as HTMLImageElement;
-                                              target.src = `https://flagcdn.com/w40/${country.country.toLowerCase()}.png`;
-                                            }}
-                                          />
-                                          <div className="flex-1 min-w-0">
-                                            <div className="font-medium text-cream-900 text-sm">
-                                              {country.name} ({country.code})
-                                            </div>
-                                          </div>
-                                          {formData.countryCode === country.code && (
-                                            <CheckCircle className="h-4 w-4 text-cream-900 flex-shrink-0" />
-                                          )}
-                                        </button>
-                                      ))}
-                                    </div>
-                                  )}
-                                </div>
-                              </motion.div>
-                            </>
-                          )}
-                        </AnimatePresence>
-                      </div>
-
-                      {/* Mobile Number Input */}
-                      <div className="relative flex-1">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                          <Phone className="h-5 w-5 text-cream-400" />
-                        </div>
-                        <input
-                          id="mobileNo"
-                          name="mobileNo"
-                          type="tel"
-                          value={formData.mobileNo}
-                          onChange={handleChange}
-                          className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${
-                            errors.mobileNo
-                              ? "border-red-300 focus:ring-red-500"
-                              : "border-cream-200 focus:ring-cream-900"
-                          } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
-                          placeholder={
-                            getCountryByCode(formData.countryCode, countryCodes)?.example || "1234567890"
-                          }
-                          maxLength={getCountryByCode(formData.countryCode, countryCodes)?.maxLength || 15}
-                        />
-                      </div>
-                    </div>
-                    {errors.mobileNo && (
-                      <p className="mt-1 text-xs text-red-500">{errors.mobileNo}</p>
-                    )}
-                    {errors.countryCode && (
-                      <p className="mt-1 text-xs text-red-500">{errors.countryCode}</p>
-                    )}
-                  </div>
-                </>
-              ) : (
-                /* Name field for other signup types */
-              <div>
-                <label
-                  htmlFor="name"
-                  className="block text-sm font-medium text-cream-700 mb-1"
-                >
-                  Full Name
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <User className="h-5 w-5 text-cream-400" />
-                  </div>
-                  <input
-                    id="name"
-                    name="name"
-                    type="text"
-                    value={formData.name}
-                    onChange={handleChange}
-                    className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${
-                      errors.name
-                        ? "border-red-300 focus:ring-red-500"
-                        : "border-cream-200 focus:ring-cream-900"
-                    } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
-                    placeholder="John Doe"
-                  />
+          <div className="space-y-4 mt-8">
+            {intentOptions.map((option) => (
+              <button
+                key={option.id}
+                onClick={() => handleIntentSelect(option.id, option.label)}
+                className="w-full text-left p-4 rounded-xl border border-cream-200 hover:border-cream-900 hover:bg-cream-50 transition-all group flex items-start gap-4"
+              >
+                <div className="p-2 bg-cream-100 rounded-lg group-hover:bg-cream-200 transition-colors">
+                  <option.icon className="h-6 w-6 text-cream-900" />
                 </div>
-                {errors.name && (
-                  <p className="mt-1 text-xs text-red-500">{errors.name}</p>
-                )}
-              </div>
-              )}
-
-              {/* Email - Optional for customer signup */}
-              <div>
-                <label
-                  htmlFor="email"
-                  className="block text-sm font-medium text-cream-700 mb-1"
-                >
-                  Email Address {selectedIntentId === "personal" && <span className="text-cream-500 text-xs">(Optional)</span>}
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Mail className="h-5 w-5 text-cream-400" />
-                  </div>
-                  <input
-                    id="email"
-                    name="email"
-                    type="email"
-                    value={formData.email}
-                    onChange={handleChange}
-                    className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${
-                      errors.email
-                        ? "border-red-300 focus:ring-red-500"
-                        : "border-cream-200 focus:ring-cream-900"
-                    } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
-                    placeholder="john@example.com"
-                  />
-                </div>
-                {errors.email && (
-                  <p className="mt-1 text-xs text-red-500">{errors.email}</p>
-                )}
-              </div>
-
-              {/* Password + Confirm */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label
-                    htmlFor="password"
-                    className="block text-sm font-medium text-cream-700 mb-1"
-                  >
-                    Password
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <Lock className="h-5 w-5 text-cream-400" />
-                    </div>
-                    <input
-                      id="password"
-                      name="password"
-                      type="password"
-                      value={formData.password}
-                      onChange={handleChange}
-                      className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${
-                        errors.password
-                          ? "border-red-300 focus:ring-red-500"
-                          : "border-cream-200 focus:ring-cream-900"
-                      } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
-                      placeholder="******"
-                    />
-                  </div>
-                  {errors.password && (
-                    <p className="mt-1 text-xs text-red-500">{errors.password}</p>
-                  )}
+                  <h3 className="font-medium text-cream-900">{option.label}</h3>
                 </div>
-
-                <div>
-                  <label
-                    htmlFor="confirmPassword"
-                    className="block text-sm font-medium text-cream-700 mb-1"
-                  >
-                    Confirm Password
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <Lock className="h-5 w-5 text-cream-400" />
-                    </div>
-                    <input
-                      id="confirmPassword"
-                      name="confirmPassword"
-                      type="password"
-                      value={formData.confirmPassword}
-                      onChange={handleChange}
-                      className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${
-                        errors.confirmPassword
-                          ? "border-red-300 focus:ring-red-500"
-                          : "border-cream-200 focus:ring-cream-900"
-                      } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
-                      placeholder="******"
-                    />
-                  </div>
-                  {errors.confirmPassword && (
-                    <p className="mt-1 text-xs text-red-500">
-                      {errors.confirmPassword}
-                    </p>
-                  )}
+                <div className="ml-auto self-center">
+                  <ArrowRight className="h-5 w-5 text-cream-400 group-hover:text-cream-900 transition-colors" />
                 </div>
-              </div>
-
-              {/* Submit Button */}
-              <div className="pt-4">
-                <button
-                  type="submit"
-                  disabled={isLoading || isSendingOtp}
-                  className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-bold rounded-xl text-cream-50 bg-cream-900 hover:bg-cream-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cream-500 transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 disabled:opacity-70 disabled:cursor-not-allowed"
-                >
-                  {isLoading || isSendingOtp ? (
-                    <Loader className="animate-spin h-5 w-5" />
-                  ) : (
-                    <>
-                      {selectedIntentId === "personal" ? "Send OTP" : "Create Account"}
-                      <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
-                    </>
-                  )}
-                </button>
-              </div>
-            </form>
-            <div className="text-center mt-4">
+              </button>
+            ))}
+            <div className="text-center mt-6">
               <p className="text-sm text-cream-600">
                 Already have an account?{" "}
                 <Link
@@ -1008,9 +577,430 @@ const SignUp: React.FC = () => {
                 </Link>
               </p>
             </div>
-            </>
+          </div>
+        ) : (
+          <>
+            {/* Print Partner Form (Option 2) */}
+            {selectedIntentId === "all_business" ? (
+              <PrintPartnerForm onBack={() => setStep(1)} />
+            ) : (
+              <>
+                <form className="mt-8 space-y-4" onSubmit={handleSubmit}>
+                  {/* Customer-specific fields (Option 1) */}
+                  {selectedIntentId === "personal" ? (
+                    <>
+                      {/* First Name and Last Name */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label
+                            htmlFor="firstName"
+                            className="block text-sm font-medium text-cream-700 mb-1"
+                          >
+                            First Name
+                          </label>
+                          <div className="relative">
+                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                              <User className="h-5 w-5 text-cream-400" />
+                            </div>
+                            <input
+                              id="firstName"
+                              name="firstName"
+                              type="text"
+                              value={formData.firstName}
+                              onChange={handleChange}
+                              className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${errors.firstName
+                                ? "border-red-300 focus:ring-red-500"
+                                : "border-cream-200 focus:ring-cream-900"
+                                } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
+                              placeholder="John"
+                            />
+                          </div>
+                          {errors.firstName && (
+                            <p className="mt-1 text-xs text-red-500">{errors.firstName}</p>
+                          )}
+                        </div>
+
+                        <div>
+                          <label
+                            htmlFor="lastName"
+                            className="block text-sm font-medium text-cream-700 mb-1"
+                          >
+                            Last Name
+                          </label>
+                          <div className="relative">
+                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                              <User className="h-5 w-5 text-cream-400" />
+                            </div>
+                            <input
+                              id="lastName"
+                              name="lastName"
+                              type="text"
+                              value={formData.lastName}
+                              onChange={handleChange}
+                              className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${errors.lastName
+                                ? "border-red-300 focus:ring-red-500"
+                                : "border-cream-200 focus:ring-cream-900"
+                                } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
+                              placeholder="Doe"
+                            />
+                          </div>
+                          {errors.lastName && (
+                            <p className="mt-1 text-xs text-red-500">{errors.lastName}</p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Country Code and Mobile Number */}
+                      <div>
+                        <label
+                          htmlFor="mobileNo"
+                          className="block text-sm font-medium text-cream-700 mb-1"
+                        >
+                          Mobile Number
+                        </label>
+                        <div className="flex gap-2">
+                          {/* Country Code Dropdown */}
+                          <div className="relative" ref={countryDropdownRef}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const isOpening = !showCountryDropdown;
+                                setShowCountryDropdown(isOpening);
+                                // When opening dropdown, populate search with selected country name if available
+                                if (isOpening && formData.countryCode && !countrySearchQuery) {
+                                  const selectedCountry = getCountryByCode(formData.countryCode, countryCodes);
+                                  if (selectedCountry) {
+                                    setCountrySearchQuery(selectedCountry.name);
+                                  }
+                                }
+                              }}
+                              className={`flex items-center gap-2 px-3 py-3 border ${errors.countryCode
+                                ? "border-red-300 focus:ring-red-500"
+                                : "border-cream-200 focus:ring-cream-900"
+                                } text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all bg-white min-w-[140px] justify-between hover:bg-cream-50`}
+                            >
+                              <span className="flex items-center gap-2">
+                                {isLoadingCountries ? (
+                                  <Loader className="h-4 w-4 animate-spin text-cream-400" />
+                                ) : (
+                                  <>
+                                    <img
+                                      src={getCountryByCode(formData.countryCode, countryCodes)?.flagUrl || "https://flagcdn.com/w40/in.png"}
+                                      alt={getCountryByCode(formData.countryCode, countryCodes)?.name || "Country"}
+                                      className="w-6 h-4 object-cover rounded"
+                                      onError={(e) => {
+                                        const target = e.target as HTMLImageElement;
+                                        target.src = `https://flagcdn.com/w40/${getCountryByCode(formData.countryCode, countryCodes)?.country.toLowerCase() || 'in'}.png`;
+                                      }}
+                                    />
+                                    <span className="font-medium">
+                                      {formData.countryCode}
+                                    </span>
+                                  </>
+                                )}
+                              </span>
+                              <ChevronDown
+                                className={`h-4 w-4 text-cream-400 transition-transform ${showCountryDropdown ? "rotate-180" : ""
+                                  }`}
+                              />
+                            </button>
+
+                            {/* Dropdown Menu */}
+                            <AnimatePresence>
+                              {showCountryDropdown && (
+                                <>
+                                  {/* Backdrop */}
+                                  <div
+                                    className="fixed inset-0 z-40"
+                                    onClick={() => setShowCountryDropdown(false)}
+                                  />
+                                  <motion.div
+                                    initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                                    exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                                    transition={{ duration: 0.2 }}
+                                    className="absolute z-50 mt-1 w-72 bg-white border border-cream-200 rounded-xl shadow-2xl"
+                                  >
+                                    {/* Search Input */}
+                                    <div className="p-2 border-b border-cream-200">
+                                      <div className="relative">
+                                        <div className="relative w-full">
+                                          <input
+                                            type="text"
+                                            placeholder="Search country or code..."
+                                            value={countrySearchQuery}
+                                            onChange={(e) => {
+                                              const value = e.target.value;
+                                              setCountrySearchQuery(value);
+                                              // Live filtering happens automatically via useEffect
+                                            }}
+                                            onKeyDown={(e) => {
+                                              // Allow Enter to trigger search
+                                              if (e.key === "Enter") {
+                                                e.preventDefault();
+                                                // Filter is already applied via useEffect, but we can ensure it's triggered
+                                              }
+                                            }}
+                                            className="w-full px-3 py-2 pl-9 pr-8 border border-cream-200 rounded-lg text-sm text-cream-900 focus:outline-none focus:ring-2 focus:ring-cream-900 transition-all"
+                                            autoFocus
+                                          />
+                                          <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-cream-400" />
+                                          {countrySearchQuery && (
+                                            <button
+                                              type="button"
+                                              onClick={() => setCountrySearchQuery("")}
+                                              className="absolute right-2 top-1/2 transform -translate-y-1/2 text-cream-400 hover:text-cream-900 transition-colors"
+                                            >
+                                              <X className="h-4 w-4" />
+                                            </button>
+                                          )}
+                                        </div>
+                                      </div>
+                                      {countrySearchQuery && filteredCountries.length > 0 && (
+                                        <p className="text-xs text-cream-500 mt-1 px-1">
+                                          {filteredCountries.length} {filteredCountries.length === 1 ? 'country' : 'countries'} found
+                                        </p>
+                                      )}
+                                    </div>
+
+                                    {/* Countries List */}
+                                    <div className="overflow-y-auto" style={{ maxHeight: "400px" }}>
+                                      {isLoadingCountries ? (
+                                        <div className="p-8 text-center">
+                                          <Loader className="h-6 w-6 animate-spin text-cream-400 mx-auto mb-2" />
+                                          <p className="text-sm text-cream-600">Loading countries...</p>
+                                        </div>
+                                      ) : filteredCountries.length === 0 ? (
+                                        <div className="p-8 text-center">
+                                          <p className="text-sm text-cream-600">No countries found</p>
+                                        </div>
+                                      ) : (
+                                        <div className="p-2">
+                                          {filteredCountries.map((country, index) => (
+                                            <button
+                                              key={country.uniqueId || `${country.code}-${country.country}-${index}`}
+                                              type="button"
+                                              onClick={() => handleCountryCodeChange(country.code)}
+                                              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-cream-50 transition-colors text-left ${formData.countryCode === country.code
+                                                ? "bg-cream-100 border border-cream-300"
+                                                : ""
+                                                }`}
+                                            >
+                                              <img
+                                                src={country.flagUrl}
+                                                alt={country.name}
+                                                className="w-8 h-6 object-cover rounded flex-shrink-0"
+                                                onError={(e) => {
+                                                  const target = e.target as HTMLImageElement;
+                                                  target.src = `https://flagcdn.com/w40/${country.country.toLowerCase()}.png`;
+                                                }}
+                                              />
+                                              <div className="flex-1 min-w-0">
+                                                <div className="font-medium text-cream-900 text-sm">
+                                                  {country.name} ({country.code})
+                                                </div>
+                                              </div>
+                                              {formData.countryCode === country.code && (
+                                                <CheckCircle className="h-4 w-4 text-cream-900 flex-shrink-0" />
+                                              )}
+                                            </button>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </motion.div>
+                                </>
+                              )}
+                            </AnimatePresence>
+                          </div>
+
+                          {/* Mobile Number Input */}
+                          <div className="relative flex-1">
+                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                              <Phone className="h-5 w-5 text-cream-400" />
+                            </div>
+                            <input
+                              id="mobileNo"
+                              name="mobileNo"
+                              type="tel"
+                              value={formData.mobileNo}
+                              onChange={handleChange}
+                              className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${errors.mobileNo
+                                ? "border-red-300 focus:ring-red-500"
+                                : "border-cream-200 focus:ring-cream-900"
+                                } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
+                              placeholder={
+                                getCountryByCode(formData.countryCode, countryCodes)?.example || "1234567890"
+                              }
+                              maxLength={getCountryByCode(formData.countryCode, countryCodes)?.maxLength || 15}
+                            />
+                          </div>
+                        </div>
+                        {errors.mobileNo && (
+                          <p className="mt-1 text-xs text-red-500">{errors.mobileNo}</p>
+                        )}
+                        {errors.countryCode && (
+                          <p className="mt-1 text-xs text-red-500">{errors.countryCode}</p>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    /* Name field for other signup types */
+                    <div>
+                      <label
+                        htmlFor="name"
+                        className="block text-sm font-medium text-cream-700 mb-1"
+                      >
+                        Full Name
+                      </label>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                          <User className="h-5 w-5 text-cream-400" />
+                        </div>
+                        <input
+                          id="name"
+                          name="name"
+                          type="text"
+                          value={formData.name}
+                          onChange={handleChange}
+                          className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${errors.name
+                            ? "border-red-300 focus:ring-red-500"
+                            : "border-cream-200 focus:ring-cream-900"
+                            } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
+                          placeholder="John Doe"
+                        />
+                      </div>
+                      {errors.name && (
+                        <p className="mt-1 text-xs text-red-500">{errors.name}</p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Email - Optional for customer signup */}
+                  <div>
+                    <label
+                      htmlFor="email"
+                      className="block text-sm font-medium text-cream-700 mb-1"
+                    >
+                      Email Address {selectedIntentId === "personal" && <span className="text-cream-500 text-xs">(Optional)</span>}
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <Mail className="h-5 w-5 text-cream-400" />
+                      </div>
+                      <input
+                        id="email"
+                        name="email"
+                        type="email"
+                        value={formData.email}
+                        onChange={handleChange}
+                        className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${errors.email
+                          ? "border-red-300 focus:ring-red-500"
+                          : "border-cream-200 focus:ring-cream-900"
+                          } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
+                        placeholder="john@example.com"
+                      />
+                    </div>
+                    {errors.email && (
+                      <p className="mt-1 text-xs text-red-500">{errors.email}</p>
+                    )}
+                  </div>
+
+                  {/* Password + Confirm */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label
+                        htmlFor="password"
+                        className="block text-sm font-medium text-cream-700 mb-1"
+                      >
+                        Password
+                      </label>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                          <Lock className="h-5 w-5 text-cream-400" />
+                        </div>
+                        <input
+                          id="password"
+                          name="password"
+                          type="password"
+                          value={formData.password}
+                          onChange={handleChange}
+                          className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${errors.password
+                            ? "border-red-300 focus:ring-red-500"
+                            : "border-cream-200 focus:ring-cream-900"
+                            } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
+                          placeholder="******"
+                        />
+                      </div>
+                      {errors.password && (
+                        <p className="mt-1 text-xs text-red-500">{errors.password}</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <label
+                        htmlFor="confirmPassword"
+                        className="block text-sm font-medium text-cream-700 mb-1"
+                      >
+                        Confirm Password
+                      </label>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                          <Lock className="h-5 w-5 text-cream-400" />
+                        </div>
+                        <input
+                          id="confirmPassword"
+                          name="confirmPassword"
+                          type="password"
+                          value={formData.confirmPassword}
+                          onChange={handleChange}
+                          className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${errors.confirmPassword
+                            ? "border-red-300 focus:ring-red-500"
+                            : "border-cream-200 focus:ring-cream-900"
+                            } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
+                          placeholder="******"
+                        />
+                      </div>
+                      {errors.confirmPassword && (
+                        <p className="mt-1 text-xs text-red-500">
+                          {errors.confirmPassword}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Submit Button */}
+                  <div className="pt-4">
+                    <button
+                      type="submit"
+                      disabled={isLoading || isSendingOtp}
+                      className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-bold rounded-xl text-cream-50 bg-cream-900 hover:bg-cream-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cream-500 transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 disabled:opacity-70 disabled:cursor-not-allowed"
+                    >
+                      {isLoading || isSendingOtp ? (
+                        <Loader className="animate-spin h-5 w-5" />
+                      ) : (
+                        <>
+                          {selectedIntentId === "personal" ? "Send OTP" : "Create Account"}
+                          <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </form>
+                <div className="text-center mt-4">
+                  <p className="text-sm text-cream-600">
+                    Already have an account?{" "}
+                    <Link
+                      to="/login"
+                      className="font-bold text-cream-900 hover:text-cream-700 underline transition-colors"
+                    >
+                      Login
+                    </Link>
+                  </p>
+                </div>
+              </>
             )}
-        </>
+          </>
         )}
       </motion.div>
 
@@ -1060,7 +1050,7 @@ const SignUp: React.FC = () => {
                 <p className="text-xs text-cream-500 mb-6">
                   Please enter the code below to complete your registration
                 </p>
-                
+
                 {/* OTP Input - Production Ready */}
                 <div className="mb-6">
                   <label
@@ -1083,11 +1073,10 @@ const SignUp: React.FC = () => {
                       }}
                       placeholder="------"
                       maxLength={6}
-                      className={`appearance-none relative block w-full px-4 py-4 border-2 ${
-                        otpError
-                          ? "border-red-300 focus:ring-red-500 focus:border-red-500"
-                          : "border-cream-200 focus:ring-cream-900 focus:border-cream-900"
-                      } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-2 text-center text-3xl font-bold tracking-[0.5em] sm:text-4xl transition-all bg-cream-50`}
+                      className={`appearance-none relative block w-full px-4 py-4 border-2 ${otpError
+                        ? "border-red-300 focus:ring-red-500 focus:border-red-500"
+                        : "border-cream-200 focus:ring-cream-900 focus:border-cream-900"
+                        } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-2 text-center text-3xl font-bold tracking-[0.5em] sm:text-4xl transition-all bg-cream-50`}
                       autoFocus
                       autoComplete="one-time-code"
                     />
