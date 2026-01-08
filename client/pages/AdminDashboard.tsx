@@ -54,6 +54,7 @@ import ProductAvailabilityManager from "../components/admin/pricing/ProductAvail
 import SmartViewMatrix from "../src/components/admin/SmartViewMatrix";
 import ConflictDetectionModal from "../src/components/admin/ConflictDetectionModal";
 import VirtualModifierRuleBuilder from "../src/components/admin/ModifierRuleBuilder";
+import PricingPreviewPanel from "../components/pricing/PricingPreviewPanel";
 import { motion, AnimatePresence } from "framer-motion";
 import { ReviewFilterDropdown } from "../components/ReviewFilterDropdown";
 import RichTextEditor from "../components/RichTextEditor";
@@ -79,8 +80,9 @@ interface Category {
 interface Product {
   _id: string;
   name: string;
+
   description: string;
-  basePrice: number;
+
   category?: string | { _id: string; name: string };
   subcategory?: string | {
     _id: string;
@@ -5141,7 +5143,6 @@ const AdminDashboard: React.FC = () => {
         name: product.name || "",
         description: descriptionText,
         descriptionArray: product.descriptionArray || [],
-        basePrice: product.basePrice?.toString() || "",
         category: categoryId || "",
         subcategory: product.subcategory && typeof product.subcategory === "object" && product.subcategory._id
           ? product.subcategory._id
@@ -5427,7 +5428,6 @@ const AdminDashboard: React.FC = () => {
       name: "",
       description: "",
       descriptionArray: [],
-      basePrice: "",
       category: "",
       subcategory: "",
       image: null,
@@ -6719,7 +6719,6 @@ const AdminDashboard: React.FC = () => {
                       // Check all fields that are marked with (*) in the form
                       const requiredFields = [
                         { value: productForm.name?.trim(), label: 'Product Name' },
-                        { value: productForm.basePrice, label: 'Base Price' },
                         { value: productForm.category || productForm.subcategory, label: 'Category/Subcategory' },
                         { value: productForm.gstPercentage, label: 'GST %' },
                         { value: productForm.instructions?.trim(), label: 'Instructions' },
@@ -6736,7 +6735,6 @@ const AdminDashboard: React.FC = () => {
                       width: `${(() => {
                         const requiredFields = [
                           productForm.name?.trim(),
-                          productForm.basePrice,
                           productForm.category || productForm.subcategory,
                           productForm.gstPercentage,
                           productForm.instructions?.trim(),
@@ -6756,7 +6754,7 @@ const AdminDashboard: React.FC = () => {
                 </h3>
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-cream-900 mb-2 flex items-center gap-2">
+                    <label className="text-sm font-medium text-cream-900 mb-2 flex items-center gap-2">
                       Product Name *
                       <div className="group relative">
                         <Info size={14} className="text-cream-500 cursor-help" />
@@ -6797,7 +6795,7 @@ const AdminDashboard: React.FC = () => {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-cream-900 mb-2 flex items-center gap-2">
+                    <label className="text-sm font-medium text-cream-900 mb-2 flex items-center gap-2">
                       Description
                       <div className="group relative">
                         <Info size={14} className="text-cream-500 cursor-help" />
@@ -6831,7 +6829,7 @@ const AdminDashboard: React.FC = () => {
 
                   {/* Product Image Upload */}
                   <div>
-                    <label className="block text-sm font-medium text-cream-900 mb-2 flex items-center gap-2">
+                    <label className="text-sm font-medium text-cream-900 mb-2 flex items-center gap-2">
                       Product Image
                       <div className="group relative">
                         <Info size={14} className="text-cream-500 cursor-help" />
@@ -7290,10 +7288,10 @@ const AdminDashboard: React.FC = () => {
                   Pricing & Category
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                  <div className="col-span-2">
+                  <div className="col-span-2">
                     <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4">
                       <div className="flex items-start gap-3">
-                        <DollarSign className="w-6 h-6 text-blue-600 mt-0.5 flex-shrink-0" />
+                        <DollarSign className="w-6 h-6 text-blue-600 mt-0.5 shrink-0" />
                         <div className="flex-1">
                           <h4 className="font-semibold text-blue-900 mb-1 flex items-center gap-2">
                             💰 Dynamic Pricing Enabled
@@ -7713,9 +7711,6 @@ const AdminDashboard: React.FC = () => {
                                   <div className="flex-1 min-w-0">
                                     <p className="font-medium text-cream-900 text-sm truncate">
                                       {product.name}
-                                    </p>
-                                    <p className="text-xs text-cream-600">
-                                      ₹{product.basePrice} per unit
                                     </p>
                                   </div>
                                 </div>
@@ -8758,7 +8753,7 @@ const AdminDashboard: React.FC = () => {
               {showCreateAttributeModal && (
                 <div
                   data-modal="true"
-                  className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4"
+                  className="fixed inset-0 bg-black/50 flex items-center justify-center z-100 p-4"
                   onClick={(e) => {
                     if (e.target === e.currentTarget) {
                       setShowCreateAttributeModal(false);
@@ -9364,7 +9359,7 @@ const AdminDashboard: React.FC = () => {
                                                 }
                                               }
                                             }}
-                                            className="w-full px-2 py-2.5 border border-cream-200 rounded text-sm text-sm"
+                                            className="w-full px-2 py-2.5 border border-cream-200 rounded text-sm"
                                           />
                                           {option.image && (
                                             <div className="mt-2">
@@ -11331,9 +11326,7 @@ const AdminDashboard: React.FC = () => {
                                 Type: {categoryType}
                               </p>
                             )}
-                            <p className="text-sm text-cream-500 font-medium">
-                              ₹{product.basePrice}
-                            </p>
+
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
@@ -11883,11 +11876,6 @@ const AdminDashboard: React.FC = () => {
                                     <p className="text-xs text-cream-600 line-clamp-1">
                                       {product.description || "No description"}
                                     </p>
-                                    <div className="flex items-center gap-2 mt-1">
-                                      <p className="text-xs text-cream-700 font-medium">
-                                        ₹{product.basePrice || 0}
-                                      </p>
-                                    </div>
                                   </div>
                                 </div>
                                 <button
@@ -12626,7 +12614,7 @@ const AdminDashboard: React.FC = () => {
                                             }
                                           }
                                         }}
-                                        className="w-full px-2 py-2.5 border border-cream-200 rounded text-sm text-sm"
+                                        className="w-full px-2 py-2.5 border border-cream-200 rounded text-sm"
                                       />
                                       {option.image && (
                                         <div className="mt-2">
@@ -15146,10 +15134,10 @@ const AdminDashboard: React.FC = () => {
           {activeTab === "product-availability" && <ProductAvailabilityManager />}
           {activeTab === "pricing-preview" && <PricingPreviewPanel />}
           {activeTab === "pricing-logs" && <PricingAuditLog />}
-          
+
           {/* Virtual Pricing Tabs (Day 3-4) */}
           {activeTab === "virtual-pricing" && <SmartViewMatrix />}
-          {activeTab === "virtual-modifiers" && <VirtualModifierRuleBuilder />}
+          {activeTab === "virtual-modifiers" && <VirtualModifierRuleBuilder onChange={(rules: any) => console.log('Rules updated:', rules)} />}
         </div>
       </div>
 
@@ -15368,7 +15356,7 @@ const AdminDashboard: React.FC = () => {
                   const orderForCalc: OrderForCalculation = {
                     quantity: selectedOrder.quantity,
                     product: {
-                      basePrice: selectedOrder.product.basePrice || 0,
+                      basePrice: 0,
                       gstPercentage: selectedOrder.product.gstPercentage || 18,
                       options: selectedOrder.product.options,
                       filters: selectedOrder.product.filters,
@@ -15402,7 +15390,7 @@ const AdminDashboard: React.FC = () => {
                           <div className="text-cream-600">
                             <span>
                               Base Price ({selectedOrder.quantity.toLocaleString()} ×{' '}
-                              {formatCurrency(selectedOrder.product.basePrice || 0)})
+                              {formatCurrency(0)})
                             </span>
                           </div>
                           <span className="font-medium text-cream-900">{formatCurrency(calculations.rawBaseTotal)}</span>
@@ -15438,7 +15426,7 @@ const AdminDashboard: React.FC = () => {
                               .filter(attr => attr.priceAdd > 0 || (attr.priceMultiplier && attr.priceMultiplier !== 1))
                               .map((attr, idx) => {
                                 // Calculate price impact for this attribute
-                                const basePrice = selectedOrder.product.basePrice || 0;
+                                const basePrice = 0;
                                 let attributeCost = 0;
                                 let pricePerUnit = 0;
                                 if (attr.priceAdd > 0) {
@@ -15636,7 +15624,7 @@ const AdminDashboard: React.FC = () => {
 
                           return (
                             <div key={idx} className="flex items-start gap-3 p-3 bg-white rounded-lg border border-blue-100">
-                              <div className={`w-4 h-4 rounded-full mt-0.5 flex-shrink-0 ${status === "completed" ? "bg-green-500" :
+                              <div className={`w-4 h-4 rounded-full mt-0.5 shrink-0 ${status === "completed" ? "bg-green-500" :
                                 status === "in_progress" ? "bg-blue-500 animate-pulse" :
                                   status === "paused" ? "bg-yellow-500" :
                                     status === "stopped" ? "bg-red-500" :
@@ -15724,7 +15712,7 @@ const AdminDashboard: React.FC = () => {
 
                 {/* Production Timeline - Activity Log */}
                 {selectedOrder.productionTimeline && selectedOrder.productionTimeline.length > 0 && (
-                  <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-lg p-4 border border-purple-200">
+                  <div className="bg-linear-to-br from-purple-50 to-indigo-50 rounded-lg p-4 border border-purple-200">
                     <h3 className="font-bold text-purple-900 mb-3 flex items-center gap-2">
                       <Clock size={18} />
                       Production Activity Timeline
@@ -15755,7 +15743,7 @@ const AdminDashboard: React.FC = () => {
                               key={idx}
                               className="flex items-start gap-3 p-3 bg-white rounded-lg border border-purple-100 shadow-sm hover:shadow-md transition-shadow"
                             >
-                              <div className={`w-2 h-2 rounded-full mt-2 flex-shrink-0 ${timelineItem.action === "completed" ? "bg-green-500" :
+                              <div className={`w-2 h-2 rounded-full mt-2 shrink-0 ${timelineItem.action === "completed" ? "bg-green-500" :
                                 timelineItem.action === "started" ? "bg-blue-500" :
                                   timelineItem.action === "paused" ? "bg-yellow-500" :
                                     timelineItem.action === "stopped" ? "bg-red-500" :
@@ -15820,7 +15808,7 @@ const AdminDashboard: React.FC = () => {
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ duration: 0.4 }}
-                    className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-lg p-6 border border-blue-200"
+                    className="bg-linear-to-br from-blue-50 to-cyan-50 rounded-lg p-6 border border-blue-200"
                   >
                     <h3 className="font-bold text-blue-900 mb-4 flex items-center gap-2 text-lg">
                       <ImageIcon size={20} />

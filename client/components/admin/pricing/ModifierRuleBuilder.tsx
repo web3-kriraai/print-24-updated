@@ -17,7 +17,7 @@ import { Plus, X, Save, AlertCircle } from 'lucide-react';
 
 interface PriceModifier {
     _id?: string;
-    appliesTo: 'GLOBAL' | 'ZONE' | 'SEGMENT' | 'PRODUCT' | 'ATTRIBUTE';
+    appliesTo: 'GLOBAL' | 'ZONE' | 'SEGMENT' | 'PRODUCT' | 'ATTRIBUTE' | 'COMBINATION';
     modifierType: 'PERCENT_INC' | 'PERCENT_DEC' | 'FLAT_INC' | ' FLAT_DEC';
     value: number;
     geoZone?: string;
@@ -33,7 +33,43 @@ interface PriceModifier {
     isActive: boolean;
     isStackable: boolean;
     reason: string;
+    conditions?: any; // For COMBINATION rules
 }
+
+interface ConditionRow {
+    id: string;
+    field: string;
+    operator: string;
+    value: string;
+}
+
+const AVAILABLE_FIELDS = [
+    { value: 'geo_zone', label: 'Geo Zone', type: 'select', optionsSrc: 'zones' },
+    { value: 'user_segment', label: 'User Segment', type: 'select', optionsSrc: 'segments' },
+    { value: 'category', label: 'Product Category', type: 'text' },
+    { value: 'product_id', label: 'Specific Product', type: 'select', optionsSrc: 'products' },
+    { value: 'quantity', label: 'Cart Quantity', type: 'number' },
+    { value: 'order_value', label: 'Order Value', type: 'number' },
+    {
+        value: 'day_of_week', label: 'Day of Week (0-6)', type: 'select', options: [
+            { value: '0', label: 'Sunday' },
+            { value: '1', label: 'Monday' },
+            { value: '5', label: 'Friday' },
+            { value: '6', label: 'Saturday' }
+        ]
+    },
+];
+
+const OPERATORS = [
+    { value: 'EQUALS', label: 'Equals (=)' },
+    { value: 'NOT_EQUALS', label: 'Not Equals (!=)' },
+    { value: 'GT', label: 'Greater Than (>)' },
+    { value: 'LT', label: 'Less Than (<)' },
+    { value: 'GTE', label: 'Greater/Equal (>=)' },
+    { value: 'LTE', label: 'Less/Equal (<=)' },
+    { value: 'IN', label: 'In List (comma separated)' },
+    { value: 'CONTAINS', label: 'Contains Text' },
+];
 
 interface GeoZone {
     _id: string;
@@ -67,6 +103,9 @@ export const ModifierRuleBuilder: React.FC = () => {
     const [userSegments, setUserSegments] = useState<UserSegment[]>([]);
     const [products, setProducts] = useState<Product[]>([]);
     const [attributeTypes, setAttributeTypes] = useState<AttributeType[]>([]);
+
+    // Rule Builder State
+    const [ruleRows, setRuleRows] = useState<ConditionRow[]>([]);
 
     // Form state
     const [formData, setFormData] = useState<Partial<PriceModifier>>({
@@ -161,7 +200,9 @@ export const ModifierRuleBuilder: React.FC = () => {
                     isActive: true,
                     isStackable: true,
                     reason: '',
+                    conditions: null
                 });
+                setRuleRows([]); // Reset rules
             }
         } catch (error) {
             console.error('Failed to save modifier:', error);
@@ -194,7 +235,90 @@ export const ModifierRuleBuilder: React.FC = () => {
             validFrom: modifier.validFrom ? new Date(modifier.validFrom).toISOString().split('T')[0] : undefined,
             validTo: modifier.validTo ? new Date(modifier.validTo).toISOString().split('T')[0] : undefined,
         });
+
+        // Parse existing conditions into rows
+        if (modifier.appliesTo === 'COMBINATION' && modifier.conditions) {
+            const rows: ConditionRow[] = [];
+
+            // Helper to process a condition node
+            const processNode = (node: any) => {
+                if (node.AND) {
+                    node.AND.forEach((child: any) => processNode(child));
+                } else if (node.field) {
+                    rows.push({
+                        id: Math.random().toString(36).substr(2, 9),
+                        field: node.field,
+                        operator: node.operator,
+                        value: Array.isArray(node.value) ? node.value.join(',') : String(node.value)
+                    });
+                }
+            };
+
+            processNode(modifier.conditions);
+            if (rows.length === 0) {
+                // Default empty row
+                rows.push({ id: '1', field: 'geo_zone', operator: 'EQUALS', value: '' });
+            }
+            setRuleRows(rows);
+        } else {
+            setRuleRows([]);
+        }
+
         setShowCreateModal(true);
+    };
+
+    // Rule Builder Handlers
+    const addRuleRow = () => {
+        setRuleRows([...ruleRows, {
+            id: Math.random().toString(36).substr(2, 9),
+            field: 'geo_zone',
+            operator: 'EQUALS',
+            value: ''
+        }]);
+    };
+
+    const removeRuleRow = (id: string) => {
+        setRuleRows(ruleRows.filter(r => r.id !== id));
+    };
+
+    const updateRuleRow = (id: string, field: keyof ConditionRow, val: string) => {
+        const newRows = ruleRows.map(r => r.id === id ? { ...r, [field]: val } : r);
+        setRuleRows(newRows);
+
+        // Update formData.conditions automatically
+        updateConditionsJson(newRows);
+    };
+
+    const updateConditionsJson = (rows: ConditionRow[]) => {
+        if (rows.length === 0) {
+            setFormData(prev => ({ ...prev, conditions: null }));
+            return;
+        }
+
+        const conditions = rows.map(r => {
+            let val: any = r.value;
+            // Type conversion based on operator/field could happen here
+            // For now, keep as string or array for IN
+            if (r.operator === 'IN') {
+                val = r.value.split(',').map(s => s.trim());
+            } else if (!isNaN(Number(r.value)) && r.value !== '') {
+                val = Number(r.value);
+            }
+
+            return {
+                field: r.field,
+                operator: r.operator,
+                value: val
+            };
+        });
+
+        // Wrap in AND if multiple, or just returned as single/AND structure
+        // Backend JSONRuleEvaluator handles implicit top-level or explicit AND
+        // Let's use explicit AND for consistency
+        setFormData(prev => ({
+            ...prev,
+            conditions: { AND: conditions }
+        }));
     };
 
     const getScopeColor = (scope: string) => {
@@ -235,7 +359,9 @@ export const ModifierRuleBuilder: React.FC = () => {
                             isActive: true,
                             isStackable: true,
                             reason: '',
+                            conditions: null
                         });
+                        setRuleRows([{ id: '1', field: 'geo_zone', operator: 'EQUALS', value: '' }]);
                         setShowCreateModal(true);
                     }}
                     className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
@@ -365,6 +491,7 @@ export const ModifierRuleBuilder: React.FC = () => {
                                     <option value="SEGMENT">User Segment</option>
                                     <option value="PRODUCT">Specific Product</option>
                                     <option value="ATTRIBUTE">Product Attribute</option>
+                                    <option value="COMBINATION">Combination Rule (Advanced)</option>
                                 </select>
                             </div>
 
@@ -464,6 +591,95 @@ export const ModifierRuleBuilder: React.FC = () => {
                                         </p>
                                     </div>
                                 </>
+                            )}
+
+                            {formData.appliesTo === 'COMBINATION' && (
+                                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Rule Conditions (ALL must match)
+                                    </label>
+
+                                    <div className="space-y-3">
+                                        {ruleRows.map((row) => (
+                                            <div key={row.id} className="flex gap-2 items-start">
+                                                <select
+                                                    value={row.field}
+                                                    onChange={(e) => updateRuleRow(row.id, 'field', e.target.value)}
+                                                    className="flex-1 px-2 py-1.5 border border-gray-300 rounded text-sm"
+                                                >
+                                                    {AVAILABLE_FIELDS.map(f => (
+                                                        <option key={f.value} value={f.value}>{f.label}</option>
+                                                    ))}
+                                                </select>
+
+                                                <select
+                                                    value={row.operator}
+                                                    onChange={(e) => updateRuleRow(row.id, 'operator', e.target.value)}
+                                                    className="w-32 px-2 py-1.5 border border-gray-300 rounded text-sm"
+                                                >
+                                                    {OPERATORS.map(op => (
+                                                        <option key={op.value} value={op.value}>{op.label}</option>
+                                                    ))}
+                                                </select>
+
+                                                {/* Dynamic Input based on field type? For now simpler text/select */}
+                                                <div className="flex-1">
+                                                    {AVAILABLE_FIELDS.find(f => f.value === row.field)?.optionsSrc === 'zones' ? (
+                                                        <select
+                                                            value={row.value}
+                                                            onChange={(e) => updateRuleRow(row.id, 'value', e.target.value)}
+                                                            className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"
+                                                        >
+                                                            <option value="">Select Zone</option>
+                                                            {geoZones.map(z => <option key={z._id} value={z._id}>{z.name}</option>)}
+                                                        </select>
+                                                    ) : AVAILABLE_FIELDS.find(f => f.value === row.field)?.optionsSrc === 'segments' ? (
+                                                        <select
+                                                            value={row.value}
+                                                            onChange={(e) => updateRuleRow(row.id, 'value', e.target.value)}
+                                                            className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"
+                                                        >
+                                                            <option value="">Select Segment</option>
+                                                            {userSegments.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}
+                                                        </select>
+                                                    ) : AVAILABLE_FIELDS.find(f => f.value === row.field)?.optionsSrc === 'products' ? (
+                                                        <select
+                                                            value={row.value}
+                                                            onChange={(e) => updateRuleRow(row.id, 'value', e.target.value)}
+                                                            className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"
+                                                        >
+                                                            <option value="">Select Product</option>
+                                                            {products.map(p => <option key={p._id} value={p._id}>{p.name}</option>)}
+                                                        </select>
+                                                    ) : (
+                                                        <input
+                                                            type="text"
+                                                            value={row.value}
+                                                            onChange={(e) => updateRuleRow(row.id, 'value', e.target.value)}
+                                                            placeholder="Value"
+                                                            className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"
+                                                        />
+                                                    )}
+                                                </div>
+
+                                                <button
+                                                    onClick={() => removeRuleRow(row.id)}
+                                                    className="p-1.5 text-red-500 hover:bg-red-50 rounded"
+                                                    title="Remove Condition"
+                                                >
+                                                    <X className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    <button
+                                        onClick={addRuleRow}
+                                        className="mt-3 text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                                    >
+                                        <Plus className="w-3 h-3" /> Add Condition
+                                    </button>
+                                </div>
                             )}
 
                             {/* Modifier Type */}
@@ -589,7 +805,7 @@ export const ModifierRuleBuilder: React.FC = () => {
                             {/* Stacking Controls - Enhanced */}
                             <div className="stacking-controls space-y-4 bg-gray-50 p-4 rounded-lg">
                                 <h4 className="text-sm font-semibold text-gray-700 mb-3">Modifier Behavior</h4>
-                                
+
                                 <label className="flex items-start gap-3 cursor-pointer p-3 bg-white rounded-lg border-2 border-gray-200 hover:border-blue-300 transition-colors">
                                     <input
                                         type="checkbox"
@@ -609,8 +825,8 @@ export const ModifierRuleBuilder: React.FC = () => {
                                         checked={formData.isStackable}
                                         onChange={(e) => {
                                             const isStackable = e.target.checked;
-                                            setFormData({ 
-                                                ...formData, 
+                                            setFormData({
+                                                ...formData,
                                                 isStackable,
                                                 // If enabling stackable, disable exclusive (they're mutually exclusive)
                                             });

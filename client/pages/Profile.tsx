@@ -948,7 +948,8 @@ const Profile: React.FC = () => {
     window.scrollTo(0, 0);
   };
 
-  const getInitials = (name: string) => {
+  const getInitials = (name: string | undefined | null) => {
+    if (!name) return "U";
     return name
       .split(" ")
       .map((word) => word[0])
@@ -957,7 +958,7 @@ const Profile: React.FC = () => {
       .slice(0, 2);
   };
 
-  const getRandomColor = (name: string) => {
+  const getRandomColor = (name: string | undefined | null) => {
     const colors = [
       "bg-blue-500",
       "bg-green-500",
@@ -966,6 +967,7 @@ const Profile: React.FC = () => {
       "bg-orange-500",
       "bg-teal-500",
     ];
+    if (!name) return colors[0];
     const index = name.length % colors.length;
     return colors[index];
   };
@@ -1156,7 +1158,7 @@ const Profile: React.FC = () => {
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
                 <h1 className="text-3xl font-bold text-slate-900">
-                  Hello, {userData.name.split(" ")[0]}.
+                  Hello, {(userData.name || "User").split(" ")[0]}.
                 </h1>
                 <p className="text-slate-500 mt-2">
                   Here's what's going on in your account.
@@ -1188,7 +1190,7 @@ const Profile: React.FC = () => {
                   <span className="text-sm font-medium text-slate-600 group-hover:text-slate-900">
                     Account Status
                   </span>
-                  <span className="text-lg font-bold text-slate-900 text-green-600 group-hover:text-green-700 flex items-center gap-1">
+                  <span className="text-lg font-bold text-green-600 group-hover:text-green-700 flex items-center gap-1">
                     Active <CheckCircle className="w-5 h-5" />
                   </span>
                 </div>
@@ -1248,7 +1250,7 @@ const Profile: React.FC = () => {
 
               if (latestDelivery) {
                 return (
-                  <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl border border-green-200 p-6">
+                  <div className="bg-linear-to-br from-green-50 to-emerald-50 rounded-xl border border-green-200 p-6">
                     <div className="flex items-center gap-3 mb-4">
                       <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center">
                         <Truck className="w-5 h-5 text-white" />
@@ -1521,7 +1523,7 @@ const Profile: React.FC = () => {
                           placeholder="Enter new email"
                           autoFocus
                         />
-                        <div className="flex items-center gap-2 flex-shrink-0 w-full sm:w-auto">
+                        <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
                           <button
                             type="button"
                             onClick={() => {
@@ -1772,7 +1774,7 @@ const Profile: React.FC = () => {
                               <img
                                 src={countryFlagUrl}
                                 alt={countryName || "Country flag"}
-                                className="w-6 h-4 object-cover rounded flex-shrink-0"
+                                className="w-6 h-4 object-cover rounded shrink-0"
                                 onError={(e) => {
                                   const target = e.target as HTMLImageElement;
                                   // Fallback to MapPin icon if flag fails to load

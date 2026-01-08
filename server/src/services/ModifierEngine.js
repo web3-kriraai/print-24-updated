@@ -131,13 +131,51 @@ export default class ModifierEngine {
         const stackableModifiers = modifiers.filter(m => m.isStackable);
         const exclusiveModifiers = modifiers.filter(m => !m.isStackable);
 
-        const appliedModifiers = [];
-        let totalAdjustment = 0;
+        let modifiersToApply = [...stackableModifiers];
 
-        // Apply all stackable modifiers
-        for (const modifier of stackableModifiers) {
+        // Apply best exclusive modifier (highest absolute adjustment based on baseAmount)
+        // Note: For exclusive selection, we still compare against baseAmount to determine "best"
+        // This is a design choice: Pre-calculate potential values to pick winner.
+        if (exclusiveModifiers.length > 0) {
+            let bestExclusiveModifier = null;
+            let bestExclusiveAdjustment = 0;
+
+            for (const modifier of exclusiveModifiers) {
+                const modifierDoc = new PriceModifier(modifier);
+                // Calculate conceptual adjustment on baseAmount to determine "strength"
+                const adjustment = modifierDoc.calculateAdjustment(baseAmount);
+
+                if (Math.abs(adjustment) > Math.abs(bestExclusiveAdjustment)) {
+                    bestExclusiveAdjustment = adjustment;
+                    bestExclusiveModifier = modifier;
+                }
+            }
+
+            if (bestExclusiveModifier) {
+                modifiersToApply.push(bestExclusiveModifier);
+            }
+        }
+
+        // Sort by priority (Ascending relative to application? Or Descending?)
+        // Admin VPB Service sorts by (a.priority - b.priority) -> Ascending (0, 10, 20...)
+        // ModifierEngine fetched with sort({ priority: -1 }) -> Descending (30, 20, 10...)
+        // To match Admin calculation ORDER (10%, 30%, -50% => Priority 30, 20, 10?), 
+        // If Admin sorts ASC, then Low Priority applies first.
+        // If Model says "higher = stronger", usually that means Higher Priority OVERRIDES lower, or applies LAST?
+        // Let's assume we want to apply in ASCENDING priority order for stability (Base -> Mod -> Stronger Mod).
+        // Or if the Admin screenshot example (10% -> 30% -> -50%) implied a specific order.
+        // Let's sort ASCENDING for application loop.
+
+        modifiersToApply.sort((a, b) => (a.priority || 0) - (b.priority || 0));
+
+        const appliedModifiers = [];
+        let currentAmount = baseAmount;
+
+        for (const modifier of modifiersToApply) {
             const modifierDoc = new PriceModifier(modifier);
-            const adjustment = modifierDoc.calculateAdjustment(baseAmount);
+
+            // Compounding: Calculate adjustment based on CURRENT amount
+            const adjustment = modifierDoc.calculateAdjustment(currentAmount);
 
             appliedModifiers.push({
                 _id: modifier._id,
@@ -147,46 +185,16 @@ export default class ModifierEngine {
                 value: modifier.value,
                 applied: adjustment,
                 appliesOn,
-                stackable: true
+                stackable: modifier.isStackable !== false,
+                beforeAmount: currentAmount,
+                afterAmount: currentAmount + adjustment
             });
 
-            totalAdjustment += adjustment;
-        }
-
-        // Apply best exclusive modifier (highest absolute adjustment)
-        if (exclusiveModifiers.length > 0) {
-            let bestExclusiveModifier = null;
-            let bestExclusiveAdjustment = 0;
-
-            for (const modifier of exclusiveModifiers) {
-                const modifierDoc = new PriceModifier(modifier);
-                const adjustment = modifierDoc.calculateAdjustment(baseAmount);
-
-                // Choose modifier with highest absolute value
-                if (Math.abs(adjustment) > Math.abs(bestExclusiveAdjustment)) {
-                    bestExclusiveAdjustment = adjustment;
-                    bestExclusiveModifier = modifier;
-                }
-            }
-
-            if (bestExclusiveModifier) {
-                appliedModifiers.push({
-                    _id: bestExclusiveModifier._id,
-                    name: bestExclusiveModifier.name || `${bestExclusiveModifier.appliesTo} ${bestExclusiveModifier.modifierType}`,
-                    code: bestExclusiveModifier.code,
-                    type: bestExclusiveModifier.modifierType,
-                    value: bestExclusiveModifier.value,
-                    applied: bestExclusiveAdjustment,
-                    appliesOn,
-                    stackable: false
-                });
-
-                totalAdjustment += bestExclusiveAdjustment;
-            }
+            currentAmount += adjustment;
         }
 
         return {
-            adjustment: totalAdjustment,
+            adjustment: currentAmount - baseAmount,
             modifiers: appliedModifiers
         };
     }

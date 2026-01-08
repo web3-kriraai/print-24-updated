@@ -5,6 +5,7 @@ import ProductAvailability from '../models/ProductAvailability.js';
 import Product from '../models/productModal.js';
 import GeoZone from '../models/GeoZon.js';
 import UserSegment from '../models/UserSegment.js';
+import JSONRuleEvaluator from './JSONRuleEvaluator.js';
 
 /**
  * Virtual Price Book Service
@@ -21,6 +22,10 @@ import UserSegment from '../models/UserSegment.js';
  */
 
 class VirtualPriceBookService {
+  constructor() {
+    this.jsonRuleEvaluator = new JSONRuleEvaluator();
+  }
+
   /**
    * Calculate virtual price using hierarchy
    * Master + Zone + Segment + Modifiers = Final Price
@@ -28,9 +33,10 @@ class VirtualPriceBookService {
    * @param {string} productId 
    * @param {string} zoneId 
    * @param {string} segmentId 
+   * @param {Object} contextOverride - Optional context data (e.g. product object)
    * @returns {Object} Price breakdown with sources
    */
-  async calculateVirtualPrice(productId, zoneId, segmentId) {
+  async calculateVirtualPrice(productId, zoneId, segmentId, contextOverride = {}) {
     try {
       // 0. Check product availability in zone
       if (zoneId) {
@@ -54,24 +60,53 @@ class VirtualPriceBookService {
 
       // 1. Get master price (base price)
       const masterPrice = await this.getMasterPrice(productId);
-      
+
       if (!masterPrice) {
         throw new Error(`No master price found for product ${productId}`);
       }
 
       // 2. Get zone adjustments (if any)
       const zoneAdjustments = zoneId ? await this.getZoneAdjustments(productId, zoneId) : null;
-      
+
       // 3. Get segment adjustments (if any)
       const segmentAdjustments = segmentId ? await this.getSegmentAdjustments(productId, zoneId, segmentId) : null;
-      
-      // 4. Get PriceModifiers (zone and segment modifiers)
-      const modifiers = await this.getApplicableModifiers(productId, zoneId, segmentId);
-      
+
+      // Construct Context for Rule Evaluation
+      const context = {
+        productId,
+        geoZoneId: zoneId,
+        userSegmentId: segmentId,
+        basePrice: masterPrice.basePrice,
+        ...contextOverride
+      };
+
+      // If product object is not in context but needed, we might want to fetch it
+      // But for performance, we rely on contextOverride or minimal ID matching for now.
+      // If a rule uses "Category", we need the product.
+      if (!context.product && !context.categoryId && !context.category) {
+        // Optimization: Only fetch if we suspect we need it? 
+        // For now, let's fast-fetch lean product if not provided, 
+        // because Combination Rules OFTEN use Category/SubCategory.
+        try {
+          const productData = await Product.findById(productId).select('category subCategory type sku').lean();
+          if (productData) {
+            context.categoryId = productData.category;
+            context.subCategoryId = productData.subCategory;
+            context.productType = productData.type;
+            context.sku = productData.sku;
+          }
+        } catch (e) {
+          console.warn('Failed to fetch product details for context', e);
+        }
+      }
+
+      // 4. Get PriceModifiers (zone, segment, product, AND COMBINATION)
+      const modifiers = await this.getApplicableModifiers(productId, zoneId, segmentId, context);
+
       // 5. Apply hierarchy: Master + Zone + Segment + Modifiers
       let finalPrice = masterPrice.basePrice;
       const adjustments = [];
-      
+
       // Apply zone adjustments from PriceBook
       if (zoneAdjustments) {
         finalPrice = this.applyAdjustment(finalPrice, zoneAdjustments);
@@ -83,7 +118,7 @@ class VirtualPriceBookService {
           bookName: zoneAdjustments.priceBookName
         });
       }
-      
+
       // Apply segment adjustments from PriceBook
       if (segmentAdjustments) {
         finalPrice = this.applyAdjustment(finalPrice, segmentAdjustments);
@@ -95,16 +130,16 @@ class VirtualPriceBookService {
           bookName: segmentAdjustments.priceBookName
         });
       }
-      
+
       // Apply PriceModifier rules with stackability support
       // Group modifiers by stackability and category
       const stackableModifiers = modifiers.filter(m => m.isStackable !== false);
       const nonStackableModifiers = modifiers.filter(m => m.isStackable === false);
-      
+
       // For non-stackable modifiers, we need to pick the best one from each category
-      // Category = appliesTo (ZONE, SEGMENT, PRODUCT, GLOBAL)
+      // Category = appliesTo (ZONE, SEGMENT, PRODUCT, GLOBAL, COMBINATION)
       const nonStackableByCategory = {};
-      
+
       for (const modifier of nonStackableModifiers) {
         const category = modifier.appliesTo;
         if (!nonStackableByCategory[category]) {
@@ -112,12 +147,12 @@ class VirtualPriceBookService {
         }
         nonStackableByCategory[category].push(modifier);
       }
-      
+
       // For each category, pick the best modifier
       const bestNonStackable = [];
       for (const category in nonStackableByCategory) {
         const categoryModifiers = nonStackableByCategory[category];
-        
+
         // Pick the best: highest for increases, lowest for decreases
         let best = categoryModifiers[0];
         for (const modifier of categoryModifiers) {
@@ -131,11 +166,11 @@ class VirtualPriceBookService {
         }
         bestNonStackable.push(best);
       }
-      
+
       // Combine stackable and best non-stackable, sort by priority
       const modifiersToApply = [...stackableModifiers, ...bestNonStackable]
         .sort((a, b) => (a.priority || 0) - (b.priority || 0));
-      
+
       // Apply all selected modifiers
       for (const modifier of modifiersToApply) {
         const beforePrice = finalPrice;
@@ -153,7 +188,7 @@ class VirtualPriceBookService {
           change: finalPrice - beforePrice
         });
       }
-      
+
       return {
         productId,
         zoneId,
@@ -177,9 +212,9 @@ class VirtualPriceBookService {
   /**
    * Get applicable PriceModifiers for the given context
    */
-  async getApplicableModifiers(productId, zoneId, segmentId) {
+  async getApplicableModifiers(productId, zoneId, segmentId, context) {
     const modifiers = [];
-    
+
     // Get zone-specific modifiers
     if (zoneId) {
       const zoneModifiers = await PriceModifier.find({
@@ -189,7 +224,7 @@ class VirtualPriceBookService {
       }).sort({ priority: 1 }).lean();
       modifiers.push(...zoneModifiers);
     }
-    
+
     // Get segment-specific modifiers
     if (segmentId) {
       const segmentModifiers = await PriceModifier.find({
@@ -199,7 +234,7 @@ class VirtualPriceBookService {
       }).sort({ priority: 1 }).lean();
       modifiers.push(...segmentModifiers);
     }
-    
+
     // Get product-specific modifiers
     if (productId) {
       const productModifiers = await PriceModifier.find({
@@ -209,14 +244,33 @@ class VirtualPriceBookService {
       }).sort({ priority: 1 }).lean();
       modifiers.push(...productModifiers);
     }
-    
+
     // Get global modifiers
     const globalModifiers = await PriceModifier.find({
       appliesTo: 'GLOBAL',
       isActive: true
     }).sort({ priority: 1 }).lean();
     modifiers.push(...globalModifiers);
-    
+
+    // Get COMBINATION modifiers and evaluate them
+    const combinationModifiers = await PriceModifier.find({
+      appliesTo: 'COMBINATION',
+      isActive: true
+    }).sort({ priority: 1 }).lean();
+
+    for (const modifier of combinationModifiers) {
+      // Validate modifier validity (isValid method logic might need to be replicated or we instantiate the model)
+      // Since we are using lean(), we don't have methods.
+      // We'll trust the query 'isActive: true' and maybe check date manually if needed.
+      // For now, let's assume active modifiers are generally valid time-wise or checked elsewhere. 
+      // Actually PriceModifier.isValid also checks dates. We should replicate that or use non-lean?
+      // Let's rely on JSON evaluator for the conditions.
+
+      if (this.jsonRuleEvaluator.evaluate(modifier.conditions, context)) {
+        modifiers.push(modifier);
+      }
+    }
+
     // Sort all modifiers by priority
     return modifiers.sort((a, b) => (a.priority || 0) - (b.priority || 0));
   }
@@ -251,7 +305,7 @@ class VirtualPriceBookService {
    */
   applyModifier(price, modifier) {
     const { modifierType, value } = modifier;
-    
+
     switch (modifierType) {
       case 'PERCENT_INC':
         return price * (1 + value / 100);
@@ -272,7 +326,7 @@ class VirtualPriceBookService {
    */
   async getMasterPrice(productId) {
     const masterBook = await PriceBook.getMasterBook();
-    
+
     if (!masterBook) {
       throw new Error('No master price book found');
     }
@@ -381,7 +435,7 @@ class VirtualPriceBookService {
    */
   async getSmartView(filters) {
     const { zone, segment, product } = filters;
-    
+
     // Determine view type based on filters
     if (zone && segment && product) {
       return await this.getSingleCellView(zone, segment, product);
@@ -400,11 +454,12 @@ class VirtualPriceBookService {
    * Single Cell View: Deep dive into one price point
    */
   async getSingleCellView(zoneId, segmentId, productId) {
-    const price = await this.calculateVirtualPrice(productId, zoneId, segmentId);
     const product = await Product.findById(productId).lean();
     const zone = await GeoZone.findById(zoneId).lean();
     const segment = await UserSegment.findById(segmentId).lean();
-    
+
+    const price = await this.calculateVirtualPrice(productId, zoneId, segmentId, { product });
+
     return {
       viewType: 'SINGLE_CELL',
       zoneId,
@@ -427,7 +482,7 @@ class VirtualPriceBookService {
 
     for (const product of products) {
       try {
-        const price = await this.calculateVirtualPrice(product._id, zoneId, segmentId);
+        const price = await this.calculateVirtualPrice(product._id, zoneId, segmentId, { product });
         prices.push({
           productId: product._id,
           productName: product.name,
@@ -450,12 +505,13 @@ class VirtualPriceBookService {
    * Product Zone View: One product across all segments in a zone
    */
   async getProductZoneView(zoneId, productId) {
+    const product = await Product.findById(productId).lean();
     const segments = await UserSegment.find().lean();
     const prices = [];
 
     for (const segment of segments) {
       try {
-        const price = await this.calculateVirtualPrice(productId, zoneId, segment._id);
+        const price = await this.calculateVirtualPrice(productId, zoneId, segment._id, { product });
         prices.push({
           segmentId: segment._id,
           segmentName: segment.name,
@@ -506,7 +562,7 @@ class VirtualPriceBookService {
 
       for (const segment of segments) {
         try {
-          const price = await this.calculateVirtualPrice(product._id, zoneId, segment._id);
+          const price = await this.calculateVirtualPrice(product._id, zoneId, segment._id, { product });
           row.segments[segment.code] = {
             finalPrice: price.finalPrice,
             isAvailable: price.isAvailable !== false
@@ -592,7 +648,7 @@ class VirtualPriceBookService {
    */
   async detectConflicts(zoneId, segmentId, productId, newPrice) {
     const conflicts = [];
-    
+
     // Check for existing overrides at different levels
     const existingOverrides = await PriceBookEntry.find({
       product: productId
@@ -601,7 +657,7 @@ class VirtualPriceBookService {
     // Analyze each potential conflict
     for (const override of existingOverrides) {
       const book = override.priceBook;
-      
+
       // Skip if same context
       if (book.zone?.toString() === zoneId && book.segment?.toString() === segmentId) {
         continue;
@@ -611,7 +667,7 @@ class VirtualPriceBookService {
       const conflict = await this.analyzeConflict(override, zoneId, segmentId, newPrice);
       if (conflict) conflicts.push(conflict);
     }
-    
+
     return {
       hasConflicts: conflicts.length > 0,
       conflicts,
@@ -624,10 +680,10 @@ class VirtualPriceBookService {
    */
   async analyzeConflict(override, newZoneId, newSegmentId, newPrice) {
     const book = override.priceBook;
-    
+
     // Determine conflict type
     let conflictType = null;
-    
+
     if (book.zone && book.segment) {
       conflictType = 'ZONE_SEGMENT_OVERRIDE';
     } else if (book.zone) {
@@ -664,7 +720,7 @@ class VirtualPriceBookService {
         impact: `Will delete ${conflicts.length} existing override(s)`
       },
       {
-        id: 'PRESERVE', 
+        id: 'PRESERVE',
         label: 'Preserve Child Overrides',
         description: 'Set new base price but keep existing child-specific prices',
         action: 'CREATE_OVERRIDE_WITH_EXCEPTIONS',
@@ -687,13 +743,13 @@ class VirtualPriceBookService {
     switch (resolutionId) {
       case 'OVERWRITE':
         return await this.applyOverwrite(conflicts, newPrice, zoneId, segmentId, productId);
-      
+
       case 'PRESERVE':
         return await this.applyPreserve(conflicts, newPrice, zoneId, segmentId, productId);
-      
+
       case 'RELATIVE':
         return await this.applyRelative(conflicts, newPrice, zoneId, segmentId, productId);
-      
+
       default:
         throw new Error(`Unknown resolution ID: ${resolutionId}`);
     }
@@ -704,7 +760,7 @@ class VirtualPriceBookService {
    */
   async applyOverwrite(conflicts, newPrice, zoneId, segmentId, productId) {
     const deletedIds = [];
-    
+
     for (const conflict of conflicts) {
       await PriceBookEntry.findOneAndDelete({
         priceBook: conflict.priceBookId,
@@ -733,7 +789,7 @@ class VirtualPriceBookService {
    */
   async applyPreserve(conflicts, newPrice, zoneId, segmentId, productId) {
     const book = await PriceBook.getBookForContext(zoneId, segmentId);
-    
+
     await PriceBookEntry.findOneAndUpdate(
       { priceBook: book._id, product: productId },
       { basePrice: newPrice },

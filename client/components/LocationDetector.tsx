@@ -217,7 +217,7 @@ export const LocationDetector: React.FC<LocationDetectorProps> = ({
     }
 
     return (
-        <div className="location-detector bg-gradient-to-r from-blue-50 to-green-50 rounded-lg p-4 border border-gray-200">
+        <div className="location-detector bg-linear-to-r from-blue-50 to-green-50 rounded-lg p-4 border border-gray-200">
             {/* Header */}
             <div className="flex items-center gap-2 mb-3">
                 <MapPin className="w-5 h-5 text-blue-600" />
