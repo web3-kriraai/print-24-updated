@@ -186,23 +186,29 @@ class UserContextService {
         try {
             if (!pincode) return null;
 
-            // Use the GeoZoneMapping service to resolve
-            // This matches the pincode to the correct geographic zone
+            console.log(`🔍 Resolving GeoZone for pincode: ${pincode}`);
+
+            // Convert pincode to number for range comparison
+            const pincodeNum = parseInt(pincode);
+
+            if (isNaN(pincodeNum)) {
+                console.log(`❌ Invalid pincode format: ${pincode}`);
+                return null;
+            }
+
+            // Query by pincode RANGE (pincodeStart to pincodeEnd)
             const geoZoneMapping = await GeoZoneMapping.findOne({
-                pincode: pincode,
+                pincodeStart: { $lte: pincodeNum },
+                pincodeEnd: { $gte: pincodeNum }
             }).populate("geoZone").lean();
 
             if (geoZoneMapping?.geoZone) {
+                console.log(`✅ Found GeoZone: ${geoZoneMapping.geoZone.name} (${geoZoneMapping.pincodeStart}-${geoZoneMapping.pincodeEnd})`);
                 return geoZoneMapping.geoZone;
             }
 
-            // Try pattern matching (e.g., 560* matches 560001, 560034, etc.)
-            const pincodePrefix = pincode.substring(0, 3);
-            const patternMapping = await GeoZoneMapping.findOne({
-                pincode: new RegExp(`^${pincodePrefix}`),
-            }).populate("geoZone").lean();
-
-            return patternMapping?.geoZone || null;
+            console.log(`⚠️ No GeoZone mapping found for pincode: ${pincode}`);
+            return null;
         } catch (error) {
             console.error("Error resolving geo zone:", error);
             return null;

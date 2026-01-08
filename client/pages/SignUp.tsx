@@ -144,7 +144,7 @@ const SignUp: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-cream-50 via-white to-cream-100 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-linear-to-br from-cream-50 via-white to-cream-100 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto">
         {/* Back Button */}
         {step !== 'role-selection' && step !== 'success' && (
@@ -229,8 +229,8 @@ const SignUp: React.FC = () => {
                           setErrors({});
                         }}
                         className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${errors.email
-                            ? "border-red-300 focus:ring-red-500 focus:border-red-500"
-                            : "border-cream-200 focus:ring-cream-900 focus:border-cream-900"
+                          ? "border-red-300 focus:ring-red-500 focus:border-red-500"
+                          : "border-cream-200 focus:ring-cream-900 focus:border-cream-900"
                           } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
                         placeholder="your@email.com"
                         autoFocus
@@ -311,8 +311,8 @@ const SignUp: React.FC = () => {
                           setErrors({});
                         }}
                         className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${errors.password
-                            ? "border-red-300 focus:ring-red-500 focus:border-red-500"
-                            : "border-cream-200 focus:ring-cream-900 focus:border-cream-900"
+                          ? "border-red-300 focus:ring-red-500 focus:border-red-500"
+                          : "border-cream-200 focus:ring-cream-900 focus:border-cream-900"
                           } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
                         placeholder="Enter password"
                       />
@@ -338,8 +338,8 @@ const SignUp: React.FC = () => {
                           setErrors({});
                         }}
                         className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${errors.confirmPassword
-                            ? "border-red-300 focus:ring-red-500 focus:border-red-500"
-                            : "border-cream-200 focus:ring-cream-900 focus:border-cream-900"
+                          ? "border-red-300 focus:ring-red-500 focus:border-red-500"
+                          : "border-cream-200 focus:ring-cream-900 focus:border-cream-900"
                           } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
                         placeholder="Confirm password"
                       />

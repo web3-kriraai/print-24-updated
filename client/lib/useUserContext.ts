@@ -65,6 +65,20 @@ export function useUserContext(): UseUserContextReturn {
             // Get auth token if exists
             const token = localStorage.getItem('token');
 
+            // CRITICAL FIX: Get pincode from localStorage (saved by LocationDetector)
+            const storedLocation = localStorage.getItem('userLocation');
+            let pincode: string | null = null;
+
+            if (storedLocation) {
+                try {
+                    const locationData = JSON.parse(storedLocation);
+                    pincode = locationData.pincode;
+                    console.log('📍 Using pincode from LocationDetector:', pincode);
+                } catch (e) {
+                    console.warn('Failed to parse stored location:', e);
+                }
+            }
+
             const headers: HeadersInit = {
                 'Content-Type': 'application/json',
             };
@@ -73,10 +87,17 @@ export function useUserContext(): UseUserContextReturn {
                 headers['Authorization'] = `Bearer ${token}`;
             }
 
-            const response = await fetch(`${API_BASE_URL}/api/user/context`, {
-                method: 'GET',
+            // Send pincode in request if we have it from GPS/manual detection
+            const requestOptions: RequestInit = {
+                method: pincode ? 'POST' : 'GET',
                 headers,
-            });
+            };
+
+            if (pincode) {
+                requestOptions.body = JSON.stringify({ pincode });
+            }
+
+            const response = await fetch(`${API_BASE_URL}/api/user/context`, requestOptions);
 
             if (!response.ok) {
                 throw new Error(`Failed to fetch user context: ${response.status}`);

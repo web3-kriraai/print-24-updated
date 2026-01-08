@@ -16,7 +16,11 @@ const router = express.Router();
 // GET /api/user/context - Get complete user context
 // Works for both guest and authenticated users
 // Automatically detects location from IP if not provided
+// GET /api/user/context - Get complete user context
 router.get('/context', optionalAuthMiddleware, pricingContextMiddleware, getUserContext);
+
+// POST /api/user/context - Get context with pincode from request body
+router.post('/context', optionalAuthMiddleware, pricingContextMiddleware, getUserContext);
 
 // POST /api/user/update-location - Update user's location preference
 // Body: { pincode: "560001", lat?: number, lng?: number }

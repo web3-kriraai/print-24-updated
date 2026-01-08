@@ -7,6 +7,7 @@ import { API_BASE_URL_WITH_API as API_BASE_URL } from '../lib/apiConfig';
 import BackButton from '../components/BackButton';
 import { applyAttributeRules, type AttributeRule, type Attribute } from '../utils/attributeRuleEngine';
 import ProductPriceBox from '../components/ProductPriceBox';
+import LocationDetector from '../components/LocationDetector';
 
 interface SubCategory {
   _id: string;
@@ -3028,7 +3029,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
               className="sticky top-4 mb-4 p-4 bg-red-50 border-2 border-red-300 rounded-lg flex items-start gap-3 text-red-700 shadow-lg z-50"
               role="alert"
             >
-              <AlertCircle size={20} className="flex-shrink-0 mt-0.5 text-red-600" />
+              <AlertCircle size={20} className="shrink-0 mt-0.5 text-red-600" />
               <div className="flex-1">
                 <p className="font-semibold mb-1 text-red-900">Please complete the required fields:</p>
                 <ul className="text-sm whitespace-pre-wrap font-sans list-disc list-inside space-y-1">
@@ -3039,7 +3040,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
               </div>
               <button
                 onClick={() => setValidationError(null)}
-                className="flex-shrink-0 text-red-500 hover:text-red-700 transition-colors"
+                className="shrink-0 text-red-500 hover:text-red-700 transition-colors"
                 aria-label="Close error message"
               >
                 <X size={18} />
@@ -3168,6 +3169,19 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                         </div>
                       </div>
 
+                      {/* Location Detection for Dynamic Pricing */}
+                      <div className="mb-4">
+                        <LocationDetector
+                          onLocationDetected={(location) => {
+                            console.log('📍 Location detected for pricing:', location);
+                            // Location is automatically saved to localStorage
+                            // ProductPriceBox will use it via useUserContext
+                          }}
+                          showUI={true}
+                          autoDetect={true}
+                        />
+                      </div>
+
                       {/* Dynamic Pricing Component */}
                       <ProductPriceBox
                         productId={selectedProduct._id}
@@ -3228,7 +3242,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                 <div className="w-full p-4 sm:p-5 rounded-xl border-2 border-cream-200 hover:border-cream-900 text-left transition-all duration-200 hover:bg-cream-50 group">
                                   <div className="flex items-start gap-4">
                                     {/* Subcategory Image */}
-                                    <div className="flex-shrink-0 w-20 sm:w-24 h-20 sm:h-24 rounded-lg overflow-hidden bg-cream-100 border border-cream-200">
+                                    <div className="shrink-0 w-20 sm:w-24 h-20 sm:h-24 rounded-lg overflow-hidden bg-cream-100 border border-cream-200">
                                       <img
                                         src={imageUrl}
                                         alt={nestedSubCategory.name}
@@ -3242,7 +3256,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                         <h3 className="font-serif text-base sm:text-lg font-bold text-cream-900 group-hover:text-cream-600 transition-colors flex-1">
                                           {nestedSubCategory.name}
                                         </h3>
-                                        <ArrowRight size={18} className="text-cream-400 group-hover:text-cream-600 group-hover:translate-x-1 transition-all flex-shrink-0" />
+                                        <ArrowRight size={18} className="text-cream-400 group-hover:text-cream-600 group-hover:translate-x-1 transition-all shrink-0" />
                                       </div>
 
                                       {nestedSubCategory.description && (
@@ -3319,7 +3333,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                     <h3 className="font-serif text-base sm:text-lg font-bold text-cream-900 group-hover:text-cream-600 transition-colors flex-1">
                                       {product.name}
                                     </h3>
-                                    <div className="text-right flex-shrink-0">
+                                    <div className="text-right shrink-0">
                                       <div className="text-lg sm:text-xl font-bold text-cream-900">
                                         ₹{displayPrice}
                                       </div>
@@ -4876,7 +4890,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
                 {paymentError && (
                   <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 flex items-start gap-2">
-                    <AlertCircle size={20} className="text-red-600 flex-shrink-0 mt-0.5" />
+                    <AlertCircle size={20} className="text-red-600 shrink-0 mt-0.5" />
                     <p className="text-sm text-red-800">{paymentError}</p>
                   </div>
                 )}
@@ -5136,7 +5150,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
               onClick={(e) => e.stopPropagation()}
             >
               {/* Modal Header */}
-              <div className="px-6 py-4 border-b border-cream-200 bg-gradient-to-r from-cream-50 to-cream-100 flex items-center justify-between">
+              <div className="px-6 py-4 border-b border-cream-200 bg-linear-to-r from-cream-50 to-cream-100 flex items-center justify-between">
                 <div>
                   <h2 className="text-xl font-bold text-cream-900">
                     Select {radioModalData.attributeName}
@@ -5233,7 +5247,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                         )}
 
                         {av.image && (
-                          <div className="mb-1.5 overflow-hidden rounded border border-cream-200 bg-cream-50 flex-shrink-0">
+                          <div className="mb-1.5 overflow-hidden rounded border border-cream-200 bg-cream-50 shrink-0">
                             <img
                               src={av.image}
                               alt={av.label}
@@ -5309,7 +5323,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
               onClick={(e) => e.stopPropagation()}
             >
               {/* Header */}
-              <div className="px-6 py-4 border-b border-cream-200 bg-gradient-to-r from-cream-50 to-cream-100 flex items-center justify-between">
+              <div className="px-6 py-4 border-b border-cream-200 bg-linear-to-r from-cream-50 to-cream-100 flex items-center justify-between">
                 <div>
                   <h2 className="text-lg font-bold text-cream-900">
                     Select {subAttrModalData.parentLabel} Option
@@ -5371,7 +5385,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                         )}
 
                         {subAttr.image && (
-                          <div className="mb-1.5 overflow-hidden rounded border border-cream-200 bg-cream-50 flex-shrink-0">
+                          <div className="mb-1.5 overflow-hidden rounded border border-cream-200 bg-cream-50 shrink-0">
                             <img
                               src={subAttr.image}
                               alt={subAttr.label}

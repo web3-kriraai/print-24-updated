@@ -265,7 +265,15 @@ PriceModifierSchema.methods.isValid = function () {
 
   // Check date range (if specified)
   if (this.validFrom && this.validFrom > now) return false;
-  if (this.validTo && this.validTo < now) return false;
+
+  if (this.validTo) {
+    // Extend expiry to end of the validTo day (23:59:59.999 UTC)
+    // This handles cases where validTo is stored as midnight (00:00:00)
+    const expiryDate = new Date(this.validTo);
+    expiryDate.setUTCHours(23, 59, 59, 999);
+
+    if (expiryDate < now) return false;
+  }
 
   // Check usage limits
   if (this.maxUses && this.usedCount >= this.maxUses) return false;
@@ -277,60 +285,94 @@ PriceModifierSchema.methods.isValid = function () {
  * Check if modifier matches given context
  */
 PriceModifierSchema.methods.matchesContext = function (context) {
+  // Debug log for specific product (Laser Pen)
+  const isTargetProduct = this.product && context.productId && this.product.toString() === context.productId.toString();
+
+  if (isTargetProduct) {
+    console.log(`\n🔍 Checking Modifier: "${this.name}" for Product...`);
+  }
+
   // Check validity first
-  if (!this.isValid()) return false;
+  if (!this.isValid()) {
+    if (isTargetProduct) console.log(`   ❌ isValid() returned FALSE. Active: ${this.isActive}, ValidFrom: ${this.validFrom}, ValidTo: ${this.validTo}`);
+    return false;
+  }
 
   // Check min order value
   if (this.minOrderValue && context.subtotal < this.minOrderValue) {
+    if (isTargetProduct) console.log(`   ❌ Min Order Value match failed: ${context.subtotal} < ${this.minOrderValue}`);
     return false;
   }
 
   // Check quantity constraints
-  if (this.minQuantity && context.quantity < this.minQuantity) return false;
+  if (this.minQuantity && context.quantity < this.minQuantity) {
+    if (isTargetProduct) console.log(`   ❌ Min Quantity match failed: ${context.quantity} < ${this.minQuantity}`);
+    return false;
+  }
   if (this.maxQuantity && context.quantity > this.maxQuantity) return false;
 
   // Check scope matching
+  let match = false;
   switch (this.appliesTo) {
     case 'GLOBAL':
-      return true;  // Always applies
+      match = true;
+      break;
 
     case 'ZONE':
-      return this.geoZone && context.geoZoneId &&
+      match = this.geoZone && context.geoZoneId &&
         this.geoZone.toString() === context.geoZoneId.toString();
+      break;
 
     case 'SEGMENT':
-      return this.userSegment && context.userSegmentId &&
+      match = this.userSegment && context.userSegmentId &&
         this.userSegment.toString() === context.userSegmentId.toString();
+      break;
 
     case 'PRODUCT':
-      return this.product && context.productId &&
+      match = this.product && context.productId &&
         this.product.toString() === context.productId.toString();
+      if (isTargetProduct && !match) {
+        console.log(`   ❌ Product Match Failed: ID mismatch`);
+      }
+      break;
 
+    // ... (rest of cases)
     case 'ATTRIBUTE':
-      if (!this.attributeType || !context.selectedAttributes) return false;
-      return context.selectedAttributes.some(attr =>
-        attr.attributeType === this.attributeType.toString() &&
-        attr.value === this.attributeValue
-      );
-    
+      if (!this.attributeType || !context.selectedAttributes) match = false;
+      else {
+        match = context.selectedAttributes.some(attr =>
+          attr.attributeType === this.attributeType.toString() &&
+          attr.value === this.attributeValue
+        );
+      }
+      break;
+
+    // ...
     case 'COMBINATION':
       if (!this.conditions) {
-        console.log(`⚠️ COMBINATION modifier ${this._id} has no conditions`);
-        return false;
+        if (isTargetProduct) console.log(`⚠️ COMBINATION modifier ${this._id} has no conditions`);
+        match = false;
+      } else {
+        try {
+          const evaluator = new JSONRuleEvaluator();
+          match = evaluator.evaluate(this.conditions, context);
+          if (isTargetProduct) console.log(`${match ? '✅' : '⏭️'} COMBINATION modifier ${this._id} ${match ? 'matches' : 'does not match'} context`);
+        } catch (error) {
+          console.error(`❌ Error evaluating COMBINATION modifier ${this._id}:`, error);
+          match = false;
+        }
       }
-      try {
-        const evaluator = new JSONRuleEvaluator();
-        const matches = evaluator.evaluate(this.conditions, context);
-        console.log(`${matches ? '✅' : '⏭️'} COMBINATION modifier ${this._id} ${matches ? 'matches' : 'does not match'} context`);
-        return matches;
-      } catch (error) {
-        console.error(`❌ Error evaluating COMBINATION modifier ${this._id}:`, error);
-        return false;
-      }
+      break;
 
     default:
-      return false;
+      match = false;
   }
+
+  if (isTargetProduct) {
+    console.log(`   ${match ? '✅' : '❌'} matchesContext result: ${match} (Scope: ${this.appliesTo})`);
+  }
+
+  return match;
 };
 
 /**

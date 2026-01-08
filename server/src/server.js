@@ -12,6 +12,7 @@ import timelineRoutes from "./routes/timeline.js";
 import pricingRoutes from "./routes/pricingRoutes.js";
 import pricingAdminRoutes from "./routes/admin/pricingAdminRoutes.js";
 import userContextRoutes from "./routes/userContextRoutes.js";
+import geolocationRoutes from "./routes/geolocation.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -97,13 +98,14 @@ app.use("/api", uploadRoutes);
 app.use("/api/timeline", timelineRoutes);
 app.use("/api/pricing", pricingRoutes);
 app.use("/api/admin", pricingAdminRoutes);
-app.use("/api/user", userContextRoutes);  // NEW: User context API
+app.use("/api/user", userContextRoutes);  // User context API
+app.use("/api/geolocation", geolocationRoutes);  // Geolocation API
 
 // Serve static files from client dist (for production)
 const clientDistPath = join(__dirname, "../../client/dist");
 if (existsSync(clientDistPath)) {
   app.use(express.static(clientDistPath));
-  
+
   // For SPA routing - serve index.html for all non-API routes
   // Use middleware approach for Express 5 compatibility
   app.use((req, res, next) => {
