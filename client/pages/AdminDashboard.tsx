@@ -67,6 +67,7 @@ interface Category {
 interface Product {
   _id: string;
   name: string;
+  slug?: string;
   description: string;
   basePrice: number;
   category?: string | { _id: string; name: string };
@@ -472,6 +473,7 @@ const AdminDashboard: React.FC = () => {
   // Product form state
   const [productForm, setProductForm] = useState({
     name: "",
+    slug: "",
     description: "",
     descriptionArray: [] as string[],
     basePrice: "",
@@ -557,6 +559,7 @@ const AdminDashboard: React.FC = () => {
   });
   const [isSlugManuallyEdited, setIsSlugManuallyEdited] = useState(false);
   const [isSubCategorySlugManuallyEdited, setIsSubCategorySlugManuallyEdited] = useState(false);
+  const [isProductSlugManuallyEdited, setIsProductSlugManuallyEdited] = useState(false);
 
   // Subcategory form state
   const [subCategoryForm, setSubCategoryForm] = useState({
@@ -5192,6 +5195,9 @@ const AdminDashboard: React.FC = () => {
 
       const formData = new FormData();
       formData.append("name", productForm.name);
+      if (productForm.slug) {
+        formData.append("slug", productForm.slug);
+      }
       formData.append("description", productForm.description || "");
       formData.append("basePrice", productForm.basePrice);
 
@@ -5423,8 +5429,10 @@ const AdminDashboard: React.FC = () => {
       setFilteredCategoriesByType([]);
       setSelectedCategoryPath([]);
       setCategoryChildrenMap({});
+      setIsProductSlugManuallyEdited(false);
       setProductForm({
         name: "",
+        slug: "",
         description: "",
         descriptionArray: [],
         basePrice: "",
@@ -5610,9 +5618,11 @@ const AdminDashboard: React.FC = () => {
         await fetchNestedSubCategories(parentSubcategoryId);
       }
 
-      // Set category
+      // Set form data
+      setIsProductSlugManuallyEdited(true);
       setProductForm({
         name: product.name || "",
+        slug: product.slug || "",
         description: descriptionText,
         descriptionArray: product.descriptionArray || [],
         basePrice: product.basePrice?.toString() || "",
@@ -5912,8 +5922,10 @@ const AdminDashboard: React.FC = () => {
     setSelectedType("");
     setFilteredCategoriesByType([]);
     setFilteredSubCategories([]);
+    setIsProductSlugManuallyEdited(false);
     setProductForm({
       name: "",
+      slug: "",
       description: "",
       descriptionArray: [],
       basePrice: "",
@@ -7319,7 +7331,18 @@ const AdminDashboard: React.FC = () => {
                       required
                       value={productForm.name}
                       onChange={(e) => {
-                        setProductForm({ ...productForm, name: e.target.value });
+                        const newName = e.target.value;
+                        const updates: any = { ...productForm, name: newName };
+
+                        // Auto-generate slug if not manually edited
+                        if (!isProductSlugManuallyEdited) {
+                          updates.slug = newName
+                            .toLowerCase()
+                            .replace(/[^a-z0-9]+/g, '-')
+                            .replace(/^-+|-+$/g, '');
+                        }
+
+                        setProductForm(updates);
                         // Clear error when user starts typing
                         if (productFormErrors.name) {
                           setProductFormErrors({ ...productFormErrors, name: undefined });
@@ -7341,6 +7364,36 @@ const AdminDashboard: React.FC = () => {
                         {100 - productForm.name.length} characters remaining
                       </p>
                     )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-cream-900 mb-2 flex items-center gap-2">
+                      Slug (URL Friendly Name)
+                      <div className="group relative">
+                        <Info size={14} className="text-cream-500 cursor-help" />
+                        <div className="absolute left-0 bottom-full mb-2 hidden group-hover:block z-10 w-64 p-2 bg-cream-900 text-white text-xs rounded-lg shadow-lg">
+                          The URL-friendly version of the name. It will be automatically generated from the name but you can customize it if needed. Must be unique within the subcategory.
+                        </div>
+                      </div>
+                    </label>
+                    <input
+                      type="text"
+                      value={productForm.slug}
+                      onChange={(e) => {
+                        setIsProductSlugManuallyEdited(true);
+                        setProductForm({
+                          ...productForm,
+                          slug: e.target.value
+                            .toLowerCase()
+                            .replace(/[^a-z0-9-]/g, '')
+                        });
+                      }}
+                      className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500 bg-cream-50 font-mono text-sm"
+                      placeholder="auto-generated-slug"
+                    />
+                    <p className="text-xs text-cream-500 mt-1">
+                      Preview: .../products/{productForm.slug || 'auto-generated-slug'}
+                    </p>
                   </div>
 
                   <div>

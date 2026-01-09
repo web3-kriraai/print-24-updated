@@ -151,7 +151,7 @@ const VisitingCards: React.FC = () => {
                       // Safety check: Don't navigate if we are already there to prevent loops
                       if (subCategoryId !== identifier) {
                         console.log(`Only one subcategory found: ${onlySubcat.name} (${identifier}). Auto-navigating...`);
-                        navigate(`/digital-print/${categoryId}/${identifier}`, { replace: true });
+                        navigate(`/services/${categoryId}/${identifier}`, { replace: true });
                         return;
                       }
                     }
@@ -187,8 +187,8 @@ const VisitingCards: React.FC = () => {
 
                   // Navigate to subcategory page proper
                   navigate(categoryId
-                    ? `/digital-print/${categoryId}/${subCategoryIdForLink}`
-                    : `/digital-print/${subCategoryIdForLink}`,
+                    ? `/services/${categoryId}/${subCategoryIdForLink}`
+                    : `/services/${subCategoryIdForLink}`,
                     { replace: true }
                   );
                   setLoading(false);
@@ -376,9 +376,9 @@ const VisitingCards: React.FC = () => {
 
               // Navigate directly to subcategory products page
               if (categoryId) {
-                navigate(`/digital-print/${categoryId}/${subcategoryIdForLink}`, { replace: true });
+                navigate(`/services/${categoryId}/${subcategoryIdForLink}`, { replace: true });
               } else {
-                navigate(`/digital-print/${subcategoryIdForLink}`, { replace: true });
+                navigate(`/services/${subcategoryIdForLink}`, { replace: true });
               }
               setLoading(false);
               return;
@@ -403,9 +403,9 @@ const VisitingCards: React.FC = () => {
 
                 // Navigate directly to the product detail page
                 if (categoryId) {
-                  navigate(`/digital-print/${categoryId}/${singleProduct._id}`, { replace: true });
+                  navigate(`/services/${categoryId}/${singleProduct._id}`, { replace: true });
                 } else {
-                  navigate(`/digital-print/${singleProduct._id}`, { replace: true });
+                  navigate(`/services/${singleProduct._id}`, { replace: true });
                 }
                 setLoading(false);
                 return;
@@ -742,8 +742,8 @@ const VisitingCards: React.FC = () => {
                         // Construct target URL
                         // VisitingCards and GlossProductSelection usually use /:categoryId/:subCategoryId/:nestedSubCategoryId
                         const targetUrl = categoryId && subCategoryId
-                          ? `/digital-print/${categoryId}/${subCategoryId}/${identifier}`
-                          : `/digital-print/${categoryId}/${identifier}`;
+                          ? `/services/${categoryId}/${subCategoryId}/${identifier}`
+                          : `/services/${categoryId}/${identifier}`;
 
                         navigate(targetUrl, { replace: true });
                         return;
@@ -903,7 +903,7 @@ const VisitingCards: React.FC = () => {
               setCategoryName(subcategoryData.category?.name || subcategoryData.name || '');
               setCategoryDescription(subcategoryData.category?.description || subcategoryData.description || '');
 
-              // PRIORITY: If nested subcategories exist, show them instead of products
+              // PRIORITY: If nested subcategories exist, auto-navigate to first product
               if (nestedSubcategories.length > 0) {
                 // Auto-skip: If only one nested subcategory, redirect to it
                 if (nestedSubcategories.length === 1) {
@@ -912,15 +912,54 @@ const VisitingCards: React.FC = () => {
                   const nestedSubcategoryIdForLink = singleNestedSubcategory._id;
 
                   if (categoryId) {
-                    navigate(`/digital-print/${categoryId}/${subcategoryIdForProducts}/${nestedSubcategoryIdForLink}`, { replace: true });
+                    navigate(`/services/${categoryId}/${subcategoryIdForProducts}/${nestedSubcategoryIdForLink}`, { replace: true });
                   } else {
-                    navigate(`/digital-print/${subcategoryIdForProducts}/${nestedSubcategoryIdForLink}`, { replace: true });
+                    navigate(`/services/${subcategoryIdForProducts}/${nestedSubcategoryIdForLink}`, { replace: true });
                   }
                   setLoading(false);
                   return;
                 }
 
-                // Multiple nested subcategories - show them
+                // Multiple nested subcategories - auto-navigate to first product of first nested subcategory
+                const firstNestedSubcat = nestedSubcategories[0];
+                const firstNestedSubcatId = firstNestedSubcat._id;
+
+                // Fetch products for the first nested subcategory
+                try {
+                  const firstNestedProductsUrl = `${API_BASE_URL}/products/subcategory/${firstNestedSubcatId}`;
+                  const firstNestedProductsResponse = await fetch(firstNestedProductsUrl, {
+                    method: "GET",
+                    headers: {
+                      Accept: "application/json",
+                    },
+                  });
+
+                  if (firstNestedProductsResponse.ok) {
+                    const firstNestedProductsText = await firstNestedProductsResponse.text();
+                    if (!firstNestedProductsText.startsWith("<!DOCTYPE") && !firstNestedProductsText.startsWith("<html")) {
+                      const firstNestedProductsData = JSON.parse(firstNestedProductsText);
+
+                      if (Array.isArray(firstNestedProductsData) && firstNestedProductsData.length > 0) {
+                        const firstProduct = firstNestedProductsData[0];
+                        const firstProductId = firstProduct._id;
+
+                        // Navigate to the first product with full URL structure
+                        console.log(`Auto-navigating to first product: ${firstProduct.name} (${firstProductId})`);
+                        const targetUrl = categoryId
+                          ? `/services/${categoryId}/${subcategoryIdForProducts}/${firstNestedSubcatId}/${firstProductId}`
+                          : `/services/${subcategoryIdForProducts}/${firstNestedSubcatId}/${firstProductId}`;
+
+                        navigate(targetUrl, { replace: true });
+                        setLoading(false);
+                        return;
+                      }
+                    }
+                  }
+                } catch (firstProductErr) {
+                  console.error("Error fetching first nested subcategory products:", firstProductErr);
+                }
+
+                // Fallback: If no products found, show nested subcategories as before
                 setSubCategories(nestedSubcategories);
                 setProducts([]); // Clear products when showing nested subcategories
                 setLoading(false);
@@ -997,11 +1036,11 @@ const VisitingCards: React.FC = () => {
 
               // Navigate directly to the product detail page
               if (categoryId && hasValidSubcategory) {
-                navigate(`/digital-print/${categoryId}/${productSubcategoryId}/${singleProduct._id}`, { replace: true });
+                navigate(`/services/${categoryId}/${productSubcategoryId}/${singleProduct._id}`, { replace: true });
               } else if (categoryId) {
-                navigate(`/digital-print/${categoryId}/${singleProduct._id}`, { replace: true });
+                navigate(`/services/${categoryId}/${singleProduct._id}`, { replace: true });
               } else {
-                navigate(`/digital-print/${singleProduct._id}`, { replace: true });
+                navigate(`/services/${singleProduct._id}`, { replace: true });
               }
               setLoading(false);
               return;
@@ -1171,7 +1210,7 @@ const VisitingCards: React.FC = () => {
           <div className="container mx-auto px-4 sm:px-6">
             <div className="flex flex-col gap-2 text-center md:text-left">
               <div className="flex items-center justify-center md:justify-start gap-2 text-xs sm:text-sm font-medium text-cream-500 uppercase tracking-widest">
-                <Link to="/digital-print" className="hover:text-cream-900 transition-colors">Services</Link>
+                <Link to="/services" className="hover:text-cream-900 transition-colors">Services</Link>
                 <ArrowRight size={12} className="sm:w-3.5 sm:h-3.5" />
                 <span className="text-cream-900">{categoryName}</span>
               </div>
@@ -1309,8 +1348,8 @@ const VisitingCards: React.FC = () => {
                     >
                       <Link
                         to={categoryId
-                          ? `/digital-print/${categoryId}/${subCategoryIdForLink}`
-                          : `/digital-print/${subCategoryIdForLink}`
+                          ? `/services/${categoryId}/${subCategoryIdForLink}`
+                          : `/services/${subCategoryIdForLink}`
                         }
                         className="group block h-full"
                         onClick={() => {
@@ -1451,12 +1490,12 @@ const VisitingCards: React.FC = () => {
                           >
                             <Link
                               to={categoryId && useNestedPath && currentParentSubcategoryId && currentNestedSubcategoryId
-                                ? `/digital-print/${categoryId}/${currentParentSubcategoryId}/${currentNestedSubcategoryId}/${product._id}`
+                                ? `/services/${categoryId}/${currentParentSubcategoryId}/${currentNestedSubcategoryId}/${product._id}`
                                 : categoryId && hasValidSubcategory
-                                  ? `/digital-print/${categoryId}/${productSubcategoryId}/${product._id}`
+                                  ? `/services/${categoryId}/${productSubcategoryId}/${product._id}`
                                   : categoryId
-                                    ? `/digital-print/${categoryId}/${product._id}`
-                                    : `/digital-print/${product._id}`
+                                    ? `/services/${categoryId}/${product._id}`
+                                    : `/services/${product._id}`
                               }
                               className="group block w-full"
                               onClick={() => {
@@ -1521,20 +1560,20 @@ const VisitingCards: React.FC = () => {
                   onClick={() => {
                     if (nestedSubCategoryId && subCategoryId && categoryId) {
                       // If in nested subcategory, go back to parent subcategory
-                      navigate(`/digital-print/${categoryId}/${subCategoryId}`);
+                      navigate(`/services/${categoryId}/${subCategoryId}`);
                     } else if (categoryId) {
-                      navigate(`/digital-print/${categoryId}`);
+                      navigate(`/services/${categoryId}`);
                     } else {
-                      navigate('/digital-print');
+                      navigate('/services');
                     }
                     window.scrollTo(0, 0);
                   }}
                   fallbackPath={
                     nestedSubCategoryId && subCategoryId && categoryId
-                      ? `/digital-print/${categoryId}/${subCategoryId}`
+                      ? `/services/${categoryId}/${subCategoryId}`
                       : categoryId
-                        ? `/digital-print/${categoryId}`
-                        : "/digital-print"
+                        ? `/services/${categoryId}`
+                        : "/services"
                   }
                   label={
                     nestedSubCategoryId
@@ -1572,10 +1611,10 @@ const VisitingCards: React.FC = () => {
                       >
                         <Link
                           to={categoryId && parentSubcategoryId
-                            ? `/digital-print/${categoryId}/${parentSubcategoryId}/${nestedSubCategoryIdForLink}`
+                            ? `/services/${categoryId}/${parentSubcategoryId}/${nestedSubCategoryIdForLink}`
                             : categoryId
-                              ? `/digital-print/${categoryId}/${nestedSubCategoryIdForLink}`
-                              : `/digital-print/${nestedSubCategoryIdForLink}`
+                              ? `/services/${categoryId}/${nestedSubCategoryIdForLink}`
+                              : `/services/${nestedSubCategoryIdForLink}`
                           }
                           className="group block h-full"
                           onClick={() => {
@@ -1701,10 +1740,10 @@ const VisitingCards: React.FC = () => {
                           >
                             <Link
                               to={categoryId && hasValidSubcategory
-                                ? `/digital-print/${categoryId}/${productSubcategoryId}/${product._id}`
+                                ? `/services/${categoryId}/${productSubcategoryId}/${product._id}`
                                 : categoryId
-                                  ? `/digital-print/${categoryId}/${product._id}`
-                                  : `/digital-print/${product._id}`
+                                  ? `/services/${categoryId}/${product._id}`
+                                  : `/services/${product._id}`
                               }
                               className="group block w-full"
                               onClick={() => {
@@ -1764,13 +1803,13 @@ const VisitingCards: React.FC = () => {
                   <BackButton
                     onClick={() => {
                       if (categoryId) {
-                        navigate(`/digital-print/${categoryId}`);
+                        navigate(`/services/${categoryId}`);
                       } else {
-                        navigate('/digital-print');
+                        navigate('/services');
                       }
                       window.scrollTo(0, 0);
                     }}
-                    fallbackPath={categoryId ? `/digital-print/${categoryId}` : "/digital-print"}
+                    fallbackPath={categoryId ? `/services/${categoryId}` : "/services"}
                     label={categoryName ? `Back to ${categoryName}` : "Back to Category"}
                     className="text-cream-900 hover:text-cream-600 underline mt-2 inline-block"
                   />
@@ -1860,10 +1899,10 @@ const VisitingCards: React.FC = () => {
                       >
                         <Link
                           to={categoryId && hasValidSubcategory
-                            ? `/digital-print/${categoryId}/${productSubcategoryId}/${product._id}`
+                            ? `/services/${categoryId}/${productSubcategoryId}/${product._id}`
                             : categoryId
-                              ? `/digital-print/${categoryId}/${product._id}`
-                              : `/digital-print/${product._id}`
+                              ? `/services/${categoryId}/${product._id}`
+                              : `/services/${product._id}`
                           }
                           className="group block w-full"
                           onClick={() => {
@@ -1925,13 +1964,13 @@ const VisitingCards: React.FC = () => {
               <BackButton
                 onClick={() => {
                   if (categoryId) {
-                    navigate(`/digital-print/${categoryId}`);
+                    navigate(`/services/${categoryId}`);
                   } else {
-                    navigate('/digital-print');
+                    navigate('/services');
                   }
                   window.scrollTo(0, 0);
                 }}
-                fallbackPath={categoryId ? `/digital-print/${categoryId}` : "/digital-print"}
+                fallbackPath={categoryId ? `/services/${categoryId}` : "/services"}
                 label={categoryName ? `Back to ${categoryName}` : "Back to Category"}
                 className="text-cream-900 hover:text-cream-600 underline mt-2 inline-block"
               />
@@ -1958,11 +1997,11 @@ const VisitingCards: React.FC = () => {
                 <div className="flex items-center">
                   <BackButton onClick={() => {
                     if (nestedSubCategoryId && categoryId && subCategoryId) {
-                      navigate(`/digital-print/${categoryId}/${subCategoryId}`);
+                      navigate(`/services/${categoryId}/${subCategoryId}`);
                     } else if (subCategoryId && categoryId) {
-                      navigate(`/digital-print/${categoryId}`);
+                      navigate(`/services/${categoryId}`);
                     } else {
-                      navigate('/digital-print'); // Fallback to digital-print base if no category/subcategory
+                      navigate('/services'); // Fallback to digital-print base if no category/subcategory
                     }
                   }} />
                   <h1 className="ml-4 text-xl font-bold text-gray-900 truncate max-w-xs sm:max-w-md">

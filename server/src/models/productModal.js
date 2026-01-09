@@ -15,6 +15,12 @@ const ProductSchema = new mongoose.Schema(
     },
 
     name: { type: String, required: true },
+    slug: {
+      type: String,
+      required: true,
+      trim: true,
+      lowercase: true
+    },
     description: String,
     // Description as array for point-wise display
     descriptionArray: [String],
@@ -58,26 +64,26 @@ const ProductSchema = new mongoose.Schema(
           label: String, // Optional display label (e.g., "1,000 - 5,000 units")
         }],
         // Quantity configuration type: "SIMPLE" (min/max/multiples), "STEP_WISE", "RANGE_WISE"
-        quantityType: { 
-          type: String, 
-          enum: ["SIMPLE", "STEP_WISE", "RANGE_WISE"], 
-          default: "SIMPLE" 
+        quantityType: {
+          type: String,
+          enum: ["SIMPLE", "STEP_WISE", "RANGE_WISE"],
+          default: "SIMPLE"
         },
       },
       deliverySpeed: [String], // e.g., ["Standard", "Express"]
       textureType: [String], // Optional, e.g., ["Texture No.1", "Texture No.2", ...]
       // Filter prices - when filterPricesEnabled is true, these prices are used
       filterPricesEnabled: { type: Boolean, default: false }, // Enable/disable filter price effects
-      printingOptionPrices: [{ 
-        name: String, 
+      printingOptionPrices: [{
+        name: String,
         priceAdd: Number // Price addition per 1000 units (can be negative for discount)
       }],
-      deliverySpeedPrices: [{ 
-        name: String, 
+      deliverySpeedPrices: [{
+        name: String,
         priceAdd: Number // Price addition per 1000 units (can be negative for discount)
       }],
-      textureTypePrices: [{ 
-        name: String, 
+      textureTypePrices: [{
+        name: String,
         priceAdd: Number // Price addition per 1000 units (can be negative for discount)
       }]
     },
@@ -94,7 +100,7 @@ const ProductSchema = new mongoose.Schema(
         dependsOn: {
           attribute: { type: mongoose.Schema.Types.ObjectId, ref: "AttributeType" },
           value: String
-        },    
+        },
         // Product-specific attribute values (overrides default values if provided)
         customValues: [
           {
@@ -157,5 +163,28 @@ const ProductSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+// Auto-generate slug from name if not provided
+ProductSchema.pre('save', function (next) {
+  if (!this.slug && this.name) {
+    this.slug = this.name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+  }
+  next();
+});
+
+// Compound index for scoped slug uniqueness within subcategory
+// Slug must be unique within the same subcategory
+ProductSchema.index({ slug: 1, subcategory: 1 }, { unique: true, sparse: true });
+
+// Compound index for scoped slug uniqueness within category (when no subcategory)
+// Slug must be unique within the category when subcategory is null
+ProductSchema.index({ slug: 1, category: 1 }, {
+  unique: true,
+  sparse: true,
+  partialFilterExpression: { subcategory: null }
+});
 
 export default mongoose.model("Product", ProductSchema);
