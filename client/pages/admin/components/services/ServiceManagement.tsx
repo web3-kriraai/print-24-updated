@@ -39,6 +39,7 @@ import ServiceTitleManager from './ServiceTitleManager.tsx';
 import { API_BASE_URL } from '../../../../lib/apiConfig';
 import IconSelector from '../../../../components/IconSelector';
 import ReviewManagement from './ReviewManagement';
+import FeatureManagement from './FeatureManagement';
 
 interface ServiceFormData {
     name: string;
@@ -97,7 +98,7 @@ const ServiceManagement: React.FC = () => {
     const [expandedService, setExpandedService] = useState<string | null>(null);
     const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
     const [saving, setSaving] = useState(false);
-    const [activeTab, setActiveTab] = useState<'services' | 'reviews'>('services');
+    const [activeTab, setActiveTab] = useState<'services' | 'reviews' | 'features'>('services');
 
     useEffect(() => {
         loadServices();
@@ -267,16 +268,7 @@ const ServiceManagement: React.FC = () => {
         }
     };
 
-    const handleDelete = async (id: string) => {
-        try {
-            await deleteService(id);
-            setServices(services.filter(s => s._id !== id));
-            setDeleteConfirm(null);
-        } catch (error) {
-            console.error('Failed to delete service:', error);
-            alert('Failed to delete service. Please try again.');
-        }
-    };
+
 
     const handleToggleStatus = async (service: Service) => {
         try {
@@ -296,6 +288,17 @@ const ServiceManagement: React.FC = () => {
     const handleDragOver = (e: React.DragEvent) => {
         e.preventDefault();
         e.dataTransfer.dropEffect = 'move';
+    };
+
+    const handleDelete = async (id: string) => {
+        try {
+            await deleteService(id);
+            setDeleteConfirm(null);
+            await loadServices();
+        } catch (error) {
+            console.error('Failed to delete service:', error);
+            alert('Failed to delete service. Please try again.');
+        }
     };
 
     const handleDrop = async (e: React.DragEvent, dropIndex: number) => {
@@ -351,6 +354,7 @@ const ServiceManagement: React.FC = () => {
                             Add Service
                         </button>
                     )}
+                    {/* Features tab doesn't need add button here as it has its own */}
                 </div>
 
                 {/* Tab Navigation */}
@@ -374,6 +378,15 @@ const ServiceManagement: React.FC = () => {
                         >
                             Customer Reviews
                         </button>
+                        <button
+                            onClick={() => setActiveTab('features')}
+                            className={`pb-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'features'
+                                ? 'border-blue-600 text-blue-600'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                }`}
+                        >
+                            Features
+                        </button>
                     </nav>
                 </div>
             </div>
@@ -381,6 +394,8 @@ const ServiceManagement: React.FC = () => {
             {/* Tab Content */}
             {activeTab === 'reviews' ? (
                 <ReviewManagement />
+            ) : activeTab === 'features' ? (
+                <FeatureManagement />
             ) : (
                 <>
                     {/* Service Form Modal */}

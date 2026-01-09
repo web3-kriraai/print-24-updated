@@ -21,6 +21,7 @@
     "react-hot-toast": "^2.6.0",
     "react-router-dom": "^7.9.6",
     "set-cookie-parser": "^2.7.2",
+    "swiper": "^12.0.3",
     "vite-plugin-ssr": "^0.4.142"
   },
   "devDependencies": {
