@@ -8,6 +8,7 @@ export const createProduct = async (req, res) => {
   try {
     const {
       name,
+      slug,
       basePrice,
       category,
       subcategory,
@@ -257,8 +258,37 @@ export const createProduct = async (req, res) => {
     // If subcategory is provided, category should be the parent category; otherwise use categoryId
     const finalCategoryId = subcategoryValue ? categoryId : categoryId;
 
+    // Validate and process slug
+    let productSlug = slug ? slug.trim().toLowerCase() : null;
+
+    // Auto-generate slug from name if not provided
+    if (!productSlug && name) {
+      productSlug = name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+    }
+
+    if (!productSlug) {
+      return res.status(400).json({ error: "Product slug is required or could not be generated from name." });
+    }
+
+    // Check for slug uniqueness within the same subcategory/category scope
+    const slugQuery = subcategoryValue
+      ? { slug: productSlug, subcategory: subcategoryValue }
+      : { slug: productSlug, category: finalCategoryId, subcategory: null };
+
+    const existingProduct = await Product.findOne(slugQuery);
+    if (existingProduct) {
+      const scope = subcategoryValue ? "subcategory" : "category";
+      return res.status(400).json({
+        error: `A product with slug "${productSlug}" already exists in this ${scope}. Please use a different slug.`
+      });
+    }
+
     const data = await Product.create({
       name,
+      slug: productSlug,
       basePrice: price,
       category: finalCategoryId, // Store parent category ID
       subcategory: subcategoryValue, // Store subcategory ID from SubCategory collection
@@ -463,11 +493,43 @@ export const getSingleProduct = async (req, res) => {
           select: "_id name description sequence isEnabled"
         });
     } else {
-      // Not a valid ObjectId format
-      return res.status(400).json({
-        error: "Invalid product ID format. Expected MongoDB ObjectId (24 hex characters).",
-        received: productId
-      });
+      // Not a valid ObjectId format - try to fetch by slug
+      console.log("Fetching product with slug:", productId);
+      item = await Product.findOne({ slug: productId })
+        .populate({
+          path: "category",
+          select: "_id name description image type parent slug",
+          populate: {
+            path: "parent",
+            select: "_id name type",
+            options: { recursive: true }
+          }
+        })
+        .populate({
+          path: "subcategory",
+          select: "_id name description image slug category parent",
+          populate: [
+            {
+              path: "category",
+              model: "Category",
+              select: "_id name description type image"
+            },
+            {
+              path: "parent",
+              model: "SubCategory",
+              select: "_id name description image slug category"
+            }
+          ]
+        })
+        .populate({
+          path: "dynamicAttributes.attributeType",
+          model: "AttributeType"
+        })
+        .populate({
+          path: "productionSequence",
+          model: "Department",
+          select: "_id name description sequence isEnabled"
+        });
     }
 
     if (!item) {
@@ -900,6 +962,7 @@ export const updateProduct = async (req, res) => {
   try {
     const {
       name,
+      slug,
       basePrice,
       category,
       subcategory,
@@ -1170,10 +1233,39 @@ export const updateProduct = async (req, res) => {
       }
     }
 
+    // Handle slug update with scoped uniqueness validation
+    let slugUpdate = product.slug;
+    if (slug !== undefined && slug !== product.slug) {
+      const productSlug = slug ? slug.trim().toLowerCase() : null;
+
+      if (!productSlug) {
+        return res.status(400).json({ error: "Product slug cannot be empty." });
+      }
+
+      // Check for slug uniqueness within the same subcategory/category scope
+      const finalSubcategoryId = subcategoryUpdate !== undefined ? subcategoryUpdate : product.subcategory;
+      const finalCategoryId = categoryUpdate || product.category;
+
+      const slugQuery = finalSubcategoryId
+        ? { slug: productSlug, subcategory: finalSubcategoryId, _id: { $ne: productId } }
+        : { slug: productSlug, category: finalCategoryId, subcategory: null, _id: { $ne: productId } };
+
+      const duplicateProduct = await Product.findOne(slugQuery);
+      if (duplicateProduct) {
+        const scope = finalSubcategoryId ? "subcategory" : "category";
+        return res.status(400).json({
+          error: `A product with slug "${productSlug}" already exists in this ${scope}. Please use a different slug.`
+        });
+      }
+
+      slugUpdate = productSlug;
+    }
+
     const updatedProduct = await Product.findByIdAndUpdate(
       productId,
       {
         name: name !== undefined ? name : product.name,
+        slug: slugUpdate,
         basePrice: validatedBasePrice,
         category: categoryUpdate,
         subcategory: subcategoryUpdate,

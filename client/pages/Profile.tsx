@@ -207,7 +207,7 @@ const OrdersList: React.FC<OrdersListProps> = ({ orders, onSelectOrder }) => {
         // Calculate progress percentage based on department completion
         const departmentStatuses = order.departmentStatuses || [];
         const totalDepts = departmentStatuses.length;
-        
+
         // Count completed departments - handle both object and lean() formats
         const completedDepts = departmentStatuses.filter((ds) => {
           if (!ds) return false;
@@ -217,7 +217,7 @@ const OrdersList: React.FC<OrdersListProps> = ({ orders, onSelectOrder }) => {
           }
           return false;
         }).length;
-        
+
         // Calculate progress percentage
         let progressPercent = 0;
         if (totalDepts > 0) {
@@ -229,13 +229,13 @@ const OrdersList: React.FC<OrdersListProps> = ({ orders, onSelectOrder }) => {
           // If order is in production but no departments yet, show 0% (just starting)
           progressPercent = 0;
         }
-        
+
         // Show progress bar if order is not pending payment
         // Show for all non-pending-payment orders (processing, approved, production_ready, completed)
         const shouldShowProgress = !isPendingPayment;
 
         const isExpanded = expandedOrders.has(order._id);
-        
+
         // Calculate price breakdown
         const orderForCalc: OrderForCalculation = {
           quantity: order.quantity,
@@ -262,10 +262,10 @@ const OrdersList: React.FC<OrdersListProps> = ({ orders, onSelectOrder }) => {
         };
 
         const calculations = calculateOrderBreakdown(orderForCalc) as any;
-        
+
         // Get additional design charge from product
         const additionalDesignCharge = (order.product as any)?.additionalDesignCharge || 0;
-        
+
         // New calculation order:
         // 1. Base Price = quantity * price
         // 2. Add options/attributes/charges
@@ -275,7 +275,7 @@ const OrdersList: React.FC<OrdersListProps> = ({ orders, onSelectOrder }) => {
         // 6. Subtotal including design charge (after discount)
         // 7. Add GST (on discounted subtotal + design charge)
         // 8. Final total
-        
+
         const subtotalBeforeDiscount = calculations.subtotalBeforeGst || calculations.rawBaseTotal + calculations.optionBreakdowns.reduce((sum: number, opt: any) => sum + opt.cost, 0);
         const subtotalAfterDiscount = calculations.subtotalAfterDiscount || calculations.subtotal || subtotalBeforeDiscount;
         const discountAmount = calculations.discountAmount || (subtotalBeforeDiscount - subtotalAfterDiscount);
@@ -283,7 +283,7 @@ const OrdersList: React.FC<OrdersListProps> = ({ orders, onSelectOrder }) => {
         // GST is calculated on discounted subtotal + design charge
         const gstAmount = (subtotalWithDesignCharge * (order.product?.gstPercentage || 18)) / 100;
         const finalTotal = subtotalWithDesignCharge + gstAmount;
-        
+
         // Use stored totalPrice as source of truth
         const storedTotal = order.totalPrice;
 
@@ -336,13 +336,12 @@ const OrdersList: React.FC<OrdersListProps> = ({ orders, onSelectOrder }) => {
                     {formatCurrency(order.totalPrice)}
                   </span>
                   <div
-                    className={`px-2.5 py-0.5 rounded-full text-xs font-medium border ${
-                      isCompleted
+                    className={`px-2.5 py-0.5 rounded-full text-xs font-medium border ${isCompleted
                         ? "bg-green-50 text-green-700 border-green-200"
                         : isProcessing
-                        ? "bg-orange-50 text-orange-700 border-orange-200"
-                        : "bg-slate-100 text-slate-600 border-slate-200"
-                    }`}
+                          ? "bg-orange-50 text-orange-700 border-orange-200"
+                          : "bg-slate-100 text-slate-600 border-slate-200"
+                      }`}
                   >
                     {order.status.replace("_", " ").toUpperCase()}
                   </div>
@@ -362,7 +361,7 @@ const OrdersList: React.FC<OrdersListProps> = ({ orders, onSelectOrder }) => {
                     <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden relative group-hover/progress:bg-slate-200 transition-colors">
                       <div
                         className="h-full bg-green-400 group-hover/progress:bg-green-300 rounded-full transition-all duration-300 ease-out shadow-sm group-hover/progress:shadow-md"
-                        style={{ 
+                        style={{
                           width: `${Math.max(0, Math.min(100, progressPercent))}%`,
                           minWidth: progressPercent > 0 ? '4px' : '0px'
                         }}
@@ -397,7 +396,7 @@ const OrdersList: React.FC<OrdersListProps> = ({ orders, onSelectOrder }) => {
                 </div>
               </div>
             </div>
-            
+
             {/* Price Breakdown Panel - Same as Order Summary */}
             {isExpanded && (
               <div className="border-t border-slate-200 bg-slate-50">
@@ -487,11 +486,10 @@ const OrdersList: React.FC<OrdersListProps> = ({ orders, onSelectOrder }) => {
                         <div className="flex justify-between items-center">
                           <span className="text-slate-500">Balance Due</span>
                           <span
-                            className={`font-bold ${
-                              order.totalPrice - (order.advancePaid || 0) > 0
+                            className={`font-bold ${order.totalPrice - (order.advancePaid || 0) > 0
                                 ? 'text-red-600'
                                 : 'text-slate-400'
-                            }`}
+                              }`}
                           >
                             {formatCurrency(order.totalPrice - (order.advancePaid || 0))}
                           </span>
@@ -508,9 +506,9 @@ const OrdersList: React.FC<OrdersListProps> = ({ orders, onSelectOrder }) => {
                 </div>
               </div>
             )}
-            
+
             {/* Clickable area for navigation */}
-            <div 
+            <div
               onClick={() => onSelectOrder(order)}
               className="cursor-pointer"
             >
@@ -550,7 +548,7 @@ const Profile: React.FC = () => {
   const [emailError, setEmailError] = useState<string | null>(null);
   const [emailSuccess, setEmailSuccess] = useState<string | null>(null);
   const [updatingEmail, setUpdatingEmail] = useState(false);
-  
+
   // Profile editing states
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [editFormData, setEditFormData] = useState({
@@ -563,7 +561,7 @@ const Profile: React.FC = () => {
   const [profileError, setProfileError] = useState<string | null>(null);
   const [profileSuccess, setProfileSuccess] = useState<string | null>(null);
   const [updatingProfile, setUpdatingProfile] = useState(false);
-  
+
   // OTP states for mobile update
   const [showOtpPopup, setShowOtpPopup] = useState(false);
   const [otp, setOtp] = useState("");
@@ -571,7 +569,7 @@ const Profile: React.FC = () => {
   const [isSendingOtp, setIsSendingOtp] = useState(false);
   const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
   const [otpSentTo, setOtpSentTo] = useState("");
-  
+
   // Country data for displaying country name and flag
   const [countryName, setCountryName] = useState<string>("");
   const [countryFlagUrl, setCountryFlagUrl] = useState<string>("");
@@ -623,7 +621,7 @@ const Profile: React.FC = () => {
             ownerName: data.user.ownerName,
             gstNumber: data.user.gstNumber,
           });
-          
+
           setUserData(data.user);
           // Update localStorage
           localStorage.setItem("user", JSON.stringify(data.user));
@@ -635,7 +633,7 @@ const Profile: React.FC = () => {
             mobileNumber: data.user.mobileNumber?.replace(data.user.countryCode || "", "") || "",
             countryCode: data.user.countryCode || "+91",
           });
-          
+
           // Fetch country name based on country code
           if (data.user.countryCode) {
             setCountryNameFetched(false);
@@ -656,7 +654,7 @@ const Profile: React.FC = () => {
       setCountryNameFetched(true);
       return;
     }
-    
+
     // First try fallback mapping (faster and more reliable)
     const countryMap: Record<string, { name: string; code: string }> = {
       "+1": { name: "United States", code: "us" },
@@ -703,7 +701,7 @@ const Profile: React.FC = () => {
       "+64": { name: "New Zealand", code: "nz" },
       "+246": { name: "British Indian Ocean Territory", code: "io" },
     };
-    
+
     // Check fallback first (instant result)
     if (countryMap[countryCode]) {
       setCountryName(countryMap[countryCode].name);
@@ -711,7 +709,7 @@ const Profile: React.FC = () => {
       setCountryNameFetched(true);
       return;
     }
-    
+
     // If not in fallback, try API with AbortController to handle errors gracefully
     const abortController = new AbortController();
     try {
@@ -719,7 +717,7 @@ const Profile: React.FC = () => {
       const response = await fetch(`https://restcountries.com/v3.1/callingcode/${numericCode}`, {
         signal: abortController.signal,
       });
-      
+
       // Handle 404 and other non-ok responses gracefully
       if (!response.ok) {
         // If API returns 404 or other error, just set empty values
@@ -728,7 +726,7 @@ const Profile: React.FC = () => {
         setCountryNameFetched(true);
         return;
       }
-      
+
       const countries = await response.json();
       if (countries && Array.isArray(countries) && countries.length > 0) {
         // Get the first country (some codes map to multiple countries)
@@ -744,7 +742,7 @@ const Profile: React.FC = () => {
         setCountryNameFetched(true);
         return;
       }
-      
+
       // If no countries found, set empty
       setCountryName("");
       setCountryFlagUrl("");
@@ -763,7 +761,7 @@ const Profile: React.FC = () => {
         setCountryFlagUrl("");
         setCountryNameFetched(true);
       }
-      
+
       // Try fallback mapping as last resort
       const fallback = countryMap[countryCode];
       if (fallback) {
@@ -778,18 +776,18 @@ const Profile: React.FC = () => {
   const formatMobileNumber = (mobileNumber: string | undefined, countryCode: string | undefined): string => {
     if (!mobileNumber) return "";
     if (!countryCode) return mobileNumber;
-    
+
     // Remove country code from mobile number if it's already included
     const codeWithoutPlus = countryCode.replace("+", "");
     let cleanNumber = mobileNumber;
-    
+
     // Check if mobile number starts with country code
     if (mobileNumber.startsWith(countryCode)) {
       cleanNumber = mobileNumber.replace(countryCode, "");
     } else if (mobileNumber.startsWith(codeWithoutPlus)) {
       cleanNumber = mobileNumber.replace(codeWithoutPlus, "");
     }
-    
+
     // Return formatted: countryCode + space + number
     return `${countryCode} ${cleanNumber}`;
   };
@@ -1012,7 +1010,7 @@ const Profile: React.FC = () => {
       }
 
       setProfileSuccess("Profile updated successfully!");
-      
+
       // Update user data in state and localStorage
       const updatedUserData = {
         ...userData!,
@@ -1024,7 +1022,7 @@ const Profile: React.FC = () => {
       };
       setUserData(updatedUserData);
       localStorage.setItem("user", JSON.stringify(updatedUserData));
-      
+
       // Fetch country name if country code exists
       if (data.user.countryCode) {
         fetchCountryName(data.user.countryCode);
@@ -1075,7 +1073,7 @@ const Profile: React.FC = () => {
       }
 
       setEmailSuccess("Email updated successfully!");
-      
+
       // Update user data in state and localStorage
       const updatedUserData = {
         ...userData!,
@@ -1158,7 +1156,7 @@ const Profile: React.FC = () => {
                   </span>
                 </div>
               </div>
-              
+
               {/* Latest Delivery Arrive Time */}
               {(() => {
                 const deliveredOrders = orders.filter(
@@ -1311,7 +1309,7 @@ const Profile: React.FC = () => {
                   <Package size={48} className="mx-auto mb-4 opacity-50 text-slate-400" />
                   <p className="text-slate-600 mb-4">You haven't placed any orders yet.</p>
                   <Link
-                    to="/digital-print"
+                    to="/services"
                     className="inline-block bg-brand-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-brand-700 transition-colors"
                   >
                     Browse Products
@@ -1360,7 +1358,7 @@ const Profile: React.FC = () => {
                 <Package size={48} className="mx-auto mb-4 opacity-50 text-slate-400" />
                 <p className="text-slate-600 mb-4">You haven't placed any orders yet.</p>
                 <Link
-                  to="/digital-print"
+                  to="/services"
                   className="inline-block bg-brand-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-brand-700 transition-colors"
                 >
                   Browse Products
@@ -1425,7 +1423,7 @@ const Profile: React.FC = () => {
                             const value = e.target.value;
                             setNewEmail(value);
                             setEmailSuccess(null);
-                            
+
                             // Real-time validation (only show error if user has started typing and moved away or if it's clearly invalid)
                             if (value.trim() && value.trim() !== userData?.email) {
                               const error = validateEmail(value);
@@ -1461,13 +1459,12 @@ const Profile: React.FC = () => {
                               setEmailSuccess(null);
                             }
                           }}
-                          className={`flex-1 w-full sm:min-w-[200px] px-3 py-1.5 border rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-sm transition-colors ${
-                            emailError 
-                              ? 'border-red-300 bg-red-50 focus:ring-red-500 focus:border-red-500' 
+                          className={`flex-1 w-full sm:min-w-[200px] px-3 py-1.5 border rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-sm transition-colors ${emailError
+                              ? 'border-red-300 bg-red-50 focus:ring-red-500 focus:border-red-500'
                               : newEmail.trim() && newEmail.trim() !== userData?.email && !validateEmail(newEmail)
                                 ? 'border-green-300 bg-green-50'
                                 : 'border-slate-300'
-                          }`}
+                            }`}
                           placeholder="Enter new email"
                           autoFocus
                         />
@@ -1575,7 +1572,7 @@ const Profile: React.FC = () => {
                         </button>
                       )}
                     </div>
-                    
+
                     {isEditingProfile ? (
                       <div className="space-y-4">
                         {/* First Name - Editable */}
@@ -1591,7 +1588,7 @@ const Profile: React.FC = () => {
                             placeholder="Enter first name"
                           />
                         </div>
-                        
+
                         {/* Last Name - Editable */}
                         <div>
                           <label className="block text-xs font-medium text-slate-700 mb-1">
@@ -1605,7 +1602,7 @@ const Profile: React.FC = () => {
                             placeholder="Enter last name"
                           />
                         </div>
-                        
+
                         {/* Email - Editable */}
                         <div>
                           <label className="block text-xs font-medium text-slate-700 mb-1">
@@ -1619,7 +1616,7 @@ const Profile: React.FC = () => {
                             placeholder="Enter email"
                           />
                         </div>
-                        
+
                         {/* Mobile Number - Read Only (Display as single field) */}
                         {userData.mobileNumber && (
                           <div>
@@ -1634,7 +1631,7 @@ const Profile: React.FC = () => {
                             />
                           </div>
                         )}
-                        
+
                         {/* Error/Success Messages */}
                         {profileError && (
                           <p className="text-xs text-red-600 flex items-start gap-1.5">
@@ -1648,7 +1645,7 @@ const Profile: React.FC = () => {
                             {profileSuccess}
                           </p>
                         )}
-                        
+
                         {/* Action Buttons */}
                         <div className="flex items-center gap-2 pt-2">
                           <button
@@ -1694,7 +1691,7 @@ const Profile: React.FC = () => {
                             </span>
                           </div>
                         )}
-                        
+
                         {/* Last Name */}
                         {userData.lastName && (
                           <div className="flex items-center gap-3 justify-center sm:justify-start">
@@ -1704,7 +1701,7 @@ const Profile: React.FC = () => {
                             </span>
                           </div>
                         )}
-                        
+
                         {/* Mobile Number - Read Only (Single field) */}
                         {userData.mobileNumber && (
                           <div className="flex items-center gap-3 justify-center sm:justify-start">
@@ -1714,7 +1711,7 @@ const Profile: React.FC = () => {
                             </span>
                           </div>
                         )}
-                        
+
                         {/* Country Name */}
                         {userData.countryCode && (
                           <div className="flex items-center gap-3 justify-center sm:justify-start">
@@ -1756,7 +1753,7 @@ const Profile: React.FC = () => {
                           <span className="font-medium">Business Name:</span> {userData.businessName || "Not provided"}
                         </span>
                       </div>
-                      
+
                       {/* GST Number */}
                       <div className="flex items-center gap-3 justify-center sm:justify-start">
                         <FileText size={16} className="text-slate-400" />
@@ -1764,7 +1761,7 @@ const Profile: React.FC = () => {
                           <span className="font-medium">GST Number:</span> {userData.gstNumber || "Not provided"}
                         </span>
                       </div>
-                      
+
                       {/* Business Address */}
                       <div className="flex items-start gap-3 justify-center sm:justify-start">
                         <MapPin size={16} className="text-slate-400 mt-0.5" />
@@ -1772,7 +1769,7 @@ const Profile: React.FC = () => {
                           <span className="font-medium">Business Address:</span> {userData.fullBusinessAddress || "Not provided"}
                         </span>
                       </div>
-                      
+
                       {/* City, State, Pincode */}
                       <div className="flex items-center gap-3 justify-center sm:justify-start">
                         <MapPin size={16} className="text-slate-400" />
@@ -1781,7 +1778,7 @@ const Profile: React.FC = () => {
                           {[userData.city, userData.state, userData.pincode].filter(Boolean).join(", ") || "Not provided"}
                         </span>
                       </div>
-                      
+
                       {/* Owner Name (Optional - only show if exists) */}
                       {userData.ownerName && (
                         <div className="flex items-center gap-3 justify-center sm:justify-start">
@@ -1791,7 +1788,7 @@ const Profile: React.FC = () => {
                           </span>
                         </div>
                       )}
-                      
+
                       {/* WhatsApp Number (Optional - only show if exists) */}
                       {userData.whatsappNumber && (
                         <div className="flex items-center gap-3 justify-center sm:justify-start">
@@ -1801,7 +1798,7 @@ const Profile: React.FC = () => {
                           </span>
                         </div>
                       )}
-                      
+
                       {/* Proof Document (Optional - only show if exists) */}
                       {userData.proofFileUrl && (
                         <div className="flex items-start gap-3 justify-center sm:justify-start">
@@ -1825,7 +1822,7 @@ const Profile: React.FC = () => {
                     </div>
                   </div>
                 )}
-                
+
                 <div className="flex items-center gap-3 justify-center sm:justify-start">
                   <Shield size={16} className="text-slate-400" />
                   <span className="text-slate-600 capitalize">{userData.role}</span>
@@ -1837,9 +1834,9 @@ const Profile: React.FC = () => {
                     {!isClient
                       ? "Loading..."
                       : new Date().toLocaleDateString("en-US", {
-                          month: "long",
-                          year: "numeric",
-                        })}
+                        month: "long",
+                        year: "numeric",
+                      })}
                   </span>
                 </div>
               </div>

@@ -64,14 +64,14 @@ const ServiceProducts: React.FC<ServiceProductsProps> = ({ service }) => {
             case 'product':
                 // Check if product has a subcategory
                 if (item.data.subcategory) {
-                    return `/digital-print/${categoryId}/${item.data.subcategory}/${item.id}`;
+                    return `/services/${categoryId}/${item.data.subcategory}/${item.id}`;
                 }
-                return `/digital-print/${categoryId}/${item.id}`;
+                return `/services/${categoryId}/${item.id}`;
             case 'category':
-                return `/digital-print/${item.id}`;
+                return `/services/${item.id}`;
             case 'subcategory':
                 // For subcategories, we need the parent category ID
-                return `/digital-print/${categoryId}/${item.id}`;
+                return `/services/${categoryId}/${item.id}`;
             default:
                 return '#';
         }
