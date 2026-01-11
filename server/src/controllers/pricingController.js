@@ -61,7 +61,7 @@ export const getPriceQuote = async (req, res) => {
 
         // Build pricing context from request (handles pincode fallback: request → profile → IP)
         const pricingContext = await UserContextService.buildContextFromRequest(req);
-        
+
         // Use pincode from context (IP-detected if not explicitly provided)
         const resolvedPincode = pricingContext.pincode;
 
@@ -106,6 +106,27 @@ export const getPriceQuote = async (req, res) => {
         });
     } catch (error) {
         console.error("Get price quote error:", error);
+
+        // Check if this is a product availability error
+        const errorMessage = error.message || "";
+        const isAvailabilityError =
+            errorMessage.includes("not available") ||
+            errorMessage.includes("Product not available") ||
+            errorMessage.includes("not sellable") ||
+            errorMessage.includes("block for") ||
+            errorMessage.includes("restricted");
+
+        if (isAvailabilityError) {
+            // Return a proper response for unavailable products (not 500)
+            return res.status(200).json({
+                success: false,
+                isAvailable: false,
+                errorCode: "PRODUCT_NOT_AVAILABLE",
+                message: errorMessage.replace("PricingService.resolvePrice failed: ", ""),
+                displayMessage: "This product is not available in your region",
+            });
+        }
+
         return res.status(500).json({
             success: false,
             message: error.message || "Failed to calculate price",
@@ -238,7 +259,7 @@ export const getBatchPriceQuote = async (req, res) => {
 export const getMyPricingContext = async (req, res) => {
     try {
         const pincode = req.query.pincode || null;
-        
+
         // Build context from user
         const context = await UserContextService.buildUserContext(req.user, pincode);
 

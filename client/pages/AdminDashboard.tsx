@@ -50,10 +50,8 @@ import PricingAuditLog from "../components/admin/pricing/PricingAuditLog";
 import GeoZoneManager from "../components/admin/pricing/GeoZoneManager";
 import UserSegmentManager from "../components/admin/pricing/UserSegmentManager";
 import ProductAvailabilityManager from "../components/admin/pricing/ProductAvailabilityManager";
-// New Virtual Pricing Components (Day 3-4)
 import SmartViewMatrix from "../src/components/admin/SmartViewMatrix";
 import ConflictDetectionModal from "../src/components/admin/ConflictDetectionModal";
-import VirtualModifierRuleBuilder from "../src/components/admin/ModifierRuleBuilder";
 import PricingPreviewPanel from "../components/pricing/PricingPreviewPanel";
 import { motion, AnimatePresence } from "framer-motion";
 import { ReviewFilterDropdown } from "../components/ReviewFilterDropdown";
@@ -6572,7 +6570,7 @@ const AdminDashboard: React.FC = () => {
     { id: "product-availability", label: "Product Availability", icon: Package },
     { id: "pricing-logs", label: "Audit Logs", icon: FileText },
     { id: "virtual-pricing", label: "🌟 Virtual Pricing (Smart View)", icon: DollarSign },
-    { id: "virtual-modifiers", label: "🔧 Virtual Modifier Builder", icon: Settings },
+    // Virtual Modifier Builder removed - consolidated into Pricing Modifiers with AND/OR support
     { id: "orders", label: "Orders", icon: ShoppingBag },
     { id: "uploads", label: "Uploaded Images", icon: ImageIcon },
     { id: "users", label: "Manage Users", icon: Users },
@@ -15137,7 +15135,6 @@ const AdminDashboard: React.FC = () => {
 
           {/* Virtual Pricing Tabs (Day 3-4) */}
           {activeTab === "virtual-pricing" && <SmartViewMatrix />}
-          {activeTab === "virtual-modifiers" && <VirtualModifierRuleBuilder onChange={(rules: any) => console.log('Rules updated:', rules)} />}
         </div>
       </div>
 

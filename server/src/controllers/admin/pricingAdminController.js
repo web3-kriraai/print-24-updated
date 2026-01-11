@@ -25,7 +25,10 @@ import PricingService from "../../services/pricing/PricingService.js";
 
 export const getPriceBooks = async (req, res) => {
     try {
-        const priceBooks = await PriceBook.find().sort({ isDefault: -1, createdAt: -1 });
+        const priceBooks = await PriceBook.find()
+            .populate('zone', 'name')
+            .populate('segment', 'name')
+            .sort({ isDefault: -1, createdAt: -1 });
         res.json({ success: true, priceBooks });
     } catch (error) {
         console.error('Get price books error:', error);
@@ -35,7 +38,20 @@ export const getPriceBooks = async (req, res) => {
 
 export const createPriceBook = async (req, res) => {
     try {
-        const { name, currency, isDefault } = req.body;
+        const {
+            name,
+            currency,
+            isDefault,
+            zone,
+            segment,
+            isMaster,
+            parentBook,
+            isOverride,
+            overridePriority,
+            description,
+            isVirtual,
+            calculationLogic
+        } = req.body;
 
         if (!name) {
             return res.status(400).json({ success: false, message: 'Price book name is required' });
@@ -46,7 +62,22 @@ export const createPriceBook = async (req, res) => {
             await PriceBook.updateMany({}, { isDefault: false });
         }
 
-        const priceBook = await PriceBook.create({ name, currency: currency || 'INR', isDefault: isDefault || false });
+        const priceBookData = {
+            name,
+            currency: currency || 'INR',
+            isDefault: isDefault || false,
+            zone: zone && zone !== "" ? zone : null,
+            segment: segment && segment !== "" ? segment : null,
+            isMaster: isMaster || false,
+            parentBook: parentBook && parentBook !== "" ? parentBook : null,
+            isOverride: isOverride || false,
+            overridePriority: overridePriority || 0,
+            description: description || "",
+            isVirtual: isVirtual || false,
+            calculationLogic: calculationLogic || "MASTER_ONLY"
+        };
+
+        const priceBook = await PriceBook.create(priceBookData);
         res.json({ success: true, priceBook });
     } catch (error) {
         console.error('Create price book error:', error);
@@ -57,15 +88,48 @@ export const createPriceBook = async (req, res) => {
 export const updatePriceBook = async (req, res) => {
     try {
         const { id } = req.params;
-        const { name, currency, isDefault } = req.body;
+        const {
+            name,
+            currency,
+            isDefault,
+            zone,
+            segment,
+            isMaster,
+            parentBook,
+            isOverride,
+            overridePriority,
+            description,
+            isVirtual,
+            calculationLogic,
+            isActive
+        } = req.body;
 
         if (isDefault) {
-            await PriceBook.updateMany({}, { isDefault: false });
+            await PriceBook.updateMany({ _id: { $ne: id } }, { isDefault: false });
         }
+
+        const updateData = {
+            name,
+            currency,
+            isDefault,
+            zone: zone && zone !== "" ? zone : (zone === "" ? null : undefined),
+            segment: segment && segment !== "" ? segment : (segment === "" ? null : undefined),
+            isMaster,
+            parentBook: parentBook && parentBook !== "" ? parentBook : (parentBook === "" ? null : undefined),
+            isOverride,
+            overridePriority,
+            description,
+            isVirtual,
+            calculationLogic,
+            isActive
+        };
+
+        // Remove undefined fields
+        Object.keys(updateData).forEach(key => updateData[key] === undefined && delete updateData[key]);
 
         const priceBook = await PriceBook.findByIdAndUpdate(
             id,
-            { name, currency, isDefault },
+            updateData,
             { new: true }
         );
 
@@ -120,7 +184,18 @@ export const getPriceBookEntries = async (req, res) => {
             .populate('product', 'name image category')
             .sort({ createdAt: -1 });
 
-        res.json({ success: true, entries });
+        // Filter out entries where product has been deleted (null)
+        const validEntries = entries.filter(entry => entry.product !== null);
+
+        // Clean up orphaned entries (optional - removes them from DB)
+        const orphanedEntries = entries.filter(entry => entry.product === null);
+        if (orphanedEntries.length > 0) {
+            const orphanedIds = orphanedEntries.map(e => e._id);
+            await PriceBookEntry.deleteMany({ _id: { $in: orphanedIds } });
+            console.log(`Cleaned up ${orphanedEntries.length} orphaned price book entries`);
+        }
+
+        res.json({ success: true, entries: validEntries });
     } catch (error) {
         console.error('Get price book entries error:', error);
         res.status(500).json({ success: false, message: error.message });
@@ -400,6 +475,20 @@ export const getProducts = async (req, res) => {
         res.json({ success: true, products });
     } catch (error) {
         console.error('Get products error:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+// Get Categories (for Rule Builder dropdown)
+export const getCategories = async (req, res) => {
+    try {
+        const Category = (await import('../../models/categoryModal.js')).default;
+        const categories = await Category.find()
+            .select('name slug')
+            .sort({ name: 1 });
+        res.json({ success: true, categories });
+    } catch (error) {
+        console.error('Get categories error:', error);
         res.status(500).json({ success: false, message: error.message });
     }
 };

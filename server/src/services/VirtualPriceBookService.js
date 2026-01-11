@@ -38,10 +38,18 @@ class VirtualPriceBookService {
    */
   async calculateVirtualPrice(productId, zoneId, segmentId, contextOverride = {}) {
     try {
+      console.log('\n' + '═'.repeat(80));
+      console.log(`🔹 CALCULATING VIRTUAL PRICE`);
+      console.log(`   Product: ${productId}`);
+      console.log(`   Zone: ${zoneId || 'None'}`);
+      console.log(`   Segment: ${segmentId || 'None'}`);
+      console.log('═'.repeat(80));
+
       // 0. Check product availability in zone
       if (zoneId) {
         const availability = await this.checkProductAvailability(productId, zoneId);
         if (!availability.isAvailable) {
+          console.log(`❌ Product NOT AVAILABLE in zone ${zoneId}: ${availability.reason}`);
           return {
             productId,
             zoneId,
@@ -64,6 +72,9 @@ class VirtualPriceBookService {
       if (!masterPrice) {
         throw new Error(`No master price found for product ${productId}`);
       }
+
+      console.log(`\n💰 STEP 1: Master Price = ₹${masterPrice.basePrice}`);
+      console.log(`   from: ${masterPrice.bookName}`);
 
       // 2. Get zone adjustments (if any)
       const zoneAdjustments = zoneId ? await this.getZoneAdjustments(productId, zoneId) : null;
@@ -88,12 +99,13 @@ class VirtualPriceBookService {
         // For now, let's fast-fetch lean product if not provided, 
         // because Combination Rules OFTEN use Category/SubCategory.
         try {
-          const productData = await Product.findById(productId).select('category subCategory type sku').lean();
+          const productData = await Product.findById(productId).select('category subCategory type sku attributes').lean();
           if (productData) {
             context.categoryId = productData.category;
             context.subCategoryId = productData.subCategory;
             context.productType = productData.type;
             context.sku = productData.sku;
+            context.productAttributes = productData.attributes || []; // Added for attribute-based pricing
           }
         } catch (e) {
           console.warn('Failed to fetch product details for context', e);
@@ -109,32 +121,61 @@ class VirtualPriceBookService {
 
       // Apply zone adjustments from PriceBook
       if (zoneAdjustments) {
+        const beforeZone = finalPrice;
         finalPrice = this.applyAdjustment(finalPrice, zoneAdjustments);
+        console.log(`\n💰 STEP 2: Zone Price Override`);
+        console.log(`   Before: ₹${beforeZone}`);
+        console.log(`   Override: ₹${zoneAdjustments.adjustment} (${zoneAdjustments.adjustmentType})`);
+        console.log(`   After: ₹${finalPrice}`);
+        console.log(`   from: ${zoneAdjustments.priceBookName}`);
+
         adjustments.push({
           type: 'ZONE_BOOK',
           value: zoneAdjustments.adjustment,
           adjustmentType: zoneAdjustments.adjustmentType,
           book: zoneAdjustments.priceBookId,
-          bookName: zoneAdjustments.priceBookName
+          bookName: zoneAdjustments.priceBookName,
+          beforePrice: beforeZone,
+          afterPrice: finalPrice
         });
+      } else {
+        console.log(`\n⏭️  STEP 2: No zone-specific price override`);
       }
 
       // Apply segment adjustments from PriceBook
       if (segmentAdjustments) {
+        const beforeSegment = finalPrice;
         finalPrice = this.applyAdjustment(finalPrice, segmentAdjustments);
+        console.log(`\n💰 STEP 3: Segment Price Override`);
+        console.log(`   Before: ₹${beforeSegment}`);
+        console.log(`   Override: ₹${segmentAdjustments.adjustment} (${segmentAdjustments.adjustmentType})`);
+        console.log(`   After: ₹${finalPrice}`);
+        console.log(`   from: ${segmentAdjustments.priceBookName}`);
+
         adjustments.push({
           type: 'SEGMENT_BOOK',
           value: segmentAdjustments.adjustment,
           adjustmentType: segmentAdjustments.adjustmentType,
           book: segmentAdjustments.priceBookId,
-          bookName: segmentAdjustments.priceBookName
+          bookName: segmentAdjustments.priceBookName,
+          beforePrice: beforeSegment,
+          afterPrice: finalPrice
         });
+      } else {
+        console.log(`\n⏭️  STEP 3: No segment-specific price override`);
       }
+
+      console.log(`\n🎯 STEP 4: Applying Price Modifiers`);
+      console.log(`   Base Price (after zone/segment): ₹${finalPrice}`);
+      console.log(`   Modifiers found: ${modifiers.length}`);
 
       // Apply PriceModifier rules with stackability support
       // Group modifiers by stackability and category
       const stackableModifiers = modifiers.filter(m => m.isStackable !== false);
       const nonStackableModifiers = modifiers.filter(m => m.isStackable === false);
+
+      console.log(`   - Stackable: ${stackableModifiers.length}`);
+      console.log(`   - Non-stackable: ${nonStackableModifiers.length}`);
 
       // For non-stackable modifiers, we need to pick the best one from each category
       // Category = appliesTo (ZONE, SEGMENT, PRODUCT, GLOBAL, COMBINATION)
@@ -171,10 +212,17 @@ class VirtualPriceBookService {
       const modifiersToApply = [...stackableModifiers, ...bestNonStackable]
         .sort((a, b) => (a.priority || 0) - (b.priority || 0));
 
+      console.log(`   → Applying ${modifiersToApply.length} modifiers...`);
+
       // Apply all selected modifiers
       for (const modifier of modifiersToApply) {
         const beforePrice = finalPrice;
         finalPrice = this.applyModifier(finalPrice, modifier);
+        const change = finalPrice - beforePrice;
+
+        console.log(`   ${change >= 0 ? '📈' : '📉'} ${modifier.name}: ${modifier.modifierType} ${modifier.value}`);
+        console.log(`      Before: ₹${beforePrice.toFixed(2)} → After: ₹${finalPrice.toFixed(2)} (${change >= 0 ? '+' : ''}₹${change.toFixed(2)})`);
+
         adjustments.push({
           type: 'MODIFIER',
           modifierId: modifier._id,
@@ -188,6 +236,9 @@ class VirtualPriceBookService {
           change: finalPrice - beforePrice
         });
       }
+
+      console.log(`\n✅ FINAL PRICE: ₹${finalPrice.toFixed(2)}`);
+      console.log('═'.repeat(80) + '\n');
 
       return {
         productId,
@@ -245,6 +296,30 @@ class VirtualPriceBookService {
       modifiers.push(...productModifiers);
     }
 
+    // Get CATEGORY-specific modifiers (if product has category in context)
+    if (context?.categoryId || context?.category) {
+      const categoryId = context.categoryId || context.category?._id || context.category;
+      const categoryModifiers = await PriceModifier.find({
+        appliesTo: 'CATEGORY',
+        category: categoryId,
+        isActive: true
+      }).sort({ priority: 1 }).lean();
+      modifiers.push(...categoryModifiers);
+    }
+
+    // Get ATTRIBUTE-specific modifiers (match by attribute type and value)
+    if (context?.productAttributes && Array.isArray(context.productAttributes)) {
+      for (const attr of context.productAttributes) {
+        const attributeModifiers = await PriceModifier.find({
+          appliesTo: 'ATTRIBUTE',
+          attributeType: attr.type || attr.attributeType,
+          attributeValue: attr.value || attr.attributeValue,
+          isActive: true
+        }).sort({ priority: 1 }).lean();
+        modifiers.push(...attributeModifiers);
+      }
+    }
+
     // Get global modifiers
     const globalModifiers = await PriceModifier.find({
       appliesTo: 'GLOBAL',
@@ -261,7 +336,7 @@ class VirtualPriceBookService {
     for (const modifier of combinationModifiers) {
       // Validate modifier validity (isValid method logic might need to be replicated or we instantiate the model)
       // Since we are using lean(), we don't have methods.
-      // We'll trust the query 'isActive: true' and maybe check date manually if needed.
+      // We'll trust the query 'isActive: true' and maybe check date manually if needed. 
       // For now, let's assume active modifiers are generally valid time-wise or checked elsewhere. 
       // Actually PriceModifier.isValid also checks dates. We should replicate that or use non-lean?
       // Let's rely on JSON evaluator for the conditions.
@@ -489,7 +564,10 @@ class VirtualPriceBookService {
           ...price
         });
       } catch (error) {
-        console.error(`Error calculating price for product ${product._id}:`, error);
+        // Skip logging for "No master price" errors as they're expected
+        if (!error.message?.includes('No master price found')) {
+          console.error(`Error calculating price for product ${product._id}:`, error.message);
+        }
       }
     }
 
@@ -518,7 +596,10 @@ class VirtualPriceBookService {
           ...price
         });
       } catch (error) {
-        console.error(`Error calculating price for segment ${segment._id}:`, error);
+        // Skip logging for "No master price" errors as they're expected
+        if (!error.message?.includes('No master price found')) {
+          console.error(`Error calculating price for segment ${segment._id}:`, error.message);
+        }
       }
     }
 
@@ -649,6 +730,11 @@ class VirtualPriceBookService {
   async detectConflicts(zoneId, segmentId, productId, newPrice) {
     const conflicts = [];
 
+    // Fetch product details for display
+    const product = await Product.findById(productId)
+      .select('name sku')
+      .lean();
+
     // Check for existing overrides at different levels
     const existingOverrides = await PriceBookEntry.find({
       product: productId
@@ -658,8 +744,16 @@ class VirtualPriceBookService {
     for (const override of existingOverrides) {
       const book = override.priceBook;
 
+      if (!book) continue; // Safety check
+
+      const existingZone = book.zone ? book.zone.toString() : null;
+      const existingSegment = book.segment ? book.segment.toString() : null;
+
+      const targetZone = zoneId ? zoneId.toString() : null;
+      const targetSegment = segmentId ? segmentId.toString() : null;
+
       // Skip if same context
-      if (book.zone?.toString() === zoneId && book.segment?.toString() === segmentId) {
+      if (existingZone === targetZone && existingSegment === targetSegment) {
         continue;
       }
 
@@ -671,6 +765,7 @@ class VirtualPriceBookService {
     return {
       hasConflicts: conflicts.length > 0,
       conflicts,
+      product: product ? { _id: product._id, name: product.name, sku: product.sku } : null, // Added product details
       resolutionOptions: this.getResolutionOptions(conflicts)
     };
   }
@@ -680,6 +775,7 @@ class VirtualPriceBookService {
    */
   async analyzeConflict(override, newZoneId, newSegmentId, newPrice) {
     const book = override.priceBook;
+    if (!book) return null;
 
     // Determine conflict type
     let conflictType = null;

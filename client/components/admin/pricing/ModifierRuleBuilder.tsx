@@ -46,7 +46,7 @@ interface ConditionRow {
 const AVAILABLE_FIELDS = [
     { value: 'geo_zone', label: 'Geo Zone', type: 'select', optionsSrc: 'zones' },
     { value: 'user_segment', label: 'User Segment', type: 'select', optionsSrc: 'segments' },
-    { value: 'category', label: 'Product Category', type: 'text' },
+    { value: 'category', label: 'Product Category', type: 'select', optionsSrc: 'categories' },
     { value: 'product_id', label: 'Specific Product', type: 'select', optionsSrc: 'products' },
     { value: 'quantity', label: 'Cart Quantity', type: 'number' },
     { value: 'order_value', label: 'Order Value', type: 'number' },
@@ -92,6 +92,12 @@ interface AttributeType {
     attributeName: string;
 }
 
+interface Category {
+    _id: string;
+    name: string;
+    slug?: string;
+}
+
 export const ModifierRuleBuilder: React.FC = () => {
     const [modifiers, setModifiers] = useState<PriceModifier[]>([]);
     const [showCreateModal, setShowCreateModal] = useState(false);
@@ -103,9 +109,11 @@ export const ModifierRuleBuilder: React.FC = () => {
     const [userSegments, setUserSegments] = useState<UserSegment[]>([]);
     const [products, setProducts] = useState<Product[]>([]);
     const [attributeTypes, setAttributeTypes] = useState<AttributeType[]>([]);
+    const [categories, setCategories] = useState<Category[]>([]);
 
     // Rule Builder State
     const [ruleRows, setRuleRows] = useState<ConditionRow[]>([]);
+    const [ruleLogic, setRuleLogic] = useState<'AND' | 'OR'>('AND');
 
     // Form state
     const [formData, setFormData] = useState<Partial<PriceModifier>>({
@@ -142,7 +150,7 @@ export const ModifierRuleBuilder: React.FC = () => {
 
     const fetchLookupData = async () => {
         try {
-            const [zonesRes, segmentsRes, productsRes, attrsRes] = await Promise.all([
+            const [zonesRes, segmentsRes, productsRes, attrsRes, categoriesRes] = await Promise.all([
                 fetch('/api/admin/pricing/geo-zones', {
                     headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
                 }),
@@ -155,19 +163,24 @@ export const ModifierRuleBuilder: React.FC = () => {
                 fetch('/api/admin/pricing/attribute-types', {
                     headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
                 }),
+                fetch('/api/admin/pricing/categories', {
+                    headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+                }),
             ]);
 
-            const [zones, segments, products, attrs] = await Promise.all([
+            const [zones, segments, products, attrs, cats] = await Promise.all([
                 zonesRes.json(),
                 segmentsRes.json(),
                 productsRes.json(),
                 attrsRes.json(),
+                categoriesRes.json(),
             ]);
 
             setGeoZones(zones.zones || []);
             setUserSegments(segments.segments || []);
             setProducts(products.products || []);
             setAttributeTypes(attrs.attributeTypes || []);
+            setCategories(cats.categories || []);
         } catch (error) {
             console.error('Failed to fetch lookup data:', error);
         }
@@ -240,10 +253,16 @@ export const ModifierRuleBuilder: React.FC = () => {
         if (modifier.appliesTo === 'COMBINATION' && modifier.conditions) {
             const rows: ConditionRow[] = [];
 
+            // Detect logic type (AND or OR)
+            const detectedLogic = modifier.conditions.OR ? 'OR' : 'AND';
+            setRuleLogic(detectedLogic);
+
             // Helper to process a condition node
             const processNode = (node: any) => {
                 if (node.AND) {
                     node.AND.forEach((child: any) => processNode(child));
+                } else if (node.OR) {
+                    node.OR.forEach((child: any) => processNode(child));
                 } else if (node.field) {
                     rows.push({
                         id: Math.random().toString(36).substr(2, 9),
@@ -262,6 +281,7 @@ export const ModifierRuleBuilder: React.FC = () => {
             setRuleRows(rows);
         } else {
             setRuleRows([]);
+            setRuleLogic('AND'); // Reset to default
         }
 
         setShowCreateModal(true);
@@ -312,12 +332,11 @@ export const ModifierRuleBuilder: React.FC = () => {
             };
         });
 
-        // Wrap in AND if multiple, or just returned as single/AND structure
-        // Backend JSONRuleEvaluator handles implicit top-level or explicit AND
-        // Let's use explicit AND for consistency
+        // Wrap in AND or OR based on selected logic
+        // Backend JSONRuleEvaluator handles both AND and OR at top level
         setFormData(prev => ({
             ...prev,
-            conditions: { AND: conditions }
+            conditions: { [ruleLogic]: conditions }
         }));
     };
 
@@ -595,8 +614,37 @@ export const ModifierRuleBuilder: React.FC = () => {
 
                             {formData.appliesTo === 'COMBINATION' && (
                                 <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                                    {/* Logic Toggle */}
+                                    <div className="mb-4">
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                            Logic Operator
+                                        </label>
+                                        <div className="flex gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => { setRuleLogic('AND'); updateConditionsJson(ruleRows); }}
+                                                className={`flex-1 py-2 px-4 rounded-lg font-medium transition-all ${ruleLogic === 'AND'
+                                                    ? 'bg-blue-600 text-white shadow-md'
+                                                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                                    }`}
+                                            >
+                                                AND (All must match)
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => { setRuleLogic('OR'); updateConditionsJson(ruleRows); }}
+                                                className={`flex-1 py-2 px-4 rounded-lg font-medium transition-all ${ruleLogic === 'OR'
+                                                    ? 'bg-green-600 text-white shadow-md'
+                                                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                                    }`}
+                                            >
+                                                OR (Any can match)
+                                            </button>
+                                        </div>
+                                    </div>
+
                                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        Rule Conditions (ALL must match)
+                                        Rule Conditions ({ruleLogic === 'AND' ? 'ALL must match' : 'ANY can match'})
                                     </label>
 
                                     <div className="space-y-3">
@@ -641,6 +689,15 @@ export const ModifierRuleBuilder: React.FC = () => {
                                                         >
                                                             <option value="">Select Segment</option>
                                                             {userSegments.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}
+                                                        </select>
+                                                    ) : AVAILABLE_FIELDS.find(f => f.value === row.field)?.optionsSrc === 'categories' ? (
+                                                        <select
+                                                            value={row.value}
+                                                            onChange={(e) => updateRuleRow(row.id, 'value', e.target.value)}
+                                                            className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"
+                                                        >
+                                                            <option value="">Select Category</option>
+                                                            {categories.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
                                                         </select>
                                                     ) : AVAILABLE_FIELDS.find(f => f.value === row.field)?.optionsSrc === 'products' ? (
                                                         <select

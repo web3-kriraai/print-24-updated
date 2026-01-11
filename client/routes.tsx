@@ -18,8 +18,8 @@ import MyOrders from './pages/MyOrders';
 import DepartmentPortal from './pages/DepartmentPortal';
 import EmployeeDashboard from './pages/EmployeeDashboard';
 import AdminDashboard from './pages/AdminDashboard';
-import AdminPricingDashboard from './src/components/admin/AdminPricingDashboard';
-import AdminPricingHub from './pages/AdminPricingHub';
+import NotFound from './pages/NotFound';
+// AdminPricingDashboard and AdminPricingHub removed - functionality consolidated into AdminDashboard
 
 // Shared routes configuration for both SSR and client
 export const routes = [
@@ -58,11 +58,12 @@ export const routes = [
       { path: 'orders/:orderId', element: <OrderDetails />, errorElement: <ErrorBoundary /> },
       { path: 'order/:orderId', element: <OrderDetails />, errorElement: <ErrorBoundary /> },
       { path: 'admin/dashboard', element: <AdminDashboard />, errorElement: <ErrorBoundary /> },
-      { path: 'admin/pricing-hub', element: <AdminPricingHub />, errorElement: <ErrorBoundary /> },
-      { path: 'admin/pricing', element: <AdminPricingDashboard />, errorElement: <ErrorBoundary /> },
+      // admin/pricing and admin/pricing-hub removed - use admin/dashboard Pricing tabs instead
       { path: 'employee/dashboard', element: <EmployeeDashboard />, errorElement: <ErrorBoundary /> },
       { path: 'department-portal', element: <DepartmentPortal />, errorElement: <ErrorBoundary /> },
       { path: 'reviews', element: <Reviews />, errorElement: <ErrorBoundary /> },
+      // Catch-all 404 route - must be last
+      { path: '*', element: <NotFound />, errorElement: <ErrorBoundary /> },
     ],
   },
 ];

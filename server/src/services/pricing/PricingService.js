@@ -56,7 +56,7 @@ class PricingService {
         promoCodes = [],
     }) {
         try {
-            // Step 1: Get user segment
+            // Step 1: Resolve User Segment
             let resolvedUserSegmentId = userSegmentId;
 
             if (!resolvedUserSegmentId && userId) {
@@ -80,25 +80,17 @@ class PricingService {
                 resolvedUserSegmentId = retailSegment._id;
             }
 
-            // Step 1.5: Check Redis cache (if caching enabled)
-            if (cacheResults) {
-                // Get geo zone ID first for cache key
-                const pricingContext = await PricingResolver.resolvePrice({
-                    productId,
-                    userSegmentId: resolvedUserSegmentId,
-                    pincode,
-                    selectedAttributes: selectedDynamicAttributes.map((attr) => ({
-                        attributeType: attr.attributeType || attr.attributeTypeId,
-                        value: attr.value || attr.attributeValue,
-                        pricingKey: attr.pricingKey,
-                        attributeName: attr.attributeName,
-                    })),
-                });
+            // Step 2: Resolve GeoZone
+            // We use PricingResolver helper just for GeoZone resolution context
+            const geoZone = await PricingResolver.getGeoZoneByPincode(pincode);
+            const geoZoneId = geoZone?._id || null;
 
+            // Step 3: Check Redis Cache
+            if (cacheResults) {
                 const cacheKey = PricingCache.generateKey(
                     productId,
                     resolvedUserSegmentId,
-                    pricingContext.geoZoneId
+                    geoZoneId
                 );
 
                 const cached = await PricingCache.get(cacheKey);
@@ -109,72 +101,77 @@ class PricingService {
                 console.log(`⚠️ Cache MISS: ${cacheKey}`);
             }
 
-            // Step 2: Get product details (for GST)
+            // Step 4: Get Product Details (for GST & Metadata)
             const product = await Product.findById(productId).lean();
             if (!product) {
                 throw new Error("Product not found");
             }
-
             const gstPercentage = product.gstPercentage || 0;
 
-            // Step 3: Get pricing context from PricingResolver (REFINEMENT 3)
-            const pricingContext = await PricingResolver.resolvePrice({
-                productId,
-                userSegmentId: resolvedUserSegmentId,
-                pincode,
+            // Step 5: CALCULATE VIRTUAL PRICE (The Core Waterfall Logic)
+            // This replaces the disconnected PricingResolver + ModifierEngine flow
+            const contextOverride = {
                 selectedAttributes: selectedDynamicAttributes.map((attr) => ({
                     attributeType: attr.attributeType || attr.attributeTypeId,
                     value: attr.value || attr.attributeValue,
                     pricingKey: attr.pricingKey,
                     attributeName: attr.attributeName,
                 })),
-            });
-
-            // Step 4: Calculate subtotal BEFORE modifiers (REFINEMENT 2)
-            const subtotal = pricingContext.unitPrice * quantity;
-
-            // Step 5: Apply ALL modifiers via ModifierEngine (REFINEMENT 1 & 2)
-            // Step 5: Apply ALL modifiers via ModifierEngine (REFINEMENT 1 & 2)
-            const modifierResult = await ModifierEngine.evaluate({
-                unitPrice: pricingContext.unitPrice,  // For UNIT modifiers
-                subtotal,                              // For SUBTOTAL modifiers
-                productId,
-                geoZoneId: pricingContext.geoZoneId,
-                userSegmentId: resolvedUserSegmentId,
-                quantity,                              // For context only, NOT for math
                 promoCodes,
-                selectedAttributes: pricingContext.selectedAttributes,
-            });
+                product: product // pass full product to avoid re-fetch
+            };
 
-            // Step 6: Calculate final subtotal after modifiers
-            const finalSubtotal = subtotal + modifierResult.totalAdjustment;
+            const virtualResult = await this.virtualPriceBookService.calculateVirtualPrice(
+                productId,
+                geoZoneId,
+                resolvedUserSegmentId,
+                contextOverride
+            );
+
+            if (!virtualResult.isAvailable) {
+                throw new Error(virtualResult.availabilityReason || "Product not available in this region");
+            }
+
+            // Step 6: Calculate Totals
+            const unitPrice = virtualResult.finalPrice;
+            const subtotal = unitPrice * quantity;
 
             // Step 7: Calculate GST
-            const gstAmount = (finalSubtotal * gstPercentage) / 100;
-            const totalPayable = finalSubtotal + gstAmount;
+            const gstAmount = (subtotal * gstPercentage) / 100;
+            const totalPayable = subtotal + gstAmount;
 
-            // Step 8: Build pricing result
+            // Step 8: Build Final Result
             const result = {
-                basePrice: pricingContext.basePrice,
-                compareAtPrice: pricingContext.compareAtPrice,
+                basePrice: virtualResult.masterPrice,
+                unitPrice: unitPrice,
+                compareAtPrice: null, // Virtual service could be enhanced to return this
                 quantity,
-                subtotal: finalSubtotal,
+                subtotal,
                 gstPercentage,
                 gstAmount,
                 totalPayable,
-                appliedModifiers: modifierResult.appliedModifiers,
-                currency: pricingContext.currency,
-                geoZone: pricingContext.geoZone,
-                priceBookId: pricingContext.priceBookId,
+                appliedModifiers: virtualResult.adjustments.map(adj => ({
+                    source: adj.type,
+                    reason: adj.modifierName || adj.adjustmentType || adj.type,
+                    modifierType: adj.modifierType || 'FIXED',
+                    value: adj.value,
+                    beforeAmount: adj.beforePrice || 0,
+                    afterAmount: adj.afterPrice || 0,
+                    pricingKey: adj.modifierId // for audit logs
+                })),
+                currency: geoZone?.currency || "INR",
+                geoZone: geoZone,
+                priceBookId: virtualResult.masterBook,
                 calculatedAt: new Date(),
+                isVirtual: true
             };
 
-            // Step 9: Cache the result (if caching enabled)
+            // Step 9: Cache Result
             if (cacheResults) {
                 const cacheKey = PricingCache.generateKey(
                     productId,
                     resolvedUserSegmentId,
-                    pricingContext.geoZoneId
+                    geoZoneId
                 );
                 await PricingCache.set(cacheKey, result, 900); // 15 min TTL
                 console.log(`💾 Cached: ${cacheKey}`);

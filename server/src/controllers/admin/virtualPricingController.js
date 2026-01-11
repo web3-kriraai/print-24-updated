@@ -11,7 +11,7 @@ const virtualPriceBookService = new VirtualPriceBookService();
 export const getSmartView = async (req, res) => {
   try {
     const { zone, segment, product } = req.query;
-    
+
     const filters = {
       zone: zone || null,
       segment: segment || null,
@@ -73,7 +73,11 @@ export const calculateVirtualPrice = async (req, res) => {
  */
 export const detectConflicts = async (req, res) => {
   try {
-    const { zoneId, segmentId, productId, newPrice } = req.body;
+    let { zoneId, segmentId, productId, newPrice } = req.body;
+
+    // Clean up IDs to prevent CastErrors for empty strings
+    if (zoneId === "") zoneId = null;
+    if (segmentId === "") segmentId = null;
 
     if (!productId || newPrice === undefined) {
       return res.status(400).json({
@@ -108,7 +112,11 @@ export const detectConflicts = async (req, res) => {
  */
 export const resolveConflict = async (req, res) => {
   try {
-    const { resolutionId, conflicts, newPrice, zoneId, segmentId, productId } = req.body;
+    let { resolutionId, conflicts, newPrice, zoneId, segmentId, productId } = req.body;
+
+    // Clean up IDs
+    if (zoneId === "") zoneId = null;
+    if (segmentId === "") segmentId = null;
 
     if (!resolutionId || !productId || newPrice === undefined) {
       return res.status(400).json({
@@ -282,7 +290,7 @@ export const createSegmentBook = async (req, res) => {
 export const getPriceBookHierarchy = async (req, res) => {
   try {
     const masterBook = await PriceBook.getMasterBook();
-    
+
     if (!masterBook) {
       return res.json({
         success: true,

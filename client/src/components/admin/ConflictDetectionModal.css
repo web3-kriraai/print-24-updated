@@ -11,7 +11,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 1000;
+    z-index: 99999 !important;
+    /* Highest priority - above all modals */
     padding: 20px;
     animation: fadeIn 0.2s ease-out;
 }
@@ -86,7 +87,242 @@
     transform: rotate(90deg);
 }
 
-/* Conflict Details */
+.modal-subtitle {
+    font-size: 14px;
+    color: #666;
+    margin: 4px 0 0 0;
+    font-weight: 500;
+}
+
+/* Impact Summary Section */
+.impact-summary-section {
+    padding: 20px 28px;
+    background: linear-gradient(135deg, #fef3c7 0%, #fef2f2 100%);
+    border-bottom: 2px solid #e0e0e0;
+}
+
+.summary-card {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 24px;
+    margin-bottom: 16px;
+}
+
+.summary-item {
+    background: white;
+    padding: 12px 20px;
+    border-radius: 10px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.summary-item label {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+}
+
+.summary-item strong {
+    font-size: 20px;
+    font-weight: 700;
+    color: #1a1a1a;
+    font-family: 'Courier New', monospace;
+}
+
+.summary-arrow {
+    font-size: 24px;
+    color: #666;
+    font-weight: 700;
+}
+
+.text-primary {
+    color: #4f46e5 !important;
+}
+
+.affected-count-badge {
+    text-align: center;
+    padding: 8px 16px;
+    background: white;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #dc2626;
+    display: inline-block;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+/* Affected Items Section */
+.affected-items-section {
+    padding: 24px 28px;
+    background: white;
+}
+
+.affected-items-section h4 {
+    font-size: 16px;
+    font-weight: 600;
+    color: #1a1a1a;
+    margin-bottom: 16px;
+}
+
+.affected-table-wrapper {
+    overflow-x: auto;
+    border-radius: 10px;
+    border: 1px solid #e0e0e0;
+}
+
+.affected-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+}
+
+.affected-table thead {
+    background: #f8f9fa;
+}
+
+.affected-table th {
+    padding: 12px 16px;
+    text-align: left;
+    font-size: 12px;
+    font-weight: 700;
+    color: #444;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 2px solid #e0e0e0;
+}
+
+.affected-table tbody tr {
+    border-bottom: 1px solid #f0f0f0;
+    transition: background 0.2s;
+}
+
+.affected-table tbody tr:hover {
+    background: #f8f9fa;
+}
+
+.affected-table tbody tr:last-child {
+    border-bottom: none;
+}
+
+.affected-table td {
+    padding: 14px 16px;
+    font-size: 14px;
+}
+
+.segment-name {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.segment-name strong {
+    font-weight: 600;
+    color: #1a1a1a;
+}
+
+.segment-code {
+    font-size: 11px;
+    color: #999;
+    font-family: 'Courier New', monospace;
+}
+
+.price-current,
+.price-new {
+    font-weight: 600;
+    font-family: 'Courier New', monospace;
+    color: #444;
+}
+
+.price-diff {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+}
+
+.price-diff.increase {
+    color: #dc2626;
+}
+
+.price-diff.decrease {
+    color: #10b981;
+}
+
+.diff-amount {
+    font-family: 'Courier New', monospace;
+    font-size: 14px;
+}
+
+.diff-percent {
+    font-size: 12px;
+    opacity: 0.8;
+}
+
+/* Enhanced Option Cards */
+.option-impact-warning {
+    background: #fef3c7;
+    border-left: 3px solid #f59e0b;
+    padding: 10px;
+    margin: 12px 0;
+    border-radius: 6px;
+    font-size: 13px;
+    color: #92400e;
+    line-height: 1.5;
+}
+
+.option-preview {
+    margin-top: 12px;
+    padding: 12px;
+    background: #f0fdf4;
+    border-radius: 8px;
+    border: 1px solid #d1fae5;
+}
+
+.option-preview strong {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: #065f46;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.option-preview ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.option-preview li {
+    padding: 6px 0;
+    font-size: 13px;
+    color: #064e3b;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.preview-segment {
+    font-weight: 600;
+    min-width: 100px;
+}
+
+.preview-prices {
+    font-family: 'Courier New', monospace;
+    font-weight: 500;
+}
+
+.preview-diff {
+    color: #059669;
+    font-weight: 600;
+    font-size: 12px;
+}
+
 .conflict-details {
     padding: 24px 28px;
 }

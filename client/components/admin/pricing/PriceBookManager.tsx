@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2, Save, X, Book, Star, Eye } from 'lucide-react';
+import ConflictDetectionModal from '../../../src/components/admin/ConflictDetectionModal';
 
 interface PriceBook {
     _id: string;
@@ -7,6 +8,8 @@ interface PriceBook {
     currency: string;
     isDefault: boolean;
     createdAt?: string;
+    zone?: { _id: string; name: string };
+    segment?: { _id: string; name: string };
 }
 
 interface Product {
@@ -18,7 +21,7 @@ interface Product {
 
 interface PriceBookEntry {
     _id: string;
-    product: Product;
+    product: Product | null;
     basePrice: number;
     compareAtPrice?: number;
 }
@@ -59,13 +62,54 @@ const PriceBookManager: React.FC = () => {
     const [formData, setFormData] = useState({
         name: '',
         currency: 'INR',
-        isDefault: false
+        isDefault: false,
+        zone: '',
+        segment: '',
+        isMaster: false,
+        parentBook: '',
+        isOverride: false,
+        overridePriority: 0,
+        description: ''
     });
 
-    // Fetch price books
+    // Conflict Resolution State
+    const [conflictData, setConflictData] = useState<any>(null);
+    const [showConflictModal, setShowConflictModal] = useState(false);
+    const [resolvingConflict, setResolvingConflict] = useState(false);
+
+    // Lookup data
+    const [geoZones, setGeoZones] = useState<any[]>([]);
+    const [userSegments, setUserSegments] = useState<any[]>([]);
+
+    // Fetch price books and lookup data
     useEffect(() => {
         fetchPriceBooks();
+        fetchLookupData();
     }, []);
+
+    const fetchLookupData = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            const headers = { 'Authorization': `Bearer ${token}` };
+
+            const [zonesRes, segmentsRes] = await Promise.all([
+                fetch('/api/admin/pricing/geo-zones', { headers }),
+                fetch('/api/admin/pricing/user-segments', { headers })
+            ]);
+
+            if (zonesRes.ok) {
+                const data = await zonesRes.json();
+                setGeoZones(data.zones || []);
+            }
+
+            if (segmentsRes.ok) {
+                const data = await segmentsRes.json();
+                setUserSegments(data.segments || []);
+            }
+        } catch (error) {
+            console.error('Failed to fetch lookup data:', error);
+        }
+    };
 
     const fetchPriceBooks = async () => {
         setLoading(true);
@@ -162,8 +206,54 @@ const PriceBookManager: React.FC = () => {
         if (!selectedPriceBook) return;
 
         setLoadingEntries(true);
+        const token = localStorage.getItem('token');
+
         try {
-            const token = localStorage.getItem('token');
+            // CONFLICT DETECTION STEP
+            // Relevant if we are adding/updating a price that might conflict with others
+            if (!editingEntry && parseFloat(entryForm.basePrice) > 0) {
+                // Prepare detection payload
+                const detectionPayload = {
+                    zoneId: selectedPriceBook.zone?._id || null,
+                    segmentId: selectedPriceBook.segment?._id || null,
+                    productId: entryForm.product,
+                    newPrice: parseFloat(entryForm.basePrice)
+                };
+
+                const checkRes = await fetch('/api/admin/pricing/detect-conflicts', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`,
+                    },
+                    body: JSON.stringify(detectionPayload)
+                });
+
+                if (checkRes.ok) {
+                    const checkData = await checkRes.json();
+                    console.log('🔍 Conflict Check Response:', checkData);
+                    
+                    // Handle both 'hasConflict' and 'hasConflicts' for compatibility
+                    const hasConflict = checkData.success && checkData.data && 
+                                       (checkData.data.hasConflict || checkData.data.hasConflicts);
+                    
+                    if (hasConflict) {
+                        // Conflicts detected! Show modal.
+                        console.log('⚠️ CONFLICTS DETECTED! Showing modal with data:', checkData.data);
+                        setConflictData({
+                            ...checkData.data,
+                            payload: detectionPayload // store payload for resolution
+                        });
+                        setShowConflictModal(true);
+                        setLoadingEntries(false);
+                        return; // Halt standard submission
+                    } else {
+                        console.log('✅ No conflicts detected, proceeding with save');
+                    }
+                }
+            }
+
+            // Standard Submission flow (No conflicts or simple update)
             const url = editingEntry
                 ? `/api/admin/price-book-entries/${editingEntry._id}`
                 : '/api/admin/price-book-entries';
@@ -201,6 +291,72 @@ const PriceBookManager: React.FC = () => {
         }
     };
 
+    const handleResolveConflict = async (resolutionId: string) => {
+        if (!conflictData) return;
+
+        setResolvingConflict(true);
+        try {
+            const token = localStorage.getItem('token');
+            
+            // Extract conflict information
+            const productId = conflictData.payload?.productId;
+            const newPrice = conflictData.payload?.newPrice;
+            const oldPrice = conflictData.impactSummary?.currentMasterPrice || 0;
+            const zoneId = conflictData.payload?.zoneId;
+            const segmentId = conflictData.payload?.segmentId;
+            
+            // Get conflicts array - backend needs this
+            const conflicts = conflictData.conflicts || [];
+            
+            const requestBody = {
+                resolutionId: resolutionId,  // Backend expects 'resolutionId' not 'resolution'
+                productId,
+                newPrice,
+                oldPrice,
+                zoneId,
+                segmentId,
+                conflicts,  // Backend needs conflicts array
+                updateLevel: 'ZONE'
+            };
+            
+            console.log('🚀 Sending conflict resolution request:', requestBody);
+            
+            const response = await fetch('/api/admin/pricing/resolve-conflict', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                },
+                body: JSON.stringify(requestBody)
+            });
+
+            if (response.ok) {
+                alert('Conflict resolved and price saved successfully!');
+                setShowConflictModal(false);
+                setShowEntryForm(false);
+                resetEntryForm();
+                setConflictData(null);
+                if (selectedPriceBook) {
+                    fetchPriceBookEntries(selectedPriceBook._id);
+                }
+            } else {
+                const error = await response.json();
+                console.error('❌ Conflict resolution failed:', {
+                    status: response.status,
+                    statusText: response.statusText,
+                    error,
+                    sentRequest: requestBody
+                });
+                alert(error.message || 'Failed to resolve conflict');
+            }
+        } catch (error) {
+            console.error('Error resolving conflict:', error);
+            alert('Failed to resolve conflict');
+        } finally {
+            setResolvingConflict(false);
+        }
+    };
+
     const handleDeleteEntry = async (entryId: string) => {
         if (!confirm('Are you sure you want to delete this price entry?')) return;
         if (!selectedPriceBook) return;
@@ -217,6 +373,9 @@ const PriceBookManager: React.FC = () => {
             if (response.ok) {
                 alert('Price entry deleted!');
                 fetchPriceBookEntries(selectedPriceBook._id);
+            } else {
+                const error = await response.json();
+                alert(error.message || 'Failed to delete price entry');
             }
         } catch (error) {
             console.error('Error deleting entry:', error);
@@ -254,7 +413,14 @@ const PriceBookManager: React.FC = () => {
         setFormData({
             name: book.name,
             currency: book.currency,
-            isDefault: book.isDefault
+            isDefault: book.isDefault,
+            zone: book.zone?._id || '',
+            segment: book.segment?._id || '',
+            isMaster: (book as any).isMaster || false,
+            parentBook: (book as any).parentBook || '',
+            isOverride: (book as any).isOverride || false,
+            overridePriority: (book as any).overridePriority || 0,
+            description: (book as any).description || ''
         });
         setShowModal(true);
     };
@@ -267,6 +433,10 @@ const PriceBookManager: React.FC = () => {
     };
 
     const handleEditEntry = (entry: PriceBookEntry) => {
+        if (!entry.product) {
+            alert('Cannot edit this entry: Product data is missing. Please delete and recreate this entry.');
+            return;
+        }
         setEditingEntry(entry);
         setEntryForm({
             product: entry.product._id,
@@ -280,7 +450,14 @@ const PriceBookManager: React.FC = () => {
         setFormData({
             name: '',
             currency: 'INR',
-            isDefault: false
+            isDefault: false,
+            zone: '',
+            segment: '',
+            isMaster: false,
+            parentBook: '',
+            isOverride: false,
+            overridePriority: 0,
+            description: ''
         });
         setEditingBook(null);
     };
@@ -308,7 +485,7 @@ const PriceBookManager: React.FC = () => {
             </div>
 
             {/* Create Button */}
-            <div className="mb-6">
+            <div className="mb-6 flex gap-4">
                 <button
                     onClick={() => {
                         resetForm();
@@ -318,6 +495,68 @@ const PriceBookManager: React.FC = () => {
                 >
                     <Plus size={20} />
                     Create Price Book
+                </button>
+                
+                {/* TEST BUTTON - Remove after testing */}
+                <button
+                    onClick={() => {
+                        console.log('🧪 TEST: Manually triggering conflict modal');
+                        setConflictData({
+                            hasConflict: true,
+                            affectedCount: 2,
+                            affectedItems: [
+                                {
+                                    segment: { _id: '1', name: 'CORPORATE', code: 'CORP' },
+                                    pricing: {
+                                       masterPrice: 1000,
+                                        currentPrice: 1050,
+                                        newZonePrice: 1200,
+                                        priceDifference: 150,
+                                        percentageDifference: '14.29%',
+                                        direction: 'increase'
+                                    }
+                                },
+                                {
+                                    segment: { _id: '2', name: 'RETAIL', code: 'RET' },
+                                    pricing: {
+                                        masterPrice: 1000,
+                                        currentEffectivePrice: 900,
+                                        newZonePrice: 1200,
+                                        priceDifference: 300,
+                                        percentageDifference: '33.33%',
+                                        direction: 'increase'
+                                    }
+                                }
+                            ],
+                            impactSummary: {
+                                product: { _id: 'test123', name: 'Test Product', sku: 'TEST-001' },
+                                updateLevel: 'ZONE',
+                                currentMasterPrice: 1000,
+                                newPrice: 1200,
+                                totalAffectedItems: 2,
+                                affectedSegments: ['CORPORATE', 'RETAIL']
+                            },
+                            resolutionOptions: [
+                                {
+                                    id: 'OVERWRITE',
+                                    label: 'Force Overwrite',
+                                    description: 'Delete all overrides',
+                                    impact: { warning: 'Will delete 2 items', itemsDeleted: 2 }
+                                },
+                                {
+                                    id: 'PRESERVE',
+                                    label: 'Preserve Overrides',
+                                    description: 'Keep existing prices',
+                                    impact: { warning: 'Will preserve 2 items', itemsPreserved: 2 }
+                                }
+                            ],
+                            payload: { productId: 'test123', newPrice: 1200 }
+                        });
+                        setShowConflictModal(true);
+                    }}
+                    className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700"
+                >
+                    🧪 TEST MODAL
                 </button>
             </div>
 
@@ -347,6 +586,19 @@ const PriceBookManager: React.FC = () => {
                                         )}
                                     </h3>
                                     <p className="text-sm text-gray-600 font-mono">{book.currency}</p>
+                                    {/* Zone/Segment Badges */}
+                                    <div className="flex gap-2 mt-1 flex-wrap">
+                                        {book.zone && (
+                                            <span className="text-xs bg-purple-100 text-purple-800 px-2 py-0.5 rounded">
+                                                Zone: {book.zone.name}
+                                            </span>
+                                        )}
+                                        {book.segment && (
+                                            <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">
+                                                Segment: {book.segment.name}
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
                                 {book.createdAt && (
                                     <div className="bg-indigo-50 text-indigo-700 px-2 py-1 rounded text-xs font-medium">
@@ -427,6 +679,62 @@ const PriceBookManager: React.FC = () => {
                                     <option value="USD">USD ($)</option>
                                     <option value="EUR">EUR (€)</option>
                                 </select>
+                            </div>
+
+                            {/* Geo Zone Selection */}
+                            <div className="mb-4">
+                                <label className="block text-sm font-medium mb-2">Geo Zone (Optional)</label>
+                                <select
+                                    value={formData.zone}
+                                    onChange={(e) => setFormData({ ...formData, zone: e.target.value })}
+                                    className="w-full border rounded-lg px-3 py-2"
+                                >
+                                    <option value="">-- No Zone (Global) --</option>
+                                    {geoZones.map((zone) => (
+                                        <option key={zone._id} value={zone._id}>
+                                            {zone.name}
+                                        </option>
+                                    ))}
+                                </select>
+                                <p className="text-xs text-gray-500 mt-1">
+                                    Limit these prices to a specific geographic area
+                                </p>
+                            </div>
+
+                            {/* User Segment Selection */}
+                            <div className="mb-4">
+                                <label className="block text-sm font-medium mb-2">User Segment (Optional)</label>
+                                <select
+                                    value={formData.segment}
+                                    onChange={(e) => setFormData({ ...formData, segment: e.target.value })}
+                                    className="w-full border rounded-lg px-3 py-2"
+                                >
+                                    <option value="">-- No Segment (All Users) --</option>
+                                    {userSegments.map((segment) => (
+                                        <option key={segment._id} value={segment._id}>
+                                            {segment.name} ({segment.code})
+                                        </option>
+                                    ))}
+                                </select>
+                                <p className="text-xs text-gray-500 mt-1">
+                                    Limit these prices to a specific group of customers
+                                </p>
+                            </div>
+
+                            {/* Advanced Fields Toggle? or just show them */}
+                            <div className="mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                                <label className="flex items-center gap-2 mb-2">
+                                    <input
+                                        type="checkbox"
+                                        checked={formData.isMaster}
+                                        onChange={(e) => setFormData({ ...formData, isMaster: e.target.checked })}
+                                        className="rounded text-indigo-600"
+                                    />
+                                    <span className="text-sm font-bold text-gray-700">Master Price Book</span>
+                                </label>
+                                <p className="text-xs text-gray-500 mb-2">
+                                    If checked, this will be the base for all other calculations. Only one master should exist.
+                                </p>
                             </div>
 
                             {/* Default Status */}
@@ -544,18 +852,18 @@ const PriceBookManager: React.FC = () => {
                                                 <tr key={entry._id} className="hover:bg-gray-50">
                                                     <td className="px-6 py-4">
                                                         <div className="flex items-center gap-3">
-                                                            {entry.product.image && (
+                                                            {entry.product?.image && (
                                                                 <img
                                                                     src={entry.product.image}
                                                                     alt={entry.product.name}
                                                                     className="w-10 h-10 rounded object-cover"
                                                                 />
                                                             )}
-                                                            <span className="font-medium">{entry.product.name}</span>
+                                                            <span className="font-medium">{entry.product?.name || 'Unknown Product'}</span>
                                                         </div>
                                                     </td>
                                                     <td className="px-6 py-4 text-sm text-gray-600">
-                                                        {entry.product.category?.name || '-'}
+                                                        {entry.product?.category?.name || '-'}
                                                     </td>
                                                     <td className="px-6 py-4 font-semibold text-green-600">
                                                         {selectedPriceBook.currency} {entry.basePrice.toFixed(2)}
@@ -592,7 +900,7 @@ const PriceBookManager: React.FC = () => {
 
             {/* Add/Edit Entry Form Modal */}
             {showEntryForm && selectedPriceBook && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]">
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999]">
                     <div className="bg-white rounded-lg p-6 w-full max-w-md">
                         <h2 className="text-2xl font-bold mb-4">
                             {editingEntry ? 'Edit Product Price' : 'Add Product Price'}
@@ -672,6 +980,27 @@ const PriceBookManager: React.FC = () => {
                         </form>
                     </div>
                 </div>
+            )}
+
+            {/* CONFLICT RESOLUTION MODAL */}
+            {(() => {
+                console.log('🎭 Modal Render Check:', {
+                    showConflictModal,
+                    hasConflictData: !!conflictData,
+                    conflictData: conflictData
+                });
+                return null;
+            })()}
+            {showConflictModal && conflictData && (
+                <ConflictDetectionModal
+                    conflict={conflictData}
+                    onResolve={handleResolveConflict}
+                    onCancel={() => {
+                        setShowConflictModal(false);
+                        setConflictData(null);
+                        setLoadingEntries(false);
+                    }}
+                />
             )}
         </div>
     );

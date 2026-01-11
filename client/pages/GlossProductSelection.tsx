@@ -3169,18 +3169,16 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                         </div>
                       </div>
 
-                      {/* Location Detection for Dynamic Pricing */}
-                      <div className="mb-4">
-                        <LocationDetector
-                          onLocationDetected={(location) => {
-                            console.log('📍 Location detected for pricing:', location);
-                            // Location is automatically saved to localStorage
-                            // ProductPriceBox will use it via useUserContext
-                          }}
-                          showUI={true}
-                          autoDetect={true}
-                        />
-                      </div>
+                      {/* Location Detection for Dynamic Pricing - Hidden from UI but auto-detects */}
+                      <LocationDetector
+                        onLocationDetected={(location) => {
+                          console.log('📍 Location detected for pricing:', location);
+                          // Location is automatically saved to localStorage
+                          // ProductPriceBox will use it via useUserContext
+                        }}
+                        showUI={false}
+                        autoDetect={true}
+                      />
 
                       {/* Dynamic Pricing Component */}
                       <ProductPriceBox

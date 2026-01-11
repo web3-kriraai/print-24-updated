@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import './SmartViewMatrix.css';
+import ConflictDetectionModal from './ConflictDetectionModal';
 
 /**
  * SmartViewMatrix Component - Enhanced with Editing & Conflict Resolution
@@ -20,21 +21,60 @@ interface EditedCell {
   newPrice: number;
 }
 
-interface Conflict {
-  type: string;
-  segmentName: string;
-  currentPrice: number;
-  priceAfterChange: number;
+interface AffectedItem {
+  segment: {
+    _id: string;
+    name: string;
+    code: string;
+  };
+  pricing: {
+    masterPrice: number;
+    currentPrice?: number;
+    currentEffectivePrice?: number;
+    newZonePrice: number;
+    priceDifference: number;
+    percentageDifference: string;
+    direction: 'increase' | 'decrease';
+  };
+}
+
+interface ResolutionOption {
+  id: string;
+  label: string;
+  description: string;
+  impact: {
+    itemsDeleted?: number;
+    itemsPreserved?: number;
+    itemsAdjusted?: number;
+    newUniformPrice?: number;
+    basePrice?: number;
+    warning: string;
+    preview?: Array<{
+      segment: string;
+      currentPrice: number;
+      newPrice: number;
+      difference: number;
+    }>;
+  };
 }
 
 interface ConflictData {
-  hasConflicts: boolean;
-  conflicts: Conflict[];
-  resolutionOptions: Array<{
-    id: string;
-    label: string;
-    description: string;
-  }>;
+  hasConflict: boolean;
+  affectedCount: number;
+  affectedItems: AffectedItem[];
+  impactSummary: {
+    product: {
+      _id: string;
+      name: string;
+      sku: string;
+    };
+    updateLevel: string;
+    currentMasterPrice: number;
+    newPrice: number;
+    totalAffectedItems: number;
+    affectedSegments: string[];
+  };
+  resolutionOptions: ResolutionOption[];
 }
 
 const SmartViewMatrix: React.FC = () => {
@@ -207,7 +247,7 @@ const SmartViewMatrix: React.FC = () => {
 
       const result = await response.json();
 
-      if (result.success && result.data?.hasConflicts) {
+      if (result.success && result.data?.hasConflict) {
         setConflictData(result.data);
         setPendingSave(editedCell);
         setShowConflictModal(true);
@@ -247,11 +287,12 @@ const SmartViewMatrix: React.FC = () => {
         headers: getAuthHeaders(),
         body: JSON.stringify({
           resolutionId,
-          conflicts: conflictData.conflicts,
           newPrice: pendingSave.newPrice,
+          oldPrice: pendingSave.originalPrice,
           zoneId: pendingSave.zoneId,
           segmentId: pendingSave.segmentId,
-          productId: pendingSave.productId
+          productId: pendingSave.productId,
+          updateLevel: 'ZONE'
         })
       });
 
@@ -716,45 +757,15 @@ const SmartViewMatrix: React.FC = () => {
 
       {/* Conflict Resolution Modal */}
       {showConflictModal && conflictData && (
-        <div className="modal-overlay">
-          <div className="conflict-modal">
-            <h3>⚠️ Conflict Detected</h3>
-            <p>
-              You are changing the price to <strong>₹{pendingSave?.newPrice}</strong>.
-              This affects existing overrides:
-            </p>
-
-            <div className="conflict-list">
-              {conflictData.conflicts.map((conflict, idx) => (
-                <div key={idx} className="conflict-item">
-                  <span className="conflict-segment">{conflict.segmentName}</span>
-                  <span className="conflict-prices">
-                    Current: ₹{conflict.currentPrice} → After: ₹{conflict.priceAfterChange}
-                  </span>
-                </div>
-              ))}
-            </div>
-
-            <div className="resolution-options">
-              <p>How do you want to resolve this?</p>
-              {conflictData.resolutionOptions.map(option => (
-                <button
-                  key={option.id}
-                  className={`resolution-btn resolution-${option.id.toLowerCase()}`}
-                  onClick={() => handleConflictResolution(option.id)}
-                  disabled={isSaving}
-                >
-                  <strong>{option.label}</strong>
-                  <span>{option.description}</span>
-                </button>
-              ))}
-            </div>
-
-            <button className="btn-cancel" onClick={() => setShowConflictModal(false)}>
-              Cancel
-            </button>
-          </div>
-        </div>
+        <ConflictDetectionModal
+          conflict={conflictData}
+          onResolve={handleConflictResolution}
+          onCancel={() => {
+            setShowConflictModal(false);
+            setConflictData(null);
+            setPendingSave(null);
+          }}
+        />
       )}
     </div>
   );

@@ -96,6 +96,7 @@ router.delete('/pricing/product-availability/:id', crudController.deleteProductA
 
 router.get('/pricing/attribute-types', controller.getAttributeTypes);
 router.get('/pricing/products', controller.getProducts);
+router.get('/pricing/categories', controller.getCategories);
 router.get('/pricing-logs', controller.getAllPricingLogs);
 
 

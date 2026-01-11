@@ -185,31 +185,222 @@ class PriceBookViewGenerator {
 
     /**
      * Detect conflicts when updating a price
-     * @param {Object} params - { zoneId, segmentId, productId, newPrice }
-     * @returns {Object} - { hasConflict, conflicts, affectedCount }
+     * Enhanced with detailed impact analysis
+     * @param {Object} params - { zoneId, segmentId, productId, newPrice, updateLevel }
+     * @returns {Object} - Detailed conflict information with before/after preview
      */
     static async detectConflicts({ zoneId, segmentId, productId, newPrice, updateLevel }) {
         const conflicts = [];
+        const affectedItems = [];
         let affectedCount = 0;
+
+        // Get product details for context
+        const product = await Product.findById(productId)
+            .select('name sku image')
+            .lean();
+
+        if (!product) {
+            return {
+                hasConflict: false,
+                message: 'Product not found'
+            };
+        }
+
+        // Get master price for baseline
+        const masterEntry = await PriceBookEntry.findOne({
+            product: productId
+        }).populate('priceBook', 'name isMaster').lean();
+
+        const masterPrice = masterEntry?.basePrice || 0;
+
+        // ===== NEW: Check for existing entries in other price books =====
+        // This detects when the same product exists in multiple price books with different prices
+        const existingEntries = await PriceBookEntry.find({
+            product: productId
+        }).populate({
+            path: 'priceBook',
+            select: 'name zone segment',
+            populate: [
+                { path: 'zone', select: 'name' },
+                { path: 'segment', select: 'name code' }
+            ]
+        }).lean();
+
+        // Check if product exists in other price books with different prices
+        for (const entry of existingEntries) {
+            if (!entry.priceBook) continue;
+            
+            const priceDiff = Math.abs(entry.basePrice - newPrice);
+            const percentDiff = entry.basePrice ? ((priceDiff / entry.basePrice) * 100).toFixed(2) : '0';
+            
+            console.log(`🔍 Checking existing entry:`, {
+                priceBook: entry.priceBook.name,
+                currentPrice: entry.basePrice,
+                newPrice,
+                priceDiff,
+                percentDiff: `${percentDiff}%`,
+                willConflict: priceDiff > 0.01 && parseFloat(percentDiff) > 1
+            });
+            
+            // Only flag as conflict if price difference is significant (more than 1%)
+            if (priceDiff > 0.01 && parseFloat(percentDiff) > 1) {
+                affectedItems.push({
+                    type: 'PRICE_BOOK_ENTRY',
+                    priceBook: {
+                        _id: entry.priceBook._id,
+                        name: entry.priceBook.name
+                    },
+                    zone: entry.priceBook.zone || null,
+                    segment: entry.priceBook.segment || null,
+                    pricing: {
+                        masterPrice,
+                        currentPrice: entry.basePrice,
+                        newZonePrice: newPrice,
+                        priceDifference: newPrice - entry.basePrice,
+                        percentageDifference: ((newPrice - entry.basePrice) / entry.basePrice * 100).toFixed(2) + '%',
+                        direction: newPrice > entry.basePrice ? 'increase' : 'decrease'
+                    }
+                });
+
+                conflicts.push({
+                    type: 'PRICE_BOOK_ENTRY_CONFLICT',
+                    priceBook: entry.priceBook.name,
+                    zoneName: entry.priceBook.zone?.name || 'Global',
+                    segmentName: entry.priceBook.segment?.name || 'All Users',
+                    currentPrice: entry.basePrice,
+                    newPrice,
+                    message: `Product already exists in "${entry.priceBook.name}" with price ₹${entry.basePrice}. New price ₹${newPrice} differs by ${percentDiff}%`
+                });
+
+                affectedCount++;
+            }
+        }
+
 
         // If updating zone price, check for segment overrides
         if (updateLevel === 'ZONE' && zoneId) {
+            // Get zone info
+            const zoneInfo = await mongoose.model('GeoZone').findById(zoneId).select('name level').lean();
+
+            // Find all segment-specific modifiers in this zone
             const segmentModifiers = await PriceModifier.find({
                 appliesTo: 'SEGMENT',
                 geoZone: zoneId,
                 product: productId,
                 isActive: true
-            }).populate('userSegment', 'name');
+            }).populate('userSegment', 'name code');
 
+            // Also check price book entries for segment overrides
+            const segmentBooks = await PriceBook.find({
+                zone: zoneId,
+                segment: { $ne: null },
+                isActive: true
+            }).populate('segment', 'name code');
+
+            for (const book of segmentBooks) {
+                const entry = await PriceBookEntry.findOne({
+                    priceBook: book._id,
+                    product: productId
+                }).lean();
+
+                if (entry) {
+                    const currentPrice = entry.basePrice;
+                    const priceDifference = newPrice - currentPrice;
+                    const percentageDifference = ((priceDifference / currentPrice) * 100).toFixed(2);
+
+                    affectedItems.push({
+                        type: 'SEGMENT_PRICE',
+                        segment: {
+                            _id: book.segment._id,
+                            name: book.segment.name,
+                            code: book.segment.code
+                        },
+                        product: {
+                            _id: product._id,
+                            name: product.name,
+                            sku: product.sku
+                        },
+                        zone: {
+                            _id: zoneInfo._id,
+                            name: zoneInfo.name,
+                            level: zoneInfo.level
+                        },
+                        pricing: {
+                            masterPrice,
+                            currentPrice,
+                            newZonePrice: newPrice,
+                            priceDifference,
+                            percentageDifference,
+                            direction: priceDifference > 0 ? 'increase' : 'decrease'
+                        },
+                        priceBook: {
+                            _id: book._id,
+                            name: book.name
+                        }
+                    });
+
+                    conflicts.push({
+                        type: 'SEGMENT_OVERRIDE',
+                        segment: book.segment,
+                        currentPrice,
+                        newZonePrice: newPrice,
+                        priceDifference,
+                        message: `${book.segment.name} has custom price of ₹${currentPrice.toFixed(2)} (${percentageDifference}% different from new zone price)`
+                    });
+
+                    affectedCount++;
+                }
+            }
+
+            // Check modifiers
             for (const modifier of segmentModifiers) {
+                // Calculate what the current effective price is with this modifier
+                const currentEffectivePrice = this.applyModifierToPrice(masterPrice, modifier);
+                const priceDifference = newPrice - currentEffectivePrice;
+                const percentageDifference = ((priceDifference / currentEffectivePrice) * 100).toFixed(2);
+
+                affectedItems.push({
+                    type: 'SEGMENT_MODIFIER',
+                    segment: {
+                        _id: modifier.userSegment._id,
+                        name: modifier.userSegment.name,
+                        code: modifier.userSegment.code
+                    },
+                    product: {
+                        _id: product._id,
+                        name: product.name,
+                        sku: product.sku
+                    },
+                    zone: {
+                        _id: zoneInfo._id,
+                        name: zoneInfo.name
+                    },
+                    modifier: {
+                        _id: modifier._id,
+                        name: modifier.name,
+                        type: modifier.modifierType,
+                        value: modifier.value
+                    },
+                    pricing: {
+                        masterPrice,
+                        currentEffectivePrice,
+                        newZonePrice: newPrice,
+                        priceDifference,
+                        percentageDifference,
+                        direction: priceDifference > 0 ? 'increase' : 'decrease'
+                    }
+                });
+
                 conflicts.push({
                     type: 'SEGMENT_OVERRIDE',
                     segment: modifier.userSegment,
                     modifierName: modifier.name,
                     currentAdjustment: modifier.value,
                     modifierType: modifier.modifierType,
-                    message: `${modifier.userSegment.name} has a custom price adjustment in this zone`
+                    currentEffectivePrice,
+                    message: `${modifier.userSegment.name} has modifier "${modifier.name}" (${modifier.modifierType} ${modifier.value})`
                 });
+
                 affectedCount++;
             }
         }
@@ -224,39 +415,127 @@ class PriceBookViewGenerator {
             });
 
             for (const modifier of productModifiers) {
+                const currentEffectivePrice = this.applyModifierToPrice(masterPrice, modifier);
+                const priceDifference = newPrice - currentEffectivePrice;
+
+                affectedItems.push({
+                    type: 'PRODUCT_MODIFIER',
+                    product: {
+                        _id: product._id,
+                        name: product.name,
+                        sku: product.sku
+                    },
+                    modifier: {
+                        _id: modifier._id,
+                        name: modifier.name,
+                        type: modifier.modifierType,
+                        value: modifier.value
+                    },
+                    pricing: {
+                        masterPrice,
+                        currentEffectivePrice,
+                        newPrice,
+                        priceDifference
+                    }
+                });
+
                 conflicts.push({
                     type: 'PRODUCT_OVERRIDE',
                     modifierName: modifier.name,
                     currentAdjustment: modifier.value,
                     modifierType: modifier.modifierType,
-                    message: `This product has a specific price adjustment for this segment`
+                    message: `This product has a specific price adjustment "${modifier.name}"`
                 });
+
                 affectedCount++;
             }
         }
+
+        // Build detailed impact summary
+        const impactSummary = {
+            product: {
+                _id: product._id,
+                name: product.name,
+                sku: product.sku
+            },
+            updateLevel,
+            currentMasterPrice: masterPrice,
+            newPrice,
+            totalAffectedItems: affectedCount,
+            affectedSegments: [...new Set(affectedItems.map(item => item.segment?.name).filter(Boolean))],
+            priceRangeImpact: affectedItems.length > 0 ? {
+                lowest: Math.min(...affectedItems.map(item => item.pricing.currentPrice || item.pricing.currentEffectivePrice)),
+                highest: Math.max(...affectedItems.map(item => item.pricing.currentPrice || item.pricing.currentEffectivePrice)),
+                newPrice
+            } : null
+        };
+
+        console.log(`\n✅ Conflict Detection Complete:`, {
+            productId,
+            newPrice,
+            hasConflict: conflicts.length > 0,
+            totalConflicts: conflicts.length,
+            affectedItemsCount: affectedItems.length,
+            conflictTypes: conflicts.map(c => c.type)
+        });
 
         return {
             hasConflict: conflicts.length > 0,
             conflicts,
             affectedCount,
-            suggestedActions: conflicts.length > 0 ? [
+            affectedItems,
+            impactSummary,
+            resolutionOptions: conflicts.length > 0 ? [
                 {
-                    action: 'OVERWRITE',
-                    label: 'Force Update (Delete Overrides)',
-                    description: 'Set new price and remove all conflicting modifiers'
+                    id: 'OVERWRITE',
+                    label: 'Force Overwrite',
+                    description: 'Delete all child overrides and apply new price globally',
+                    impact: {
+                        itemsDeleted: affectedCount,
+                        newUniformPrice: newPrice,
+                        warning: `Will delete ${affectedCount} existing override(s) and set ₹${newPrice.toFixed(2)} for all segments`
+                    }
                 },
                 {
-                    action: 'PRESERVE',
-                    label: 'Preserve Overrides',
-                    description: 'Update base price but keep existing modifiers'
+                    id: 'PRESERVE',
+                    label: 'Preserve Child Overrides',
+                    description: 'Set new base price but keep existing child-specific prices',
+                    impact: {
+                        itemsPreserved: affectedCount,
+                        basePrice: newPrice,
+                        warning: `Will create new override while preserving ${affectedCount} existing override(s). Segments will keep their custom prices.`
+                    }
                 },
                 {
-                    action: 'RELATIVE',
-                    label: 'Relative Adjustment',
-                    description: 'Adjust all modifiers proportionally to maintain price differences'
+                    id: 'RELATIVE',
+                    label: 'Apply Relative Adjustment',
+                    description: 'Update child prices proportionally (maintain price differences)',
+                    impact: {
+                        itemsAdjusted: affectedCount,
+                        adjustmentType: 'proportional',
+                        preview: affectedItems.slice(0, 3).map(item => {
+                            const current = item.pricing.currentPrice || item.pricing.currentEffectivePrice;
+                            const difference = newPrice - masterPrice;
+                            const newSegmentPrice = current + difference;
+                            return {
+                                segment: item.segment?.name || 'Product',
+                                currentPrice: current,
+                                newPrice: newSegmentPrice,
+                                difference
+                            };
+                        }),
+                        warning: `Will adjust ${affectedCount} override(s) proportionally based on price difference.`
+                    }
                 }
             ] : []
         };
+    }
+
+    /**
+     * Helper: Apply modifier to price
+     */
+    static applyModifierToPrice(basePrice, modifier) {
+        return basePrice + this.calculateAdjustment(basePrice, modifier);
     }
 
     /**
