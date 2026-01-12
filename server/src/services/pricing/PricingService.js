@@ -25,13 +25,12 @@ import VirtualPriceBookService from "../VirtualPriceBookService.js";
  * - NEVER modify product schemas
  * - ALWAYS log pricing calculations
  * - Price snapshots in orders are IMMUTABLE once created
- * - Use Redis for caching (format: PRICE::{PRODUCT_ID}::{USER_SEGMENT}::{GEO_ZONE})
+ * - Use Redis for caching (format: PRICE::{PRODUCT_ID}::{USER_SEGMENT}::{GEO_ZONE}::{QUANTITY})
  */
 
 class PricingService {
     constructor() {
         this.virtualPriceBookService = new VirtualPriceBookService();
-        this.useVirtualPricing = process.env.USE_VIRTUAL_PRICING === 'true' || false;
     }
     /**
      * ========================================
@@ -90,7 +89,8 @@ class PricingService {
                 const cacheKey = PricingCache.generateKey(
                     productId,
                     resolvedUserSegmentId,
-                    geoZoneId
+                    geoZoneId,
+                    quantity
                 );
 
                 const cached = await PricingCache.get(cacheKey);
@@ -134,11 +134,11 @@ class PricingService {
 
             // Step 6: Calculate Totals
             const unitPrice = virtualResult.finalPrice;
-            const subtotal = unitPrice * quantity;
+            const subtotal = this.roundPrice(unitPrice * quantity);
 
             // Step 7: Calculate GST
-            const gstAmount = (subtotal * gstPercentage) / 100;
-            const totalPayable = subtotal + gstAmount;
+            const gstAmount = this.roundPrice((subtotal * gstPercentage) / 100);
+            const totalPayable = this.roundPrice(subtotal + gstAmount);
 
             // Step 8: Build Final Result
             const result = {
@@ -171,7 +171,8 @@ class PricingService {
                 const cacheKey = PricingCache.generateKey(
                     productId,
                     resolvedUserSegmentId,
-                    geoZoneId
+                    geoZoneId,
+                    quantity
                 );
                 await PricingCache.set(cacheKey, result, 900); // 15 min TTL
                 console.log(`💾 Cached: ${cacheKey}`);
@@ -419,6 +420,13 @@ class PricingService {
             currency: pricingResult.currency,
             totalPayable: pricingResult.totalPayable,
         };
+    }
+
+    /**
+     * Helper to round price to 2 decimal places
+     */
+    roundPrice(price) {
+        return Math.round((price + Number.EPSILON) * 100) / 100;
     }
 }
 

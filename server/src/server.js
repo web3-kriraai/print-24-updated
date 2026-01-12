@@ -102,8 +102,13 @@ app.use("/api/user", userContextRoutes);  // User context API
 app.use("/api/geolocation", geolocationRoutes);  // Geolocation API
 
 // Serve static files from client dist (for production)
-const clientDistPath = join(__dirname, "../../client/dist");
+// Try production path first (Docker), then fall back to local dev path
+const productionClientPath = join(__dirname, "../client-dist");
+const devClientPath = join(__dirname, "../../client/dist");
+const clientDistPath = existsSync(productionClientPath) ? productionClientPath : devClientPath;
+
 if (existsSync(clientDistPath)) {
+  console.log(`📦 Serving static files from: ${clientDistPath}`);
   app.use(express.static(clientDistPath));
 
   // For SPA routing - serve index.html for all non-API routes
@@ -120,6 +125,8 @@ if (existsSync(clientDistPath)) {
     // Serve index.html for SPA routes
     res.sendFile(join(clientDistPath, "index.html"));
   });
+} else {
+  console.log("⚠️  No client build found. API-only mode.");
 }
 
 // Error handler
@@ -134,15 +141,15 @@ app.use((err, req, res, next) => {
 });
 
 // DB + SERVER
-if (!process.env.MONGO_URI) {
-  console.error("❌ ERROR: MONGO_URI environment variable is not set!");
-  console.error("Please check your .env file and ensure MONGO_URI is configured.");
+if (!process.env.MONGO_URI_PRICING) {
+  console.error("❌ ERROR: MONGO_URI_PRICING environment variable is not set!");
+  console.error("Please check your .env file and ensure MONGO_URI_PRICING is configured.");
   process.exit(1);
 }
 
 // Connect to MongoDB and start server
 mongoose
-  .connect(process.env.MONGO_URI, {
+  .connect(process.env.MONGO_URI_PRICING, {
     serverSelectionTimeoutMS: 5000,
     socketTimeoutMS: 45000,
     retryWrites: true,

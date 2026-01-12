@@ -406,9 +406,6 @@ node scripts/load-test-pricing.js
 # Redis Configuration
 REDIS_HOST=localhost
 REDIS_URL=redis://localhost:6379
-
-# Pricing Configuration
-USE_VIRTUAL_PRICING=true
 ```
 
 ### Redis Setup

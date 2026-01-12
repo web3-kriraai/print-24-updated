@@ -38,7 +38,7 @@ npm install
 
 Create a `.env` file in the `server` folder with:
 ```
-MONGO_URI=your_mongodb_connection_string
+MONGO_URI_PRICING=your_mongodb_connection_string
 PORT=5000
 CLOUDINARY_CLOUD_NAME=your_cloud_name
 CLOUDINARY_API_KEY=your_api_key

@@ -128,11 +128,31 @@ const SmartViewMatrix: React.FC = () => {
 
   const loadDropdownOptions = async () => {
     try {
+      // Check if user is authenticated
+      const token = localStorage.getItem('token');
+      if (!token) {
+        console.warn('⚠️ No authentication token found. Please login to access admin pricing.');
+        setError('Please login to access pricing administration');
+        return;
+      }
+
       const [zonesRes, segmentsRes, productsRes] = await Promise.all([
         fetch('/api/admin/pricing/geo-zones', { headers: getAuthHeaders() }),
         fetch('/api/admin/pricing/user-segments', { headers: getAuthHeaders() }),
         fetch('/api/admin/pricing/products', { headers: getAuthHeaders() })
       ]);
+
+      // Check for authentication errors
+      if (zonesRes.status === 401 || zonesRes.status === 403) {
+        setError('Authentication failed. Please login as an admin.');
+        return;
+      }
+
+      // Check for server errors
+      if (!zonesRes.ok || !segmentsRes.ok || !productsRes.ok) {
+        setError(`Server error: ${zonesRes.status}. Please check your connection or contact support.`);
+        return;
+      }
 
       const [zonesData, segmentsData, productsData] = await Promise.all([
         zonesRes.json(),
@@ -145,7 +165,7 @@ const SmartViewMatrix: React.FC = () => {
       setZones(zonesData.zones || zonesData.data || []);
       setSegments(segmentsData.segments || segmentsData.data || []);
       setProducts(productsData.products || productsData.data || []);
-      
+
       console.log('📋 Loaded dropdown options:', {
         zones: (zonesData.zones || zonesData.data || []).length,
         segments: (segmentsData.segments || segmentsData.data || []).length,
@@ -153,6 +173,7 @@ const SmartViewMatrix: React.FC = () => {
       });
     } catch (err) {
       console.error('Error loading dropdown options:', err);
+      setError('Failed to load pricing data. Please check your connection and try again.');
     }
   };
 
@@ -262,12 +283,12 @@ const SmartViewMatrix: React.FC = () => {
 
   const addEditedCell = (editedCell: EditedCell) => {
     setEditedCells(prev => {
-      const existing = prev.findIndex(c => 
-        c.productId === editedCell.productId && 
+      const existing = prev.findIndex(c =>
+        c.productId === editedCell.productId &&
         c.segmentId === editedCell.segmentId &&
         c.zoneId === editedCell.zoneId
       );
-      
+
       if (existing >= 0) {
         const updated = [...prev];
         updated[existing] = editedCell;
@@ -352,16 +373,16 @@ const SmartViewMatrix: React.FC = () => {
   const hasUnsavedChanges = editedCells.length > 0;
 
   const renderEditableCell = (
-    productId: string, 
-    price: number, 
+    productId: string,
+    price: number,
     segmentId?: string,
     cellKey?: string
   ) => {
     const key = cellKey || `${productId}-${segmentId || 'default'}`;
     const isEditing = editingCell === key;
-    
-    const editedCell = editedCells.find(c => 
-      c.productId === productId && 
+
+    const editedCell = editedCells.find(c =>
+      c.productId === productId &&
       (c.segmentId === segmentId || (!c.segmentId && !segmentId))
     );
     const displayPrice = editedCell ? editedCell.newPrice : price;
@@ -400,7 +421,7 @@ const SmartViewMatrix: React.FC = () => {
     }
 
     return (
-      <td 
+      <td
         key={key}
         className={`price-cell editable ${isModified ? 'modified' : ''}`}
         onClick={() => startEditing(key, displayPrice)}
@@ -506,7 +527,7 @@ const SmartViewMatrix: React.FC = () => {
                         // Handle both old format (number) and new format (object)
                         const priceValue = typeof segData === 'object' ? segData?.finalPrice : segData;
                         const isAvailable = typeof segData === 'object' ? segData?.isAvailable !== false : true;
-                        
+
                         if (!isAvailable || priceValue == null) {
                           return (
                             <td key={code} className="price-cell unavailable" title={row.availabilityReason || 'Not available'}>
@@ -577,7 +598,7 @@ const SmartViewMatrix: React.FC = () => {
                     <td className="price">₹{price.masterPrice}</td>
                     {renderEditableCell(viewData.productId, price.finalPrice, price.segmentId, `prod-${price.segmentId}`)}
                     <td className="discount">
-                      {price.masterPrice > price.finalPrice 
+                      {price.masterPrice > price.finalPrice
                         ? `${((1 - price.finalPrice / price.masterPrice) * 100).toFixed(1)}%`
                         : '-'}
                     </td>
@@ -605,7 +626,7 @@ const SmartViewMatrix: React.FC = () => {
             </div>
           );
         }
-        
+
         return (
           <div className="single-cell-view">
             <div className="view-info">
@@ -613,28 +634,28 @@ const SmartViewMatrix: React.FC = () => {
               <p><strong>Zone:</strong> {viewData.zoneName}</p>
               <p><strong>Segment:</strong> {viewData.segmentName}</p>
             </div>
-            
+
             <div className="breakdown-card">
               <h4>💰 Price Breakdown</h4>
-              
+
               <div className="breakdown-item base-price">
                 <span>Master Price:</span>
                 <strong>₹{viewData.price?.masterPrice?.toFixed(2)}</strong>
               </div>
-              
+
               {/* Show each modifier with clear labels */}
               {viewData.price?.adjustments?.map((adj: any, idx: number) => {
                 // Format modifier display
                 const isModifier = adj.type === 'MODIFIER';
-                const modifierLabel = isModifier 
-                  ? adj.modifierName 
+                const modifierLabel = isModifier
+                  ? adj.modifierName
                   : `${adj.type} (${adj.bookName || 'Adjustment'})`;
-                
+
                 // Determine if increase or decrease
                 const isIncrease = adj.modifierType === 'PERCENT_INC' || adj.modifierType === 'FLAT_INC' || adj.change > 0;
                 const changeAmount = isModifier ? Math.abs(adj.change) : Math.abs(adj.value);
                 const percentValue = isModifier ? adj.value : null;
-                
+
                 return (
                   <div key={idx} className={`breakdown-item modifier-item ${isIncrease ? 'increase' : 'decrease'}`}>
                     <span className="modifier-label">
@@ -651,12 +672,12 @@ const SmartViewMatrix: React.FC = () => {
                   </div>
                 );
               })}
-              
+
               <div className="breakdown-item total">
                 <span>Final Price:</span>
                 <strong className="final-price">₹{viewData.price?.finalPrice?.toFixed(2)}</strong>
               </div>
-              
+
               {viewData.price?.modifiersApplied > 0 && (
                 <div className="modifiers-summary">
                   <small>📊 {viewData.price.modifiersApplied} modifier(s) applied</small>
@@ -680,7 +701,7 @@ const SmartViewMatrix: React.FC = () => {
       <div className="matrix-container">
         <div className="filter-panel">
           <h3>🔍 Filters</h3>
-          
+
           <div className="filter-group">
             <label>Geo Zone</label>
             <select
@@ -744,13 +765,13 @@ const SmartViewMatrix: React.FC = () => {
 
           {saveSuccess && <div className="save-success">✅ Changes saved!</div>}
         </div>
-        
+
         <div className="matrix-content">
           <div className="view-header">
             <h3>{getViewTitle(viewType)}</h3>
             <span className="view-badge">{viewType}</span>
           </div>
-          
+
           {renderView()}
         </div>
       </div>

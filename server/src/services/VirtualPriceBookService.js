@@ -237,6 +237,9 @@ class VirtualPriceBookService {
         });
       }
 
+      // Round the final price to 2 decimal places
+      finalPrice = this.roundPrice(finalPrice);
+
       console.log(`\n✅ FINAL PRICE: ₹${finalPrice.toFixed(2)}`);
       console.log('═'.repeat(80) + '\n');
 
@@ -258,6 +261,13 @@ class VirtualPriceBookService {
       console.error('Error calculating virtual price:', error);
       throw error;
     }
+  }
+
+  /**
+   * Helper to round price to 2 decimal places
+   */
+  roundPrice(price) {
+    return Math.round((price + Number.EPSILON) * 100) / 100;
   }
 
   /**

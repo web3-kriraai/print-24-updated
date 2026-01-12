@@ -30,10 +30,10 @@ const GeoZoneSchema = new mongoose.Schema({
     trim: true,
     sparse: true,
     index: true
-    // e.g., "US", "NY", "10001"
+    // ISO 3166-1 alpha-2 (e.g. "US", "IN") or ISO 3166-2 (e.g. "US-NY")
   },
 
-  currency: {
+  currency_code: {
     type: String,
     default: "INR",
     uppercase: true
@@ -45,7 +45,7 @@ const GeoZoneSchema = new mongoose.Schema({
   ======================= */
   level: {
     type: String,
-    enum: ['COUNTRY', 'STATE', 'DISTRICT', 'CITY', 'ZIP'],
+    enum: ['COUNTRY', 'STATE', 'DISTRICT', 'CITY', 'ZIP', 'ZONE', 'REGION', 'UT', 'CONTINENT', 'WORLD'],
     required: true,
     index: true
   },

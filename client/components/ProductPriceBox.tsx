@@ -91,7 +91,7 @@ export default function ProductPriceBox({
         // Format attributes for backend consumption
         const formatAttributesForPricing = (attrs: any[]) => {
           if (!Array.isArray(attrs) || attrs.length === 0) return [];
-          
+
           return attrs.map(attr => ({
             type: attr.attributeType || attr.type,
             value: attr.value,
@@ -255,18 +255,17 @@ export default function ProductPriceBox({
 
   return (
     <div className="price-box">
-      {/* Clean Modern E-commerce Price Display */}
+      {/* Professional E-commerce Order Summary - Matches Page Design */}
       {!showBreakdown && (
-        <div className="space-y-4">
-          {/* Selected Options Summary */}
+        <div className="space-y-3">
+          {/* Selected Options - Clean Card */}
           {selectedDynamicAttributes && selectedDynamicAttributes.length > 0 && (
-            <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-              <div className="text-xs font-semibold text-gray-700 mb-2">Selected Options:</div>
-              <div className="space-y-1">
+            <div className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm">
+              <div className="text-sm font-semibold text-gray-800 mb-3 pb-2 border-b border-gray-100">Selected Options:</div>
+              <div className="space-y-2">
                 {selectedDynamicAttributes
                   .filter((attr: any) => {
                     const val = attr.value || attr.attributeValue;
-                    // Filter out IDs (MongoDB IDs are 24 char hex strings or very long strings)
                     if (typeof val === 'string' && (val.length > 30 || /^[0-9a-f]{24}$/i.test(val))) {
                       return false;
                     }
@@ -275,11 +274,11 @@ export default function ProductPriceBox({
                   .map((attr: any, index: number) => {
                     const attrName = attr.name || attr.attributeName || attr.type || attr.attributeType || 'Option';
                     const attrValue = attr.label || attr.value || attr.attributeValue;
-                    
+
                     return (
-                      <div key={index} className="flex justify-between text-xs">
-                        <span className="text-gray-600">{attrName}:</span>
-                        <span className="font-medium text-gray-900">{attrValue}</span>
+                      <div key={index} className="flex justify-between items-center text-sm py-1.5 px-2 rounded hover:bg-gray-50 transition-colors">
+                        <span className="text-gray-600 font-medium">{attrName}</span>
+                        <span className="font-semibold text-gray-900">{attrValue}</span>
                       </div>
                     );
                   })}
@@ -287,36 +286,53 @@ export default function ProductPriceBox({
             </div>
           )}
 
-          {/* Price Summary */}
-          <div className="space-y-2.5">
-            {/* Subtotal */}
-            <div className="flex justify-between items-baseline pb-2.5 border-b border-gray-200">
-              <div>
-                <div className="text-xs text-gray-500">Unit Price</div>
-                <div className="text-sm font-semibold text-gray-900">{formatPrice(pricing.subtotal / quantity)}</div>
+          {/* Price Breakdown - Professional Card Layout */}
+          <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+            {/* Unit Price */}
+            <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-medium text-gray-700">Unit Price</span>
+                <span className="text-lg font-bold text-gray-900">{formatPrice(pricing.subtotal / quantity)}</span>
               </div>
-              <div className="text-right">
-                <div className="text-xs text-gray-500">× {quantity.toLocaleString()} units</div>
-                <div className="text-sm font-semibold text-gray-900">{formatPrice(pricing.subtotal)}</div>
-              </div>
-            </div>
-            
-            {/* GST */}
-            <div className="flex justify-between items-center py-2.5 border-b border-gray-200">
-              <span className="text-sm text-gray-600">GST ({pricing.gstPercentage}%)</span>
-              <span className="text-sm font-semibold text-gray-900">{formatPrice(pricing.gstAmount)}</span>
             </div>
 
-            {/* Total Payable */}
-            <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg p-4 border-2 border-green-200">
+            {/* Subtotal */}
+            <div className="px-4 py-3 border-b border-gray-100">
               <div className="flex justify-between items-center">
-                <div>
-                  <div className="text-xs text-green-700 font-medium mb-0.5">Total Amount</div>
-                  <div className="text-xs text-green-600">Inclusive of all taxes</div>
+                <span className="text-sm text-gray-600">Subtotal</span>
+                <div className="text-right">
+                  <div className="text-xs text-gray-500 mb-0.5">× {quantity.toLocaleString()} units</div>
+                  <div className="text-base font-bold text-gray-900">{formatPrice(pricing.subtotal)}</div>
                 </div>
-                <div className="text-2xl font-bold text-green-700">{formatPrice(pricing.totalPayable)}</div>
               </div>
             </div>
+
+            {/* GST */}
+            <div className="px-4 py-3 bg-gray-50 border-b border-gray-100">
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-medium text-gray-700">GST ({pricing.gstPercentage}%)</span>
+                <span className="text-base font-bold text-gray-900">{formatPrice(pricing.gstAmount)}</span>
+              </div>
+            </div>
+
+            {/* Total Payable - Highlighted Section */}
+            <div className="px-5 py-4 bg-gradient-to-br from-green-500 to-emerald-600">
+              <div className="flex justify-between items-center">
+                <div>
+                  <div className="text-sm font-bold text-white uppercase tracking-wide mb-0.5">Total Amount</div>
+                  <div className="text-xs text-white/90">Inclusive of all taxes</div>
+                </div>
+                <div className="text-3xl font-bold text-white">{formatPrice(pricing.totalPayable)}</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Footer Info */}
+          <div className="text-xs text-gray-500 text-center space-y-1">
+            <div>Price for {quantity.toLocaleString()} units</div>
+            {pricing.calculatedAt && new Date(pricing.calculatedAt).toString() !== 'Invalid Date' && (
+              <div>Calculated at {new Date(pricing.calculatedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</div>
+            )}
           </div>
         </div>
       )}

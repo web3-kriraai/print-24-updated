@@ -70,6 +70,7 @@ router.get('/pricing/geo-zones', controller.getGeoZones);
 router.post('/pricing/geo-zones', crudController.createGeoZone);
 router.put('/pricing/geo-zones/:id', crudController.updateGeoZone);
 router.delete('/pricing/geo-zones/:id', crudController.deleteGeoZone);
+router.post('/pricing/geo-zones/bulk-import', crudController.bulkImportGeoZones);
 
 //================================
 // USER SEGMENT ROUTES

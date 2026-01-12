@@ -17,7 +17,7 @@ dotenv.config();
 async function testVirtualPricing() {
   try {
     console.log('🔌 Connecting to MongoDB...');
-    await mongoose.connect(process.env.MONGO_URI);
+    await mongoose.connect(process.env.MONGO_URI_PRICING);
     console.log('✅ Connected to MongoDB\n');
 
     const virtualService = new VirtualPriceBookService();
@@ -26,7 +26,7 @@ async function testVirtualPricing() {
     // STEP 1: Create Master Price Book
     // ========================================
     console.log('📘 Step 1: Creating Master Price Book...');
-    
+
     let masterBook = await PriceBook.getMasterBook();
     if (!masterBook) {
       masterBook = await PriceBook.create({
@@ -46,9 +46,9 @@ async function testVirtualPricing() {
     // STEP 2: Add Master Prices
     // ========================================
     console.log('\n💰 Step 2: Adding Master Prices...');
-    
+
     const products = await Product.find({ isActive: true }).limit(3);
-    
+
     if (products.length === 0) {
       console.log('⚠️ No products found. Please create some products first.');
       return;
@@ -78,7 +78,7 @@ async function testVirtualPricing() {
     // STEP 3: Create Zone Price Book
     // ========================================
     console.log('\n🌍 Step 3: Creating Zone Price Book...');
-    
+
     const zones = await GeoZone.find().limit(1);
     if (zones.length === 0) {
       console.log('⚠️ No geo zones found. Skipping zone pricing test.');
@@ -127,7 +127,7 @@ async function testVirtualPricing() {
     // STEP 4: Create Segment Price Book
     // ========================================
     console.log('\n👥 Step 4: Creating Segment Price Book...');
-    
+
     const segments = await UserSegment.find().limit(1);
     if (segments.length === 0) {
       console.log('⚠️ No user segments found. Skipping segment pricing test.');
@@ -176,7 +176,7 @@ async function testVirtualPricing() {
     // STEP 5: Test Virtual Price Calculation
     // ========================================
     console.log('\n🧮 Step 5: Testing Virtual Price Calculation...');
-    
+
     const testProduct = products[0];
     const zone = zones.length > 0 ? zones[0] : null;
     const segment = segments.length > 0 ? segments[0] : null;
@@ -228,7 +228,7 @@ async function testVirtualPricing() {
     // STEP 6: Test Smart View Matrix
     // ========================================
     console.log('\n📊 Step 6: Testing Smart View Matrix...');
-    
+
     // Master View
     console.log('\n   Test: Master View');
     const masterView = await virtualService.getSmartView({});

@@ -18,7 +18,7 @@ async function fixPrintPartnerSegments() {
     try {
         // Connect to MongoDB
         console.log('🔌 Connecting to MongoDB...');
-        await mongoose.connect(process.env.MONGO_TEST_URI || process.env.MONGO_URI);
+        await mongoose.connect(process.env.MONGO_TEST_URI || process.env.MONGO_URI_PRICING);
         console.log('✅ Connected to MongoDB\n');
 
         // Find the PRINT_PARTNER segment

@@ -29,8 +29,8 @@ async function runVerification() {
 
     try {
         // 1. Connect DB
-        if (!process.env.MONGO_URI) throw new Error('MONGO_URI is missing');
-        await mongoose.connect(process.env.MONGO_URI);
+        if (!process.env.MONGO_URI_PRICING) throw new Error('MONGO_URI_PRICING is missing');
+        await mongoose.connect(process.env.MONGO_URI_PRICING);
         console.log('✅ Connected to MongoDB');
 
         // 2. Setup Test Data

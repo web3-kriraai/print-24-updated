@@ -7,14 +7,14 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 // MongoDB connection
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/print24';
+const MONGO_URI_PRICING = process.env.MONGO_URI_PRICING || 'mongodb://localhost:27017/print24';
 
 async function generateCompleteTestData() {
   console.log('🌱 Starting Comprehensive Test Data Generation...\n');
 
   try {
     // Connect to MongoDB
-    await mongoose.connect(MONGO_URI);
+    await mongoose.connect(MONGO_URI_PRICING);
     console.log('✅ Connected to MongoDB\n');
 
     // Dynamic imports
@@ -328,8 +328,8 @@ async function generateCompleteTestData() {
     console.log('🔒 Creating Product Availability Rules...');
 
     // Clear existing test rules
-    await ProductAvailability.deleteMany({ 
-      product: { $in: data.products.map(p => p._id) } 
+    await ProductAvailability.deleteMany({
+      product: { $in: data.products.map(p => p._id) }
     });
 
     // All products available in USA

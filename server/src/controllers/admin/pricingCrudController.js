@@ -13,7 +13,7 @@ export const createGeoZone = async (req, res) => {
     try {
         const GeoZone = (await import('../../models/GeoZon.js')).default;
         const GeoZoneMapping = (await import('../../models/GeoZonMapping.js')).default;
-        const { name, code, description, currency, pincodeRanges, isActive } = req.body;
+        const { name, code, description, currency_code, pincodeRanges, isActive, level } = req.body;
 
         if (!name) {
             return res.status(400).json({ success: false, message: 'Geo zone name is required' });
@@ -24,7 +24,8 @@ export const createGeoZone = async (req, res) => {
             name,
             code,
             description: description || '',
-            currency: currency || 'INR',
+            currency_code: currency_code || 'INR', // Default to INR if not provided
+            level: level || 'COUNTRY', // Default to COUNTRY if not specified
             isActive: isActive !== false
         });
 
@@ -60,12 +61,12 @@ export const updateGeoZone = async (req, res) => {
         const GeoZone = (await import('../../models/GeoZon.js')).default;
         const GeoZoneMapping = (await import('../../models/GeoZonMapping.js')).default;
         const { id } = req.params;
-        const { name, code, description, currency, pincodeRanges, isActive } = req.body;
+        const { name, code, description, currency_code, pincodeRanges, isActive, level } = req.body;
 
         // Update the geo zone
         const geoZone = await GeoZone.findByIdAndUpdate(
             id,
-            { name, code, description, currency, isActive },
+            { name, code, description, currency_code, isActive, level },
             { new: true }
         );
 
@@ -108,17 +109,53 @@ export const deleteGeoZone = async (req, res) => {
     try {
         const GeoZone = (await import('../../models/GeoZon.js')).default;
         const GeoZoneMapping = (await import('../../models/GeoZonMapping.js')).default;
-        const { id } = req.params;
+        const PriceBook = (await import('../../models/PriceBook.js')).default;
+        const ProductAvailability = (await import('../../models/ProductAvailability.js')).default;
 
+        const { id } = req.params;
+        const { force } = req.query;
+
+        // Check for dependencies
+        const priceBookCount = await PriceBook.countDocuments({ zone: id });
+        const availabilityCount = await ProductAvailability.countDocuments({ geoZone: id });
+
+        if ((priceBookCount > 0 || availabilityCount > 0) && force !== 'true') {
+            return res.status(400).json({
+                success: false,
+                message: `This zone is used by ${priceBookCount} price books and ${availabilityCount} availability rules. Deleting it will cascade delete these associated records.`,
+                requiresConfirmation: true,
+                counts: {
+                    priceBooks: priceBookCount,
+                    availabilityRules: availabilityCount
+                }
+            });
+        }
+
+        // Proceed with deletion (and cascade if forced or no dependencies)
         const geoZone = await GeoZone.findByIdAndDelete(id);
         if (!geoZone) {
             return res.status(404).json({ success: false, message: 'Geo zone not found' });
         }
 
-        // Delete all associated pincode range mappings
+        // Delete all associated pincode range mappings (always safe)
         await GeoZoneMapping.deleteMany({ geoZone: id });
 
-        res.json({ success: true, message: 'Geo zone deleted' });
+        // Cascade delete dependencies
+        if (priceBookCount > 0) {
+            await PriceBook.deleteMany({ zone: id });
+        }
+        if (availabilityCount > 0) {
+            await ProductAvailability.deleteMany({ geoZone: id });
+        }
+
+        res.json({
+            success: true,
+            message: 'Geo zone and associated data deleted successfully',
+            details: {
+                deletedPriceBooks: priceBookCount,
+                deletedAvailabilityRules: availabilityCount
+            }
+        });
     } catch (error) {
         console.error('Delete geo zone error:', error);
         res.status(500).json({ success: false, message: error.message });
@@ -127,6 +164,92 @@ export const deleteGeoZone = async (req, res) => {
 
 //================================
 // USER SEGMENT CRUD OPERATIONS
+
+export const bulkImportGeoZones = async (req, res) => {
+    try {
+        const GeoZone = (await import('../../models/GeoZon.js')).default;
+        const GeoZoneMapping = (await import('../../models/GeoZonMapping.js')).default;
+        const { zones } = req.body; // Expects array of { name, code, level, currency_code, pincodeStart, pincodeEnd }
+
+        if (!zones || !Array.isArray(zones)) {
+            return res.status(400).json({ success: false, message: 'Invalid data format. Expected an array of zones.' });
+        }
+
+        const results = {
+            created: 0,
+            updated: 0,
+            failed: 0,
+            errors: []
+        };
+
+        for (const zoneData of zones) {
+            try {
+                const { name, code, level, currency_code, pincodeStart, pincodeEnd } = zoneData;
+
+                if (!name) {
+                    results.failed++;
+                    results.errors.push('Row missing name');
+                    continue;
+                }
+
+                // Find or create zone
+                // Note: code is sparse/unique, but might be empty in CSV
+                const query = { name };
+                if (code) query.code = code;
+
+                let zone = await GeoZone.findOne({ $or: [{ name }, ...(code ? [{ code }] : [])] });
+
+                if (zone) {
+                    // Update existing
+                    zone.currency_code = currency_code || zone.currency_code;
+                    zone.level = level || zone.level;
+                    if (code) zone.code = code;
+                    await zone.save();
+                    results.updated++;
+                } else {
+                    // Create new
+                    zone = await GeoZone.create({
+                        name,
+                        code,
+                        level: level || 'COUNTRY',
+                        currency_code: currency_code || 'INR',
+                        isActive: true
+                    });
+                    results.created++;
+                }
+
+                // Add pincode mapping if provided
+                if (pincodeStart && pincodeEnd) {
+                    // Check if mapping exists to avoid duplicates
+                    const existingMapping = await GeoZoneMapping.findOne({
+                        geoZone: zone._id,
+                        pincodeStart,
+                        pincodeEnd
+                    });
+
+                    if (!existingMapping) {
+                        await GeoZoneMapping.create({
+                            geoZone: zone._id,
+                            pincodeStart,
+                            pincodeEnd
+                        });
+                    }
+                }
+            } catch (err) {
+                console.error('Error processing zone:', zoneData.name, err);
+                results.failed++;
+                results.errors.push(`${zoneData.name}: ${err.message}`);
+            }
+        }
+
+        res.json({ success: true, results });
+
+    } catch (error) {
+        console.error('Bulk import error:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
 //================================
 
 export const createUserSegment = async (req, res) => {

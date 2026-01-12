@@ -8,7 +8,7 @@ dotenv.config();
 async function fixPrintPartnerSegments() {
     try {
         console.log('🔌 Connecting to MongoDB...');
-        await mongoose.connect(process.env.MONGO_TEST_URI || process.env.MONGO_URI);
+        await mongoose.connect(process.env.MONGO_TEST_URI || process.env.MONGO_URI_PRICING);
         console.log('✅ Connected\n');
 
         // Find PRINT_PARTNER segment

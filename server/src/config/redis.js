@@ -4,7 +4,7 @@ import { createClient } from 'redis';
  * Redis Client Configuration
  * Used for caching pricing calculations
  * 
- * Cache Key Format: PRICE::{PRODUCT_ID}::{USER_SEGMENT}::{GEO_ZONE}
+ * Cache Key Format: PRICE::{PRODUCT_ID}::{USER_SEGMENT}::{GEO_ZONE}::{QUANTITY}
  * TTL: 900 seconds (15 minutes)
  */
 
@@ -61,9 +61,14 @@ redisClient.connect().catch((err) => {
 export const PricingCache = {
   /**
    * Generate cache key for pricing
+   * @param {string} productId - Product ID
+   * @param {string} userSegmentId - User segment ID
+   * @param {string} geoZoneId - Geographic zone ID
+   * @param {number} quantity - Quantity for pricing calculation
+   * @returns {string} Cache key
    */
-  generateKey: (productId, userSegmentId, geoZoneId) => {
-    return `PRICE::${productId}::${userSegmentId || 'GUEST'}::${geoZoneId || 'DEFAULT'}`;
+  generateKey: (productId, userSegmentId, geoZoneId, quantity = 1) => {
+    return `PRICE::${productId}::${userSegmentId || 'GUEST'}::${geoZoneId || 'DEFAULT'}::${quantity}`;
   },
 
   /**
@@ -71,7 +76,7 @@ export const PricingCache = {
    */
   get: async (key) => {
     if (!isConnected) return null;
-    
+
     try {
       const cached = await redisClient.get(key);
       return cached ? JSON.parse(cached) : null;
@@ -86,7 +91,7 @@ export const PricingCache = {
    */
   set: async (key, value, ttl = 900) => {
     if (!isConnected) return false;
-    
+
     try {
       await redisClient.setEx(key, ttl, JSON.stringify(value));
       return true;
@@ -101,7 +106,7 @@ export const PricingCache = {
    */
   invalidate: async (pattern) => {
     if (!isConnected) return 0;
-    
+
     try {
       const keys = await redisClient.keys(pattern);
       if (keys.length > 0) {

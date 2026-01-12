@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, MapPin, Save, X } from 'lucide-react';
+import { Plus, Edit2, Trash2, MapPin, Save, X, Copy, Upload, FileText } from 'lucide-react';
 
 interface PincodeRange {
     start: number;
@@ -10,7 +10,7 @@ interface GeoZone {
     _id: string;
     name: string;
     code: string;
-    currency: string;
+    currency_code: string;
     pincodeRanges: PincodeRange[];
     isActive: boolean;
 }
@@ -35,7 +35,8 @@ const GeoZoneManager: React.FC = () => {
     const [formData, setFormData] = useState({
         name: '',
         code: '',
-        currency: 'INR',
+        currency_code: 'INR',
+        level: 'COUNTRY',
         pincodeRanges: [{ start: 0, end: 0 }],
         isActive: true,
     });
@@ -91,8 +92,29 @@ const GeoZoneManager: React.FC = () => {
                 resetForm();
                 fetchGeoZones();
             } else {
-                const error = await response.json();
-                alert(error.message || 'Failed to save geo zone');
+                // Check if response has content and is JSON before parsing
+                const contentType = response.headers.get('content-type');
+                let errorMessage = 'Failed to save geo zone';
+
+                if (contentType && contentType.includes('application/json')) {
+                    try {
+                        const error = await response.json();
+                        errorMessage = error.message || errorMessage;
+                    } catch (e) {
+                        // If JSON parsing fails, use the default error message
+                        console.error('Failed to parse error response:', e);
+                    }
+                } else {
+                    // Try to get text response if not JSON
+                    try {
+                        const text = await response.text();
+                        if (text) errorMessage = text;
+                    } catch (e) {
+                        console.error('Failed to parse text response:', e);
+                    }
+                }
+
+                alert(errorMessage);
             }
         } catch (error) {
             console.error('Error saving geo zone:', error);
@@ -102,12 +124,16 @@ const GeoZoneManager: React.FC = () => {
         }
     };
 
-    const handleDelete = async (id: string) => {
-        if (!confirm('Are you sure you want to delete this geo zone?')) return;
+    const handleDelete = async (id: string, force: boolean = false) => {
+        if (!force && !confirm('Are you sure you want to delete this geo zone?')) return;
 
         try {
             const token = localStorage.getItem('token');
-            const response = await fetch(`/api/admin/pricing/geo-zones/${id}`, {
+            const url = force
+                ? `/api/admin/pricing/geo-zones/${id}?force=true`
+                : `/api/admin/pricing/geo-zones/${id}`;
+
+            const response = await fetch(url, {
                 method: 'DELETE',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -117,6 +143,18 @@ const GeoZoneManager: React.FC = () => {
             if (response.ok) {
                 alert('Geo zone deleted!');
                 fetchGeoZones();
+            } else {
+                const data = await response.json();
+
+                // Handle dependency confirmation
+                if (response.status === 400 && data.requiresConfirmation) {
+                    if (confirm(`${data.message}\n\nDo you want to FORCE DELETE? This action cannot be undone.`)) {
+                        await handleDelete(id, true);
+                        return;
+                    }
+                } else {
+                    alert(data.message || 'Failed to delete geo zone');
+                }
             }
         } catch (error) {
             console.error('Error deleting geo zone:', error);
@@ -129,18 +167,108 @@ const GeoZoneManager: React.FC = () => {
         setFormData({
             name: zone.name,
             code: zone.code,
-            currency: zone.currency,
+            currency_code: (zone as any).currency_code || (zone as any).currency || 'INR',
+            level: (zone as any).level || 'COUNTRY',
             pincodeRanges: zone.pincodeRanges.length > 0 ? zone.pincodeRanges : [{ start: 0, end: 0 }],
             isActive: zone.isActive,
         });
         setShowModal(true);
     };
 
+    const handleDuplicate = (zone: GeoZone) => {
+        setEditingZone(null); // Create mode
+        setFormData({
+            name: `${zone.name} (Copy)`,
+            code: `${zone.code}_COPY`,
+            currency_code: (zone as any).currency_code || (zone as any).currency || 'INR',
+            level: (zone as any).level || 'COUNTRY',
+            // Deep copy pincode ranges
+            pincodeRanges: zone.pincodeRanges.map(r => ({ ...r })),
+            isActive: true,
+        });
+        setShowModal(true);
+    };
+
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            try {
+                const text = event.target?.result as string;
+                if (!text) return;
+
+                // Simple CSV parser
+                const lines = text.split('\n');
+                const headers = lines[0].split(',').map(h => h.trim());
+
+                const zones = lines.slice(1).filter(l => l.trim()).map(line => {
+                    const values = line.split(',').map(v => v.trim());
+                    const obj: any = {};
+                    headers.forEach((h, i) => {
+                        obj[h] = values[i];
+                    });
+
+                    // Convert pincodes to numbers
+                    if (obj.pincodeStart) obj.pincodeStart = parseInt(obj.pincodeStart);
+                    if (obj.pincodeEnd) obj.pincodeEnd = parseInt(obj.pincodeEnd);
+
+                    return obj;
+                });
+
+                if (zones.length === 0) {
+                    alert('No valid data found in CSV');
+                    return;
+                }
+
+                setLoading(true);
+                const token = localStorage.getItem('token');
+                const response = await fetch('/api/admin/pricing/geo-zones/bulk-import', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`,
+                    },
+                    body: JSON.stringify({ zones }),
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    alert(`Import successful!\nCreated: ${data.results.created}\nUpdated: ${data.results.updated}\nFailed: ${data.results.failed}`);
+                    fetchGeoZones();
+                } else {
+                    alert('Import failed: ' + data.message);
+                }
+            } catch (err) {
+                console.error('Import error:', err);
+                alert('Error processing file');
+            } finally {
+                setLoading(false);
+                // Reset file input
+                e.target.value = '';
+            }
+        };
+        reader.readAsText(file);
+    };
+
+    const downloadTemplate = () => {
+        const headers = ['name,code,level,currency_code,pincodeStart,pincodeEnd'];
+        const sample = 'South Zone,SZ,DISTRICT,INR,500000,509999';
+        const blob = new Blob([[headers, sample].join('\n')], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'geo_zones_template.csv';
+        a.click();
+    };
+
     const resetForm = () => {
         setFormData({
             name: '',
             code: '',
-            currency: 'INR',
+            currency_code: 'INR',
+            level: 'COUNTRY',
             pincodeRanges: [{ start: 0, end: 0 }],
             isActive: true,
         });
@@ -180,8 +308,8 @@ const GeoZoneManager: React.FC = () => {
                 </p>
             </div>
 
-            {/* Create Button */}
-            <div className="mb-6">
+            {/* Actions Bar */}
+            <div className="mb-6 flex flex-wrap gap-4 justify-between items-center">
                 <button
                     onClick={() => {
                         resetForm();
@@ -192,6 +320,27 @@ const GeoZoneManager: React.FC = () => {
                     <Plus size={20} />
                     Create Geo Zone
                 </button>
+
+                <div className="flex gap-2">
+                    <button
+                        onClick={downloadTemplate}
+                        className="text-gray-600 hover:text-gray-800 px-3 py-2 border rounded-lg flex items-center gap-2"
+                        title="Download CSV Template"
+                    >
+                        <FileText size={18} />
+                        Template
+                    </button>
+                    <label className="cursor-pointer bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2">
+                        <Upload size={20} />
+                        Import CSV
+                        <input
+                            type="file"
+                            accept=".csv"
+                            onChange={handleFileUpload}
+                            className="hidden"
+                        />
+                    </label>
+                </div>
             </div>
 
             {/* Geo Zones List */}
@@ -225,7 +374,7 @@ const GeoZoneManager: React.FC = () => {
                                 <tr key={zone._id}>
                                     <td className="px-6 py-4 font-medium">{zone.name}</td>
                                     <td className="px-6 py-4">{zone.code}</td>
-                                    <td className="px-6 py-4">{zone.currency}</td>
+                                    <td className="px-6 py-4">{(zone as any).currency_code || (zone as any).currency}</td>
                                     <td className="px-6 py-4">
                                         {zone.pincodeRanges && zone.pincodeRanges.length > 0 ? (
                                             zone.pincodeRanges.map((range, idx) => (
@@ -252,8 +401,16 @@ const GeoZoneManager: React.FC = () => {
                                                 <Edit2 size={18} />
                                             </button>
                                             <button
+                                                onClick={() => handleDuplicate(zone)}
+                                                className="text-green-600 hover:text-green-800"
+                                                title="Duplicate Zone"
+                                            >
+                                                <Copy size={18} />
+                                            </button>
+                                            <button
                                                 onClick={() => handleDelete(zone._id)}
                                                 className="text-red-600 hover:text-red-800"
+                                                title="Delete Zone"
                                             >
                                                 <Trash2 size={18} />
                                             </button>
@@ -301,62 +458,85 @@ const GeoZoneManager: React.FC = () => {
                                 />
                             </div>
 
-                            {/* Currency */}
+                            {/* Currency Code */}
                             <div className="mb-4">
-                                <label className="block text-sm font-medium mb-2">Currency *</label>
+                                <label className="block text-sm font-medium mb-2">Currency Code (ISO 4217) *</label>
                                 <select
-                                    value={formData.currency}
-                                    onChange={(e) => setFormData({ ...formData, currency: e.target.value })}
+                                    value={formData.currency_code}
+                                    onChange={(e) => setFormData({ ...formData, currency_code: e.target.value })}
                                     className="w-full border rounded-lg px-3 py-2"
                                 >
                                     <option value="INR">INR (₹)</option>
                                     <option value="USD">USD ($)</option>
                                     <option value="EUR">EUR (€)</option>
+                                    <option value="GBP">GBP (£)</option>
                                 </select>
                             </div>
 
-                            {/* Pincode Ranges */}
+                            {/* Level */}
                             <div className="mb-4">
-                                <label className="block text-sm font-medium mb-2">Pincode Ranges *</label>
-                                {formData.pincodeRanges.map((range, index) => (
-                                    <div key={index} className="flex gap-2 mb-2">
-                                        <input
-                                            type="number"
-                                            value={range.start || ''}
-                                            onChange={(e) => updatePincodeRange(index, 'start', parseInt(e.target.value))}
-                                            className="flex-1 border rounded-lg px-3 py-2"
-                                            placeholder="Start (e.g., 110000)"
-                                            required
-                                        />
-                                        <span className="self-center">-</span>
-                                        <input
-                                            type="number"
-                                            value={range.end || ''}
-                                            onChange={(e) => updatePincodeRange(index, 'end', parseInt(e.target.value))}
-                                            className="flex-1 border rounded-lg px-3 py-2"
-                                            placeholder="End (e.g., 119999)"
-                                            required
-                                        />
-                                        {formData.pincodeRanges.length > 1 && (
-                                            <button
-                                                type="button"
-                                                onClick={() => removePincodeRange(index)}
-                                                className="text-red-600 hover:text-red-800"
-                                            >
-                                                <X size={20} />
-                                            </button>
-                                        )}
-                                    </div>
-                                ))}
-                                <button
-                                    type="button"
-                                    onClick={addPincodeRange}
-                                    className="text-blue-600 hover:text-blue-800 text-sm flex items-center gap-1"
+                                <label className="block text-sm font-medium mb-2">Zone Level *</label>
+                                <select
+                                    value={formData.level}
+                                    onChange={(e) => setFormData({ ...formData, level: e.target.value })}
+                                    className="w-full border rounded-lg px-3 py-2"
+                                    required
                                 >
-                                    <Plus size={16} />
-                                    Add Range
-                                </button>
+                                    <option value="COUNTRY">Country</option>
+                                    <option value="STATE">State</option>
+                                    <option value="UT">Union Territory</option>
+                                    <option value="DISTRICT">District</option>
+                                    <option value="CITY">City</option>
+                                    <option value="ZIP">ZIP/Pincode</option>
+                                    <option value="ZONE">Zone</option>
+                                    <option value="REGION">Region</option>
+                                </select>
                             </div>
+
+                            {/* Pincode Ranges - Only show for granular levels */}
+                            {['DISTRICT', 'CITY', 'ZIP'].includes(formData.level) && (
+                                <div className="mb-4">
+                                    <label className="block text-sm font-medium mb-2">Pincode Ranges *</label>
+                                    {formData.pincodeRanges.map((range, index) => (
+                                        <div key={index} className="flex gap-2 mb-2">
+                                            <input
+                                                type="number"
+                                                value={range.start || ''}
+                                                onChange={(e) => updatePincodeRange(index, 'start', parseInt(e.target.value))}
+                                                className="flex-1 border rounded-lg px-3 py-2"
+                                                placeholder="Start (e.g., 110000)"
+                                                required
+                                            />
+                                            <span className="self-center">-</span>
+                                            <input
+                                                type="number"
+                                                value={range.end || ''}
+                                                onChange={(e) => updatePincodeRange(index, 'end', parseInt(e.target.value))}
+                                                className="flex-1 border rounded-lg px-3 py-2"
+                                                placeholder="End (e.g., 119999)"
+                                                required
+                                            />
+                                            {formData.pincodeRanges.length > 1 && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => removePincodeRange(index)}
+                                                    className="text-red-600 hover:text-red-800"
+                                                >
+                                                    <X size={20} />
+                                                </button>
+                                            )}
+                                        </div>
+                                    ))}
+                                    <button
+                                        type="button"
+                                        onClick={addPincodeRange}
+                                        className="text-blue-600 hover:text-blue-800 text-sm flex items-center gap-1"
+                                    >
+                                        <Plus size={16} />
+                                        Add Range
+                                    </button>
+                                </div>
+                            )}
 
                             {/* Active Status */}
                             <div className="mb-4">

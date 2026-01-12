@@ -1,6 +1,7 @@
 import { User } from "../models/User.js";
 import UserSegment from "../models/UserSegment.js";
 import GeoZoneMapping from "../models/GeoZonMapping.js"; // Note: Actual filename is GeoZonMapping.js
+import GeoZone from "../models/GeoZon.js";
 import geoip from "geoip-lite";
 
 /**
@@ -26,78 +27,74 @@ class UserContextService {
      * @param {String} pincode - Optional pincode override
      * @returns {Object} Pricing context
      */
-    async buildUserContext(user, pincode = null) {
+    async buildUserContext(user, locationOrPincode = null) {
         try {
+            // Normalize location input
+            let locationData = null;
+            if (locationOrPincode) {
+                if (typeof locationOrPincode === 'string') {
+                    locationData = { pincode: locationOrPincode };
+                } else {
+                    locationData = locationOrPincode;
+                }
+            }
+
             if (!user) {
-                return await this.buildGuestContext(pincode);
+                return await this.buildGuestContext(locationData);
             }
 
             // 1. Resolve User Segment
             let userSegment;
 
             console.log(`\n🔍 USER SEGMENT RESOLUTION for user: ${user.email || user._id}`);
-            console.log(`   userType: ${user.userType}`);
-            console.log(`   userSegment field: ${user.userSegment ? (typeof user.userSegment === 'object' ? JSON.stringify(user.userSegment) : user.userSegment) : 'NOT SET'}`);
+            // ... (logging) ...
 
             if (user.userSegment) {
-                // User has assigned segment
-                console.log(`✅ User has explicit userSegment assigned`);
+                // ... (segment resolution) ...
                 if (typeof user.userSegment === 'object' && user.userSegment._id) {
-                    userSegment = user.userSegment; // Already populated
-                    console.log(`   → Using populated segment: ${userSegment.name} (${userSegment.code})`);
+                    userSegment = user.userSegment;
                 } else {
                     userSegment = await UserSegment.findById(user.userSegment).lean();
-                    console.log(`   → Fetched segment from DB: ${userSegment ? `${userSegment.name} (${userSegment.code})` : 'NOT FOUND'}`);
                 }
             } else {
-                // No explicit segment assigned - derive from userType
-                console.log(`📌 No explicit userSegment - deriving from userType`);
-
-                // Map userType to segment code (normalize to lowercase for consistent matching)
+                // ... (derive from userType) ...
                 const userTypeToSegment = {
                     'print partner': 'PRINT_PARTNER',
                     'corporate': 'CORPORATE',
                     'customer': 'RETAIL',
                     'guest': 'RETAIL'
                 };
-
-                // Normalize userType to lowercase and trim whitespace
                 const normalizedUserType = (user.userType || 'customer').toLowerCase().trim();
-
                 const segmentCode = userTypeToSegment[normalizedUserType] || 'RETAIL';
 
-                console.log(`   Original userType: '${user.userType}'`);
-                console.log(`   Normalized userType: '${normalizedUserType}'`);
-                console.log(`   Mapped to segment: '${segmentCode}'`);
-
                 userSegment = await UserSegment.findOne({ code: segmentCode }).lean();
-
-                // If specific segment not found, try default
                 if (!userSegment) {
-                    console.log(`⚠️ Segment '${segmentCode}' not found in database. Using default segment.`);
                     userSegment = await UserSegment.findOne({ isDefault: true }).lean();
-                } else {
-                    console.log(`   → Found segment: ${userSegment.name} (${userSegment.code})`);
+                }
+            }
+            if (!userSegment) userSegment = await UserSegment.findOne({ code: "RETAIL" }).lean();
+
+
+            // 2. Resolve Geographic Zone
+            let geoZone = null;
+
+            // If no location provided, check user profile
+            if (!locationData) {
+                if (user?.territoryAccess?.[0]) {
+                    locationData = { pincode: user.territoryAccess[0] };
                 }
             }
 
-            if (!userSegment) {
-                // Fallback to RETAIL if no default segment
-                userSegment = await UserSegment.findOne({ code: "RETAIL" }).lean();
-            }
+            if (locationData) {
+                // A. Try Pincode Match (Micro Zone) - Highest Priority
+                if (locationData.pincode) {
+                    geoZone = await this.resolveGeoZone(locationData.pincode);
+                }
 
-            // 2. Resolve Geographic Zone (if pincode provided)
-            let geoZone = null;
-            let resolvedPincode = pincode;
-
-            if (!resolvedPincode) {
-                // Try to get pincode from user's territory access or profile
-                // (You might have a defaultAddress field in future)
-                resolvedPincode = user.territoryAccess?.[0] || null;
-            }
-
-            if (resolvedPincode) {
-                geoZone = await this.resolveGeoZone(resolvedPincode);
+                // B. Try Macro Match (ISO Code) if no micro zone found
+                if (!geoZone && (locationData.country || locationData.region)) {
+                    geoZone = await this.resolveMacroZone(locationData);
+                }
             }
 
             // 3. Build context object
@@ -110,7 +107,9 @@ class UserContextService {
                 userType: user.userType || "customer",
                 pricingTier: user.pricingTier || 0,
                 territoryAccess: user.territoryAccess || [],
-                pincode: resolvedPincode,
+                pincode: locationData?.pincode || null,
+                country: locationData?.country || null, // Added to context
+                region: locationData?.region || null,   // Added to context
                 geoZoneId: geoZone?._id || null,
                 geoZoneName: geoZone?.name || null,
                 creditLimit: user.creditLimit || 0,
@@ -121,30 +120,41 @@ class UserContextService {
             return context;
         } catch (error) {
             console.error("Error building user context:", error);
-            // Fallback to guest context
             return await this.buildGuestContext(pincode);
         }
     }
 
     /**
      * Build default context for guest users (not logged in)
-     * 
-     * @param {String} pincode - Optional pincode for geo zone
-     * @returns {Object} Guest pricing context
      */
-    async buildGuestContext(pincode = null) {
+    async buildGuestContext(locationOrPincode = null) {
         try {
             // Get default RETAIL segment
             let retailSegment = await UserSegment.findOne({ code: "RETAIL" }).lean();
+            if (!retailSegment) retailSegment = await UserSegment.findOne({ isDefault: true }).lean();
 
-            if (!retailSegment) {
-                retailSegment = await UserSegment.findOne({ isDefault: true }).lean();
+            // Normalize location input
+            let locationData = null;
+            if (locationOrPincode) {
+                if (typeof locationOrPincode === 'string') {
+                    locationData = { pincode: locationOrPincode };
+                } else {
+                    locationData = locationOrPincode;
+                }
             }
 
-            // Resolve geo zone if pincode provided
+            // Resolve geo zone
             let geoZone = null;
-            if (pincode) {
-                geoZone = await this.resolveGeoZone(pincode);
+
+            // Note: We don't do IP lookup here anymore, it must be passed in
+
+            if (locationData) {
+                if (locationData.pincode) {
+                    geoZone = await this.resolveGeoZone(locationData.pincode);
+                }
+                if (!geoZone && (locationData.country || locationData.region)) {
+                    geoZone = await this.resolveMacroZone(locationData);
+                }
             }
 
             return {
@@ -156,7 +166,9 @@ class UserContextService {
                 userType: "guest",
                 pricingTier: 0,
                 territoryAccess: [],
-                pincode: pincode,
+                pincode: locationData?.pincode || null,
+                country: locationData?.country || null,
+                region: locationData?.region || null,
                 geoZoneId: geoZone?._id || null,
                 geoZoneName: geoZone?.name || null,
                 creditLimit: 0,
@@ -216,30 +228,124 @@ class UserContextService {
     }
 
     /**
-     * Quick context builder for pricing requests
-     * Combines user and pincode into pricing context
-     * 
-     * Priority for pincode resolution:
-     * 1. Explicit request (body/query)
-     * 2. User's default address
-     * 3. User's territory access
-     * 4. IP-based detection (for guests)
-     * 
-     * @param {Object} req - Express request object
-     * @returns {Object} Pricing context
+     * Get full location details from IP
+     */
+    async getLocationFromIP(req) {
+        try {
+            // Get client IP
+            let ip = req.headers['x-forwarded-for']?.split(',')[0] ||
+                req.connection?.remoteAddress ||
+                req.socket?.remoteAddress ||
+                req.ip;
+
+            // Clean IP
+            ip = ip.replace(/^::ffff:/, '').split(':')[0];
+
+            // Localhost/Private IP handling
+            if (ip === '127.0.0.1' || ip === '::1' || ip === 'localhost' || ip.startsWith('192.168.') || ip.startsWith('10.') || ip.startsWith('172.')) {
+                return { pincode: this.getDefaultPincode() };
+            }
+
+            // Lookup IP
+            const geo = geoip.lookup(ip);
+            if (!geo) {
+                console.log(`❌ IP lookup failed for ${ip}`);
+                return { pincode: this.getDefaultPincode() };
+            }
+
+            console.log(`🌍 IP ${ip} → ${geo.city}, ${geo.region} (${geo.country})`);
+
+            // Try to map to pincode
+            const pincode = await this.locationToPincode(geo);
+
+            return {
+                pincode: pincode || undefined, // Use undefined so it doesn't override if null
+                country: geo.country, // ISO Code (e.g. US)
+                region: geo.region,   // ISO Region (e.g. TX)
+                city: geo.city
+            };
+
+        } catch (error) {
+            console.warn('⚠️ IP detection failed:', error.message);
+            return { pincode: this.getDefaultPincode() };
+        }
+    }
+
+    /**
+     * Resolve Macro Zone (Country, State, Region) by ISO Code
+     */
+    async resolveMacroZone(locationData) {
+        try {
+            const { country, region } = locationData;
+            console.log(`🔍 Resolving Macro Zone for: Country=${country}, Region=${region}`);
+
+            const queryCodes = [];
+            if (region) queryCodes.push(region);
+            if (country) queryCodes.push(country);
+            if (region && country) queryCodes.push(`${country}-${region}`); // Handle composed codes if used
+
+            if (queryCodes.length === 0) return null;
+
+            // Find all matching zones
+            const zones = await GeoZone.find({
+                code: { $in: queryCodes },
+                isActive: true
+            }).lean();
+
+            if (!zones || zones.length === 0) return null;
+
+            // Priority Logic: More specific levels win
+            // Order: DISTRICT > STATE > REGION > COUNTRY > CONTINENT
+            const levelPriority = {
+                'DISTRICT': 5,
+                'UT': 4,
+                'STATE': 4,
+                'REGION': 3,
+                'ZONE': 3,
+                'COUNTRY': 2,
+                'CONTINENT': 1,
+                'WORLD': 0
+            };
+
+            // Sort by priority (descending)
+            zones.sort((a, b) => (levelPriority[b.level] || 0) - (levelPriority[a.level] || 0));
+
+            const bestZone = zones[0];
+            console.log(`✅ Found Macro Zone: ${bestZone.name} (${bestZone.level})`);
+            return bestZone;
+
+        } catch (error) {
+            console.error("Error resolving macro zone:", error);
+            return null;
+        }
+    }
+
+    /**
+     * Quick context builder
      */
     async buildContextFromRequest(req) {
         const user = req.user || null;
 
-        // Extract pincode with fallback chain
-        let pincode = this.extractPincode(req, user);
+        // 1. Explicit Pincode Request?
+        const explicitPincode = this.extractPincode(req, user);
 
-        // If no pincode found, try IP detection (works for ALL users)
-        if (!pincode) {
-            pincode = await this.getPincodeFromIP(req);
+        // 2. Build Location Data
+        let locationData = {};
+
+        if (explicitPincode) {
+            locationData = { pincode: explicitPincode };
+        } else {
+            // IP Detection
+            locationData = await this.getLocationFromIP(req);
+
+            // If user has default address, prioritize that pincode over IP pincode?
+            // Usually explicit/user profile wins.
+            if (user?.defaultAddress?.pincode) {
+                locationData.pincode = user.defaultAddress.pincode;
+            }
         }
 
-        return await this.buildUserContext(user, pincode);
+        return await this.buildUserContext(user, locationData);
     }
 
     /**
@@ -267,54 +373,6 @@ class UserContextService {
         }
 
         return null;
-    }
-
-    /**
-     * Detect pincode from IP address using geoip-lite
-     * 
-     * @param {Object} req - Express request
-     * @returns {String|null} Detected pincode
-     */
-    async getPincodeFromIP(req) {
-        try {
-            // Get client IP
-            let ip = req.headers['x-forwarded-for']?.split(',')[0] ||
-                req.connection?.remoteAddress ||
-                req.socket?.remoteAddress ||
-                req.ip;
-
-            // Clean IP (remove IPv6 prefix, port, etc.)
-            ip = ip.replace(/^::ffff:/, '').split(':')[0];
-
-            // Skip localhost and private networks
-            if (ip === '127.0.0.1' || ip === '::1' || ip === 'localhost') {
-                console.log('🏠 Localhost detected, using default pincode');
-                return this.getDefaultPincode();
-            }
-
-            // Skip private network ranges (LAN)
-            if (ip.startsWith('192.168.') || ip.startsWith('10.') || ip.startsWith('172.')) {
-                console.log('🏠 Private network detected, using default pincode');
-                return this.getDefaultPincode();
-            }
-
-            // Use geoip-lite for IP to location
-            const geo = geoip.lookup(ip);
-            if (!geo) {
-                console.log(`❌ IP lookup failed for ${ip}`);
-                return this.getDefaultPincode();
-            }
-
-            console.log(`🌍 IP ${ip} → ${geo.city || 'Unknown'}, ${geo.country}`);
-
-            // Map location to approximate pincode
-            const pincode = await this.locationToPincode(geo);
-            return pincode || this.getDefaultPincode();
-
-        } catch (error) {
-            console.warn('⚠️ IP detection failed:', error.message);
-            return this.getDefaultPincode();
-        }
     }
 
     /**
