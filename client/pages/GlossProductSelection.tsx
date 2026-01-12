@@ -3186,13 +3186,28 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                         quantity={quantity}
                         selectedDynamicAttributes={Object.entries(selectedDynamicAttributes)
                           .filter(([_, value]) => value !== null && value !== undefined && value !== '')
-                          .map(([key, value]) => ({
-                            attributeType: key,
-                            value: typeof value === 'object' && !Array.isArray(value) && !(value instanceof File)
-                              ? JSON.stringify(value)
-                              : value
-                          }))}
-                        showBreakdown={true}
+                          .map(([key, value]) => {
+                            // Find the attribute definition to get readable name
+                            const attr = pdpAttributes.find(a => a._id === key);
+                            const attrName = attr?.attributeName || key;
+                            
+                            // Find the selected value's label
+                            let displayValue = value;
+                            if (attr?.attributeValues) {
+                              const selectedVal = attr.attributeValues.find(v => v.value === value);
+                              displayValue = selectedVal?.label || value;
+                            }
+                            
+                            return {
+                              attributeType: key,
+                              value: typeof value === 'object' && !Array.isArray(value) && !(value instanceof File)
+                                ? JSON.stringify(value)
+                                : value,
+                              name: attrName,  // Add readable name
+                              label: displayValue  // Add readable label
+                            };
+                          })}
+                        showBreakdown={false}
                       />
                     </div>
                   )}
