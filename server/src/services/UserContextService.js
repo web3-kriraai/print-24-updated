@@ -3,6 +3,7 @@ import UserSegment from "../models/UserSegment.js";
 import GeoZoneMapping from "../models/GeoZonMapping.js"; // Note: Actual filename is GeoZonMapping.js
 import GeoZone from "../models/GeoZon.js";
 import geoip from "geoip-lite";
+import GeoZoneHierarchyService from "./GeoZoneHierarchyService.js";
 
 /**
  * =========================================================================
@@ -75,8 +76,9 @@ class UserContextService {
             if (!userSegment) userSegment = await UserSegment.findOne({ code: "RETAIL" }).lean();
 
 
-            // 2. Resolve Geographic Zone
+            // 2. Resolve Geographic Zone HIERARCHY
             let geoZone = null;
+            let geoZoneHierarchy = [];
 
             // If no location provided, check user profile
             if (!locationData) {
@@ -86,14 +88,18 @@ class UserContextService {
             }
 
             if (locationData) {
-                // A. Try Pincode Match (Micro Zone) - Highest Priority
+                // A. Try Pincode Match - Get FULL HIERARCHY
                 if (locationData.pincode) {
-                    geoZone = await this.resolveGeoZone(locationData.pincode);
+                    geoZoneHierarchy = await GeoZoneHierarchyService.resolveZoneHierarchy(locationData.pincode);
+                    geoZone = geoZoneHierarchy[0] || null; // Most specific zone
                 }
 
-                // B. Try Macro Match (ISO Code) if no micro zone found
+                // B. Try Macro Match (ISO Code) if no hierarchy found
                 if (!geoZone && (locationData.country || locationData.region)) {
                     geoZone = await this.resolveMacroZone(locationData);
+                    if (geoZone) {
+                        geoZoneHierarchy = [geoZone]; // Single zone in hierarchy
+                    }
                 }
             }
 
@@ -112,6 +118,7 @@ class UserContextService {
                 region: locationData?.region || null,   // Added to context
                 geoZoneId: geoZone?._id || null,
                 geoZoneName: geoZone?.name || null,
+                geoZoneHierarchy: geoZoneHierarchy, // NEW: Full zone hierarchy for pricing
                 creditLimit: user.creditLimit || 0,
                 paymentTerms: user.paymentTerms || null,
                 isAuthenticated: true,
@@ -143,17 +150,22 @@ class UserContextService {
                 }
             }
 
-            // Resolve geo zone
+            // Resolve geo zone HIERARCHY
             let geoZone = null;
+            let geoZoneHierarchy = [];
 
             // Note: We don't do IP lookup here anymore, it must be passed in
 
             if (locationData) {
                 if (locationData.pincode) {
-                    geoZone = await this.resolveGeoZone(locationData.pincode);
+                    geoZoneHierarchy = await GeoZoneHierarchyService.resolveZoneHierarchy(locationData.pincode);
+                    geoZone = geoZoneHierarchy[0] || null;
                 }
                 if (!geoZone && (locationData.country || locationData.region)) {
                     geoZone = await this.resolveMacroZone(locationData);
+                    if (geoZone) {
+                        geoZoneHierarchy = [geoZone];
+                    }
                 }
             }
 
@@ -171,6 +183,7 @@ class UserContextService {
                 region: locationData?.region || null,
                 geoZoneId: geoZone?._id || null,
                 geoZoneName: geoZone?.name || null,
+                geoZoneHierarchy: geoZoneHierarchy, // NEW: Full zone hierarchy
                 creditLimit: 0,
                 paymentTerms: "PREPAID",
                 isAuthenticated: false,

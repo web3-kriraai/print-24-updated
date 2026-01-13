@@ -186,3 +186,82 @@ export const clearCache = async (req, res) => {
         });
     }
 };
+
+/**
+ * Lookup location by pincode/zipcode
+ * GET /api/locations/lookup-pincode?code=400001&country=IN
+ */
+export const lookupPincode = async (req, res) => {
+    try {
+        const { code, country = 'IN' } = req.query;
+
+        if (!code) {
+            return res.status(400).json({
+                success: false,
+                message: 'Pincode/zipcode is required'
+            });
+        }
+
+        console.log(`📍 Looking up pincode: ${code} in ${country}`);
+
+        const location = await GeolocationService.lookupByPincode(code, country);
+
+        if (!location) {
+            return res.json({
+                success: false,
+                message: 'Pincode not found or not supported'
+            });
+        }
+
+        res.json({
+            success: true,
+            data: location
+        });
+
+    } catch (error) {
+        console.error('Error looking up pincode:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to lookup pincode',
+            error: error.message
+        });
+    }
+};
+
+/**
+ * Get pincode ranges for a location
+ * GET /api/locations/pincode-ranges?country=IN&region=MH
+ */
+export const getPincodeRanges = async (req, res) => {
+    try {
+        const { country, region, city } = req.query;
+
+        if (!country || !region) {
+            return res.status(400).json({
+                success: false,
+                message: 'Country and region are required'
+            });
+        }
+
+        console.log(`📮 Getting pincode ranges for: ${region}, ${country}`);
+
+        const ranges = GeolocationService.getPincodeRangesForLocation({
+            country,
+            region,
+            city
+        });
+
+        res.json({
+            success: true,
+            data: ranges
+        });
+
+    } catch (error) {
+        console.error('Error getting pincode ranges:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to get pincode ranges',
+            error: error.message
+        });
+    }
+};

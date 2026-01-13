@@ -1,5 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2, MapPin, Save, X, Copy, Upload, FileText } from 'lucide-react';
+import { CascadingLocationSelect } from '../../common/CascadingLocationSelect';
+import { useLocationSearch } from '../../../hooks/useLocationSearch';
+import { LocationAutocomplete } from './LocationAutocomplete';
+import { handleLocationSelection } from '../../../utils/locationUtils';
 
 interface PincodeRange {
     start: number;
@@ -10,6 +14,7 @@ interface GeoZone {
     _id: string;
     name: string;
     code: string;
+    level: string;
     currency_code: string;
     pincodeRanges: PincodeRange[];
     isActive: boolean;
@@ -40,6 +45,35 @@ const GeoZoneManager: React.FC = () => {
         pincodeRanges: [{ start: 0, end: 0 }],
         isActive: true,
     });
+
+    // Location selection state for cascading dropdowns
+    const [locationValue, setLocationValue] = useState<{
+        country?: string;
+        countryName?: string;
+        state?: string;
+        stateName?: string;
+        city?: string;
+        cityName?: string;
+    }>({
+        country: '',
+        countryName: '',
+        state: '',
+        stateName: '',
+        city: '',
+        cityName: ''
+    });
+
+    // Location search hook
+    const {
+        locationSearch,
+        locationSuggestions,
+        showSuggestions,
+        isLoading: isSearchLoading,
+        handleSearchChange,
+        clearSearch,
+        closeSuggestions,
+        openSuggestions
+    } = useLocationSearch(geoZones);
 
     // Fetch geo zones
     useEffect(() => {
@@ -272,7 +306,30 @@ const GeoZoneManager: React.FC = () => {
             pincodeRanges: [{ start: 0, end: 0 }],
             isActive: true,
         });
+        setLocationValue({
+            country: '',
+            countryName: '',
+            state: '',
+            stateName: '',
+            city: '',
+            cityName: ''
+        });
         setEditingZone(null);
+        clearSearch();
+    };
+
+    // Handle location selection from autocomplete
+    const handleSelectLocation = (location: any) => {
+        const result = handleLocationSelection(location, geoZones, handleEdit);
+
+        if (result.action === 'create' || result.action === 'create-custom') {
+            setFormData({
+                ...formData,
+                ...result.data
+            });
+        }
+
+        clearSearch();
     };
 
     const addPincodeRange = () => {
@@ -426,77 +483,218 @@ const GeoZoneManager: React.FC = () => {
             {/* Create/Edit Modal */}
             {showModal && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-                        <h2 className="text-2xl font-bold mb-4">
-                            {editingZone ? 'Edit Geo Zone' : 'Create Geo Zone'}
-                        </h2>
+                    <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+                        {/* Modal Header with Close Button */}
+                        <div className="px-6 py-4 border-b flex items-center justify-between bg-gradient-to-r from-blue-50 to-indigo-50">
+                            <h2 className="text-2xl font-bold text-gray-900">
+                                {editingZone ? 'Edit Geo Zone' : 'Create Geo Zone'}
+                            </h2>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setShowModal(false);
+                                    resetForm();
+                                }}
+                                className="text-gray-400 hover:text-gray-600 transition-colors"
+                            >
+                                <X size={24} />
+                            </button>
+                        </div>
 
-                        <form onSubmit={handleSubmit}>
-                            {/* Name */}
-                            <div className="mb-4">
-                                <label className="block text-sm font-medium mb-2">Zone Name *</label>
-                                <input
-                                    type="text"
-                                    value={formData.name}
-                                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                    className="w-full border rounded-lg px-3 py-2"
-                                    placeholder="e.g., North India"
-                                    required
-                                />
+                        {/* Horizontal Step Indicator */}
+                        <div className="px-6 py-4 bg-white border-b">
+                            <div className="flex items-center justify-between max-w-3xl mx-auto">
+                                {/* Step 1 */}
+                                <div className="flex items-center flex-1">
+                                    <div className="flex items-center">
+                                        <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-semibold">
+                                            1
+                                        </div>
+                                        <div className="ml-3">
+                                            <div className="text-sm font-semibold text-gray-900">Select Location</div>
+                                            <div className="text-xs text-gray-500">Choose from dropdowns</div>
+                                        </div>
+                                    </div>
+                                    <div className="flex-1 h-0.5 bg-gray-300 mx-4"></div>
+                                </div>
+
+                                {/* Step 2 */}
+                                <div className="flex items-center flex-1">
+                                    <div className="flex items-center">
+                                        <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-semibold">
+                                            2
+                                        </div>
+                                        <div className="ml-3">
+                                            <div className="text-sm font-semibold text-gray-900">Zone Details</div>
+                                            <div className="text-xs text-gray-500">Auto-filled</div>
+                                        </div>
+                                    </div>
+                                    <div className="flex-1 h-0.5 bg-gray-300 mx-4"></div>
+                                </div>
+
+                                {/* Step 3 */}
+                                <div className="flex items-center">
+                                    <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-semibold">
+                                        3
+                                    </div>
+                                    <div className="ml-3">
+                                        <div className="text-sm font-semibold text-gray-900">Pincode & Status</div>
+                                        <div className="text-xs text-gray-500">Optional</div>
+                                    </div>
+                                </div>
                             </div>
+                        </div>
 
-                            {/* Code */}
-                            <div className="mb-4">
-                                <label className="block text-sm font-medium mb-2">Zone Code *</label>
-                                <input
-                                    type="text"
-                                    value={formData.code}
-                                    onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
-                                    className="w-full border rounded-lg px-3 py-2"
-                                    placeholder="e.g., NORTH"
-                                    required
-                                />
-                            </div>
+                        {/* Scrollable Form Content */}
+                        <div className="flex-1 overflow-y-auto px-6 py-6">
+                            <form onSubmit={handleSubmit} id="geoZoneForm">
+                                {/* SECTION 1: LOCATION SELECTION */}
+                                <div className="mb-6">
+                                    <div className="bg-blue-50 border-l-4 border-blue-500 p-4 mb-4">
+                                        <h3 className="font-semibold text-gray-900 mb-1">📍 Location Selection</h3>
+                                        <p className="text-sm text-gray-600">Choose from standardized dropdowns. Fields auto-fill below.</p>
+                                    </div>
 
-                            {/* Currency Code */}
-                            <div className="mb-4">
-                                <label className="block text-sm font-medium mb-2">Currency Code (ISO 4217) *</label>
-                                <select
-                                    value={formData.currency_code}
-                                    onChange={(e) => setFormData({ ...formData, currency_code: e.target.value })}
-                                    className="w-full border rounded-lg px-3 py-2"
-                                >
-                                    <option value="INR">INR (₹)</option>
-                                    <option value="USD">USD ($)</option>
-                                    <option value="EUR">EUR (€)</option>
-                                    <option value="GBP">GBP (£)</option>
-                                </select>
-                            </div>
+                                    <CascadingLocationSelect
+                                        value={locationValue}
+                                        onChange={async (location) => {
+                                            setLocationValue(location);
 
-                            {/* Level */}
-                            <div className="mb-4">
-                                <label className="block text-sm font-medium mb-2">Zone Level *</label>
-                                <select
-                                    value={formData.level}
-                                    onChange={(e) => setFormData({ ...formData, level: e.target.value })}
-                                    className="w-full border rounded-lg px-3 py-2"
-                                    required
-                                >
-                                    <option value="COUNTRY">Country</option>
-                                    <option value="STATE">State</option>
-                                    <option value="UT">Union Territory</option>
-                                    <option value="DISTRICT">District</option>
-                                    <option value="CITY">City</option>
-                                    <option value="ZIP">ZIP/Pincode</option>
-                                    <option value="ZONE">Zone</option>
-                                    <option value="REGION">Region</option>
-                                </select>
-                            </div>
+                                            // Auto-fill form fields
+                                            setFormData({
+                                                ...formData,
+                                                name: location.stateName || location.countryName || '',
+                                                code: location.state || location.country || '',
+                                                level: location.city ? 'CITY' : location.state ? 'STATE' : 'COUNTRY'
+                                            });
 
-                            {/* Pincode Ranges - Only show for granular levels */}
-                            {['DISTRICT', 'CITY', 'ZIP'].includes(formData.level) && (
-                                <div className="mb-4">
-                                    <label className="block text-sm font-medium mb-2">Pincode Ranges *</label>
+                                            // Auto-fetch pincode ranges for Indian states
+                                            if (location.country === 'IN' && location.state) {
+                                                try {
+                                                    const token = localStorage.getItem('token');
+                                                    const response = await fetch(
+                                                        `/api/admin/locations/pincode-ranges?country=IN&region=${location.state}`,
+                                                        { headers: { 'Authorization': `Bearer ${token}` } }
+                                                    );
+                                                    const data = await response.json();
+
+                                                    if (data.success && data.data.available) {
+                                                        setFormData(prev => ({
+                                                            ...prev,
+                                                            pincodeRanges: [{
+                                                                start: parseInt(data.data.start),
+                                                                end: parseInt(data.data.end)
+                                                            }]
+                                                        }));
+                                                    }
+                                                } catch (err) {
+                                                    console.error('Failed to fetch pincode ranges:', err);
+                                                }
+                                            }
+                                        }}
+                                        onCurrencyChange={(currency) => {
+                                            setFormData({ ...formData, currency_code: currency });
+                                        }}
+                                        required={false}
+                                        showCurrency={false}
+                                        showZipCode={false}
+                                        showCityDropdown={true}
+                                    />
+
+                                    {/* India-Only Quick Search */}
+                                    <details className="mt-3">
+                                        <summary className="text-sm text-blue-600 hover:text-blue-800 cursor-pointer">
+                                            🔍 Or use India quick search
+                                        </summary>
+                                        <div className="mt-2 p-3 bg-gray-50 rounded">
+                                            <LocationAutocomplete
+                                                locationSearch={locationSearch}
+                                                locationSuggestions={locationSuggestions}
+                                                showSuggestions={showSuggestions}
+                                                isLoading={isSearchLoading}
+                                                onSearchChange={handleSearchChange}
+                                                onSelectLocation={handleSelectLocation}
+                                                onFocus={openSuggestions}
+                                                onClose={closeSuggestions}
+                                            />
+                                        </div>
+                                    </details>
+                                </div>
+
+                                {/* SECTION 2: ZONE DETAILS */}
+                                <div className="mb-6">
+                                    <div className="bg-green-50 border-l-4 border-green-500 p-4 mb-4">
+                                        <h3 className="font-semibold text-gray-900 mb-1">✏️ Zone Details</h3>
+                                        <p className="text-sm text-gray-600">Auto-filled from location. You can edit if needed.</p>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-sm font-medium mb-2">Zone Name *</label>
+                                            <input
+                                                type="text"
+                                                value={formData.name}
+                                                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                                className="w-full border rounded-lg px-3 py-2"
+                                                placeholder="e.g., Maharashtra"
+                                                required
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium mb-2">Zone Code *</label>
+                                            <input
+                                                type="text"
+                                                value={formData.code}
+                                                onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
+                                                className="w-full border rounded-lg px-3 py-2"
+                                                placeholder="e.g., MH"
+                                                required
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium mb-2">Currency (ISO 4217) *</label>
+                                            <select
+                                                value={formData.currency_code}
+                                                onChange={(e) => setFormData({ ...formData, currency_code: e.target.value })}
+                                                className="w-full border rounded-lg px-3 py-2"
+                                            >
+                                                <option value="INR">INR (₹)</option>
+                                                <option value="USD">USD ($)</option>
+                                                <option value="EUR">EUR (€)</option>
+                                                <option value="GBP">GBP (£)</option>
+                                                <option value="DKK">DKK (kr)</option>
+                                                <option value="AUD">AUD (A$)</option>
+                                                <option value="CAD">CAD (C$)</option>
+                                            </select>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium mb-2">Zone Level *</label>
+                                            <select
+                                                value={formData.level}
+                                                onChange={(e) => setFormData({ ...formData, level: e.target.value })}
+                                                className="w-full border rounded-lg px-3 py-2"
+                                                required
+                                            >
+                                                <option value="COUNTRY">Country</option>
+                                                <option value="STATE">State</option>
+                                                <option value="CITY">City</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* SECTION 3: PINCODE RANGES */}
+                                <div className="mb-6">
+                                    <div className="bg-purple-50 border-l-4 border-purple-500 p-4 mb-4">
+                                        <h3 className="font-semibold text-gray-900 mb-1">📮 Pincode Ranges</h3>
+                                        <p className="text-sm text-gray-600">
+                                            {locationValue.country === 'IN' ? 'Auto-filled for Indian states' : 'Add manually or skip'}
+                                        </p>
+                                    </div>
+
                                     {formData.pincodeRanges.map((range, index) => (
                                         <div key={index} className="flex gap-2 mb-2">
                                             <input
@@ -505,7 +703,6 @@ const GeoZoneManager: React.FC = () => {
                                                 onChange={(e) => updatePincodeRange(index, 'start', parseInt(e.target.value))}
                                                 className="flex-1 border rounded-lg px-3 py-2"
                                                 placeholder="Start (e.g., 110000)"
-                                                required
                                             />
                                             <span className="self-center">-</span>
                                             <input
@@ -514,13 +711,12 @@ const GeoZoneManager: React.FC = () => {
                                                 onChange={(e) => updatePincodeRange(index, 'end', parseInt(e.target.value))}
                                                 className="flex-1 border rounded-lg px-3 py-2"
                                                 placeholder="End (e.g., 119999)"
-                                                required
                                             />
                                             {formData.pincodeRanges.length > 1 && (
                                                 <button
                                                     type="button"
                                                     onClick={() => removePincodeRange(index)}
-                                                    className="text-red-600 hover:text-red-800"
+                                                    className="text-red-600 hover:text-red-800 px-2"
                                                 >
                                                     <X size={20} />
                                                 </button>
@@ -530,49 +726,50 @@ const GeoZoneManager: React.FC = () => {
                                     <button
                                         type="button"
                                         onClick={addPincodeRange}
-                                        className="text-blue-600 hover:text-blue-800 text-sm flex items-center gap-1"
+                                        className="text-blue-600 hover:text-blue-800 text-sm flex items-center gap-1 mt-2"
                                     >
                                         <Plus size={16} />
-                                        Add Range
+                                        Add Another Range
                                     </button>
                                 </div>
-                            )}
 
-                            {/* Active Status */}
-                            <div className="mb-4">
-                                <label className="flex items-center gap-2">
-                                    <input
-                                        type="checkbox"
-                                        checked={formData.isActive}
-                                        onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
-                                        className="rounded"
-                                    />
-                                    <span className="text-sm font-medium">Active</span>
-                                </label>
-                            </div>
+                                {/* SECTION 4: STATUS */}
+                                <div className="mb-6">
+                                    <label className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
+                                        <input
+                                            type="checkbox"
+                                            checked={formData.isActive}
+                                            onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+                                            className="rounded w-5 h-5"
+                                        />
+                                        <span className="text-sm font-medium">✅ Active (Zone is usable for pricing)</span>
+                                    </label>
+                                </div>
+                            </form>
+                        </div>
 
-                            {/* Actions */}
-                            <div className="flex gap-2 justify-end">
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setShowModal(false);
-                                        resetForm();
-                                    }}
-                                    className="px-4 py-2 border rounded-lg hover:bg-gray-50"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    type="submit"
-                                    disabled={loading}
-                                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
-                                >
-                                    <Save size={18} />
-                                    {loading ? 'Saving...' : 'Save'}
-                                </button>
-                            </div>
-                        </form>
+                        {/* Modal Footer with Action Buttons */}
+                        <div className="px-6 py-4 border-t bg-gray-50 flex gap-3 justify-end">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setShowModal(false);
+                                    resetForm();
+                                }}
+                                className="px-6 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-100 font-medium text-gray-700 transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="submit"
+                                form="geoZoneForm"
+                                disabled={loading}
+                                className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium flex items-center gap-2 disabled:opacity-50 transition-colors"
+                            >
+                                <Save size={18} />
+                                {loading ? 'Saving...' : editingZone ? 'Update Zone' : 'Create Zone'}
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

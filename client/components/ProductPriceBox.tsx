@@ -43,6 +43,16 @@ interface PricingMeta {
   pincode: string;
   detectedBy: string;
   isGuest: boolean;
+  // NEW: Zone hierarchy data
+  geoZoneHierarchy?: Array<{
+    _id: string;
+    name: string;
+    level: string;
+    code?: string;
+  }>;
+  usedZoneId?: string;
+  usedZoneName?: string;
+  usedZoneLevel?: string;
 }
 
 export default function ProductPriceBox({
@@ -162,7 +172,10 @@ export default function ProductPriceBox({
           if (data.pricing.appliedModifiers?.length > 0) {
             console.log('\\n🎯 MODIFIERS:');
             data.pricing.appliedModifiers.forEach((mod: any, i: number) => {
-              console.log(`   ${i + 1}. ${mod.name}: ${mod.applied > 0 ? '+' : ''}${mod.applied} (${mod.type})`);
+              const name = mod.reason || mod.source || mod.name || 'Modifier';
+              const value = mod.value !== undefined ? mod.value : (mod.applied || 0);
+              const type = mod.modifierType || mod.type || 'FIXED';
+              console.log(`   ${i + 1}. ${name}: ${value > 0 ? '+' : ''}${value} (${type})`);
             });
           }
 
@@ -326,6 +339,8 @@ export default function ProductPriceBox({
               </div>
             </div>
           </div>
+
+          {/* Zone Hierarchy Display REMOVED as per user request to hide internal pricing logic */}
 
           {/* Footer Info */}
           <div className="text-xs text-gray-500 text-center space-y-1">

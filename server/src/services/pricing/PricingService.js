@@ -79,10 +79,18 @@ class PricingService {
                 resolvedUserSegmentId = retailSegment._id;
             }
 
-            // Step 2: Resolve GeoZone
-            // We use PricingResolver helper just for GeoZone resolution context
+            // Step 2: Resolve GeoZone AND Zone Hierarchy
+            // Import GeoZoneHierarchyService at the top if not already imported
+            const GeoZoneHierarchyService = (await import('../GeoZoneHierarchyService.js')).default;
+
             const geoZone = await PricingResolver.getGeoZoneByPincode(pincode);
             const geoZoneId = geoZone?._id || null;
+
+            // NEW: Resolve full zone hierarchy for hierarchical pricing
+            let geoZoneHierarchy = [];
+            if (pincode) {
+                geoZoneHierarchy = await GeoZoneHierarchyService.resolveZoneHierarchy(pincode);
+            }
 
             // Step 3: Check Redis Cache
             if (cacheResults) {
@@ -118,7 +126,8 @@ class PricingService {
                     attributeName: attr.attributeName,
                 })),
                 promoCodes,
-                product: product // pass full product to avoid re-fetch
+                product: product, // pass full product to avoid re-fetch
+                geoZoneHierarchy: geoZoneHierarchy // NEW: Pass hierarchy for hierarchical pricing
             };
 
             const virtualResult = await this.virtualPriceBookService.calculateVirtualPrice(
@@ -163,7 +172,13 @@ class PricingService {
                 geoZone: geoZone,
                 priceBookId: virtualResult.masterBook,
                 calculatedAt: new Date(),
-                isVirtual: true
+                date: new Date(),
+                isVirtual: true,
+                // NEW: Propagate hierarchy metadata from VirtualPriceBookService
+                usedZoneId: virtualResult.usedZoneId,
+                usedZoneName: virtualResult.usedZoneName,
+                usedZoneLevel: virtualResult.usedZoneLevel,
+                geoZoneHierarchy: virtualResult.geoZoneHierarchy || contextOverride.geoZoneHierarchy || []
             };
 
             // Step 9: Cache Result

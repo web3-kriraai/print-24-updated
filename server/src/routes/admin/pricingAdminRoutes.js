@@ -3,6 +3,7 @@ import { authMiddleware } from '../../middlewares/authMiddleware.js';
 import * as controller from '../../controllers/admin/pricingAdminController.js';
 import * as crudController from '../../controllers/admin/pricingCrudController.js';
 import * as virtualController from '../../controllers/admin/virtualPricingController.js';
+import * as locationController from '../../controllers/admin/locationSearchController.js';
 import { validateCombinationModifier, validateModifierData } from '../../middlewares/modifierValidation.js';
 const router = express.Router();
 
@@ -121,4 +122,57 @@ router.post('/pricing/zone-book', virtualController.createZoneBook);
 router.post('/pricing/segment-book', virtualController.createSegmentBook);
 router.get('/pricing/price-books-hierarchy', virtualController.getPriceBookHierarchy);
 
+//================================
+// LOCATION SEARCH ROUTES
+//================================
+
+// Search locations (states/UTs)
+router.get('/pricing/locations/search', locationController.searchLocations);
+
+// Get smart region suggestions
+router.get('/pricing/locations/suggest-region', locationController.getRegionSuggestion);
+
+// Get all available regions
+router.get('/pricing/locations/regions', locationController.getAllRegions);
+
+// Get location by name
+router.get('/pricing/locations/by-name/:name', locationController.getLocationByName);
+
+//================================
+// CASCADING LOCATION ROUTES (NEW)
+//================================
+
+import * as cascadeController from '../../controllers/admin/locationCascadeController.js';
+
+// Get all countries
+router.get('/locations/countries', cascadeController.getCountries);
+
+// Get states by country
+router.get('/locations/states', cascadeController.getStates);
+
+// Get cities by state
+router.get('/locations/cities', cascadeController.getCities);
+
+// Get currency by country
+router.get('/locations/currency', cascadeController.getCurrency);
+
+// Get country details
+router.get('/locations/country/:code', cascadeController.getCountryDetails);
+
+//================================
+// GEOLOCATION API ROUTES (NEW)
+//================================
+
+import * as geoController from '../../controllers/geolocationController.js';
+
+// Auto-detect location from IP
+router.get('/locations/detect-from-ip', geoController.getLocationFromIP);
+
+// Lookup location by pincode
+router.get('/locations/lookup-pincode', geoController.lookupPincode);
+
+// Get pincode ranges for a location
+router.get('/locations/pincode-ranges', geoController.getPincodeRanges);
+
 export default router;
+

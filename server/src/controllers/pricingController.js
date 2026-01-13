@@ -102,6 +102,11 @@ export const getPriceQuote = async (req, res) => {
                 isGuest: !pricingContext.isAuthenticated,
                 // Location transparency
                 detectedBy: !pincode ? 'IP_DETECTION' : 'REQUEST',
+                // Zone hierarchy data for frontend display
+                geoZoneHierarchy: pricingContext.geoZoneHierarchy || [],
+                usedZoneId: pricingResult.usedZoneId || pricingContext.geoZoneId,
+                usedZoneName: pricingResult.usedZoneName || pricingContext.geoZoneName,
+                usedZoneLevel: pricingResult.usedZoneLevel || null,
             },
         });
     } catch (error) {

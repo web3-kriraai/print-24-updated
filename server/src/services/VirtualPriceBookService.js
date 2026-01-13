@@ -76,8 +76,17 @@ class VirtualPriceBookService {
       console.log(`\n💰 STEP 1: Master Price = ₹${masterPrice.basePrice}`);
       console.log(`   from: ${masterPrice.bookName}`);
 
-      // 2. Get zone adjustments (if any)
-      const zoneAdjustments = zoneId ? await this.getZoneAdjustments(productId, zoneId) : null;
+      // 2. Get zone adjustments using HIERARCHICAL fallback (if hierarchy provided)
+      let zoneAdjustments = null;
+      const geoZoneHierarchy = contextOverride.geoZoneHierarchy || [];
+
+      if (geoZoneHierarchy.length > 0) {
+        // Use hierarchical lookup
+        zoneAdjustments = await this.getZoneAdjustmentsHierarchical(productId, geoZoneHierarchy);
+      } else if (zoneId) {
+        // Fallback: single zone lookup (backward compatibility)
+        zoneAdjustments = await this.getZoneAdjustments(productId, zoneId);
+      }
 
       // 3. Get segment adjustments (if any)
       const segmentAdjustments = segmentId ? await this.getSegmentAdjustments(productId, zoneId, segmentId) : null;
@@ -255,7 +264,12 @@ class VirtualPriceBookService {
         adjustments,
         modifiersApplied: modifiers.length,
         isVirtual: true,
-        calculationTimestamp: new Date()
+        calculationTimestamp: new Date(),
+        // NEW: Zone hierarchy metadata
+        usedZoneId: zoneAdjustments?.usedZoneId || zoneId,
+        usedZoneName: zoneAdjustments?.usedZoneName || null,
+        usedZoneLevel: zoneAdjustments?.usedZoneLevel || null,
+        geoZoneHierarchy: geoZoneHierarchy
       };
     } catch (error) {
       console.error('Error calculating virtual price:', error);
@@ -431,6 +445,53 @@ class VirtualPriceBookService {
       bookId: masterBook._id,
       bookName: masterBook.name
     };
+  }
+
+  /**
+   * Get zone-specific adjustments using HIERARCHICAL fallback
+   * Tries each zone in hierarchy (most specific first) until price found
+   * 
+   * @param {string} productId 
+   * @param {Array} geoZoneHierarchy - Array of zone objects in priority order
+   * @returns {Object|null} Zone adjustments with metadata about which zone was used
+   */
+  async getZoneAdjustmentsHierarchical(productId, geoZoneHierarchy) {
+    try {
+      if (!geoZoneHierarchy || geoZoneHierarchy.length === 0) {
+        return null;
+      }
+
+      console.log(`\n🔍 Searching for zone-specific pricing (hierarchical)...`);
+
+      // Try each zone in hierarchy (most specific first)
+      for (const zone of geoZoneHierarchy) {
+        try {
+          const adjustments = await this.getZoneAdjustments(productId, zone._id);
+          if (adjustments) {
+            console.log(`   ✅ Found price in: ${zone.name} (${zone.level})`);
+            // Add metadata about which zone was used
+            return {
+              ...adjustments,
+              usedZone: zone,
+              usedZoneId: zone._id,
+              usedZoneName: zone.name,
+              usedZoneLevel: zone.level
+            };
+          } else {
+            console.log(`   ⏭️  No price in: ${zone.name} (${zone.level})`);
+          }
+        } catch (error) {
+          console.warn(`   ⚠️  Error checking zone ${zone.name}:`, error.message);
+          // Continue to next zone
+        }
+      }
+
+      console.log(`   ℹ️  No zone-specific pricing found in hierarchy`);
+      return null;
+    } catch (error) {
+      console.error('Error in hierarchical zone lookup:', error);
+      return null;
+    }
   }
 
   /**
