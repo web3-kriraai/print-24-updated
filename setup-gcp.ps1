@@ -58,7 +58,7 @@ Write-Host "`nStep 4: Creating Secret Manager secrets..." -ForegroundColor Yello
 Write-Host "  You'll need to provide values for each secret" -ForegroundColor Gray
 
 $secrets = @(
-    @{Name="MONGO_URI"; Description="MongoDB connection string"},
+    @{Name="MONGO_TEST_URI"; Description="MongoDB connection string"},
     @{Name="JWT_SECRET"; Description="JWT secret key (random string)"},
     @{Name="CLOUDINARY_CLOUD_NAME"; Description="Cloudinary cloud name"},
     @{Name="CLOUDINARY_API_KEY"; Description="Cloudinary API key"},
