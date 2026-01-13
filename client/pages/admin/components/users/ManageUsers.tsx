@@ -15,10 +15,16 @@ import {
     Download,
     ChevronDown,
     Check,
-    X
+    X,
+    Plus, // Added from instruction
+    ShieldAlert, // Added from instruction
+    ShieldCheck // Added from instruction
 } from "lucide-react";
 import { API_BASE_URL_WITH_API as API_BASE_URL } from "../../../../lib/apiConfig";
 import { getAuthHeaders } from "../../../../utils/auth";
+import { useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Select } from '../../../../components/ui/select';
 import toast from "react-hot-toast";
 
 interface User {
@@ -40,8 +46,16 @@ const ManageUsers: React.FC<ManageUsersProps> = ({ setError }) => {
     const [loading, setLoading] = useState(false);
     const [searchTerm, setSearchTerm] = useState("");
     const [selectedRole, setSelectedRole] = useState<string>("all");
-    const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
     const [actionMenu, setActionMenu] = useState<string | null>(null);
+
+    // Create User Overlay
+    const [showCreateUserModal, setShowCreateUserModal] = useState(false);
+    const [createUserForm, setCreateUserForm] = useState({
+        name: "",
+        email: "",
+        password: "",
+        role: "user",
+    });
 
     const fetchUsers = async () => {
         setLoading(true);
@@ -121,29 +135,48 @@ const ManageUsers: React.FC<ManageUsersProps> = ({ setError }) => {
         }
     };
 
-    const toggleUserSelection = (userId: string) => {
-        setSelectedUsers(prev =>
-            prev.includes(userId)
-                ? prev.filter(id => id !== userId)
-                : [...prev, userId]
-        );
-    };
 
-    const handleBulkAction = (action: string) => {
-        if (action === "delete") {
-            if (confirm(`Delete ${selectedUsers.length} selected users?`)) {
-                // Implement bulk delete
-                toast.success(`${selectedUsers.length} users marked for deletion`);
-                setSelectedUsers([]);
+
+    const handleCreateUser = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setLoading(true);
+        try {
+            const response = await fetch(`${API_BASE_URL}/auth/register`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    ...getAuthHeaders(), // Assuming register might need admin auth if created by admin, or public
+                },
+                body: JSON.stringify(createUserForm),
+            });
+
+            if (!response.ok) {
+                const data = await response.json();
+                throw new Error(data.message || "Failed to create user");
             }
+
+            const newUser = await response.json();
+
+            // If the register endpoint returns a token/user structure, extract user
+            // Adjust based on your actual auth/register response structure
+            const userData = newUser.user || newUser;
+
+            toast.success("User created successfully");
+            setShowCreateUserModal(false);
+            setCreateUserForm({ name: "", email: "", password: "", role: "user" });
+            fetchUsers();
+        } catch (err) {
+            console.error("Error creating user:", err);
+            toast.error(err instanceof Error ? err.message : "Failed to create user");
+        } finally {
+            setLoading(false);
         }
     };
 
     const roleColors: Record<string, string> = {
         admin: "bg-purple-100 text-purple-800",
         user: "bg-blue-100 text-blue-800",
-        moderator: "bg-green-100 text-green-800",
-        editor: "bg-amber-100 text-amber-800"
+        employee: "bg-amber-100 text-amber-800"
     };
 
     return (
@@ -167,18 +200,19 @@ const ManageUsers: React.FC<ManageUsersProps> = ({ setError }) => {
                 <div className="flex flex-col sm:flex-row gap-3">
                     <div className="relative group">
                         <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl blur opacity-0 group-hover:opacity-20 transition-opacity"></div>
-                        <button
-                            onClick={() => toast.success("Coming soon!")}
-                            className="relative bg-white border border-gray-200 px-4 py-2.5 rounded-xl shadow-sm hover:shadow-md transition-shadow flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-indigo-600"
-                        >
-                            <UserPlus size={18} />
-                            Invite User
-                        </button>
                     </div>
 
                     <button
+                        onClick={() => setShowCreateUserModal(true)}
+                        className="bg-indigo-600 text-white px-4 py-2.5 rounded-xl shadow-sm hover:shadow-md transition-all flex items-center gap-2 text-sm font-medium hover:bg-indigo-700"
+                    >
+                        <UserPlus size={18} />
+                        Create User
+                    </button>
+
+                    <button
                         onClick={() => fetchUsers()}
-                        className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-4 py-2.5 rounded-xl shadow-sm hover:shadow-md transition-shadow flex items-center gap-2 text-sm font-medium hover:from-indigo-600 hover:to-purple-700"
+                        className="bg-white text-gray-700 border border-gray-200 px-4 py-2.5 rounded-xl shadow-sm hover:bg-gray-50 transition-colors flex items-center gap-2 text-sm font-medium"
                     >
                         <Users size={18} />
                         Refresh
@@ -257,44 +291,24 @@ const ManageUsers: React.FC<ManageUsersProps> = ({ setError }) => {
 
                         {/* Role Filter */}
                         <div className="relative">
-                            <select
+                            <Select
                                 value={selectedRole}
-                                onChange={(e) => setSelectedRole(e.target.value)}
-                                className="appearance-none bg-gray-50 border border-gray-200 rounded-xl pl-4 pr-10 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all cursor-pointer"
-                            >
-                                <option value="all">All Roles</option>
-                                <option value="admin">Administrator</option>
-                                <option value="user">Customer</option>
-                                <option value="moderator">Moderator</option>
-                            </select>
+                                onValueChange={(val) => setSelectedRole(val as string)}
+                                options={[
+                                    { value: 'all', label: 'All Roles' },
+                                    { value: 'admin', label: 'Administrator' },
+                                    { value: 'user', label: 'Customer' },
+                                    { value: 'employee', label: 'Employee' }
+                                ]}
+                                className="w-48"
+                            />
                             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={18} />
                         </div>
                     </div>
 
                     {/* Actions */}
                     <div className="flex items-center gap-3">
-                        {selectedUsers.length > 0 && (
-                            <div className="flex items-center gap-3 mr-4">
-                                <span className="text-sm text-gray-600">
-                                    {selectedUsers.length} selected
-                                </span>
-                                <button
-                                    onClick={() => handleBulkAction("delete")}
-                                    className="text-red-600 hover:text-red-700 text-sm font-medium flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-red-50 transition-colors"
-                                >
-                                    <Trash2 size={16} />
-                                    Delete
-                                </button>
-                            </div>
-                        )}
-
-                        <button
-                            onClick={() => toast.success("Exporting data...")}
-                            className="text-gray-600 hover:text-gray-700 text-sm font-medium flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors"
-                        >
-                            <Download size={16} />
-                            Export
-                        </button>
+                        {/* Bulk actions removed */}
                     </div>
                 </div>
             </div>
@@ -349,21 +363,7 @@ const ManageUsers: React.FC<ManageUsersProps> = ({ setError }) => {
                             <thead>
                                 <tr className="bg-gray-50/80">
                                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                        <div className="flex items-center gap-3">
-                                            <input
-                                                type="checkbox"
-                                                checked={selectedUsers.length === filteredUsers.length}
-                                                onChange={(e) => {
-                                                    if (e.target.checked) {
-                                                        setSelectedUsers(filteredUsers.map(u => u._id));
-                                                    } else {
-                                                        setSelectedUsers([]);
-                                                    }
-                                                }}
-                                                className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                                            />
-                                            User
-                                        </div>
+                                        User
                                     </th>
                                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Role</th>
                                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
@@ -376,12 +376,6 @@ const ManageUsers: React.FC<ManageUsersProps> = ({ setError }) => {
                                     <tr key={user._id} className="hover:bg-gray-50/50 transition-colors group">
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <div className="flex items-center gap-4">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={selectedUsers.includes(user._id)}
-                                                    onChange={() => toggleUserSelection(user._id)}
-                                                    className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                                                />
                                                 <div className="flex items-center">
                                                     <div className="relative">
                                                         <div className="h-11 w-11 rounded-full bg-gradient-to-br from-indigo-100 to-purple-100 flex items-center justify-center text-indigo-600 font-bold border-2 border-white shadow-sm">
@@ -394,11 +388,6 @@ const ManageUsers: React.FC<ManageUsersProps> = ({ setError }) => {
                                                     <div className="ml-4">
                                                         <div className="flex items-center gap-2">
                                                             <div className="text-sm font-semibold text-gray-900">{user.name}</div>
-                                                            {user.isEmployee && (
-                                                                <span className="text-xs px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full border border-blue-100">
-                                                                    Employee
-                                                                </span>
-                                                            )}
                                                         </div>
                                                         <div className="text-sm text-gray-500 flex items-center gap-1">
                                                             <Mail size={14} />
@@ -417,8 +406,7 @@ const ManageUsers: React.FC<ManageUsersProps> = ({ setError }) => {
                                                 >
                                                     <option value="admin">Administrator</option>
                                                     <option value="user">Customer</option>
-                                                    <option value="moderator">Moderator</option>
-                                                    <option value="editor">Editor</option>
+                                                    <option value="employee">Employee</option>
                                                 </select>
                                                 <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={12} />
                                             </div>
@@ -475,14 +463,6 @@ const ManageUsers: React.FC<ManageUsersProps> = ({ setError }) => {
                                                     </button>
                                                     {actionMenu === user._id && (
                                                         <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg border border-gray-200 shadow-lg z-10">
-                                                            <button className="w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 text-left flex items-center gap-2">
-                                                                <Mail size={16} />
-                                                                Send Email
-                                                            </button>
-                                                            <button className="w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 text-left flex items-center gap-2">
-                                                                <AlertCircle size={16} />
-                                                                View Activity
-                                                            </button>
                                                             <div className="border-t border-gray-100">
                                                                 <button className="w-full px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 text-left flex items-center gap-2">
                                                                     <Trash2 size={16} />
@@ -506,7 +486,102 @@ const ManageUsers: React.FC<ManageUsersProps> = ({ setError }) => {
             <div className="text-center text-sm text-gray-500 py-4">
                 <p>Showing {filteredUsers.length} of {users.length} users • Last updated: Just now</p>
             </div>
-        </div>
+
+            {/* Create User Modal */}
+            <AnimatePresence>
+                {showCreateUserModal && (
+                    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            className="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden"
+                        >
+                            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                                <h3 className="text-lg font-bold text-gray-900">Create New User</h3>
+                                <button
+                                    onClick={() => setShowCreateUserModal(false)}
+                                    className="text-gray-400 hover:text-gray-600 transition-colors"
+                                >
+                                    <X size={20} />
+                                </button>
+                            </div>
+
+                            <form onSubmit={handleCreateUser} className="p-6 space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Full Name *</label>
+                                    <input
+                                        type="text"
+                                        required
+                                        value={createUserForm.name}
+                                        onChange={e => setCreateUserForm({ ...createUserForm, name: e.target.value })}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                                        placeholder="John Doe"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Email Address *</label>
+                                    <input
+                                        type="email"
+                                        required
+                                        value={createUserForm.email}
+                                        onChange={e => setCreateUserForm({ ...createUserForm, email: e.target.value })}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                                        placeholder="john@example.com"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Password *</label>
+                                    <input
+                                        type="password"
+                                        required
+                                        minLength={6}
+                                        value={createUserForm.password}
+                                        onChange={e => setCreateUserForm({ ...createUserForm, password: e.target.value })}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                                        placeholder="••••••••"
+                                    />
+                                </div>
+
+                                <div className="grid grid-cols-1 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+                                        <Select
+                                            value={createUserForm.role}
+                                            onValueChange={(val) => setCreateUserForm({ ...createUserForm, role: val as string })}
+                                            options={[
+                                                { value: 'user', label: 'User' },
+                                                { value: 'admin', label: 'Admin' },
+                                                { value: 'employee', label: 'Employee' }
+                                            ]}
+                                            className="w-full"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="pt-4 flex gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowCreateUserModal(false)}
+                                        className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        disabled={loading}
+                                        className="flex-1 px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium disabled:opacity-70 flex justify-center items-center gap-2"
+                                    >
+                                        {loading ? <Loader size={18} className="animate-spin" /> : <UserPlus size={18} />}
+                                        Create User
+                                    </button>
+                                </div>
+                            </form>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
+        </div >
     );
 };
 

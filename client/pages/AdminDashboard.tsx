@@ -6413,6 +6413,7 @@ const AdminDashboard: React.FC = () => {
                 setSuccess={setSuccess}
                 loading={loading}
                 setLoading={setLoading}
+                onNavigate={setActiveTab}
               />
             )}
 

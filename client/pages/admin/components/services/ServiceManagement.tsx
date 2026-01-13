@@ -38,6 +38,7 @@ import type { Service, CreateServiceData, BannerConfig, BannerSecondaryIcon, Ban
 import ServiceTitleManager from './ServiceTitleManager.tsx';
 import { API_BASE_URL } from '../../../../lib/apiConfig';
 import IconSelector from '../../../../components/IconSelector';
+import { Select } from '../../../../components/ui/select';
 import ReviewManagement from './ReviewManagement';
 import FeatureManagement from './FeatureManagement';
 
@@ -337,7 +338,7 @@ const ServiceManagement: React.FC = () => {
     }
 
     return (
-        <div className="space-y-4">
+        <div className="max-w-6xl mx-auto space-y-6 pb-12">
             {/* Professional Header */}
             <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl shadow-lg p-6">
                 <div className="flex justify-between items-center">
@@ -635,23 +636,27 @@ const ServiceManagement: React.FC = () => {
                                                                             disabled={saving}
                                                                         />
                                                                     </div>
-                                                                    <select
-                                                                        value={secIcon.position}
-                                                                        onChange={(e) => {
-                                                                            const updated = [...formData.bannerConfig.secondaryIcons];
-                                                                            updated[index] = { ...updated[index], position: e.target.value as 'left' | 'right' | 'center' };
-                                                                            setFormData({
-                                                                                ...formData,
-                                                                                bannerConfig: { ...formData.bannerConfig, secondaryIcons: updated }
-                                                                            });
-                                                                        }}
-                                                                        className="px-2 py-2 border border-gray-300 rounded text-sm"
-                                                                        disabled={saving}
-                                                                    >
-                                                                        <option value="left">Left</option>
-                                                                        <option value="center">Center</option>
-                                                                        <option value="right">Right</option>
-                                                                    </select>
+                                                                    <div className="w-32">
+                                                                        <Select
+                                                                            value={secIcon.position}
+                                                                            onValueChange={(val) => {
+                                                                                const updated = [...formData.bannerConfig.secondaryIcons];
+                                                                                updated[index] = { ...updated[index], position: val as 'left' | 'right' | 'center' };
+                                                                                setFormData({
+                                                                                    ...formData,
+                                                                                    bannerConfig: { ...formData.bannerConfig, secondaryIcons: updated }
+                                                                                });
+                                                                            }}
+                                                                            options={[
+                                                                                { value: 'left', label: 'Left' },
+                                                                                { value: 'center', label: 'Center' },
+                                                                                { value: 'right', label: 'Right' }
+                                                                            ]}
+                                                                            colorTheme="blue"
+                                                                            className="h-10"
+                                                                            disabled={saving}
+                                                                        />
+                                                                    </div>
                                                                     <input
                                                                         type="number"
                                                                         value={secIcon.size}
@@ -775,25 +780,26 @@ const ServiceManagement: React.FC = () => {
                                                     <label className="block text-sm font-medium text-gray-700 mb-1">
                                                         Animation Shape
                                                     </label>
-                                                    <select
+                                                    <Select
                                                         value={formData.bannerConfig.defaultShape || 'circle'}
-                                                        onChange={(e) => setFormData({
+                                                        onValueChange={(val) => setFormData({
                                                             ...formData,
                                                             bannerConfig: {
                                                                 ...formData.bannerConfig,
-                                                                defaultShape: e.target.value as any
+                                                                defaultShape: val as any
                                                             }
                                                         })}
-                                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                                        options={[
+                                                            { value: 'circle', label: 'Circle (Round)' },
+                                                            { value: 'square', label: 'Square' },
+                                                            { value: 'triangle', label: 'Triangle' },
+                                                            { value: 'star', label: 'Star' },
+                                                            { value: 'hexagon', label: 'Hexagon' },
+                                                            { value: 'random', label: 'Random Mix' }
+                                                        ]}
+                                                        colorTheme="blue"
                                                         disabled={saving}
-                                                    >
-                                                        <option value="circle">Circle (Round)</option>
-                                                        <option value="square">Square</option>
-                                                        <option value="triangle">Triangle</option>
-                                                        <option value="star">Star</option>
-                                                        <option value="hexagon">Hexagon</option>
-                                                        <option value="random">Random Mix</option>
-                                                    </select>
+                                                    />
                                                     <p className="text-xs text-gray-500 mt-1">
                                                         Shape of the decorative animated elements
                                                     </p>
@@ -1020,14 +1026,32 @@ const ServiceManagement: React.FC = () => {
                                                         <label className="block text-sm font-medium text-gray-700 mb-1">
                                                             Upload Banner Image *
                                                         </label>
-                                                        <input
-                                                            type="file"
-                                                            accept="image/*"
-                                                            onChange={handleBannerChange}
-                                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                                            disabled={saving}
-                                                            required={!editingService?.bannerImage && !bannerFile} // Required if no existing image and no new file select
-                                                        />
+                                                        <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-lg hover:bg-gray-50 transition-colors group cursor-pointer relative">
+                                                            <div className="space-y-1 text-center">
+                                                                <Upload className="mx-auto h-12 w-12 text-gray-400 group-hover:text-blue-500 transition-colors" />
+                                                                <div className="flex text-sm text-gray-600 justify-center">
+                                                                    <label
+                                                                        htmlFor="banner-upload"
+                                                                        className="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-blue-500"
+                                                                    >
+                                                                        <span>Upload a file</span>
+                                                                        <input
+                                                                            id="banner-upload"
+                                                                            name="banner-upload"
+                                                                            type="file"
+                                                                            accept="image/*"
+                                                                            className="sr-only"
+                                                                            onChange={handleBannerChange}
+                                                                            disabled={saving}
+                                                                        />
+                                                                    </label>
+                                                                    <p className="pl-1">or drag and drop</p>
+                                                                </div>
+                                                                <p className="text-xs text-gray-500">
+                                                                    PNG, JPG, GIF up to 5MB
+                                                                </p>
+                                                            </div>
+                                                        </div>
                                                         {bannerPreview && (
                                                             <div className="relative w-full h-48 bg-gray-100 rounded-lg overflow-hidden border border-gray-200">
                                                                 <img
@@ -1153,8 +1177,8 @@ const ServiceManagement: React.FC = () => {
                                             <button
                                                 onClick={() => handleToggleStatus(service)}
                                                 className={`p-2.5 rounded-lg transition-all ${service.isActive
-                                                        ? 'text-green-600 bg-green-50 hover:bg-green-100'
-                                                        : 'text-gray-400 bg-gray-50 hover:bg-gray-100'
+                                                    ? 'text-green-600 bg-green-50 hover:bg-green-100'
+                                                    : 'text-gray-400 bg-gray-50 hover:bg-gray-100'
                                                     }`}
                                                 title={service.isActive ? 'Deactivate' : 'Activate'}
                                             >

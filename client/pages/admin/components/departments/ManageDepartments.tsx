@@ -1,189 +1,111 @@
 import React, { useState, useEffect } from "react";
 import {
-    List,
     Edit,
     Trash2,
     Plus,
     Loader,
-    X,
-    Building2,
     Check,
-    AlertCircle,
-    ChevronRight,
-    GripVertical,
-    ArrowUpDown,
-    Tag,
-    Layers,
+    X,
     Users,
-    Settings,
-    XCircle,
-    Filter
+    Building2,
+    Search,
+    AlertCircle,
+    Power
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { API_BASE_URL_WITH_API as API_BASE_URL } from "../../../../lib/apiConfig";
 import { getAuthHeaders } from "../../../../utils/auth";
 import { motion, AnimatePresence } from "framer-motion";
 
-interface ManageSequencesProps {
+interface ManageDepartmentsProps {
     setError: (error: string | null) => void;
     setSuccess: (success: string | null) => void;
     loading: boolean;
     setLoading: (loading: boolean) => void;
 }
 
-const ManageSequences: React.FC<ManageSequencesProps> = ({
+const ManageDepartments: React.FC<ManageDepartmentsProps> = ({
     setError,
     setSuccess,
     loading,
     setLoading
 }) => {
-    const [sequences, setSequences] = useState<any[]>([]);
-    const [loadingSequences, setLoadingSequences] = useState(false);
-    const [editingSequenceId, setEditingSequenceId] = useState<string | null>(null);
-    const [sequenceForm, setSequenceForm] = useState({
-        name: "",
-        categoryId: "",
-        subCategoryId: "",
-        attributeTypeIds: [] as string[],
-        selectedDepartments: [] as string[],
-    });
-    const [sequenceFormErrors, setSequenceFormErrors] = useState<{
-        name?: string;
-        category?: string;
-        departments?: string;
-    }>({});
-
-    // Dependencies
     const [departments, setDepartments] = useState<any[]>([]);
-    const [categories, setCategories] = useState<any[]>([]);
-    const [subCategories, setSubCategories] = useState<any[]>([]);
-    const [attributeTypes, setAttributeTypes] = useState<any[]>([]);
+    const [loadingDepartments, setLoadingDepartments] = useState(false);
+    const [editingDepartmentId, setEditingDepartmentId] = useState<string | null>(null);
 
-    // Create Department Modal State
-    const [showCreateDepartmentModal, setShowCreateDepartmentModal] = useState(false);
-    const [createDepartmentModalForm, setCreateDepartmentModalForm] = useState({
+    // Form State
+    const [departmentForm, setDepartmentForm] = useState({
         name: "",
         description: "",
         isEnabled: true,
         operators: [] as string[],
     });
+    const [formErrors, setFormErrors] = useState<{ name?: string }>({});
 
-    // Search and filter
-    const [searchTerm, setSearchTerm] = useState("");
-    const [selectedCategoryFilter, setSelectedCategoryFilter] = useState("all");
-    const [draggedDeptId, setDraggedDeptId] = useState<string | null>(null);
-    const [isDragging, setIsDragging] = useState(false);
+    // Dependencies
+    const [availableOperators, setAvailableOperators] = useState<any[]>([]);
 
     useEffect(() => {
-        fetchSequences();
-        fetchDependencies();
+        fetchDepartments();
+        fetchOperators();
     }, []);
 
-    const fetchDependencies = async () => {
+    const fetchOperators = async () => {
         try {
-            const [deptRes, catRes, subCatRes, attrRes] = await Promise.all([
-                fetch(`${API_BASE_URL}/departments`, { headers: getAuthHeaders() }),
-                fetch(`${API_BASE_URL}/categories`, { headers: getAuthHeaders() }),
-                fetch(`${API_BASE_URL}/subcategories`, { headers: getAuthHeaders() }),
-                fetch(`${API_BASE_URL}/admin/attribute-types`, { headers: getAuthHeaders() })
-            ]);
-
-            if (deptRes.ok) {
-                const data = await deptRes.json();
-                setDepartments(data.data || data || []);
+            // Fetch employees and admins potentially
+            const response = await fetch(`${API_BASE_URL}/admin/employees`, { headers: getAuthHeaders() });
+            if (response.ok) {
+                const data = await response.json();
+                setAvailableOperators(data.data || data || []);
             }
-            if (catRes.ok) setCategories(await catRes.json());
-            if (subCatRes.ok) setSubCategories(await subCatRes.json());
-            if (attrRes.ok) setAttributeTypes(await attrRes.json());
-
         } catch (err) {
-            console.error("Error fetching dependencies for sequences:", err);
+            console.error("Error fetching operators:", err);
         }
     };
 
-    const fetchSequences = async () => {
-        setLoadingSequences(true);
+    const fetchDepartments = async () => {
+        setLoadingDepartments(true);
         try {
-            const response = await fetch(`${API_BASE_URL}/admin/sequences`, {
+            const response = await fetch(`${API_BASE_URL}/departments`, {
                 headers: getAuthHeaders(),
             });
             if (response.ok) {
                 const data = await response.json();
-                setSequences(data.data || data || []);
+                setDepartments(data.data || data || []);
             }
         } catch (err) {
-            console.error("Error fetching sequences:", err);
+            console.error("Error fetching departments:", err);
         } finally {
-            setLoadingSequences(false);
+            setLoadingDepartments(false);
         }
     };
 
-    // Drag and drop handlers for department ordering
-    const handleDragStart = (deptId: string) => {
-        setDraggedDeptId(deptId);
-        setIsDragging(true);
-    };
-
-    const handleDragOver = (e: React.DragEvent, deptId: string) => {
-        e.preventDefault();
-        if (!draggedDeptId || draggedDeptId === deptId) return;
-
-        const draggedIndex = sequenceForm.selectedDepartments.indexOf(draggedDeptId);
-        const targetIndex = sequenceForm.selectedDepartments.indexOf(deptId);
-
-        if (draggedIndex === -1 || targetIndex === -1) return;
-
-        const newOrder = [...sequenceForm.selectedDepartments];
-        newOrder.splice(draggedIndex, 1);
-        newOrder.splice(targetIndex, 0, draggedDeptId);
-
-        setSequenceForm(prev => ({
-            ...prev,
-            selectedDepartments: newOrder
-        }));
-    };
-
-    const handleDragEnd = () => {
-        setDraggedDeptId(null);
-        setIsDragging(false);
-    };
-
-    const handleSequenceSubmit = async (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
         setError(null);
         setSuccess(null);
-        setSequenceFormErrors({});
+        setFormErrors({});
+
+        if (!departmentForm.name.trim()) {
+            setFormErrors({ name: "Department Name is required" });
+            setLoading(false);
+            return;
+        }
 
         try {
-            // Validation
-            const errors: any = {};
-            if (!sequenceForm.name.trim()) errors.name = "Sequence name is required";
-            if (sequenceForm.selectedDepartments.length === 0) errors.departments = "At least one department is required";
+            const url = editingDepartmentId
+                ? `${API_BASE_URL}/departments/${editingDepartmentId}`
+                : `${API_BASE_URL}/departments`;
 
-            if (Object.keys(errors).length > 0) {
-                setSequenceFormErrors(errors);
-                setLoading(false);
-                const firstErrorId = errors.name ? "sequence-name" : errors.departments ? "sequence-departments" : "sequence-form";
-                const element = document.getElementById(firstErrorId);
-                if (element) element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                return;
-            }
-
-            const url = editingSequenceId
-                ? `${API_BASE_URL}/admin/sequences/${editingSequenceId}`
-                : `${API_BASE_URL}/admin/sequences`;
-            const method = editingSequenceId ? "PUT" : "POST";
+            const method = editingDepartmentId ? "PUT" : "POST";
 
             const payload = {
-                name: sequenceForm.name,
-                categoryId: sequenceForm.categoryId || null,
-                subCategoryId: sequenceForm.subCategoryId || null,
-                attributeTypeIds: sequenceForm.attributeTypeIds,
-                departments: sequenceForm.selectedDepartments.map((deptId, index) => ({
-                    department: deptId,
-                    order: index + 1
-                }))
+                name: departmentForm.name,
+                description: departmentForm.description,
+                isEnabled: departmentForm.isEnabled,
+                operators: departmentForm.operators
             };
 
             const response = await fetch(url, {
@@ -198,721 +120,313 @@ const ManageSequences: React.FC<ManageSequencesProps> = ({
             const data = await response.json();
 
             if (!response.ok) {
-                throw new Error(data.message || data.error || `Failed to ${editingSequenceId ? "update" : "create"} sequence`);
+                throw new Error(data.message || data.error || "Failed to save department");
             }
 
-            setSuccess(editingSequenceId ? "Sequence updated successfully" : "Sequence created successfully");
-            toast.success(editingSequenceId ? "Sequence updated" : "Sequence created");
+            setSuccess(editingDepartmentId ? "Department updated successfully" : "Department created successfully");
+            toast.success(editingDepartmentId ? "Department updated" : "Department created");
 
-            // Reset form
-            setSequenceForm({
+            // Reset
+            setDepartmentForm({
                 name: "",
-                categoryId: "",
-                subCategoryId: "",
-                attributeTypeIds: [],
-                selectedDepartments: [],
+                description: "",
+                isEnabled: true,
+                operators: [],
             });
-            setEditingSequenceId(null);
-            fetchSequences();
+            setEditingDepartmentId(null);
+            fetchDepartments();
         } catch (err) {
-            console.error("Error saving sequence:", err);
-            setError(err instanceof Error ? err.message : "Failed to save sequence");
-            toast.error(err instanceof Error ? err.message : "Failed to save sequence");
+            console.error("Error saving department:", err);
+            setError(err instanceof Error ? err.message : "Failed to save department");
+            toast.error(err instanceof Error ? err.message : "Failed to save department");
         } finally {
             setLoading(false);
         }
     };
 
-    const handleEditSequence = (sequenceId: string) => {
-        const sequence = sequences.find((s) => s._id === sequenceId);
-        if (sequence) {
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-
-            const sortedDepts = sequence.departments
-                ? [...sequence.departments].sort((a, b) => a.order - b.order)
-                : [];
-
-            const deptIds = sortedDepts.map(d =>
-                typeof d.department === 'object' ? d.department._id : d.department
-            );
-
-            setSequenceForm({
-                name: sequence.name,
-                categoryId: sequence.category ? (typeof sequence.category === 'object' ? sequence.category._id : sequence.category) : "",
-                subCategoryId: sequence.subcategory ? (typeof sequence.subcategory === 'object' ? sequence.subcategory._id : sequence.subcategory) : "",
-                attributeTypeIds: sequence.attributeTypes ? sequence.attributeTypes.map((a: any) => typeof a === 'object' ? a._id : a) : [],
-                selectedDepartments: deptIds,
-            });
-            setEditingSequenceId(sequenceId);
-
-            toast.success("Sequence loaded for editing");
-        }
+    const handleEdit = (dept: any) => {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        setDepartmentForm({
+            name: dept.name,
+            description: dept.description || "",
+            isEnabled: dept.isEnabled,
+            operators: dept.operators ? dept.operators.map((op: any) => typeof op === 'object' ? op._id : op) : [],
+        });
+        setEditingDepartmentId(dept._id);
     };
 
-    const handleDeleteSequence = async (sequenceId: string) => {
-        if (!window.confirm("Are you sure you want to delete this sequence?")) return;
+    const handleDelete = async (id: string) => {
+        if (!window.confirm("Are you sure you want to delete this department?")) return;
 
         setLoading(true);
         try {
-            const response = await fetch(`${API_BASE_URL}/admin/sequences/${sequenceId}`, {
+            const response = await fetch(`${API_BASE_URL}/departments/${id}`, {
                 method: "DELETE",
                 headers: getAuthHeaders(),
             });
 
             if (!response.ok) {
                 const data = await response.json();
-                throw new Error(data.message || "Failed to delete sequence");
+                throw new Error(data.message || data.error || "Failed to delete department");
             }
 
-            setSuccess("Sequence deleted successfully");
-            toast.success("Sequence deleted");
-            fetchSequences();
+            setSuccess("Department deleted successfully");
+            toast.success("Department deleted");
+            fetchDepartments();
         } catch (err) {
-            setError(err instanceof Error ? err.message : "Failed to delete sequence");
-            toast.error(err instanceof Error ? err.message : "Failed to delete sequence");
+            setError(err instanceof Error ? err.message : "Failed to delete department");
+            toast.error(err instanceof Error ? err.message : "Failed to delete department");
         } finally {
             setLoading(false);
         }
     };
 
-    const handleDepartmentToggle = (deptId: string) => {
-        setSequenceForm(prev => {
-            const exists = prev.selectedDepartments.includes(deptId);
-            if (exists) {
-                return {
-                    ...prev,
-                    selectedDepartments: prev.selectedDepartments.filter(id => id !== deptId)
-                };
+    const toggleOperator = (operatorId: string) => {
+        setDepartmentForm(prev => {
+            const current = prev.operators;
+            if (current.includes(operatorId)) {
+                return { ...prev, operators: current.filter(id => id !== operatorId) };
             } else {
-                return {
-                    ...prev,
-                    selectedDepartments: [...prev.selectedDepartments, deptId]
-                };
+                return { ...prev, operators: [...current, operatorId] };
             }
         });
     };
 
-    const handleCreateDepartmentFromModal = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setLoading(true);
-        try {
-            const response = await fetch(`${API_BASE_URL}/departments`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    ...getAuthHeaders(),
-                },
-                body: JSON.stringify({
-                    name: createDepartmentModalForm.name,
-                    description: createDepartmentModalForm.description,
-                    isEnabled: createDepartmentModalForm.isEnabled,
-                    operators: createDepartmentModalForm.operators
-                }),
-            });
-
-            if (!response.ok) {
-                const err = await response.json();
-                throw new Error(err.message || "Failed to create department");
-            }
-
-            const data = await response.json();
-            const newDeptId = data.data?._id || data.data?.id || data._id || data.id;
-
-            toast.success("Department created");
-            setCreateDepartmentModalForm({ name: "", description: "", isEnabled: true, operators: [] });
-            setShowCreateDepartmentModal(false);
-
-            const deptRes = await fetch(`${API_BASE_URL}/departments`, { headers: getAuthHeaders() });
-            if (deptRes.ok) {
-                const updatedDepts = await deptRes.json();
-                setDepartments(updatedDepts.data || updatedDepts || []);
-            }
-
-            if (newDeptId) {
-                setSequenceForm(prev => ({
-                    ...prev,
-                    selectedDepartments: [...prev.selectedDepartments, newDeptId]
-                }));
-            }
-
-        } catch (err) {
-            toast.error(err instanceof Error ? err.message : "Failed to create department");
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    // Filter sequences based on search and category
-    const filteredSequences = sequences.filter(seq => {
-        const matchesSearch = seq.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            (seq.category?.name?.toLowerCase().includes(searchTerm.toLowerCase()));
-
-        const matchesCategory = selectedCategoryFilter === "all" ||
-            seq.category?._id === selectedCategoryFilter ||
-            seq.subcategory?._id === selectedCategoryFilter;
-
-        return matchesSearch && matchesCategory;
-    });
-
-    // Animation variants
-    const containerVariants = {
-        hidden: { opacity: 0 },
-        visible: {
-            opacity: 1,
-            transition: {
-                staggerChildren: 0.1
-            }
-        }
-    };
-
-    const itemVariants = {
-        hidden: { y: 20, opacity: 0 },
-        visible: {
-            y: 0,
-            opacity: 1,
-            transition: {
-                type: "spring" as const,
-                stiffness: 300,
-                damping: 24
-            }
-        }
-    };
-
-    const slideInVariants = {
-        hidden: { x: -20, opacity: 0 },
-        visible: { x: 0, opacity: 1 }
-    };
-
     return (
-        <div className="space-y-8">
-            {/* Header */}
+        <div className="max-w-6xl mx-auto space-y-8 pb-12">
             <motion.div
-                initial={{ y: -20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ duration: 0.5 }}
-                className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4"
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex items-center gap-3"
             >
-                <div>
-                    <h1 className="text-2xl md:text-3xl font-bold text-cream-900">Workflow Sequences</h1>
-                    <p className="text-cream-600 mt-1">Define and manage department workflows for order processing</p>
-                </div>
-                {editingSequenceId && (
-                    <motion.button
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        onClick={() => {
-                            setEditingSequenceId(null);
-                            setSequenceForm({
-                                name: "",
-                                categoryId: "",
-                                subCategoryId: "",
-                                attributeTypeIds: [],
-                                selectedDepartments: [],
-                            });
-                        }}
-                        className="px-4 py-2 border border-cream-300 rounded-lg hover:bg-cream-50 transition-colors flex items-center gap-2"
-                    >
-                        <Plus size={16} /> Create New Sequence
-                    </motion.button>
-                )}
+                <h1 className="text-2xl font-bold text-gray-800">Create Department</h1>
             </motion.div>
 
-            {/* Form Section */}
+            {/* Create/Edit Form */}
             <motion.div
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6 }}
-                className="bg-gradient-to-br from-white to-cream-50 p-6 rounded-2xl border border-cream-200 shadow-sm"
+                className="bg-white rounded-lg border border-gray-200 shadow-sm p-6"
             >
-                <div className="flex items-center gap-3 mb-6">
-                    <div className="p-2 bg-blue-100 rounded-lg">
-                        <Layers className="text-blue-600" size={24} />
-                    </div>
-                    <div>
-                        <h2 className="text-xl font-bold text-cream-900">
-                            {editingSequenceId ? "✏️ Edit Sequence" : "✨ Create New Sequence"}
-                        </h2>
-                        <p className="text-sm text-cream-600">
-                            {editingSequenceId ? "Update your sequence details below" : "Configure a new workflow sequence"}
-                        </p>
-                    </div>
-                </div>
-
-                <form onSubmit={handleSequenceSubmit} className="space-y-6" id="sequence-form">
+                <form onSubmit={handleSubmit} className="space-y-6">
                     {/* Name */}
-                    <motion.div variants={itemVariants}>
-                        <label className="block text-sm font-medium text-cream-900 mb-2 flex items-center gap-2">
-                            <Tag size={16} />
-                            Sequence Name *
+                    <div className="space-y-2">
+                        <label className="block text-sm font-semibold text-gray-700">
+                            Department Name <span className="text-red-500">*</span>
                         </label>
                         <input
-                            id="sequence-name"
                             type="text"
-                            value={sequenceForm.name}
-                            onChange={(e) => setSequenceForm({ ...sequenceForm, name: e.target.value })}
-                            className={`w-full px-4 py-3 border rounded-xl focus:ring-3 focus:ring-blue-500/30 focus:border-blue-500 transition-all ${sequenceFormErrors.name ? "border-red-300 bg-red-50 shadow-sm" : "border-cream-300 hover:border-cream-400"
-                                }`}
-                            placeholder="e.g., Standard Card Printing Workflow"
+                            value={departmentForm.name}
+                            onChange={(e) => setDepartmentForm({ ...departmentForm, name: e.target.value })}
+                            placeholder="e.g., Prepress, Digital Printing"
+                            className={`w-full px-4 py-3 rounded-lg border ${formErrors.name ? 'border-red-300 focus:ring-red-200' : 'border-gray-300 focus:ring-gray-200'} focus:outline-none focus:ring-4 transition-all`}
                         />
-                        {sequenceFormErrors.name && (
-                            <motion.p
-                                initial={{ opacity: 0, y: -10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                className="text-sm text-red-600 mt-2 flex items-center gap-1"
-                            >
-                                <AlertCircle size={14} /> {sequenceFormErrors.name}
-                            </motion.p>
+                        {formErrors.name && (
+                            <p className="text-sm text-red-500 flex items-center gap-1">
+                                <AlertCircle size={14} /> {formErrors.name}
+                            </p>
                         )}
-                    </motion.div>
+                    </div>
 
-                    {/* Category/Subcategory */}
-                    <motion.div variants={itemVariants} className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <div className="space-y-2">
-                            <label className="block text-sm font-medium text-cream-900 flex items-center gap-2">
-                                <Filter size={16} />
-                                Category
+                    {/* Description */}
+                    <div className="space-y-2">
+                        <label className="block text-sm font-semibold text-gray-700">
+                            Description
+                        </label>
+                        <textarea
+                            value={departmentForm.description}
+                            onChange={(e) => setDepartmentForm({ ...departmentForm, description: e.target.value })}
+                            placeholder="Brief description of department responsibilities"
+                            rows={3}
+                            className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-4 focus:ring-gray-200 transition-all resize-none"
+                        />
+                    </div>
+
+                    {/* Enabled Toggle */}
+                    <div className="flex items-center gap-2">
+                        <input
+                            type="checkbox"
+                            checked={departmentForm.isEnabled}
+                            onChange={(e) => setDepartmentForm({ ...departmentForm, isEnabled: e.target.checked })}
+                            id="dept-enabled"
+                            className="w-4 h-4 text-gray-900 border-gray-300 rounded focus:ring-gray-900"
+                        />
+                        <label htmlFor="dept-enabled" className="text-sm font-medium text-gray-700 select-none cursor-pointer">
+                            Enabled
+                        </label>
+                    </div>
+
+                    {/* Operators */}
+                    <div className="space-y-3">
+                        <div className="flex justify-between items-center">
+                            <label className="block text-sm font-semibold text-gray-700">
+                                Assign Operators (Optional)
                             </label>
-                            <div className="relative">
-                                <select
-                                    value={sequenceForm.categoryId}
-                                    onChange={(e) => setSequenceForm({ ...sequenceForm, categoryId: e.target.value, subCategoryId: "" })}
-                                    className="w-full px-4 py-3 border border-cream-300 rounded-xl focus:ring-3 focus:ring-blue-500/30 focus:border-blue-500 appearance-none bg-white cursor-pointer"
-                                >
-                                    <option value="">Select Category (Optional)</option>
-                                    {categories.map(cat => (
-                                        <option key={cat._id} value={cat._id}>{cat.name}</option>
-                                    ))}
-                                </select>
-                                <ChevronRight className="absolute right-3 top-3.5 text-cream-400 rotate-90" size={20} />
-                            </div>
-                        </div>
-                        <div className="space-y-2">
-                            <label className="block text-sm font-medium text-cream-900 flex items-center gap-2">
-                                <Settings size={16} />
-                                Subcategory
-                            </label>
-                            <div className="relative">
-                                <select
-                                    value={sequenceForm.subCategoryId}
-                                    onChange={(e) => setSequenceForm({ ...sequenceForm, subCategoryId: e.target.value })}
-                                    disabled={!sequenceForm.categoryId}
-                                    className={`w-full px-4 py-3 border rounded-xl focus:ring-3 focus:ring-blue-500/30 focus:border-blue-500 appearance-none cursor-pointer ${!sequenceForm.categoryId ? 'bg-cream-100 text-cream-500' : 'bg-white'}`}
-                                >
-                                    <option value="">Select Subcategory (Optional)</option>
-                                    {subCategories
-                                        .filter(sub => !sequenceForm.categoryId || sub.parentCategory === sequenceForm.categoryId || (sub.parentCategory && sub.parentCategory._id === sequenceForm.categoryId))
-                                        .map(sub => (
-                                            <option key={sub._id} value={sub._id}>{sub.name}</option>
-                                        ))}
-                                </select>
-                                <ChevronRight className="absolute right-3 top-3.5 text-cream-400 rotate-90" size={20} />
-                            </div>
-                        </div>
-                    </motion.div>
 
-                    {/* Departments Selection */}
-                    <motion.div variants={itemVariants} id="sequence-departments">
-                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-2">
-                            <div className="space-y-1">
-                                <label className="block text-sm font-medium text-cream-900 flex items-center gap-2">
-                                    <Users size={16} />
-                                    Department Sequence *
-                                </label>
-                                <p className="text-xs text-cream-600">
-                                    Drag to reorder departments in processing sequence
-                                </p>
-                            </div>
-                            <motion.button
-                                whileHover={{ scale: 1.02 }}
-                                whileTap={{ scale: 0.98 }}
-                                type="button"
-                                onClick={() => setShowCreateDepartmentModal(true)}
-                                className="px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all flex items-center gap-2 text-sm shadow-sm"
-                            >
-                                <Plus size={16} /> Add Department
-                            </motion.button>
+                            {/* NOTE: If you want a "Create Employee" button here like in the screenshot, it can link to employee creation */}
+                            {/* <button type="button" className="text-sm text-white bg-gray-800 px-3 py-1.5 rounded-md hover:bg-gray-700 transition">
+                                <Users size={14} className="inline mr-1" /> Create Employee
+                            </button> */}
                         </div>
+                        <p className="text-xs text-gray-500">
+                            Select employees who can perform actions for this department. Only employees can be assigned. Leave empty to allow all authenticated users (if applicable).
+                        </p>
 
-                        {sequenceFormErrors.departments && (
-                            <motion.p
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                className="text-sm text-red-600 mb-3 p-3 bg-red-50 rounded-lg border border-red-200 flex items-center gap-2"
-                            >
-                                <AlertCircle size={16} /> {sequenceFormErrors.departments}
-                            </motion.p>
-                        )}
-
-                        <div className={`border-2 ${isDragging ? 'border-blue-300 border-dashed' : 'border-cream-200'} rounded-xl p-4 bg-gradient-to-b from-white to-cream-50/50 min-h-[200px] transition-all duration-300`}>
-                            {sequenceForm.selectedDepartments.length === 0 ? (
-                                <div className="h-full flex flex-col items-center justify-center py-12 text-cream-500">
-                                    <Building2 size={48} className="mb-3 opacity-50" />
-                                    <p className="font-medium">No departments selected</p>
-                                    <p className="text-sm mt-1">Click "Add Department" or select from below</p>
+                        <div className="border border-gray-200 rounded-lg max-h-60 overflow-y-auto bg-gray-50">
+                            {availableOperators.length === 0 ? (
+                                <div className="p-4 text-center text-gray-500 text-sm">
+                                    No employees found. <br />
+                                    <span className="text-xs">Go to User Management to add employees.</span>
                                 </div>
                             ) : (
-                                <div className="space-y-3">
-                                    {sequenceForm.selectedDepartments.map((deptId, index) => {
-                                        const dept = departments.find(d => d._id === deptId);
-                                        if (!dept) return null;
-
-                                        return (
-                                            <motion.div
-                                                key={deptId}
-                                                layout
-                                                drag="y"
-                                                dragConstraints={{ top: 0, bottom: 0 }}
-                                                onDragStart={() => handleDragStart(deptId)}
-                                                onDragOver={(e) => handleDragOver(e, deptId)}
-                                                onDragEnd={handleDragEnd}
-                                                whileDrag={{ scale: 1.02, boxShadow: "0 10px 30px rgba(0,0,0,0.1)" }}
-                                                className={`cursor-grab active:cursor-grabbing p-4 rounded-xl border bg-white flex items-center justify-between ${draggedDeptId === deptId ? 'shadow-lg border-blue-300' : 'border-cream-200 shadow-sm'}`}
-                                            >
-                                                <div className="flex items-center gap-3">
-                                                    <div className="p-2 bg-cream-100 rounded-lg">
-                                                        <GripVertical className="text-cream-500" size={20} />
-                                                    </div>
-                                                    <div className="flex items-center gap-3">
-                                                        <span className="flex items-center justify-center w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-full font-bold text-sm">
-                                                            {index + 1}
-                                                        </span>
-                                                        <div>
-                                                            <span className="font-semibold text-cream-900">{dept.name}</span>
-                                                            {dept.description && (
-                                                                <p className="text-xs text-cream-600 mt-0.5">{dept.description}</p>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => handleDepartmentToggle(deptId)}
-                                                        className="p-2 hover:bg-red-50 rounded-lg transition-colors"
-                                                    >
-                                                        <XCircle className="text-red-500" size={18} />
-                                                    </button>
-                                                </div>
-                                            </motion.div>
-                                        );
-                                    })}
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Available Departments */}
-                        <div className="mt-6">
-                            <h4 className="text-sm font-medium text-cream-900 mb-3 flex items-center gap-2">
-                                <Building2 size={16} />
-                                Available Departments
-                            </h4>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                                {departments
-                                    .filter(dept => !sequenceForm.selectedDepartments.includes(dept._id))
-                                    .map(dept => (
-                                        <motion.div
-                                            key={dept._id}
-                                            whileHover={{ y: -2, boxShadow: "0 4px 12px rgba(0,0,0,0.05)" }}
-                                            onClick={() => handleDepartmentToggle(dept._id)}
-                                            className="p-3 rounded-lg border border-cream-200 bg-white hover:border-blue-300 hover:bg-blue-50/50 cursor-pointer transition-all"
+                                <div className="divide-y divide-gray-200">
+                                    {availableOperators.map(op => (
+                                        <div
+                                            key={op._id}
+                                            className={`flex items-center p-3 hover:bg-gray-100 transition-colors cursor-pointer ${departmentForm.operators.includes(op._id) ? 'bg-blue-50' : ''}`}
+                                            onClick={() => toggleOperator(op._id)}
                                         >
-                                            <div className="flex items-center justify-between">
-                                                <span className="font-medium text-cream-900">{dept.name}</span>
-                                                <Plus className="text-blue-500" size={16} />
+                                            <input
+                                                type="checkbox"
+                                                checked={departmentForm.operators.includes(op._id)}
+                                                readOnly
+                                                className="w-4 h-4 text-gray-900 border-gray-300 rounded focus:ring-gray-900 mr-3 pointer-events-none"
+                                            />
+                                            <div className="flex-1">
+                                                <p className="text-sm font-medium text-gray-900">{op.name}</p>
+                                                <p className="text-xs text-gray-500">{op.email}</p>
                                             </div>
-                                            {dept.description && (
-                                                <p className="text-xs text-cream-600 mt-1 truncate">{dept.description}</p>
-                                            )}
-                                        </motion.div>
+                                        </div>
                                     ))}
-                            </div>
-                        </div>
-                    </motion.div>
-
-                    {/* Submit Button */}
-                    <motion.div variants={itemVariants} className="pt-4">
-                        <motion.button
-                            whileHover={{ scale: 1.01 }}
-                            whileTap={{ scale: 0.99 }}
-                            type="submit"
-                            disabled={loading}
-                            className="w-full bg-gradient-to-r from-cream-900 to-cream-800 text-white px-8 py-4 rounded-xl font-semibold hover:from-cream-800 hover:to-cream-700 transition-all disabled:opacity-50 flex items-center justify-center gap-3 shadow-lg hover:shadow-xl"
-                        >
-                            {loading ? (
-                                <>
-                                    <Loader className="animate-spin" size={20} />
-                                    {editingSequenceId ? "Updating..." : "Creating..."}
-                                </>
-                            ) : (
-                                <>
-                                    {editingSequenceId ? <Edit size={20} /> : <Plus size={20} />}
-                                    {editingSequenceId ? "Update Sequence" : "Create Sequence"}
-                                </>
+                                </div>
                             )}
-                        </motion.button>
-                        {editingSequenceId && (
-                            <motion.button
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                type="button"
-                                onClick={() => {
-                                    setEditingSequenceId(null);
-                                    setSequenceForm({
-                                        name: "",
-                                        categoryId: "",
-                                        subCategoryId: "",
-                                        attributeTypeIds: [],
-                                        selectedDepartments: [],
-                                    });
-                                }}
-                                className="w-full mt-3 px-4 py-2 border border-cream-300 rounded-lg hover:bg-cream-50 transition-colors"
-                            >
-                                Cancel Edit
-                            </motion.button>
-                        )}
-                    </motion.div>
+                        </div>
+                    </div>
+
+                    {/* Actions */}
+                    <button
+                        type="submit"
+                        disabled={loading}
+                        className="w-full bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 transition-all shadow-sm hover:shadow-md active:transform active:scale-[0.99] disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                        {loading ? <Loader className="animate-spin" size={20} /> : <Plus size={20} />}
+                        {editingDepartmentId ? "Update Department" : "Create Department"}
+                    </button>
+
+                    {editingDepartmentId && (
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setEditingDepartmentId(null);
+                                setDepartmentForm({ name: "", description: "", isEnabled: true, operators: [] });
+                            }}
+                            className="w-full py-2 text-gray-500 hover:text-gray-700 text-sm font-medium"
+                        >
+                            Cancel Edit
+                        </button>
+                    )}
                 </form>
             </motion.div>
 
             {/* List Section */}
-            <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.3 }}
-                className="border-t border-cream-200 pt-8"
-            >
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-                    <div>
-                        <h2 className="text-xl font-bold text-cream-900">Existing Sequences</h2>
-                        <p className="text-cream-600 text-sm mt-1">
-                            {sequences.length} sequence{sequences.length !== 1 ? 's' : ''} available
-                        </p>
-                    </div>
-
-                    <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
-                        <div className="relative">
-                            <input
-                                type="text"
-                                placeholder="Search sequences..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="pl-10 pr-4 py-2.5 border border-cream-300 rounded-xl focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 w-full sm:w-64"
-                            />
-                            <Search className="absolute left-3 top-3 text-cream-400" size={18} />
-                        </div>
-                        <select
-                            value={selectedCategoryFilter}
-                            onChange={(e) => setSelectedCategoryFilter(e.target.value)}
-                            className="px-4 py-2.5 border border-cream-300 rounded-xl focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500"
-                        >
-                            <option value="all">All Categories</option>
-                            {categories.map(cat => (
-                                <option key={cat._id} value={cat._id}>{cat.name}</option>
-                            ))}
-                        </select>
-                    </div>
+            <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                    <h2 className="text-xl font-bold text-gray-800">
+                        All Departments ({departments.length})
+                    </h2>
+                    <button
+                        onClick={fetchDepartments}
+                        className="p-2 text-gray-500 hover:text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition"
+                        title="Refresh List"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" /><path d="M21 3v5h-5" /><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" /><path d="M3 21v-5h5" /></svg>
+                    </button>
                 </div>
 
-                {loadingSequences ? (
-                    <div className="flex flex-col items-center justify-center py-16">
-                        <Loader className="animate-spin text-cream-500" size={48} />
-                        <p className="text-cream-600 mt-4">Loading sequences...</p>
-                    </div>
-                ) : filteredSequences.length === 0 ? (
-                    <motion.div
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        className="text-center py-16 px-4 border-2 border-dashed border-cream-200 rounded-2xl bg-gradient-to-b from-white to-cream-50/50"
-                    >
-                        <div className="inline-flex items-center justify-center w-16 h-16 bg-cream-100 rounded-full mb-4">
-                            <Layers className="text-cream-500" size={32} />
-                        </div>
-                        <h3 className="text-lg font-semibold text-cream-900 mb-2">No sequences found</h3>
-                        <p className="text-cream-600 max-w-md mx-auto">
-                            {searchTerm || selectedCategoryFilter !== "all"
-                                ? "Try adjusting your search or filter"
-                                : "Create your first workflow sequence to get started"}
-                        </p>
-                    </motion.div>
-                ) : (
-                    <motion.div
-                        variants={containerVariants}
-                        initial="hidden"
-                        animate="visible"
-                        className="grid gap-4"
-                    >
-                        {filteredSequences.map(seq => (
-                            <motion.div
-                                key={seq._id}
-                                variants={itemVariants}
-                                whileHover={{ y: -2, boxShadow: "0 8px 30px rgba(0,0,0,0.06)" }}
-                                className="bg-white border border-cream-200 rounded-xl p-5 hover:border-cream-300 transition-all"
-                            >
-                                <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-                                    <div className="flex-1">
-                                        <div className="flex items-start gap-3">
-                                            <div className="p-2 bg-blue-100 rounded-lg">
-                                                <Layers className="text-blue-600" size={20} />
+                <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                            <thead>
+                                <tr className="bg-gray-50 border-b border-gray-200 text-xs uppercase text-gray-500 font-semibold">
+                                    <th className="px-6 py-4">Name</th>
+                                    <th className="px-6 py-4 w-1/3">Description</th>
+                                    <th className="px-6 py-4 text-center">Status</th>
+                                    <th className="px-6 py-4 text-left">Operators</th>
+                                    <th className="px-6 py-4 text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                                {loadingDepartments ? (
+                                    <tr>
+                                        <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
+                                            <div className="flex flex-col items-center justify-center gap-2">
+                                                <Loader className="animate-spin text-gray-400" size={24} />
+                                                Loading departments...
                                             </div>
-                                            <div>
-                                                <h3 className="font-bold text-lg text-cream-900 mb-1">{seq.name}</h3>
-                                                <div className="flex flex-wrap gap-2 mb-3">
-                                                    {seq.category && (
-                                                        <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-cream-100 text-cream-700 rounded-full text-xs font-medium">
-                                                            <Tag size={12} /> {typeof seq.category === 'object' ? seq.category.name : 'Category'}
-                                                        </span>
-                                                    )}
-                                                    {seq.subcategory && (
-                                                        <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">
-                                                            <Settings size={12} /> {typeof seq.subcategory === 'object' ? seq.subcategory.name : 'Subcategory'}
+                                        </td>
+                                    </tr>
+                                ) : departments.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
+                                            No departments found. Create one above.
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    departments.map((dept) => (
+                                        <tr key={dept._id} className="hover:bg-gray-50/50 transition-colors group">
+                                            <td className="px-6 py-4">
+                                                <span className="font-semibold text-gray-800">{dept.name}</span>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <p className="text-gray-600 text-sm line-clamp-2" title={dept.description}>
+                                                    {dept.description || "-"}
+                                                </p>
+                                            </td>
+                                            <td className="px-6 py-4 text-center">
+                                                <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${dept.isEnabled ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                                    {dept.isEnabled ? 'Enabled' : 'Disabled'}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="flex flex-col">
+                                                    <span className="text-sm font-medium text-gray-700">
+                                                        {dept.operators?.length || 0} operator(s)
+                                                    </span>
+                                                    {dept.operators?.length > 0 && (
+                                                        <span className="text-xs text-gray-500 truncate max-w-[150px]">
+                                                            {dept.operators.map((op: any) => typeof op === 'object' ? op.name : 'User').join(', ')}
                                                         </span>
                                                     )}
                                                 </div>
-
-                                                {/* Department Flow Visualization */}
-                                                <div className="flex items-center flex-wrap gap-2 mt-4">
-                                                    {seq.departments && seq.departments
-                                                        .sort((a: any, b: any) => a.order - b.order)
-                                                        .map((d: any, i: number, arr: any[]) => (
-                                                            <React.Fragment key={i}>
-                                                                <div className="flex items-center gap-2">
-                                                                    <span className="inline-flex items-center justify-center w-6 h-6 bg-blue-100 text-blue-700 rounded-full text-xs font-bold">
-                                                                        {i + 1}
-                                                                    </span>
-                                                                    <span className="font-medium text-sm">
-                                                                        {typeof d.department === 'object' ? d.department.name : 'Dept'}
-                                                                    </span>
-                                                                </div>
-                                                                {i < arr.length - 1 && (
-                                                                    <ChevronRight className="text-cream-400 mx-1" size={16} />
-                                                                )}
-                                                            </React.Fragment>
-                                                        ))}
+                                            </td>
+                                            <td className="px-6 py-4 text-right">
+                                                <div className="flex items-center justify-end gap-2 opacity-100">
+                                                    <button
+                                                        onClick={() => handleEdit(dept)}
+                                                        className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                                                        title="Edit"
+                                                    >
+                                                        <Edit size={16} />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDelete(dept._id)}
+                                                        className="p-1.5 text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                                                        title="Delete"
+                                                    >
+                                                        <Trash2 size={16} />
+                                                    </button>
                                                 </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <motion.button
-                                            whileHover={{ scale: 1.05 }}
-                                            whileTap={{ scale: 0.95 }}
-                                            onClick={() => handleEditSequence(seq._id)}
-                                            className="p-2.5 text-blue-600 hover:bg-blue-50 rounded-xl transition-colors border border-blue-200 hover:border-blue-300"
-                                            title="Edit sequence"
-                                        >
-                                            <Edit size={18} />
-                                        </motion.button>
-                                        <motion.button
-                                            whileHover={{ scale: 1.05 }}
-                                            whileTap={{ scale: 0.95 }}
-                                            onClick={() => handleDeleteSequence(seq._id)}
-                                            className="p-2.5 text-red-600 hover:bg-red-50 rounded-xl transition-colors border border-red-200 hover:border-red-300"
-                                            title="Delete sequence"
-                                        >
-                                            <Trash2 size={18} />
-                                        </motion.button>
-                                    </div>
-                                </div>
-                            </motion.div>
-                        ))}
-                    </motion.div>
-                )}
-            </motion.div>
-
-            {/* Create Department Modal */}
-            <AnimatePresence>
-                {showCreateDepartmentModal && (
-                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                        <motion.div
-                            initial={{ opacity: 0, scale: 0.9 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.9 }}
-                            className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl"
-                        >
-                            <div className="flex justify-between items-center mb-6 pb-4 border-b border-cream-200">
-                                <div className="flex items-center gap-3">
-                                    <div className="p-2 bg-blue-100 rounded-lg">
-                                        <Building2 className="text-blue-600" size={24} />
-                                    </div>
-                                    <h2 className="text-xl font-bold text-cream-900">Create New Department</h2>
-                                </div>
-                                <button
-                                    onClick={() => setShowCreateDepartmentModal(false)}
-                                    className="p-2 hover:bg-cream-100 rounded-xl transition-colors"
-                                >
-                                    <X size={24} />
-                                </button>
-                            </div>
-                            <form onSubmit={handleCreateDepartmentFromModal} className="space-y-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-cream-900 mb-2">Department Name *</label>
-                                    <input
-                                        type="text"
-                                        required
-                                        value={createDepartmentModalForm.name}
-                                        onChange={(e) => setCreateDepartmentModalForm({ ...createDepartmentModalForm, name: e.target.value })}
-                                        className="w-full px-4 py-3 border border-cream-300 rounded-xl focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500"
-                                        placeholder="e.g., Printing Department"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-cream-900 mb-2">Description</label>
-                                    <textarea
-                                        value={createDepartmentModalForm.description}
-                                        onChange={(e) => setCreateDepartmentModalForm({ ...createDepartmentModalForm, description: e.target.value })}
-                                        className="w-full px-4 py-3 border border-cream-300 rounded-xl focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 min-h-[100px]"
-                                        placeholder="Describe the department's role..."
-                                    />
-                                </div>
-                                <div className="flex gap-3 pt-6">
-                                    <motion.button
-                                        whileHover={{ scale: 1.02 }}
-                                        whileTap={{ scale: 0.98 }}
-                                        type="button"
-                                        onClick={() => setShowCreateDepartmentModal(false)}
-                                        className="flex-1 px-4 py-3 border border-cream-300 rounded-xl hover:bg-cream-50 transition-colors"
-                                    >
-                                        Cancel
-                                    </motion.button>
-                                    <motion.button
-                                        whileHover={{ scale: 1.02 }}
-                                        whileTap={{ scale: 0.98 }}
-                                        type="submit"
-                                        disabled={loading}
-                                        className="flex-1 px-4 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl hover:from-blue-600 hover:to-blue-700 transition-all disabled:opacity-50"
-                                    >
-                                        {loading ? (
-                                            <span className="flex items-center justify-center gap-2">
-                                                <Loader className="animate-spin" size={18} /> Creating...
-                                            </span>
-                                        ) : "Create Department"}
-                                    </motion.button>
-                                </div>
-                            </form>
-                        </motion.div>
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
                     </div>
-                )}
-            </AnimatePresence>
+                </div>
+            </div>
         </div>
     );
 };
 
-// Search icon component
-const Search: React.FC<{ className?: string; size?: number }> = ({ className, size = 18 }) => (
-    <svg
-        className={className}
-        width={size}
-        height={size}
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-    >
-        <circle cx="11" cy="11" r="8" />
-        <path d="m21 21-4.35-4.35" />
-    </svg>
-);
-
-export default ManageSequences;
+export default ManageDepartments;
