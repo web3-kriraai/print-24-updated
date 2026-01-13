@@ -251,8 +251,14 @@ export const getSubCategoriesByCategory = async (req, res) => {
     if (isObjectId) {
       category = await Category.findById(categoryId);
     } else {
-      // Try to find by slug
+      // Try to find by slug first
       category = await Category.findOne({ slug: categoryIdentifier });
+
+      // If not found by slug, try by name (fallback for when name is passed instead of ID/slug)
+      if (!category) {
+        category = await Category.findOne({ name: categoryIdentifier });
+      }
+
       if (category) {
         categoryId = category._id.toString();
       }
@@ -346,6 +352,12 @@ export const getSubCategoriesByParent = async (req, res) => {
     } else {
       // Try to find by slug
       parentSubcategory = await SubCategory.findOne({ slug: parentIdentifier });
+
+      // If not found by slug, try by name
+      if (!parentSubcategory) {
+        parentSubcategory = await SubCategory.findOne({ name: parentIdentifier });
+      }
+
       if (parentSubcategory) {
         parentId = parentSubcategory._id.toString();
       }

@@ -28,6 +28,7 @@ import {
   getProductsBySubcategory,
   updateProduct,
   deleteProduct,
+  reorderProducts,
 } from "../controllers/productController.js";
 
 /* PRODUCT DETAIL CONTROLLER */
@@ -235,6 +236,12 @@ router.get("/products", getAllProducts);
 router.get("/products/category/:categoryId", getProductsByCategory);
 router.get("/products/subcategory/:subcategoryId", getProductsBySubcategory);
 router.get("/products/:id/detail", getProductDetail); // PDP endpoint - must be before /products/:id
+router.put(
+  "/products/reorder",
+  authMiddleware,
+  adminAuth,
+  reorderProducts
+);
 router.get("/products/:id", getSingleProduct);
 router.put(
   "/products/:id",

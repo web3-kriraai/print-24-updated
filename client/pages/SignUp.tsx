@@ -495,16 +495,16 @@ const SignUp: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-cream-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
-      <div className="absolute bottom-[-10%] right-[-5%] w-[500px] h-[500px] bg-cream-200 rounded-full blur-3xl opacity-30 pointer-events-none" />
-      <div className="absolute top-[-10%] left-[-5%] w-[400px] h-[400px] bg-cream-300 rounded-full blur-3xl opacity-30 pointer-events-none" />
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
+      <div className="absolute bottom-[-10%] right-[-5%] w-[500px] h-[500px] bg-purple-200 rounded-full blur-3xl opacity-30 pointer-events-none" />
+      <div className="absolute top-[-10%] left-[-5%] w-[400px] h-[400px] bg-indigo-300 rounded-full blur-3xl opacity-30 pointer-events-none" />
 
       {/* Back Button */}
       <div className="absolute top-4 left-4 z-20">
         {step === 1 ? (
-          <BackButton fallbackPath="/login" label="Back to Login" className="text-cream-600 hover:text-cream-900" />
+          <BackButton fallbackPath="/login" label="Back to Login" className="text-gray-600 hover:text-gray-900" />
         ) : (
-          <button onClick={() => setStep(1)} className="flex items-center text-cream-600 hover:text-cream-900 font-medium transition-colors">
+          <button onClick={() => setStep(1)} className="flex items-center text-gray-600 hover:text-gray-900 font-medium transition-colors">
             <ArrowRight className="h-4 w-4 mr-2 rotate-180" />
             Back to Selection
           </button>
@@ -517,30 +517,30 @@ const SignUp: React.FC = () => {
         animate={{ opacity: 1, x: 0 }}
         exit={{ opacity: 0, x: -20 }}
         transition={{ duration: 0.3 }}
-        className="max-w-2xl w-full space-y-6 sm:space-y-8 bg-white p-6 sm:p-8 md:p-10 rounded-2xl sm:rounded-3xl shadow-xl border border-cream-100 relative z-10"
+        className="max-w-2xl w-full space-y-6 sm:space-y-8 bg-white p-6 sm:p-8 md:p-10 rounded-2xl sm:rounded-3xl shadow-xl border border-gray-100 relative z-10"
       >
         <div className="text-center">
           {step === 1 && (
-            <div className="mx-auto h-12 w-12 sm:h-16 sm:w-16 bg-cream-900 rounded-full flex items-center justify-center text-cream-50 mb-3 sm:mb-4 shadow-lg">
+            <div className="mx-auto h-12 w-12 sm:h-16 sm:w-16 bg-gray-900 rounded-full flex items-center justify-center text-white mb-3 sm:mb-4 shadow-lg">
               <Printer size={24} className="sm:w-8 sm:h-8" />
             </div>
           )}
           {step === 1 && (
             <>
-              <h2 className="font-serif text-2xl sm:text-3xl font-bold text-cream-900">
+              <h2 className="font-serif text-2xl sm:text-3xl font-bold text-gray-900">
                 What do you want to do on Prints24?
               </h2>
-              <p className="mt-2 text-xs sm:text-sm text-cream-600">
+              <p className="mt-2 text-xs sm:text-sm text-gray-600">
                 Select the option that describes you best
               </p>
             </>
           )}
           {step === 2 && selectedIntentId !== "all_business" && (
             <>
-              <h2 className="font-serif text-2xl sm:text-3xl font-bold text-cream-900">
+              <h2 className="font-serif text-2xl sm:text-3xl font-bold text-gray-900">
                 Create Account
               </h2>
-              <p className="mt-2 text-xs sm:text-sm text-cream-600">
+              <p className="mt-2 text-xs sm:text-sm text-gray-600">
                 Join Prints24 today for premium printing services
               </p>
             </>
@@ -553,25 +553,25 @@ const SignUp: React.FC = () => {
               <button
                 key={option.id}
                 onClick={() => handleIntentSelect(option.id, option.label)}
-                className="w-full text-left p-4 rounded-xl border border-cream-200 hover:border-cream-900 hover:bg-cream-50 transition-all group flex items-start gap-4"
+                className="w-full text-left p-4 rounded-xl border border-gray-200 hover:border-gray-900 hover:bg-gray-50 transition-all group flex items-start gap-4"
               >
-                <div className="p-2 bg-cream-100 rounded-lg group-hover:bg-cream-200 transition-colors">
-                  <option.icon className="h-6 w-6 text-cream-900" />
+                <div className="p-2 bg-gray-100 rounded-lg group-hover:bg-gray-200 transition-colors">
+                  <option.icon className="h-6 w-6 text-gray-900" />
                 </div>
                 <div>
-                  <h3 className="font-medium text-cream-900">{option.label}</h3>
+                  <h3 className="font-medium text-gray-900">{option.label}</h3>
                 </div>
                 <div className="ml-auto self-center">
-                  <ArrowRight className="h-5 w-5 text-cream-400 group-hover:text-cream-900 transition-colors" />
+                  <ArrowRight className="h-5 w-5 text-gray-400 group-hover:text-gray-900 transition-colors" />
                 </div>
               </button>
             ))}
             <div className="text-center mt-6">
-              <p className="text-sm text-cream-600">
+              <p className="text-sm text-gray-600">
                 Already have an account?{" "}
                 <Link
                   to="/login"
-                  className="font-bold text-cream-900 hover:text-cream-700 underline transition-colors"
+                  className="font-bold text-gray-900 hover:text-gray-700 underline transition-colors"
                 >
                   Login
                 </Link>
@@ -594,13 +594,13 @@ const SignUp: React.FC = () => {
                         <div>
                           <label
                             htmlFor="firstName"
-                            className="block text-sm font-medium text-cream-700 mb-1"
+                            className="block text-sm font-medium text-gray-700 mb-1"
                           >
                             First Name
                           </label>
                           <div className="relative">
                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                              <User className="h-5 w-5 text-cream-400" />
+                              <User className="h-5 w-5 text-gray-400" />
                             </div>
                             <input
                               id="firstName"
@@ -610,8 +610,8 @@ const SignUp: React.FC = () => {
                               onChange={handleChange}
                               className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${errors.firstName
                                 ? "border-red-300 focus:ring-red-500"
-                                : "border-cream-200 focus:ring-cream-900"
-                                } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
+                                : "border-gray-200 focus:ring-gray-900"
+                                } placeholder-gray-300 text-gray-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
                               placeholder="John"
                             />
                           </div>
@@ -623,13 +623,13 @@ const SignUp: React.FC = () => {
                         <div>
                           <label
                             htmlFor="lastName"
-                            className="block text-sm font-medium text-cream-700 mb-1"
+                            className="block text-sm font-medium text-gray-700 mb-1"
                           >
                             Last Name
                           </label>
                           <div className="relative">
                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                              <User className="h-5 w-5 text-cream-400" />
+                              <User className="h-5 w-5 text-gray-400" />
                             </div>
                             <input
                               id="lastName"
@@ -639,8 +639,8 @@ const SignUp: React.FC = () => {
                               onChange={handleChange}
                               className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${errors.lastName
                                 ? "border-red-300 focus:ring-red-500"
-                                : "border-cream-200 focus:ring-cream-900"
-                                } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
+                                : "border-gray-200 focus:ring-gray-900"
+                                } placeholder-gray-300 text-gray-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
                               placeholder="Doe"
                             />
                           </div>
@@ -654,7 +654,7 @@ const SignUp: React.FC = () => {
                       <div>
                         <label
                           htmlFor="mobileNo"
-                          className="block text-sm font-medium text-cream-700 mb-1"
+                          className="block text-sm font-medium text-gray-700 mb-1"
                         >
                           Mobile Number
                         </label>
@@ -676,12 +676,12 @@ const SignUp: React.FC = () => {
                               }}
                               className={`flex items-center gap-2 px-3 py-3 border ${errors.countryCode
                                 ? "border-red-300 focus:ring-red-500"
-                                : "border-cream-200 focus:ring-cream-900"
-                                } text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all bg-white min-w-[140px] justify-between hover:bg-cream-50`}
+                                : "border-gray-200 focus:ring-gray-900"
+                                } text-gray-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all bg-white min-w-[140px] justify-between hover:bg-gray-50`}
                             >
                               <span className="flex items-center gap-2">
                                 {isLoadingCountries ? (
-                                  <Loader className="h-4 w-4 animate-spin text-cream-400" />
+                                  <Loader className="h-4 w-4 animate-spin text-gray-400" />
                                 ) : (
                                   <>
                                     <img
@@ -700,7 +700,7 @@ const SignUp: React.FC = () => {
                                 )}
                               </span>
                               <ChevronDown
-                                className={`h-4 w-4 text-cream-400 transition-transform ${showCountryDropdown ? "rotate-180" : ""
+                                className={`h-4 w-4 text-gray-400 transition-transform ${showCountryDropdown ? "rotate-180" : ""
                                   }`}
                               />
                             </button>
@@ -719,10 +719,10 @@ const SignUp: React.FC = () => {
                                     animate={{ opacity: 1, y: 0, scale: 1 }}
                                     exit={{ opacity: 0, y: -10, scale: 0.95 }}
                                     transition={{ duration: 0.2 }}
-                                    className="absolute z-50 mt-1 w-72 bg-white border border-cream-200 rounded-xl shadow-2xl"
+                                    className="absolute z-50 mt-1 w-72 bg-white border border-gray-200 rounded-xl shadow-2xl"
                                   >
                                     {/* Search Input */}
-                                    <div className="p-2 border-b border-cream-200">
+                                    <div className="p-2 border-b border-gray-200">
                                       <div className="relative">
                                         <div className="relative w-full">
                                           <input
@@ -741,15 +741,15 @@ const SignUp: React.FC = () => {
                                                 // Filter is already applied via useEffect, but we can ensure it's triggered
                                               }
                                             }}
-                                            className="w-full px-3 py-2 pl-9 pr-8 border border-cream-200 rounded-lg text-sm text-cream-900 focus:outline-none focus:ring-2 focus:ring-cream-900 transition-all"
+                                            className="w-full px-3 py-2 pl-9 pr-8 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 transition-all"
                                             autoFocus
                                           />
-                                          <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-cream-400" />
+                                          <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                                           {countrySearchQuery && (
                                             <button
                                               type="button"
                                               onClick={() => setCountrySearchQuery("")}
-                                              className="absolute right-2 top-1/2 transform -translate-y-1/2 text-cream-400 hover:text-cream-900 transition-colors"
+                                              className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-900 transition-colors"
                                             >
                                               <X className="h-4 w-4" />
                                             </button>
@@ -757,7 +757,7 @@ const SignUp: React.FC = () => {
                                         </div>
                                       </div>
                                       {countrySearchQuery && filteredCountries.length > 0 && (
-                                        <p className="text-xs text-cream-500 mt-1 px-1">
+                                        <p className="text-xs text-gray-500 mt-1 px-1">
                                           {filteredCountries.length} {filteredCountries.length === 1 ? 'country' : 'countries'} found
                                         </p>
                                       )}
@@ -767,12 +767,12 @@ const SignUp: React.FC = () => {
                                     <div className="overflow-y-auto" style={{ maxHeight: "400px" }}>
                                       {isLoadingCountries ? (
                                         <div className="p-8 text-center">
-                                          <Loader className="h-6 w-6 animate-spin text-cream-400 mx-auto mb-2" />
-                                          <p className="text-sm text-cream-600">Loading countries...</p>
+                                          <Loader className="h-6 w-6 animate-spin text-gray-400 mx-auto mb-2" />
+                                          <p className="text-sm text-gray-600">Loading countries...</p>
                                         </div>
                                       ) : filteredCountries.length === 0 ? (
                                         <div className="p-8 text-center">
-                                          <p className="text-sm text-cream-600">No countries found</p>
+                                          <p className="text-sm text-gray-600">No countries found</p>
                                         </div>
                                       ) : (
                                         <div className="p-2">
@@ -781,8 +781,8 @@ const SignUp: React.FC = () => {
                                               key={country.uniqueId || `${country.code}-${country.country}-${index}`}
                                               type="button"
                                               onClick={() => handleCountryCodeChange(country.code)}
-                                              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-cream-50 transition-colors text-left ${formData.countryCode === country.code
-                                                ? "bg-cream-100 border border-cream-300"
+                                              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-gray-50 transition-colors text-left ${formData.countryCode === country.code
+                                                ? "bg-gray-100 border border-gray-300"
                                                 : ""
                                                 }`}
                                             >
@@ -796,12 +796,12 @@ const SignUp: React.FC = () => {
                                                 }}
                                               />
                                               <div className="flex-1 min-w-0">
-                                                <div className="font-medium text-cream-900 text-sm">
+                                                <div className="font-medium text-gray-900 text-sm">
                                                   {country.name} ({country.code})
                                                 </div>
                                               </div>
                                               {formData.countryCode === country.code && (
-                                                <CheckCircle className="h-4 w-4 text-cream-900 flex-shrink-0" />
+                                                <CheckCircle className="h-4 w-4 text-gray-900 flex-shrink-0" />
                                               )}
                                             </button>
                                           ))}
@@ -817,7 +817,7 @@ const SignUp: React.FC = () => {
                           {/* Mobile Number Input */}
                           <div className="relative flex-1">
                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                              <Phone className="h-5 w-5 text-cream-400" />
+                              <Phone className="h-5 w-5 text-gray-400" />
                             </div>
                             <input
                               id="mobileNo"
@@ -827,8 +827,8 @@ const SignUp: React.FC = () => {
                               onChange={handleChange}
                               className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${errors.mobileNo
                                 ? "border-red-300 focus:ring-red-500"
-                                : "border-cream-200 focus:ring-cream-900"
-                                } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
+                                : "border-gray-200 focus:ring-gray-900"
+                                } placeholder-gray-300 text-gray-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
                               placeholder={
                                 getCountryByCode(formData.countryCode, countryCodes)?.example || "1234567890"
                               }
@@ -849,13 +849,13 @@ const SignUp: React.FC = () => {
                     <div>
                       <label
                         htmlFor="name"
-                        className="block text-sm font-medium text-cream-700 mb-1"
+                        className="block text-sm font-medium text-gray-700 mb-1"
                       >
                         Full Name
                       </label>
                       <div className="relative">
                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                          <User className="h-5 w-5 text-cream-400" />
+                          <User className="h-5 w-5 text-gray-400" />
                         </div>
                         <input
                           id="name"
@@ -865,8 +865,8 @@ const SignUp: React.FC = () => {
                           onChange={handleChange}
                           className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${errors.name
                             ? "border-red-300 focus:ring-red-500"
-                            : "border-cream-200 focus:ring-cream-900"
-                            } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
+                            : "border-gray-200 focus:ring-gray-900"
+                            } placeholder-gray-300 text-gray-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
                           placeholder="John Doe"
                         />
                       </div>
@@ -880,13 +880,13 @@ const SignUp: React.FC = () => {
                   <div>
                     <label
                       htmlFor="email"
-                      className="block text-sm font-medium text-cream-700 mb-1"
+                      className="block text-sm font-medium text-gray-700 mb-1"
                     >
-                      Email Address {selectedIntentId === "personal" && <span className="text-cream-500 text-xs">(Optional)</span>}
+                      Email Address {selectedIntentId === "personal" && <span className="text-white0 text-xs">(Optional)</span>}
                     </label>
                     <div className="relative">
                       <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <Mail className="h-5 w-5 text-cream-400" />
+                        <Mail className="h-5 w-5 text-gray-400" />
                       </div>
                       <input
                         id="email"
@@ -896,8 +896,8 @@ const SignUp: React.FC = () => {
                         onChange={handleChange}
                         className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${errors.email
                           ? "border-red-300 focus:ring-red-500"
-                          : "border-cream-200 focus:ring-cream-900"
-                          } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
+                          : "border-gray-200 focus:ring-gray-900"
+                          } placeholder-gray-300 text-gray-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
                         placeholder="john@example.com"
                       />
                     </div>
@@ -911,13 +911,13 @@ const SignUp: React.FC = () => {
                     <div>
                       <label
                         htmlFor="password"
-                        className="block text-sm font-medium text-cream-700 mb-1"
+                        className="block text-sm font-medium text-gray-700 mb-1"
                       >
                         Password
                       </label>
                       <div className="relative">
                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                          <Lock className="h-5 w-5 text-cream-400" />
+                          <Lock className="h-5 w-5 text-gray-400" />
                         </div>
                         <input
                           id="password"
@@ -927,8 +927,8 @@ const SignUp: React.FC = () => {
                           onChange={handleChange}
                           className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${errors.password
                             ? "border-red-300 focus:ring-red-500"
-                            : "border-cream-200 focus:ring-cream-900"
-                            } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
+                            : "border-gray-200 focus:ring-gray-900"
+                            } placeholder-gray-300 text-gray-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
                           placeholder="******"
                         />
                       </div>
@@ -940,13 +940,13 @@ const SignUp: React.FC = () => {
                     <div>
                       <label
                         htmlFor="confirmPassword"
-                        className="block text-sm font-medium text-cream-700 mb-1"
+                        className="block text-sm font-medium text-gray-700 mb-1"
                       >
                         Confirm Password
                       </label>
                       <div className="relative">
                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                          <Lock className="h-5 w-5 text-cream-400" />
+                          <Lock className="h-5 w-5 text-gray-400" />
                         </div>
                         <input
                           id="confirmPassword"
@@ -956,8 +956,8 @@ const SignUp: React.FC = () => {
                           onChange={handleChange}
                           className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${errors.confirmPassword
                             ? "border-red-300 focus:ring-red-500"
-                            : "border-cream-200 focus:ring-cream-900"
-                            } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
+                            : "border-gray-200 focus:ring-gray-900"
+                            } placeholder-gray-300 text-gray-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
                           placeholder="******"
                         />
                       </div>
@@ -974,7 +974,7 @@ const SignUp: React.FC = () => {
                     <button
                       type="submit"
                       disabled={isLoading || isSendingOtp}
-                      className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-bold rounded-xl text-cream-50 bg-cream-900 hover:bg-cream-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cream-500 transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 disabled:opacity-70 disabled:cursor-not-allowed"
+                      className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-bold rounded-xl text-white bg-gray-900 hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 disabled:opacity-70 disabled:cursor-not-allowed"
                     >
                       {isLoading || isSendingOtp ? (
                         <Loader className="animate-spin h-5 w-5" />
@@ -988,11 +988,11 @@ const SignUp: React.FC = () => {
                   </div>
                 </form>
                 <div className="text-center mt-4">
-                  <p className="text-sm text-cream-600">
+                  <p className="text-sm text-gray-600">
                     Already have an account?{" "}
                     <Link
                       to="/login"
-                      className="font-bold text-cream-900 hover:text-cream-700 underline transition-colors"
+                      className="font-bold text-gray-900 hover:text-gray-700 underline transition-colors"
                     >
                       Login
                     </Link>
@@ -1028,7 +1028,7 @@ const SignUp: React.FC = () => {
               {!isVerifyingOtp && (
                 <button
                   onClick={() => setShowOtpPopup(false)}
-                  className="absolute top-4 right-4 text-cream-400 hover:text-cream-900 transition-colors"
+                  className="absolute top-4 right-4 text-gray-400 hover:text-gray-900 transition-colors"
                 >
                   <X className="h-5 w-5" />
                 </button>
@@ -1038,16 +1038,16 @@ const SignUp: React.FC = () => {
                 <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
                   <CheckCircle className="h-8 w-8 text-green-600" />
                 </div>
-                <h3 className="text-2xl font-bold text-cream-900 mb-2">
+                <h3 className="text-2xl font-bold text-gray-900 mb-2">
                   Verify Your Mobile Number
                 </h3>
-                <p className="text-sm text-cream-600 mb-2">
+                <p className="text-sm text-gray-600 mb-2">
                   We've sent a 6-digit verification code to:
                 </p>
-                <p className="text-lg font-semibold text-cream-900 mb-1">
+                <p className="text-lg font-semibold text-gray-900 mb-1">
                   {otpSentTo}
                 </p>
-                <p className="text-xs text-cream-500 mb-6">
+                <p className="text-xs text-white0 mb-6">
                   Please enter the code below to complete your registration
                 </p>
 
@@ -1055,7 +1055,7 @@ const SignUp: React.FC = () => {
                 <div className="mb-6">
                   <label
                     htmlFor="otp"
-                    className="block text-sm font-medium text-cream-700 mb-3 text-left"
+                    className="block text-sm font-medium text-gray-700 mb-3 text-left"
                   >
                     Enter Verification Code
                   </label>
@@ -1075,8 +1075,8 @@ const SignUp: React.FC = () => {
                       maxLength={6}
                       className={`appearance-none relative block w-full px-4 py-4 border-2 ${otpError
                         ? "border-red-300 focus:ring-red-500 focus:border-red-500"
-                        : "border-cream-200 focus:ring-cream-900 focus:border-cream-900"
-                        } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-2 text-center text-3xl font-bold tracking-[0.5em] sm:text-4xl transition-all bg-cream-50`}
+                        : "border-gray-200 focus:ring-gray-900 focus:border-gray-900"
+                        } placeholder-gray-300 text-gray-900 rounded-xl focus:outline-none focus:ring-2 text-center text-3xl font-bold tracking-[0.5em] sm:text-4xl transition-all bg-gray-50`}
                       autoFocus
                       autoComplete="one-time-code"
                     />
@@ -1093,7 +1093,7 @@ const SignUp: React.FC = () => {
                       Code entered
                     </p>
                   )}
-                  <p className="mt-3 text-xs text-cream-500">
+                  <p className="mt-3 text-xs text-white0">
                     Didn't receive the code? Check your messages or click "Resend OTP" below
                   </p>
                 </div>
@@ -1103,7 +1103,7 @@ const SignUp: React.FC = () => {
                   <button
                     onClick={verifyOtpAndRegister}
                     disabled={isVerifyingOtp || otp.length !== 6}
-                    className="w-full bg-cream-900 text-cream-50 py-3 px-4 rounded-xl font-medium hover:bg-cream-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    className="w-full bg-gray-900 text-white py-3 px-4 rounded-xl font-medium hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   >
                     {isVerifyingOtp ? (
                       <>
@@ -1120,7 +1120,7 @@ const SignUp: React.FC = () => {
                   <button
                     onClick={sendOtp}
                     disabled={isSendingOtp || isVerifyingOtp}
-                    className="w-full bg-cream-100 text-cream-900 py-2 px-4 rounded-xl font-medium hover:bg-cream-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                    className="w-full bg-gray-100 text-gray-900 py-2 px-4 rounded-xl font-medium hover:bg-purple-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
                   >
                     {isSendingOtp ? "Sending..." : "Resend OTP"}
                   </button>
@@ -1149,13 +1149,13 @@ const SignUp: React.FC = () => {
               <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
                 <CheckCircle className="h-8 w-8 text-green-600" />
               </div>
-              <h3 className="text-2xl font-bold text-cream-900 mb-2">
+              <h3 className="text-2xl font-bold text-gray-900 mb-2">
                 Welcome!
               </h3>
-              <p className="text-lg text-cream-700 mb-6">
+              <p className="text-lg text-gray-700 mb-6">
                 You can now place orders.
               </p>
-              <div className="flex items-center justify-center gap-2 text-sm text-cream-600">
+              <div className="flex items-center justify-center gap-2 text-sm text-gray-600">
                 <Loader className="h-4 w-4 animate-spin" />
                 <span>Redirecting to your profile...</span>
               </div>

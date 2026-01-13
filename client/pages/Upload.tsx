@@ -33,68 +33,68 @@ const GuidesOverlay: React.FC<{
   safeArea = { top: 10, bottom: 10, left: 10, right: 10 },
   bleedArea = { top: 15, bottom: 15, left: 15, right: 15 },
 }) => {
-  const [showGuides, setShowGuides] = useState(true);
+    const [showGuides, setShowGuides] = useState(true);
 
-  return (
-    <div className="absolute inset-0 pointer-events-none z-10">
-      {/* Toggle Button */}
-      <div className="absolute -top-8 right-0 pointer-events-auto">
-        <button
-          onClick={() => setShowGuides(!showGuides)}
-          className="bg-cream-700 text-white px-3 py-1 rounded-lg text-xs flex items-center gap-1 hover:bg-cream-800 transition-colors"
-        >
-          {showGuides ? <EyeOff size={12} /> : <Eye size={12} />}
-          {showGuides ? "Hide Guides" : "Show Guides"}
-        </button>
-      </div>
-
-      {showGuides && (
-        <>
-          {/* Bleed Area (Outer Edge is Bleed Limit) */}
-          <div
-            className="absolute border border-red-400 opacity-50"
-            style={{
-              top: `${bleedArea.top}%`,
-              bottom: `${bleedArea.bottom}%`,
-              left: `${bleedArea.left}%`,
-              right: `${bleedArea.right}%`,
-            }}
+    return (
+      <div className="absolute inset-0 pointer-events-none z-10">
+        {/* Toggle Button */}
+        <div className="absolute -top-8 right-0 pointer-events-auto">
+          <button
+            onClick={() => setShowGuides(!showGuides)}
+            className="bg-gray-700 text-white px-3 py-1 rounded-lg text-xs flex items-center gap-1 hover:bg-gray-800 transition-colors"
           >
-            <div className="absolute -top-3 left-2 bg-red-500 text-white text-[10px] px-1 rounded">
-              Bleed Area
-            </div>
-          </div>
+            {showGuides ? <EyeOff size={12} /> : <Eye size={12} />}
+            {showGuides ? "Hide Guides" : "Show Guides"}
+          </button>
+        </div>
 
-          {/* Trim Line (Simulated 3mm inside) */}
-          <div
-            className="absolute border border-blue-400 opacity-50"
-            style={{
-              top: "5%",
-              bottom: "5%",
-              left: "5%",
-              right: "5%",
-            }}
-          >
-            {/* Safe Area (Green Dotted, ~3mm inside trim) */}
+        {showGuides && (
+          <>
+            {/* Bleed Area (Outer Edge is Bleed Limit) */}
             <div
-              className="absolute border-2 border-dashed border-green-500 opacity-70"
+              className="absolute border border-red-400 opacity-50"
               style={{
-                top: `${safeArea.top}%`,
-                bottom: `${safeArea.bottom}%`,
-                left: `${safeArea.left}%`,
-                right: `${safeArea.right}%`,
+                top: `${bleedArea.top}%`,
+                bottom: `${bleedArea.bottom}%`,
+                left: `${bleedArea.left}%`,
+                right: `${bleedArea.right}%`,
               }}
             >
-              <div className="absolute -top-3 left-2 text-green-600 bg-white/80 text-[10px] px-1 rounded font-bold">
-                Safe Area
+              <div className="absolute -top-3 left-2 bg-red-500 text-white text-[10px] px-1 rounded">
+                Bleed Area
               </div>
             </div>
-          </div>
-        </>
-      )}
-    </div>
-  );
-};
+
+            {/* Trim Line (Simulated 3mm inside) */}
+            <div
+              className="absolute border border-blue-400 opacity-50"
+              style={{
+                top: "5%",
+                bottom: "5%",
+                left: "5%",
+                right: "5%",
+              }}
+            >
+              {/* Safe Area (Green Dotted, ~3mm inside trim) */}
+              <div
+                className="absolute border-2 border-dashed border-green-500 opacity-70"
+                style={{
+                  top: `${safeArea.top}%`,
+                  bottom: `${safeArea.bottom}%`,
+                  left: `${safeArea.left}%`,
+                  right: `${safeArea.right}%`,
+                }}
+              >
+                <div className="absolute -top-3 left-2 text-green-600 bg-white/80 text-[10px] px-1 rounded font-bold">
+                  Safe Area
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    );
+  };
 
 interface UploadedFile {
   file: File;
@@ -410,10 +410,10 @@ const Upload: React.FC = () => {
   const renderSelectionMode = () => (
     <div className="max-w-5xl mx-auto">
       <div className="text-center mb-12">
-        <h1 className="font-serif text-4xl font-bold text-cream-900 mb-4">
+        <h1 className="font-serif text-4xl font-bold text-gray-900 mb-4">
           Upload Your Design
         </h1>
-        <p className="text-cream-600 text-lg">
+        <p className="text-gray-600 text-lg">
           Get professional printing with our automated file preparation
         </p>
       </div>
@@ -421,7 +421,7 @@ const Upload: React.FC = () => {
       <div className="grid md:grid-cols-2 gap-8 px-4">
         <motion.div
           whileHover={{ y: -5 }}
-          className="bg-white p-6 sm:p-8 rounded-2xl sm:rounded-3xl border border-cream-200 shadow-lg cursor-pointer hover:shadow-xl transition-all group md:col-span-2 max-w-2xl mx-auto"
+          className="bg-white p-6 sm:p-8 rounded-2xl sm:rounded-3xl border border-gray-200 shadow-lg cursor-pointer hover:shadow-xl transition-all group md:col-span-2 max-w-2xl mx-auto"
           onClick={() => {
             if (!isLoggedIn) {
               handleLoginRedirect();
@@ -430,18 +430,18 @@ const Upload: React.FC = () => {
             setMode("upload");
           }}
         >
-          <div className="w-16 h-16 bg-cream-100 rounded-2xl flex items-center justify-center mb-6 text-cream-900 group-hover:bg-cream-900 group-hover:text-white transition-colors mx-auto">
+          <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mb-6 text-gray-900 group-hover:bg-gray-900 group-hover:text-white transition-colors mx-auto">
             <UploadIcon size={32} />
           </div>
-          <h2 className="font-serif text-2xl font-bold text-cream-900 mb-3 text-center">
+          <h2 className="font-serif text-2xl font-bold text-gray-900 mb-3 text-center">
             Upload Print-Ready Files
           </h2>
-          <p className="text-cream-600 mb-6 text-center">
+          <p className="text-gray-600 mb-6 text-center">
             Upload your designs with automatic CMYK conversion, bleed area
             setup, and professional pre-press checks.
           </p>
           <div className="text-center">
-            <button className="text-cream-900 font-bold flex items-center group-hover:gap-2 transition-all mx-auto">
+            <button className="text-gray-900 font-bold flex items-center group-hover:gap-2 transition-all mx-auto">
               {isLoggedIn ? "Start Upload" : "Login to Upload"}{" "}
               <UploadIcon size={16} className="ml-2" />
             </button>
@@ -451,34 +451,34 @@ const Upload: React.FC = () => {
 
       {/* Features Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6 mt-8 sm:mt-12 px-4 sm:px-6">
-        <div className="text-center p-6 bg-white rounded-xl border border-cream-100">
+        <div className="text-center p-6 bg-white rounded-xl border border-gray-100">
           <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center mx-auto mb-4 text-green-600">
             <CheckCircle size={24} />
           </div>
-          <h3 className="font-bold text-cream-900 mb-2">
+          <h3 className="font-bold text-gray-900 mb-2">
             Auto CMYK Conversion
           </h3>
-          <p className="text-cream-600 text-sm">
+          <p className="text-gray-600 text-sm">
             Automatic conversion to print-ready CMYK color space
           </p>
         </div>
 
-        <div className="text-center p-6 bg-white rounded-xl border border-cream-100">
+        <div className="text-center p-6 bg-white rounded-xl border border-gray-100">
           <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center mx-auto mb-4 text-blue-600">
             <Ruler size={24} />
           </div>
-          <h3 className="font-bold text-cream-900 mb-2">Bleed Area Setup</h3>
-          <p className="text-cream-600 text-sm">
+          <h3 className="font-bold text-gray-900 mb-2">Bleed Area Setup</h3>
+          <p className="text-gray-600 text-sm">
             Professional bleed and safe area configuration
           </p>
         </div>
 
-        <div className="text-center p-6 bg-white rounded-xl border border-cream-100">
+        <div className="text-center p-6 bg-white rounded-xl border border-gray-100">
           <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center mx-auto mb-4 text-purple-600">
             <Shield size={24} />
           </div>
-          <h3 className="font-bold text-cream-900 mb-2">Quality Check</h3>
-          <p className="text-cream-600 text-sm">
+          <h3 className="font-bold text-gray-900 mb-2">Quality Check</h3>
+          <p className="text-gray-600 text-sm">
             Automatic resolution and format validation
           </p>
         </div>
@@ -488,27 +488,27 @@ const Upload: React.FC = () => {
 
   const renderLoginRequired = () => (
     <div className="max-w-2xl mx-auto text-center">
-      <div className="bg-white rounded-3xl p-12 border border-cream-100 shadow-lg">
+      <div className="bg-white rounded-3xl p-12 border border-gray-100 shadow-lg">
         <div className="w-20 h-20 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-6">
           <LogIn size={40} className="text-yellow-600" />
         </div>
-        <h2 className="font-serif text-3xl font-bold text-cream-900 mb-4">
+        <h2 className="font-serif text-3xl font-bold text-gray-900 mb-4">
           Login Required
         </h2>
-        <p className="text-cream-600 text-lg mb-6">
+        <p className="text-gray-600 text-lg mb-6">
           Please log in to upload your designs and access all features.
         </p>
         <div className="space-y-4">
           <button
             onClick={handleLoginRedirect}
-            className="w-full bg-cream-900 text-white py-4 rounded-xl font-bold text-lg hover:bg-cream-800 transition-all shadow-xl hover:shadow-2xl hover:-translate-y-1 flex items-center justify-center gap-3"
+            className="w-full bg-gray-900 text-white py-4 rounded-xl font-bold text-lg hover:bg-gray-800 transition-all shadow-xl hover:shadow-2xl hover:-translate-y-1 flex items-center justify-center gap-3"
           >
             <LogIn size={20} />
             Go to Login
           </button>
           <button
             onClick={() => setMode("select")}
-            className="w-full bg-cream-100 text-cream-700 py-3 rounded-xl font-bold hover:bg-cream-200 transition-all flex items-center justify-center gap-2"
+            className="w-full bg-gray-100 text-gray-700 py-3 rounded-xl font-bold hover:bg-gray-200 transition-all flex items-center justify-center gap-2"
           >
             <ArrowLeft size={18} />
             Back to Options
@@ -525,7 +525,7 @@ const Upload: React.FC = () => {
           setMode("select");
           setUploadResult(null);
         }}
-        className="flex items-center text-cream-600 hover:text-cream-900 mb-6 transition-colors"
+        className="flex items-center text-gray-600 hover:text-gray-900 mb-6 transition-colors"
       >
         <ArrowLeft size={20} className="mr-2" /> Back to Options
       </button>
@@ -534,40 +534,40 @@ const Upload: React.FC = () => {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-3xl p-8 text-center border border-cream-100 shadow-lg"
+          className="bg-white rounded-3xl p-8 text-center border border-gray-100 shadow-lg"
         >
           <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <CheckCircle size={32} className="text-green-600" />
           </div>
-          <h2 className="font-serif text-2xl font-bold text-cream-900 mb-4">
+          <h2 className="font-serif text-2xl font-bold text-gray-900 mb-4">
             Upload Successful!
           </h2>
-          <p className="text-cream-600 mb-6">
+          <p className="text-gray-600 mb-6">
             Your design has been processed and is ready for printing.
             {uploadResult.design.hasBackImage
               ? " Both front and back images were uploaded."
               : " Only front image was uploaded."}
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-4 sm:mb-6 text-left">
-            <div className="bg-cream-50 p-4 rounded-xl">
-              <h4 className="font-bold text-cream-900 mb-2">Design Details</h4>
-              <p className="text-sm text-cream-600">
+            <div className="bg-gray-50 p-4 rounded-xl">
+              <h4 className="font-bold text-gray-900 mb-2">Design Details</h4>
+              <p className="text-sm text-gray-600">
                 Size: {uploadResult.design.width}" ×{" "}
                 {uploadResult.design.height}"
               </p>
-              <p className="text-sm text-cream-600">
+              <p className="text-sm text-gray-600">
                 Files: {uploadResult.design.hasBackImage ? "2" : "1"}
               </p>
             </div>
-            <div className="bg-cream-50 p-4 rounded-xl">
-              <h4 className="font-bold text-cream-900 mb-2">Processing</h4>
-              <p className="text-sm text-cream-600">✓ CMYK Conversion</p>
-              <p className="text-sm text-cream-600">✓ Bleed Setup</p>
+            <div className="bg-gray-50 p-4 rounded-xl">
+              <h4 className="font-bold text-gray-900 mb-2">Processing</h4>
+              <p className="text-sm text-gray-600">✓ CMYK Conversion</p>
+              <p className="text-sm text-gray-600">✓ Bleed Setup</p>
             </div>
           </div>
           <button
             onClick={() => setUploadResult(null)}
-            className="bg-cream-900 text-white px-8 py-3 rounded-xl font-bold hover:bg-cream-800 transition-colors"
+            className="bg-gray-900 text-white px-8 py-3 rounded-xl font-bold hover:bg-gray-800 transition-colors"
           >
             Upload Another Design
           </button>
@@ -579,15 +579,15 @@ const Upload: React.FC = () => {
             {/* User Info */}
 
             {/* Design Specifications */}
-            <div className="bg-white p-4 sm:p-6 rounded-xl sm:rounded-2xl border border-cream-100 shadow-sm">
-              <h3 className="font-serif text-lg sm:text-xl font-bold text-cream-900 mb-3 sm:mb-4 flex items-center gap-2">
+            <div className="bg-white p-4 sm:p-6 rounded-xl sm:rounded-2xl border border-gray-100 shadow-sm">
+              <h3 className="font-serif text-lg sm:text-xl font-bold text-gray-900 mb-3 sm:mb-4 flex items-center gap-2">
                 <Ruler size={18} className="sm:w-5 sm:h-5" />
                 Design Specifications
               </h3>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-3 sm:mb-4">
                 <div>
-                  <label className="block text-sm font-medium text-cream-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
                     Width (inches)
                   </label>
                   <input
@@ -600,11 +600,11 @@ const Upload: React.FC = () => {
                         width: parseFloat(e.target.value),
                       }))
                     }
-                    className="w-full p-3 rounded-xl border border-cream-300 focus:ring-2 focus:ring-cream-900 focus:border-transparent outline-none"
+                    className="w-full p-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-cream-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
                     Height (inches)
                   </label>
                   <input
@@ -617,13 +617,13 @@ const Upload: React.FC = () => {
                         height: parseFloat(e.target.value),
                       }))
                     }
-                    className="w-full p-3 rounded-xl border border-cream-300 focus:ring-2 focus:ring-cream-900 focus:border-transparent outline-none"
+                    className="w-full p-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none"
                   />
                 </div>
               </div>
 
               <div className="mb-4">
-                <label className="block text-sm font-medium text-cream-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
                   Description
                 </label>
                 <textarea
@@ -635,14 +635,14 @@ const Upload: React.FC = () => {
                     }))
                   }
                   placeholder="Add notes about your design..."
-                  className="w-full p-3 rounded-xl border border-cream-300 focus:ring-2 focus:ring-cream-900 focus:border-transparent outline-none resize-none"
+                  className="w-full p-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none resize-none"
                   rows={3}
                 />
               </div>
 
               <button
                 onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
-                className="flex items-center gap-2 text-cream-700 hover:text-cream-900 transition-colors text-sm font-medium"
+                className="flex items-center gap-2 text-gray-700 hover:text-gray-900 transition-colors text-sm font-medium"
               >
                 <Settings size={16} />
                 {showAdvancedSettings ? "Hide" : "Show"} Advanced Settings
@@ -654,9 +654,9 @@ const Upload: React.FC = () => {
               <motion.div
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: "auto" }}
-                className="bg-white p-6 rounded-2xl border border-cream-100 shadow-sm"
+                className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm"
               >
-                <h4 className="font-bold text-cream-900 mb-4">
+                <h4 className="font-bold text-gray-900 mb-4">
                   Print Safety Margins (%)
                 </h4>
                 <div className="grid grid-cols-2 gap-4 text-sm">
@@ -671,7 +671,7 @@ const Upload: React.FC = () => {
                     "bleedRight",
                   ].map((key) => (
                     <div key={key}>
-                      <label className="block text-xs text-cream-600 mb-1 capitalize">
+                      <label className="block text-xs text-gray-600 mb-1 capitalize">
                         {key.replace(/([A-Z])/g, " $1").trim()}
                       </label>
                       <input
@@ -684,7 +684,7 @@ const Upload: React.FC = () => {
                             [key]: parseFloat(e.target.value),
                           }))
                         }
-                        className="w-full p-2 rounded-lg border border-cream-300 focus:ring-1 focus:ring-cream-900 focus:border-transparent outline-none"
+                        className="w-full p-2 rounded-lg border border-gray-300 focus:ring-1 focus:ring-gray-900 focus:border-transparent outline-none"
                       />
                     </div>
                   ))}
@@ -699,13 +699,13 @@ const Upload: React.FC = () => {
 
               return (
                 <div key={side}>
-                  <label className="block text-sm font-bold text-cream-900 uppercase mb-2 tracking-wider">
+                  <label className="block text-sm font-bold text-gray-900 uppercase mb-2 tracking-wider">
                     {side} Side {isFront ? "*" : "(Optional)"}
                   </label>
 
                   {!fileData ? (
                     <div
-                      className="border-2 border-dashed border-cream-300 rounded-xl p-8 text-center bg-white hover:bg-cream-50 hover:border-cream-400 transition-all cursor-pointer relative"
+                      className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center bg-white hover:bg-gray-50 hover:border-gray-400 transition-all cursor-pointer relative"
                       onDragOver={(e) => {
                         e.preventDefault();
                         setIsDragging(true);
@@ -721,39 +721,38 @@ const Upload: React.FC = () => {
                         }
                         accept="image/jpeg,image/png,image/jpg,application/pdf"
                       />
-                      <UploadIcon className="mx-auto text-cream-400 mb-2" />
-                      <p className="text-sm font-medium text-cream-700">
+                      <UploadIcon className="mx-auto text-gray-400 mb-2" />
+                      <p className="text-sm font-medium text-gray-700">
                         Drag & Drop or Click
                       </p>
-                      <p className="text-xs text-cream-500 mt-1">
+                      <p className="text-xs text-gray-500 mt-1">
                         JPG, PNG, PDF (Max 10MB)
                       </p>
                     </div>
                   ) : (
                     <div
-                      className={`border rounded-xl p-4 flex items-start gap-4 relative ${
-                        fileData.isValid
-                          ? "bg-white border-cream-200"
+                      className={`border rounded-xl p-4 flex items-start gap-4 relative ${fileData.isValid
+                          ? "bg-white border-gray-200"
                           : "bg-red-50 border-red-200"
-                      }`}
+                        }`}
                       onClick={() => setActiveSide(side as "front" | "back")}
                     >
                       {fileData.preview ? (
                         <img
                           src={fileData.preview}
-                          className="w-16 h-16 object-cover rounded bg-cream-100"
+                          className="w-16 h-16 object-cover rounded bg-gray-100"
                           alt="preview"
                         />
                       ) : (
-                        <div className="w-16 h-16 bg-cream-100 rounded flex items-center justify-center">
-                          <FileIcon className="text-cream-500" />
+                        <div className="w-16 h-16 bg-gray-100 rounded flex items-center justify-center">
+                          <FileIcon className="text-gray-500" />
                         </div>
                       )}
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-bold text-cream-900 truncate">
+                        <p className="text-sm font-bold text-gray-900 truncate">
                           {fileData.file.name}
                         </p>
-                        <p className="text-xs text-cream-500 mb-2">
+                        <p className="text-xs text-gray-500 mb-2">
                           {(fileData.file.size / 1024 / 1024).toFixed(2)} MB
                         </p>
 
@@ -779,13 +778,13 @@ const Upload: React.FC = () => {
                           e.stopPropagation();
                           isFront ? setFrontFile(null) : setBackFile(null);
                         }}
-                        className="text-cream-400 hover:text-red-500 p-1 transition-colors"
+                        className="text-gray-400 hover:text-red-500 p-1 transition-colors"
                       >
                         <Trash2 size={16} />
                       </button>
 
                       {activeSide === side && (
-                        <div className="absolute -right-3 top-1/2 -translate-y-1/2 w-0 h-0 border-t-8 border-t-transparent border-l-8 border-l-cream-900 border-b-8 border-b-transparent hidden lg:block"></div>
+                        <div className="absolute -right-3 top-1/2 -translate-y-1/2 w-0 h-0 border-t-8 border-t-transparent border-l-8 border-l-gray-900 border-b-8 border-b-transparent hidden lg:block"></div>
                       )}
                     </div>
                   )}
@@ -813,7 +812,7 @@ const Upload: React.FC = () => {
               disabled={
                 !isLoggedIn || !frontFile || !frontFile.isValid || isUploading
               }
-              className="w-full bg-cream-900 text-white py-4 rounded-xl font-bold text-lg hover:bg-cream-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-xl hover:shadow-2xl hover:-translate-y-1 flex items-center justify-center gap-2"
+              className="w-full bg-gray-900 text-white py-4 rounded-xl font-bold text-lg hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-xl hover:shadow-2xl hover:-translate-y-1 flex items-center justify-center gap-2"
             >
               {!isLoggedIn ? (
                 <>
@@ -835,7 +834,7 @@ const Upload: React.FC = () => {
           </div>
 
           {/* Preview Stage */}
-          <div className="lg:w-3/5 bg-cream-100 rounded-2xl p-8 flex flex-col items-center justify-center relative min-h-[600px]">
+          <div className="lg:w-3/5 bg-gray-100 rounded-2xl p-8 flex flex-col items-center justify-center relative min-h-[600px]">
             {/* Background Grid */}
             <div
               className="absolute inset-0 opacity-10"
@@ -849,7 +848,7 @@ const Upload: React.FC = () => {
             {/* The active visual */}
             <div className="relative z-10 shadow-2xl">
               {(activeSide === "front" && frontFile) ||
-              (activeSide === "back" && backFile) ? (
+                (activeSide === "back" && backFile) ? (
                 <div className="relative w-[500px] aspect-[1.75/1] bg-white">
                   {(activeSide === "front" ? frontFile : backFile)?.preview && (
                     <img
@@ -876,9 +875,9 @@ const Upload: React.FC = () => {
                   />
                 </div>
               ) : (
-                <div className="w-[500px] aspect-[1.75/1] bg-white flex flex-col items-center justify-center text-cream-300 border-2 border-dashed border-cream-200">
+                <div className="w-[500px] aspect-[1.75/1] bg-white flex flex-col items-center justify-center text-gray-300 border-2 border-dashed border-gray-200">
                   <ImageIcon size={48} className="mb-4" />
-                  <p className="text-cream-400 font-medium">
+                  <p className="text-gray-400 font-medium">
                     Preview will appear here
                   </p>
                 </div>
@@ -887,15 +886,15 @@ const Upload: React.FC = () => {
 
             {/* Legend */}
             <div className="mt-8 flex gap-6 flex-wrap justify-center">
-              <div className="flex items-center gap-2 text-xs text-cream-700">
+              <div className="flex items-center gap-2 text-xs text-gray-700">
                 <span className="w-3 h-3 border border-red-400 bg-red-50"></span>
                 <span>Bleed Area (Cut Zone)</span>
               </div>
-              <div className="flex items-center gap-2 text-xs text-cream-700">
+              <div className="flex items-center gap-2 text-xs text-gray-700">
                 <span className="w-3 h-3 border border-blue-400 bg-blue-50"></span>
                 <span>Trim Line (Final Size)</span>
               </div>
-              <div className="flex items-center gap-2 text-xs text-cream-700">
+              <div className="flex items-center gap-2 text-xs text-gray-700">
                 <span className="w-3 h-3 border-2 border-dashed border-green-500 bg-green-50"></span>
                 <span>Safe Area (Text/Logos)</span>
               </div>
@@ -907,9 +906,9 @@ const Upload: React.FC = () => {
   );
 
   return (
-    <div className="min-h-screen bg-cream-50 py-12">
+    <div className="min-h-screen bg-gray-50 py-12">
       <div className="container mx-auto px-4 sm:px-6 mb-6">
-        <BackButton fallbackPath="/" label="Back to Home" className="text-cream-600 hover:text-cream-900" />
+        <BackButton fallbackPath="/" label="Back to Home" className="text-gray-600 hover:text-gray-900" />
       </div>
       <AnimatePresence mode="wait">
         {mode === "select" && (

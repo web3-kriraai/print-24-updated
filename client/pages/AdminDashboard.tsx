@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo } from "react";
+﻿import React, { useState, useEffect, useMemo } from "react";
+import { getAuthHeaders } from "../utils/auth";
 import { useClientOnly } from "../hooks/useClientOnly";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import BackButton from "../components/BackButton";
@@ -48,6 +49,20 @@ import RichTextEditor from "../components/RichTextEditor";
 import { formatCurrency, calculateOrderBreakdown, OrderForCalculation } from "../utils/pricing";
 import { API_BASE_URL_WITH_API as API_BASE_URL } from "../lib/apiConfig";
 import { scrollToInvalidField } from "../lib/validationUtils";
+import AdminSidebar from "./admin/components/AdminSidebar";
+import AddCategoryForm from "./admin/components/categories/AddCategoryForm";
+import ManageCategoriesView from "./admin/components/categories/ManageCategoriesView";
+import HierarchicalCategorySelector from "./admin/components/categories/HierarchicalCategorySelector";
+import ManageUsers from "./admin/components/users/ManageUsers";
+import ManageDepartments from "./admin/components/departments/ManageDepartments";
+import ManageSequences from "./admin/components/sequences/ManageSequences";
+import AddProductForm from "./admin/components/products/AddProductForm";
+import ManageProductsView from "./admin/components/products/ManageProductsView";
+import ManageAttributeTypes from "./admin/components/attributes/ManageAttributeTypes";
+import ManageAttributeRules from "./admin/components/attributes/ManageAttributeRules";
+import ManageSubAttributes from "./admin/components/attributes/ManageSubAttributes";
+import AboutManagement from "./admin/components/AboutManagement";
+import ServiceManagement from "./admin/components/services/ServiceManagement";
 
 // Simple placeholder image as data URI (1x1 transparent pixel)
 const PLACEHOLDER_IMAGE = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150'%3E%3Crect width='150' height='150' fill='%23f5f5f5'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='%23999' font-family='sans-serif' font-size='14'%3ENo Image%3C/text%3E%3C/svg%3E";
@@ -75,8 +90,16 @@ interface Product {
     _id: string;
     name: string;
     category?: string | { _id: string; name: string };
+    parent?: string | { _id: string; name: string };
+  };
+  nestedSubcategory?: string | {
+    _id: string;
+    name: string;
+    category?: string | { _id: string; name: string };
+    parent?: string | { _id: string; name: string };
   };
   image?: string;
+  sortOrder?: number;
 }
 
 interface User {
@@ -216,184 +239,7 @@ interface Order {
   adminNotes?: string;
 }
 
-// Hierarchical Category Selector Component
-const HierarchicalCategorySelector: React.FC<{
-  categories: Array<{ _id: string; name: string; type: string; parent?: string | { _id: string } | null }>;
-  subCategories: Array<any>;
-  selectedCategoryId: string;
-  onCategorySelect: (categoryId: string) => void;
-}> = ({ categories, subCategories, selectedCategoryId, onCategorySelect }) => {
-  const [selectedType, setSelectedType] = useState<string>("");
-  const [selectedCategoryPath, setSelectedCategoryPath] = useState<string[]>([]);
-
-  // Get top-level categories for selected type
-  const topLevelCategories = categories.filter(
-    (cat) => cat.type === selectedType && (!cat.parent || cat.parent === null || (typeof cat.parent === 'object' && !cat.parent._id))
-  );
-
-  // Get child categories for a given parent
-  const getChildCategories = (parentId: string) => {
-    return categories.filter((cat) => {
-      if (cat.parent) {
-        const parentIdStr = typeof cat.parent === 'object' ? cat.parent._id : cat.parent;
-        return parentIdStr === parentId && cat.type === selectedType;
-      }
-      return false;
-    });
-  };
-
-  // Build category path from selected category
-  const buildCategoryPath = (categoryId: string): string[] => {
-    const path: string[] = [];
-    let currentId = categoryId;
-
-    while (currentId) {
-      const category = categories.find(c => c._id === currentId);
-      if (!category) break;
-      path.unshift(currentId);
-      if (category.parent) {
-        currentId = typeof category.parent === 'object' ? category.parent._id : category.parent;
-      } else {
-        break;
-      }
-    }
-
-    return path;
-  };
-
-  // Initialize type and path from selected category
-  React.useEffect(() => {
-    if (selectedCategoryId) {
-      const category = categories.find(c => c._id === selectedCategoryId) ||
-        subCategories.find(sc => sc._id === selectedCategoryId);
-      if (category) {
-        const type = category.type || (category.category && typeof category.category === 'object' ? category.category.type : '');
-        if (type) {
-          setSelectedType(type);
-          if (categories.find(c => c._id === selectedCategoryId)) {
-            setSelectedCategoryPath(buildCategoryPath(selectedCategoryId));
-          }
-        }
-      }
-    }
-  }, [selectedCategoryId, categories, subCategories]);
-
-  const handleTypeChange = (type: string) => {
-    setSelectedType(type);
-    setSelectedCategoryPath([]);
-    onCategorySelect("");
-  };
-
-  const handleCategorySelect = (categoryId: string, level: number) => {
-    const newPath = selectedCategoryPath.slice(0, level);
-    newPath.push(categoryId);
-    setSelectedCategoryPath(newPath);
-    onCategorySelect(categoryId);
-  };
-
-  return (
-    <div className="space-y-4">
-      <div>
-        <label className="block text-sm font-medium text-cream-900 mb-2">
-          Type *
-        </label>
-        <ReviewFilterDropdown
-          label="Select Type"
-          value={selectedType}
-          onChange={handleTypeChange}
-          options={[
-            { value: "", label: "Select Type" },
-            { value: "Digital", label: "Digital" },
-            { value: "Bulk", label: "Bulk" },
-          ]}
-          className="w-full"
-        />
-      </div>
-
-      {selectedType && (
-        <>
-          {/* Render category hierarchy dynamically */}
-          {(() => {
-            const dropdowns: React.ReactElement[] = [];
-            let level = 0;
-
-            // First level: top-level categories
-            dropdowns.push(
-              <div key={level}>
-                <label className="block text-sm font-medium text-cream-900 mb-2">
-                  Category *
-                </label>
-                <ReviewFilterDropdown
-                  label="Select Category"
-                  value={selectedCategoryPath[level] || ""}
-                  onChange={(value) => {
-                    if (value) {
-                      handleCategorySelect(String(value), level);
-                    } else {
-                      setSelectedCategoryPath([]);
-                      onCategorySelect("");
-                    }
-                  }}
-                  options={[
-                    { value: "", label: "Select Category" },
-                    ...topLevelCategories.map((cat) => ({
-                      value: cat._id,
-                      label: cat.name,
-                    })),
-                  ]}
-                  className="w-full"
-                />
-              </div>
-            );
-            level++;
-
-            // Subsequent levels: child categories
-            while (level <= selectedCategoryPath.length) {
-              const currentParentId = level > 0 ? selectedCategoryPath[level - 1] : null;
-              if (!currentParentId) break;
-
-              const children = getChildCategories(currentParentId);
-              if (children.length === 0) break;
-
-              dropdowns.push(
-                <div key={level}>
-                  <label className="block text-sm font-medium text-cream-900 mb-2">
-                    Subcategory {level > 1 ? `(Level ${level})` : ''} *
-                  </label>
-                  <ReviewFilterDropdown
-                    label={`Select Subcategory${level > 1 ? ` (Level ${level})` : ''}`}
-                    value={selectedCategoryPath[level] || ""}
-                    onChange={(value) => {
-                      if (value) {
-                        handleCategorySelect(String(value), level);
-                      } else {
-                        setSelectedCategoryPath(selectedCategoryPath.slice(0, level));
-                        onCategorySelect(selectedCategoryPath[level - 1] || "");
-                      }
-                    }}
-                    options={[
-                      { value: "", label: `Select Subcategory${level > 1 ? ` (Level ${level})` : ''}` },
-                      ...children
-                        .sort((a, b) => ((a as Category).sortOrder || 0) - ((b as Category).sortOrder || 0))
-                        .map((cat) => ({
-                          value: cat._id,
-                          label: cat.name,
-                        })),
-                    ]}
-                    className="w-full"
-                  />
-                </div>
-              );
-              level++;
-            }
-
-            return dropdowns;
-          })()}
-        </>
-      )}
-    </div>
-  );
-};
+// HierarchicalCategorySelector is now imported from separate component
 
 const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -524,6 +370,7 @@ const AdminDashboard: React.FC = () => {
       sku?: string;
       isAvailable: boolean;
     }>,
+    existingImage: "", // For displaying current image when editing
   });
 
   // Options table state
@@ -556,6 +403,7 @@ const AdminDashboard: React.FC = () => {
     sortOrder: 0, // Sort order for displaying subcategories
     slug: "", // URL-friendly identifier
     image: null as File | null,
+    existingImage: "",
   });
   const [isSlugManuallyEdited, setIsSlugManuallyEdited] = useState(false);
   const [isSubCategorySlugManuallyEdited, setIsSubCategorySlugManuallyEdited] = useState(false);
@@ -571,6 +419,7 @@ const AdminDashboard: React.FC = () => {
     slug: "",
     sortOrder: 0,
     image: null as File | null,
+    existingImage: "",
   });
 
   // State for available parent subcategories (for nested subcategories)
@@ -585,6 +434,8 @@ const AdminDashboard: React.FC = () => {
   const [editingSubCategoryId, setEditingSubCategoryId] = useState<string | null>(null);
   const [editingSubCategoryImage, setEditingSubCategoryImage] = useState<string | null>(null);
   const [subCategories, setSubCategories] = useState<any[]>([]);
+
+
 
   // Employees state for department assignment
   const [employees, setEmployees] = useState<User[]>([]);
@@ -612,6 +463,7 @@ const AdminDashboard: React.FC = () => {
   const [filteredSubCategories, setFilteredSubCategories] = useState<any[]>([]);
   const [draggedCategoryId, setDraggedCategoryId] = useState<string | null>(null);
   const [draggedSubCategoryId, setDraggedSubCategoryId] = useState<string | null>(null);
+  const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
   const autoScrollIntervalRef = React.useRef<NodeJS.Timeout | null>(null);
   const categoryListRef = React.useRef<HTMLDivElement | null>(null);
 
@@ -636,6 +488,7 @@ const AdminDashboard: React.FC = () => {
   const [availableParentCategories, setAvailableParentCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>("");
   const [selectedSubCategoryFilter, setSelectedSubCategoryFilter] = useState<string>("");
   const [productSearchQuery, setProductSearchQuery] = useState<string>("");
   const [subcategoryProducts, setSubcategoryProducts] = useState<Product[]>([]);
@@ -673,7 +526,7 @@ const AdminDashboard: React.FC = () => {
   const [nestedSubcategoriesByParent, setNestedSubcategoriesByParent] = useState<{ [key: string]: any[] }>({}); // Map of parentSubcategoryId -> nested subcategories
   const [loadingSubcategories, setLoadingSubcategories] = useState(false);
 
-  const [users, setUsers] = useState<User[]>([]);
+  // Users state moved to ManageUsers component
 
   // Print Partner Requests state
   interface PrintPartnerRequest {
@@ -718,22 +571,7 @@ const AdminDashboard: React.FC = () => {
     adminNotes: "",
   });
 
-  // Create employee modal state (for department section)
-  const [showCreateEmployeeModal, setShowCreateEmployeeModal] = useState(false);
-  const [createEmployeeModalForm, setCreateEmployeeModalForm] = useState({
-    name: "",
-    email: "",
-    password: "",
-  });
 
-  // Create department modal state (for sequence section)
-  const [showCreateDepartmentModal, setShowCreateDepartmentModal] = useState(false);
-  const [createDepartmentModalForm, setCreateDepartmentModalForm] = useState({
-    name: "",
-    description: "",
-    isEnabled: true,
-    operators: [] as string[],
-  });
 
   // Attribute Types state
   const [attributeTypes, setAttributeTypes] = useState<any[]>([]);
@@ -742,107 +580,19 @@ const AdminDashboard: React.FC = () => {
   const [editingAttributeTypeId, setEditingAttributeTypeId] = useState<string | null>(null);
   const [showCreateAttributeModal, setShowCreateAttributeModal] = useState(false);
 
-  // Attribute Rules state
-  const [attributeRules, setAttributeRules] = useState<any[]>([]);
-  const [loadingAttributeRules, setLoadingAttributeRules] = useState(false);
-  const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
-  const [showRuleBuilder, setShowRuleBuilder] = useState(false);
-  const [ruleForm, setRuleForm] = useState({
-    name: "",
-    scope: "GLOBAL" as "GLOBAL" | "CATEGORY" | "PRODUCT",
-    scopeRefId: "",
-    when: {
-      attribute: "",
-      value: "",
-    },
-    then: [] as Array<{
-      action: "SHOW" | "HIDE" | "SHOW_ONLY" | "SET_DEFAULT" | "QUANTITY";
-      targetAttribute: string;
-      allowedValues?: string[];
-      defaultValue?: string;
-      minQuantity?: number;
-      maxQuantity?: number;
-      stepQuantity?: number;
-    }>,
-    priority: 0,
-    isActive: true,
-  });
+  // Attribute Rules state - REFACTORED to ManageAttributeRules component
 
-  // Sub-Attributes state
-  const [subAttributes, setSubAttributes] = useState<any[]>([]);
-  const [loadingSubAttributes, setLoadingSubAttributes] = useState(false);
-  const [editingSubAttributeId, setEditingSubAttributeId] = useState<string | null>(null);
-  const [showSubAttributeForm, setShowSubAttributeForm] = useState(false);
-  const [subAttributeForm, setSubAttributeForm] = useState({
-    parentAttribute: "",
-    parentValue: "",
-    value: "",
-    label: "",
-    image: null as File | null,
-    priceAdd: 0,
-    isEnabled: true,
-    systemName: "",
-  });
-  // Multiple sub-attributes form state (for bulk creation)
-  const [multipleSubAttributes, setMultipleSubAttributes] = useState<Array<{
-    value: string;
-    label: string;
-    image: File | null;
-    priceAdd: number;
-    isEnabled: boolean;
-    systemName: string;
-  }>>([{ value: "", label: "", image: null, priceAdd: 0, isEnabled: true, systemName: "" }]);
-  const [subAttributeFilter, setSubAttributeFilter] = useState({
-    attributeId: "",
-    parentValue: "",
-  });
-  // Search states for Attribute Rules and Sub-Attributes
-  const [attributeRuleSearch, setAttributeRuleSearch] = useState("");
-  const [attributeRuleFilter, setAttributeRuleFilter] = useState("");
-  const [subAttributeSearch, setSubAttributeSearch] = useState("");
 
-  // Enhanced filter states for Sub-Attributes
-  const [subAttributeStatusFilter, setSubAttributeStatusFilter] = useState<"all" | "enabled" | "disabled">("all");
-  const [subAttributePage, setSubAttributePage] = useState(1);
-
-  // Enhanced filter states for Attribute Rules
-  const [ruleActionTypeFilter, setRuleActionTypeFilter] = useState("");
-  const [ruleStatusFilter, setRuleStatusFilter] = useState<"all" | "active" | "inactive">("all");
-  const [ruleScopeFilter, setRuleScopeFilter] = useState<"all" | "global" | "product">("all");
-  const [attributeRulePage, setAttributeRulePage] = useState(1);
   const ITEMS_PER_PAGE = 10;
 
 
-  // Departments state
-  const [departments, setDepartments] = useState<any[]>([]);
-  const [loadingDepartments, setLoadingDepartments] = useState(false);
-  const [editingDepartmentId, setEditingDepartmentId] = useState<string | null>(null);
-  const [departmentForm, setDepartmentForm] = useState({
-    name: "",
-    description: "",
-    isEnabled: true,
-    operators: [] as string[],
-  });
 
-  // Sequences state
-  const [sequences, setSequences] = useState<any[]>([]);
-  const [loadingSequences, setLoadingSequences] = useState(false);
-  const [editingSequenceId, setEditingSequenceId] = useState<string | null>(null);
-  const [selectedSequenceId, setSelectedSequenceId] = useState<string | null>(null);
-  const [isCustomizingSequence, setIsCustomizingSequence] = useState(false);
-  const [sequenceForm, setSequenceForm] = useState({
-    name: "",
-    printType: "", // "digital" or "bulk"
-    category: "",
-    subcategory: "",
-    selectedDepartments: [] as string[],
-    selectedAttributes: [] as string[],
-  });
   const [attributeTypeForm, setAttributeTypeForm] = useState({
     attributeName: "",
     systemName: "",
     inputStyle: "DROPDOWN", // How customer selects
     attributeImage: null as File | null, // Image to be shown when selecting this attribute
+    existingImage: null as string | null, // Existing image URL from server
     effectDescription: "", // What this affects - description textbox
     // Options for dropdown/radio - simple list (e.g., "100, 200, 300")
     simpleOptions: "", // Comma-separated options like "100, 200, 300"
@@ -891,96 +641,8 @@ const AdminDashboard: React.FC = () => {
   });
 
   // Filtered Attribute Rules
-  const filteredAttributeRules = useMemo(() => {
-    return attributeRules
-      .filter((rule) => {
-        const searchLower = attributeRuleSearch.toLowerCase();
-        const ruleName = rule.name?.toLowerCase() || "";
-        const scope = rule.scope?.toLowerCase() || "";
 
-        // 1. Check Dropdown Filter
-        if (attributeRuleFilter) {
-          const conditionUsesAttribute = rule.when?.attribute === attributeRuleFilter ||
-            (typeof rule.when?.attribute === 'object' && rule.when.attribute !== null && rule.when.attribute._id === attributeRuleFilter);
 
-          if (!conditionUsesAttribute) return false;
-        }
-
-        // 2. Filter by Action Type (if selected)
-        if (ruleActionTypeFilter) {
-          const hasActionType = (rule.then || []).some((action: any) => action.action === ruleActionTypeFilter);
-          if (!hasActionType) return false;
-        }
-
-        // 3. Filter by Status (if selected)
-        if (ruleStatusFilter !== "all") {
-          if (ruleStatusFilter === "active" && !rule.isActive) return false;
-          if (ruleStatusFilter === "inactive" && rule.isActive) return false;
-        }
-
-        // 4. Filter by Scope (if selected)
-        if (ruleScopeFilter !== "all") {
-          const isGlobal = !rule.productId && !rule.applicableProduct;
-          if (ruleScopeFilter === "global" && !isGlobal) return false;
-          if (ruleScopeFilter === "product" && isGlobal) return false;
-        }
-
-        // 5. Check Search Text (require minimum 2 characters)
-        if (!attributeRuleSearch || attributeRuleSearch.length < 2) return true;
-
-        const whenAttr = typeof rule.when?.attribute === 'object' && rule.when.attribute !== null
-          ? rule.when.attribute.attributeName || ""
-          : attributeTypes.find(attr => attr._id === rule.when?.attribute)?.attributeName || "";
-
-        return ruleName.includes(searchLower) ||
-          scope.includes(searchLower) ||
-          whenAttr.toLowerCase().includes(searchLower);
-      })
-      .sort((a, b) => (b.priority || 0) - (a.priority || 0));
-  }, [attributeRules, attributeRuleSearch, attributeRuleFilter, ruleActionTypeFilter, ruleStatusFilter, ruleScopeFilter, attributeTypes]);
-
-  // Filtered Sub-Attributes
-  const filteredSubAttributes = useMemo(() => {
-    return subAttributes.filter((subAttr) => {
-      const searchLower = subAttributeSearch.toLowerCase();
-
-      // 1. Search Logic
-      if (subAttributeSearch && subAttributeSearch.length >= 2) {
-        const matchesName = subAttr.value?.toLowerCase().includes(searchLower) || false;
-        const matchesLabel = subAttr.label?.toLowerCase().includes(searchLower) || false;
-        const matchesSystemName = subAttr.systemName?.toLowerCase().includes(searchLower) || false;
-        const matchesParentValue = (subAttr.parentValue || "").toLowerCase().includes(searchLower);
-
-        // Also search in Parent Attribute Name if possible
-        const parentAttrName = subAttr.parentAttribute
-          ? (attributeTypes.find(a => a._id === subAttr.parentAttribute)?.attributeName || "").toLowerCase()
-          : "";
-        const matchesParent = parentAttrName.includes(searchLower);
-
-        if (!matchesName && !matchesLabel && !matchesSystemName && !matchesParentValue && !matchesParent) return false;
-      }
-
-      // 2. Filter by Attribute
-      if (subAttributeFilter.attributeId) {
-        // subAttr.parentAttribute is the ID
-        if (subAttr.parentAttribute !== subAttributeFilter.attributeId) return false;
-      }
-
-      // 3. Filter by Parent Value
-      if (subAttributeFilter.parentValue) {
-        if (subAttr.parentValue !== subAttributeFilter.parentValue) return false;
-      }
-
-      // 4. Filter by Status
-      if (subAttributeStatusFilter !== "all") {
-        const isEnabled = subAttr.isEnabled !== false; // Default to true if undefined
-        if (subAttributeStatusFilter === "enabled" && !isEnabled) return false;
-        if (subAttributeStatusFilter === "disabled" && isEnabled) return false;
-      }
-
-      return true;
-    });
-  }, [subAttributes, subAttributeSearch, subAttributeFilter, subAttributeStatusFilter, attributeTypes]);
 
   useEffect(() => {
     // Check if user is admin
@@ -999,7 +661,7 @@ const AdminDashboard: React.FC = () => {
     fetchCategories();
     fetchProducts();
     fetchSubCategories();
-    fetchUsers();
+    // fetchUsers(); // Moved to ManageUsers
     fetchUploads();
     fetchOrders();
   }, [navigate]);
@@ -1010,20 +672,9 @@ const AdminDashboard: React.FC = () => {
       // Fetch fresh attribute types when products tab is activated
       // This ensures attribute types are up-to-date after visiting attribute types page
       fetchAttributeTypes();
-      // Also fetch sequences and departments for product form
-      fetchSequences();
-      fetchDepartments();
+
     }
-    if (activeTab === "departments") {
-      fetchDepartments();
-      fetchEmployees();
-    }
-    if (activeTab === "sequences") {
-      fetchSequences();
-      fetchDepartments();
-      fetchCategories();
-      fetchSubCategories();
-    }
+
     if (activeTab === "categories") {
       // Fetch available parent categories when opening category form
       fetchAvailableParentCategories();
@@ -1034,11 +685,15 @@ const AdminDashboard: React.FC = () => {
       fetchCategories();
     }
     if (activeTab === "attribute-rules") {
-      fetchAttributeRules();
       fetchAttributeTypes();
       fetchCategories();
       fetchProducts();
-      fetchSubAttributes();
+    }
+    if (activeTab === "sub-attributes") {
+      fetchAttributeTypes();
+    }
+    if (activeTab === "attribute-types") {
+      fetchAttributeTypes();
     }
   }, [activeTab]);
 
@@ -1072,7 +727,7 @@ const AdminDashboard: React.FC = () => {
       );
       // If parent doesn't match the selected type, clear it
       if (parentCategory && parentCategory.type !== categoryForm.type) {
-        setCategoryForm({ ...categoryForm, parent: "" });
+        setCategoryForm({ ...categoryForm, parent: "", existingImage: "" });
       }
     }
   }, [categoryForm.type, availableParentCategories]);
@@ -1332,6 +987,7 @@ const AdminDashboard: React.FC = () => {
         setProductForm({
           ...productForm,
           category: singleCategory._id,
+          existingImage: productForm.existingImage || "",
         });
         // Trigger category selection logic
         setSelectedCategoryPath([singleCategory._id]);
@@ -1348,6 +1004,7 @@ const AdminDashboard: React.FC = () => {
         setProductForm({
           ...productForm,
           subcategory: singleSubcategory._id,
+          existingImage: productForm.existingImage || "",
         });
       }
     }
@@ -1362,57 +1019,8 @@ const AdminDashboard: React.FC = () => {
     }
   }, [productForm.category, productForm.subcategory, activeTab]);
 
-  // Auto-select department in sequence form if only one available
-  useEffect(() => {
-    const enabledDepartments = departments.filter((d: any) => d.isEnabled);
-    if (enabledDepartments.length === 1 && sequenceForm.selectedDepartments.length === 0) {
-      const singleDept = enabledDepartments[0];
-      if (singleDept && singleDept._id) {
-        setSequenceForm({
-          ...sequenceForm,
-          selectedDepartments: [singleDept._id],
-        });
-      }
-    }
-  }, [departments, sequenceForm.selectedDepartments.length]);
 
-  // Auto-select category in sequence form if only one available
-  useEffect(() => {
-    if (sequenceForm.printType) {
-      const filtered = categories.filter((cat) => {
-        if (sequenceForm.printType === "digital") {
-          return cat.type === "Digital" || cat.type === "digital";
-        } else if (sequenceForm.printType === "bulk") {
-          return cat.type === "Bulk" || cat.type === "bulk";
-        }
-        return false;
-      }).filter(cat => !cat.parent);
 
-      if (filtered.length === 1 && !sequenceForm.category) {
-        const singleCategory = filtered[0];
-        if (singleCategory && singleCategory._id) {
-          setSequenceForm({
-            ...sequenceForm,
-            category: singleCategory._id,
-          });
-        }
-      }
-    }
-  }, [sequenceForm.printType, categories, sequenceForm.category]);
-
-  const getAuthHeaders = (includeContentType = false) => {
-    const token = localStorage.getItem("token");
-    const headers: Record<string, string> = {
-      Authorization: `Bearer ${token}`,
-      Accept: "application/json",
-    };
-
-    if (includeContentType) {
-      headers["Content-Type"] = "application/json";
-    }
-
-    return headers;
-  };
 
   // Generate unique slug by checking existing categories and subcategories
   const generateUniqueSlug = (baseSlug: string, excludeCategoryId?: string | null, excludeSubCategoryId?: string | null): string => {
@@ -1658,6 +1266,33 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
+  // Fetch products for a specific category/subcategory (for "Existing Products" list in AddProductForm)
+  const fetchCategoryProducts = async (categoryId: string) => {
+    if (!categoryId) {
+      setCategoryProducts([]);
+      return;
+    }
+
+    try {
+      setLoadingCategoryProducts(true);
+      const response = await fetch(`${API_BASE_URL}/products/category/${categoryId}`, {
+        headers: getAuthHeaders(),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch category products: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      setCategoryProducts(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("Error fetching category products:", err);
+      // Don't show global error for this auxiliary list
+    } finally {
+      setLoadingCategoryProducts(false);
+    }
+  };
+
   // Filter products by search query and category/subcategory
   useEffect(() => {
     // Show filtering loader if there's an active filter or search query
@@ -1675,18 +1310,28 @@ const AdminDashboard: React.FC = () => {
 
     let filtered = products;
 
-    // Filter by category/subcategory - check both category and subcategory fields
-    if (selectedSubCategoryFilter) {
+    // Filter by category
+    if (selectedCategoryFilter) {
       filtered = filtered.filter((product) => {
         const productCategoryId = product.category && typeof product.category === 'object'
           ? product.category._id
           : product.category;
+        return productCategoryId === selectedCategoryFilter;
+      });
+    }
+
+    // Filter by subcategory
+    if (selectedSubCategoryFilter) {
+      filtered = filtered.filter((product) => {
         const productSubcategoryId = product.subcategory && typeof product.subcategory === 'object'
           ? product.subcategory._id
           : product.subcategory;
-        // Match if product's category or subcategory matches the selected filter
-        return productCategoryId === selectedSubCategoryFilter ||
-          productSubcategoryId === selectedSubCategoryFilter;
+        // Also check if it's a nested subcategory
+        const productNestedSubcategoryId = product.nestedSubcategory && typeof product.nestedSubcategory === 'object'
+          ? product.nestedSubcategory._id
+          : product.nestedSubcategory;
+
+        return productSubcategoryId === selectedSubCategoryFilter || productNestedSubcategoryId === selectedSubCategoryFilter;
       });
     }
 
@@ -1708,7 +1353,7 @@ const AdminDashboard: React.FC = () => {
 
     setFilteredProducts(filtered);
     setFilteringProducts(false);
-  }, [products, selectedSubCategoryFilter, productSearchQuery]);
+  }, [products, selectedCategoryFilter, selectedSubCategoryFilter, productSearchQuery]);
 
   const handleSubCategoryFilterChange = async (categoryId: string) => {
     setSelectedSubCategoryFilter(categoryId);
@@ -1906,6 +1551,8 @@ const AdminDashboard: React.FC = () => {
         ...prev,
         category: "",
         subcategory: "",
+        nestedSubcategory: "",
+        existingImage: prev.existingImage || "",
       }));
       setSelectedCategoryPath([]);
       setCategoryChildrenMap({});
@@ -2786,6 +2433,10 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
+
+
+
+
   const handleAddSubCategoryToCategory = (categoryId: string) => {
     const category = categories.find(cat => cat._id === categoryId);
     if (category) {
@@ -2799,6 +2450,7 @@ const AdminDashboard: React.FC = () => {
         slug: "",
         sortOrder: getNextSubCategorySortOrder(categoryId),
         image: null,
+        existingImage: "",
       });
       setEditingSubCategoryId(null);
       setEditingSubCategoryImage(null);
@@ -2828,6 +2480,7 @@ const AdminDashboard: React.FC = () => {
         ...productForm,
         category: categoryId,
         subcategory: subcategoryId || "", // Set subcategory if provided
+        existingImage: productForm.existingImage || "",
       });
 
       // Filter categories by type
@@ -2974,23 +2627,7 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
-  const fetchUsers = async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/admin/users`, {
-        headers: getAuthHeaders(),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch users: ${response.status} ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      setUsers(data);
-    } catch (err) {
-      console.error("Error fetching users:", err);
-      setError(err instanceof Error ? err.message : "Failed to fetch users");
-    }
-  };
+  // fetchUsers moved to ManageUsers component
 
   const fetchPrintPartnerRequests = async () => {
     try {
@@ -3143,651 +2780,7 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
-  // Attribute Rules Management Functions
-  const fetchAttributeRules = async () => {
-    setLoadingAttributeRules(true);
-    try {
-      const response = await fetch(`${API_BASE_URL}/admin/attribute-rules`, {
-        method: "GET",
-        headers: getAuthHeaders(),
-      });
 
-      if (!response.ok) {
-        throw new Error(`Failed to fetch attribute rules: ${response.status} ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      setAttributeRules(Array.isArray(data) ? data : []);
-    } catch (err) {
-      console.error("Error fetching attribute rules:", err);
-      setError(err instanceof Error ? err.message : "Failed to fetch attribute rules");
-      setAttributeRules([]);
-    } finally {
-      setLoadingAttributeRules(false);
-    }
-  };
-
-  const handleRuleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-    setSuccess(null);
-
-    try {
-      // Validation
-      if (!ruleForm.name.trim()) {
-        setError("Rule name is required");
-        setLoading(false);
-        return;
-      }
-
-      if (!ruleForm.when.attribute || !ruleForm.when.value) {
-        setError("WHEN condition (attribute and value) is required");
-        setLoading(false);
-        return;
-      }
-
-      if (ruleForm.then.length === 0) {
-        setError("At least one THEN action is required");
-        setLoading(false);
-        return;
-      }
-
-      // Validate actions
-      for (const action of ruleForm.then) {
-        if (!action.targetAttribute) {
-          setError(`Action "${action.action}" requires a target attribute`);
-          setLoading(false);
-          return;
-        }
-
-        if (action.targetAttribute === ruleForm.when.attribute) {
-          setError("Target attribute cannot be the same as WHEN attribute");
-          setLoading(false);
-          return;
-        }
-
-        if (action.action === "SHOW_ONLY" && (!action.allowedValues || action.allowedValues.length === 0)) {
-          setError(`SHOW_ONLY action requires at least one allowed value`);
-          setLoading(false);
-          return;
-        }
-
-        if (action.action === "SET_DEFAULT" && !action.defaultValue) {
-          setError(`SET_DEFAULT action requires a default value`);
-          setLoading(false);
-          return;
-        }
-
-        if (action.action === "QUANTITY") {
-          if (action.minQuantity === undefined && action.maxQuantity === undefined && action.stepQuantity === undefined) {
-            setError(`QUANTITY action requires at least one of: Min, Max, or Step`);
-            setLoading(false);
-            return;
-          }
-
-          if (action.minQuantity !== undefined && action.maxQuantity !== undefined) {
-            if (action.minQuantity > action.maxQuantity) {
-              setError(`QUANTITY action: Min must be less than or equal to Max`);
-              setLoading(false);
-              return;
-            }
-          }
-
-          if (action.stepQuantity !== undefined && action.stepQuantity <= 0) {
-            setError(`QUANTITY action: Step must be greater than 0`);
-            setLoading(false);
-            return;
-          }
-        }
-      }
-
-      // Validate scope
-      if (ruleForm.scope === "CATEGORY" && !ruleForm.scopeRefId) {
-        setError("Category scope requires a category selection");
-        setLoading(false);
-        return;
-      }
-
-      if (ruleForm.scope === "PRODUCT" && !ruleForm.scopeRefId) {
-        setError("Product scope requires a product selection");
-        setLoading(false);
-        return;
-      }
-
-      // Convert attributeNames to IDs for backend
-      const whenAttribute = attributeTypes.find(attr => attr._id === ruleForm.when.attribute);
-      if (!whenAttribute) {
-        setError("WHEN attribute not found");
-        setLoading(false);
-        return;
-      }
-
-      // Map scope to backend format
-      const payload: any = {
-        name: ruleForm.name,
-        when: {
-          attribute: whenAttribute._id, // Convert attributeName to ID
-          value: ruleForm.when.value,
-        },
-        then: ruleForm.then.map((action) => {
-          const targetAttr = attributeTypes.find(attr => attr._id === action.targetAttribute || attr.attributeName === action.targetAttribute);
-          if (!targetAttr) {
-            throw new Error(`Target attribute "${action.targetAttribute}" not found`);
-          }
-          return {
-            action: action.action,
-            targetAttribute: targetAttr._id, // Convert attributeName to ID
-            allowedValues: action.allowedValues || [],
-            defaultValue: action.defaultValue || null,
-            minQuantity: action.minQuantity,
-            maxQuantity: action.maxQuantity,
-            stepQuantity: action.stepQuantity,
-          };
-        }),
-        priority: ruleForm.priority || 0,
-        isActive: ruleForm.isActive,
-      };
-
-      // Add scope-specific fields
-      if (ruleForm.scope === "CATEGORY") {
-        payload.applicableCategory = ruleForm.scopeRefId;
-      } else if (ruleForm.scope === "PRODUCT") {
-        payload.applicableProduct = ruleForm.scopeRefId;
-      }
-      // GLOBAL scope: no applicableCategory or applicableProduct
-
-      const url = editingRuleId
-        ? `${API_BASE_URL}/admin/attribute-rules/${editingRuleId}`
-        : `${API_BASE_URL}/admin/attribute-rules`;
-
-      const method = editingRuleId ? "PUT" : "POST";
-
-      const response = await fetch(url, {
-        method,
-        headers: {
-          ...getAuthHeaders(true),
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `Failed to ${editingRuleId ? 'update' : 'create'} rule`);
-      }
-
-      setSuccess(`Rule ${editingRuleId ? 'updated' : 'created'} successfully`);
-      await fetchAttributeRules();
-      handleCancelRuleEdit();
-    } catch (err) {
-      console.error("Error saving attribute rule:", err);
-      setError(err instanceof Error ? err.message : `Failed to ${editingRuleId ? 'update' : 'create'} rule`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDeleteRule = async (ruleId: string) => {
-    if (!window.confirm("Are you sure you want to delete this rule?")) {
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await fetch(`${API_BASE_URL}/admin/attribute-rules/${ruleId}`, {
-        method: "DELETE",
-        headers: getAuthHeaders(),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to delete rule");
-      }
-
-      setSuccess("Rule deleted successfully");
-      await fetchAttributeRules();
-    } catch (err) {
-      console.error("Error deleting rule:", err);
-      setError(err instanceof Error ? err.message : "Failed to delete rule");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleCancelRuleEdit = () => {
-    setEditingRuleId(null);
-    setShowRuleBuilder(false);
-    setRuleForm({
-      name: "",
-      scope: "GLOBAL",
-      scopeRefId: "",
-      when: {
-        attribute: "",
-        value: "",
-      },
-      then: [],
-      priority: 0,
-      isActive: true,
-    });
-  };
-
-  const handleDuplicateRule = (rule: any) => {
-    // Map backend rule to form format similar to handleEditRule, but treat as new rule
-    const whenAttributeId = typeof rule.when.attribute === 'object' && rule.when.attribute !== null
-      ? rule.when.attribute._id
-      : rule.when.attribute;
-
-    let scopeRefId = "";
-    if (rule.applicableProduct) {
-      scopeRefId = typeof rule.applicableProduct === 'object' && rule.applicableProduct !== null
-        ? rule.applicableProduct._id
-        : rule.applicableProduct;
-    } else if (rule.applicableCategory) {
-      scopeRefId = typeof rule.applicableCategory === 'object' && rule.applicableCategory !== null
-        ? rule.applicableCategory._id
-        : rule.applicableCategory;
-    }
-
-    const duplicatedActions = (rule.then || [])
-      .filter((action: any) => action && action.targetAttribute)
-      .map((action: any) => {
-        const targetAttributeId = typeof action.targetAttribute === 'object' && action.targetAttribute !== null
-          ? action.targetAttribute._id
-          : action.targetAttribute;
-
-        return {
-          action: action.action,
-          targetAttribute: targetAttributeId,
-          allowedValues: action.allowedValues || [],
-          defaultValue: action.defaultValue || null,
-          minQuantity: action.minQuantity,
-          maxQuantity: action.maxQuantity,
-          stepQuantity: action.stepQuantity,
-        };
-      });
-
-    setRuleForm({
-      name: `${rule.name || "Untitled Rule"} (Copy)`,
-      scope: rule.applicableProduct ? "PRODUCT" : (rule.applicableCategory ? "CATEGORY" : "GLOBAL"),
-      scopeRefId,
-      when: {
-        attribute: whenAttributeId,
-        value: rule.when.value || "",
-      },
-      then: duplicatedActions,
-      priority: rule.priority || 0,
-      isActive: rule.isActive !== undefined ? rule.isActive : true,
-    });
-
-    // Clear editing id so submit creates a new rule
-    setEditingRuleId(null);
-    setShowRuleBuilder(true);
-  };
-
-  const handleEditRule = (rule: any) => {
-    // Map backend rule to form format
-    const whenAttributeId = typeof rule.when.attribute === 'object' && rule.when.attribute !== null
-      ? rule.when.attribute._id
-      : rule.when.attribute;
-
-    // Extract scopeRefId properly (could be object or string)
-    let scopeRefId = "";
-    if (rule.applicableProduct) {
-      scopeRefId = typeof rule.applicableProduct === 'object' && rule.applicableProduct !== null ? rule.applicableProduct._id : rule.applicableProduct;
-    } else if (rule.applicableCategory) {
-      scopeRefId = typeof rule.applicableCategory === 'object' && rule.applicableCategory !== null ? rule.applicableCategory._id : rule.applicableCategory;
-    }
-
-    setRuleForm({
-      name: rule.name || "",
-      scope: rule.applicableProduct ? "PRODUCT" : (rule.applicableCategory ? "CATEGORY" : "GLOBAL"),
-      scopeRefId: scopeRefId,
-      when: {
-        attribute: whenAttributeId,
-        value: rule.when.value || "",
-      },
-      then: (rule.then || []).filter((action: any) => action && action.targetAttribute).map((action: any) => {
-        const targetAttributeId = typeof action.targetAttribute === 'object' && action.targetAttribute !== null
-          ? action.targetAttribute._id
-          : action.targetAttribute;
-
-        return {
-          action: action.action,
-          targetAttribute: targetAttributeId,
-          allowedValues: action.allowedValues || [],
-          defaultValue: action.defaultValue || null,
-          minQuantity: action.minQuantity,
-          maxQuantity: action.maxQuantity,
-          stepQuantity: action.stepQuantity,
-        };
-      }),
-      priority: rule.priority || 0,
-      isActive: rule.isActive !== undefined ? rule.isActive : true,
-    });
-    setEditingRuleId(rule._id);
-    setShowRuleBuilder(true);
-  };
-
-  // Sub-Attribute Management Functions
-  const fetchSubAttributes = async (customFilters?: { attributeId?: string; parentValue?: string }) => {
-    setLoadingSubAttributes(true);
-    try {
-      const filters = customFilters || subAttributeFilter;
-      const params = new URLSearchParams();
-      if (filters.attributeId) {
-        params.append('attributeId', filters.attributeId);
-      }
-      if (filters.parentValue) {
-        params.append('parentValue', filters.parentValue);
-      }
-
-      const url = `${API_BASE_URL}/admin/sub-attributes${params.toString() ? `?${params.toString()}` : ''}`;
-      const response = await fetch(url, {
-        method: "GET",
-        headers: getAuthHeaders(),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch sub-attributes: ${response.status} ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      setSubAttributes(Array.isArray(data) ? data : []);
-    } catch (err) {
-      console.error("Error fetching sub-attributes:", err);
-      setError(err instanceof Error ? err.message : "Failed to fetch sub-attributes");
-      setSubAttributes([]);
-    } finally {
-      setLoadingSubAttributes(false);
-    }
-  };
-
-  const handleSubAttributeSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-    setSuccess(null);
-
-    try {
-      // Validation
-      if (!subAttributeForm.parentAttribute) {
-        setError("Parent attribute is required");
-        setLoading(false);
-        return;
-      }
-
-      if (!subAttributeForm.parentValue) {
-        setError("Parent value is required");
-        setLoading(false);
-        return;
-      }
-
-      // Convert attributeName to ID
-      const parentAttr = attributeTypes.find(attr => attr._id === subAttributeForm.parentAttribute);
-      if (!parentAttr) {
-        setError("Parent attribute not found");
-        setLoading(false);
-        return;
-      }
-
-      // If editing, update the existing one and optionally create new ones
-      if (editingSubAttributeId) {
-        if (!subAttributeForm.value || !subAttributeForm.label) {
-          setError("Value and label are required for the sub-attribute being edited");
-          setLoading(false);
-          return;
-        }
-
-        // Update the existing sub-attribute
-        const formData = new FormData();
-        formData.append("parentAttribute", parentAttr._id);
-        formData.append("parentValue", subAttributeForm.parentValue);
-        formData.append("value", subAttributeForm.value);
-        formData.append("label", subAttributeForm.label);
-        formData.append("priceAdd", subAttributeForm.priceAdd.toString());
-        formData.append("isEnabled", subAttributeForm.isEnabled.toString());
-        formData.append("systemName", subAttributeForm.systemName || "");
-
-        if (subAttributeForm.image) {
-          formData.append("image", subAttributeForm.image);
-        }
-
-        const updateResponse = await fetch(`${API_BASE_URL}/admin/sub-attributes/${editingSubAttributeId}`, {
-          method: "PUT",
-          headers: {
-            Authorization: getAuthHeaders().Authorization,
-            Accept: "application/json",
-          },
-          body: formData,
-        });
-
-        if (!updateResponse.ok) {
-          const errorData = await updateResponse.json();
-          throw new Error(errorData.error || "Failed to update sub-attribute");
-        }
-
-        // Check if there are new sub-attributes to create
-        const validNewSubAttributes = multipleSubAttributes.filter(
-          (sa) => sa.value.trim() && sa.label.trim()
-        );
-
-        let updateSuccess = true;
-        let createSuccessCount = 0;
-        let createErrorCount = 0;
-        const createErrors: string[] = [];
-
-        // Create new sub-attributes if any
-        if (validNewSubAttributes.length > 0) {
-          for (const subAttr of validNewSubAttributes) {
-            try {
-              const createFormData = new FormData();
-              createFormData.append("parentAttribute", parentAttr._id);
-              createFormData.append("parentValue", subAttributeForm.parentValue);
-              createFormData.append("value", subAttr.value.trim());
-              createFormData.append("label", subAttr.label.trim());
-              createFormData.append("priceAdd", subAttr.priceAdd.toString());
-              createFormData.append("isEnabled", subAttr.isEnabled.toString());
-              createFormData.append("systemName", subAttr.systemName || "");
-
-              if (subAttr.image) {
-                createFormData.append("image", subAttr.image);
-              }
-
-              const createResponse = await fetch(`${API_BASE_URL}/admin/sub-attributes`, {
-                method: "POST",
-                headers: {
-                  Authorization: getAuthHeaders().Authorization,
-                  Accept: "application/json",
-                },
-                body: createFormData,
-              });
-
-              if (!createResponse.ok) {
-                const errorData = await createResponse.json();
-                throw new Error(errorData.error || "Failed to create sub-attribute");
-              }
-
-              createSuccessCount++;
-            } catch (err) {
-              createErrorCount++;
-              createErrors.push(`${subAttr.label}: ${err instanceof Error ? err.message : "Unknown error"}`);
-            }
-          }
-        }
-
-        // Set success/error messages
-        if (createErrorCount > 0) {
-          setError(
-            `Updated 1 sub-attribute. Created ${createSuccessCount} new sub-attribute(s), but ${createErrorCount} failed: ${createErrors.join("; ")}`
-          );
-        } else if (createSuccessCount > 0) {
-          setSuccess(`Successfully updated 1 sub-attribute and created ${createSuccessCount} new sub-attribute(s)`);
-        } else {
-          setSuccess("Sub-attribute updated successfully");
-        }
-
-        await fetchSubAttributes();
-        await fetchAttributeTypes();
-        handleCancelSubAttributeEdit();
-      } else {
-        // Create mode - check if using multiple sub-attributes
-        const validSubAttributes = multipleSubAttributes.filter(
-          (sa) => sa.value.trim() && sa.label.trim()
-        );
-
-        if (validSubAttributes.length === 0) {
-          setError("At least one sub-attribute with value and label is required");
-          setLoading(false);
-          return;
-        }
-
-        // Create all sub-attributes
-        let successCount = 0;
-        let errorCount = 0;
-        const errors: string[] = [];
-
-        for (const subAttr of validSubAttributes) {
-          try {
-            const formData = new FormData();
-            formData.append("parentAttribute", parentAttr._id);
-            formData.append("parentValue", subAttributeForm.parentValue);
-            formData.append("value", subAttr.value.trim());
-            formData.append("label", subAttr.label.trim());
-            formData.append("priceAdd", subAttr.priceAdd.toString());
-            formData.append("isEnabled", subAttr.isEnabled.toString());
-            formData.append("systemName", subAttr.systemName || "");
-
-            if (subAttr.image) {
-              formData.append("image", subAttr.image);
-            }
-
-            const response = await fetch(`${API_BASE_URL}/admin/sub-attributes`, {
-              method: "POST",
-              headers: {
-                Authorization: getAuthHeaders().Authorization,
-                Accept: "application/json",
-              },
-              body: formData,
-            });
-
-            if (!response.ok) {
-              const errorData = await response.json();
-              throw new Error(errorData.error || "Failed to create sub-attribute");
-            }
-
-            successCount++;
-          } catch (err) {
-            errorCount++;
-            errors.push(`${subAttr.label}: ${err instanceof Error ? err.message : "Unknown error"}`);
-          }
-        }
-
-        if (errorCount > 0) {
-          setError(
-            `Created ${successCount} sub-attribute(s), but ${errorCount} failed: ${errors.join("; ")}`
-          );
-        } else {
-          setSuccess(`Successfully created ${successCount} sub-attribute(s)`);
-        }
-
-        await fetchSubAttributes();
-        await fetchAttributeTypes();
-        handleCancelSubAttributeEdit();
-      }
-    } catch (err) {
-      console.error("Error saving sub-attribute:", err);
-      setError(err instanceof Error ? err.message : "Failed to save sub-attribute");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDeleteSubAttribute = async (subAttributeId: string) => {
-    if (!window.confirm("Are you sure you want to delete this sub-attribute?")) {
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await fetch(`${API_BASE_URL}/admin/sub-attributes/${subAttributeId}`, {
-        method: "DELETE",
-        headers: getAuthHeaders(),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to delete sub-attribute");
-      }
-
-      setSuccess("Sub-attribute deleted successfully");
-      await fetchSubAttributes();
-      // Refresh attribute types to reflect updated hasSubAttributes field
-      await fetchAttributeTypes();
-    } catch (err) {
-      console.error("Error deleting sub-attribute:", err);
-      setError(err instanceof Error ? err.message : "Failed to delete sub-attribute");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleCancelSubAttributeEdit = () => {
-    setEditingSubAttributeId(null);
-    setShowSubAttributeForm(false);
-    setSubAttributeForm({
-      parentAttribute: "",
-      parentValue: "",
-      value: "",
-      label: "",
-      image: null,
-      priceAdd: 0,
-      isEnabled: true,
-      systemName: "",
-    });
-    // Reset multiple sub-attributes form
-    setMultipleSubAttributes([{ value: "", label: "", image: null, priceAdd: 0, isEnabled: true, systemName: "" }]);
-  };
-
-  const addSubAttributeRow = () => {
-    setMultipleSubAttributes([
-      ...multipleSubAttributes,
-      { value: "", label: "", image: null, priceAdd: 0, isEnabled: true, systemName: "" },
-    ]);
-  };
-
-  const removeSubAttributeRow = (index: number) => {
-    if (multipleSubAttributes.length > 1) {
-      setMultipleSubAttributes(multipleSubAttributes.filter((_, i) => i !== index));
-    }
-  };
-
-  const updateSubAttributeRow = (index: number, field: string, value: any) => {
-    const updated = [...multipleSubAttributes];
-    updated[index] = { ...updated[index], [field]: value };
-    setMultipleSubAttributes(updated);
-  };
-
-  const handleEditSubAttribute = (subAttr: any) => {
-    // Extract the parent attribute ID (not the name)
-    const parentAttrId = typeof subAttr.parentAttribute === 'object' && subAttr.parentAttribute !== null
-      ? subAttr.parentAttribute._id
-      : subAttr.parentAttribute;
-
-    setSubAttributeForm({
-      parentAttribute: parentAttrId || "",
-      parentValue: subAttr.parentValue || "",
-      value: subAttr.value || "",
-      label: subAttr.label || "",
-      image: null, // File input - don't pre-fill (existing image shown separately)
-      priceAdd: subAttr.priceAdd || 0,
-      isEnabled: subAttr.isEnabled !== undefined ? subAttr.isEnabled : true,
-      systemName: subAttr.systemName || "",
-    });
-    // Initialize with one empty row for adding new sub-attributes
-    setMultipleSubAttributes([{ value: "", label: "", image: null, priceAdd: 0, isEnabled: true, systemName: "" }]);
-    setEditingSubAttributeId(subAttr._id);
-    setShowSubAttributeForm(true);
-  };
 
   // Attribute Type Management Functions
   const fetchAttributeTypes = async (categoryId?: string, subCategoryId?: string) => {
@@ -4225,6 +3218,7 @@ const AdminDashboard: React.FC = () => {
         isCommonAttribute: true,
         applicableCategories: [] as string[],
         applicableSubCategories: [] as string[],
+        existingImage: null,
       });
       const wasCreatingFromModal = showCreateAttributeModal;
       const createdAttributeId = data?._id || data?.attributeType?._id;
@@ -4351,6 +3345,7 @@ const AdminDashboard: React.FC = () => {
           systemName: attributeType.systemName || "",
           inputStyle: attributeType.inputStyle || "DROPDOWN",
           attributeImage: null, // File will be set separately if needed
+          existingImage: attributeType.attributeImage || attributeType.image || null,
           effectDescription: attributeType.effectDescription || "",
           simpleOptions: simpleOptions,
           isPriceEffect: isPriceEffect,
@@ -4448,6 +3443,7 @@ const AdminDashboard: React.FC = () => {
           systemName: attributeType.systemName || "",
           inputStyle: attributeType.inputStyle || "DROPDOWN",
           attributeImage: null,
+          existingImage: attributeType.attributeImage || attributeType.image || null,
           effectDescription: attributeType.effectDescription || "",
           simpleOptions: simpleOptions,
           isPriceEffect: isPriceEffect,
@@ -4607,326 +3603,7 @@ const AdminDashboard: React.FC = () => {
   };
 
   // Department Management Functions
-  const fetchDepartments = async () => {
-    setLoadingDepartments(true);
-    try {
-      const response = await fetch(`${API_BASE_URL}/departments`, {
-        method: "GET",
-        headers: getAuthHeaders(),
-      });
 
-      if (!response.ok) {
-        throw new Error(`Failed to fetch departments: ${response.status} ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      setDepartments(data.data || data || []);
-    } catch (err) {
-      console.error("Error fetching departments:", err);
-      setError(err instanceof Error ? err.message : "Failed to fetch departments");
-      setDepartments([]);
-    } finally {
-      setLoadingDepartments(false);
-    }
-  };
-
-  const handleDepartmentSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-    setSuccess(null);
-
-    try {
-      setDepartmentFormErrors({});
-      if (!departmentForm.name.trim()) {
-        setDepartmentFormErrors({ name: "Department name is required" });
-        setError("Department name is required");
-        setLoading(false);
-        scrollToInvalidField("name", "department-name");
-        return;
-      }
-
-      const url = editingDepartmentId
-        ? `${API_BASE_URL}/departments/${editingDepartmentId}`
-        : `${API_BASE_URL}/departments`;
-      const method = editingDepartmentId ? "PUT" : "POST";
-
-      const response = await fetch(url, {
-        method,
-        headers: {
-          ...getAuthHeaders(),
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(departmentForm),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || `Failed to ${editingDepartmentId ? "update" : "create"} department`);
-      }
-
-      setSuccess(editingDepartmentId ? "Department updated successfully" : "Department created successfully");
-      setDepartmentForm({
-        name: "",
-        description: "",
-        isEnabled: true,
-        operators: [],
-      });
-      setEditingDepartmentId(null);
-      fetchDepartments();
-    } catch (err) {
-      console.error("Error saving department:", err);
-      setError(err instanceof Error ? err.message : "Failed to save department");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleEditDepartment = (departmentId: string) => {
-    const department = departments.find((d) => d._id === departmentId);
-    if (department) {
-      // Auto-scroll to top when edit button is clicked
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-
-      // Extract operator IDs, handling both populated objects and plain IDs
-      const operatorIds = department.operators?.map((op: any) => {
-        if (typeof op === 'object' && op !== null) {
-          return op._id || op.id || String(op);
-        }
-        return String(op);
-      }) || [];
-
-      setDepartmentForm({
-        name: department.name || "",
-        description: department.description || "",
-        isEnabled: department.isEnabled !== undefined ? department.isEnabled : true,
-        operators: operatorIds,
-      });
-      setEditingDepartmentId(departmentId);
-    }
-  };
-
-  const handleDeleteDepartment = async (departmentId: string) => {
-    if (!window.confirm("Are you sure you want to delete this department? This action cannot be undone if there are active orders.")) {
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const response = await fetch(`${API_BASE_URL}/departments/${departmentId}`, {
-        method: "DELETE",
-        headers: getAuthHeaders(),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to delete department");
-      }
-
-      setSuccess("Department deleted successfully");
-      fetchDepartments();
-    } catch (err) {
-      console.error("Error deleting department:", err);
-      setError(err instanceof Error ? err.message : "Failed to delete department");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Sequence Management Functions
-  const fetchSequences = async () => {
-    setLoadingSequences(true);
-    try {
-      const response = await fetch(`${API_BASE_URL}/sequences`, {
-        headers: getAuthHeaders(),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch sequences");
-      }
-
-      const data = await response.json();
-      setSequences(data.data || data || []);
-    } catch (err) {
-      console.error("Error fetching sequences:", err);
-      setError(err instanceof Error ? err.message : "Failed to fetch sequences");
-    } finally {
-      setLoadingSequences(false);
-    }
-  };
-
-  const handleSequenceSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-    setSuccess(null);
-
-    try {
-      setSequenceFormErrors({});
-      let hasErrors = false;
-      const errors: typeof sequenceFormErrors = {};
-
-      if (!sequenceForm.name.trim()) {
-        errors.name = "Sequence name is required";
-        hasErrors = true;
-      }
-      if (!sequenceForm.printType) {
-        errors.printType = "Print type is required";
-        hasErrors = true;
-      }
-      // Require category for both digital and bulk print
-      if (!sequenceForm.category) {
-        errors.category = "Category is required";
-        hasErrors = true;
-      }
-      // Subcategory is optional for both digital and bulk print
-      if (!sequenceForm.selectedDepartments || sequenceForm.selectedDepartments.length === 0) {
-        errors.selectedDepartments = "At least one department must be selected";
-        hasErrors = true;
-      }
-
-      if (hasErrors) {
-        setSequenceFormErrors(errors);
-        setError("Please fix the errors below");
-        setLoading(false);
-        const firstErrorField = Object.keys(errors)[0];
-        if (firstErrorField === 'name') scrollToInvalidField("name", "sequence-name");
-        else if (firstErrorField === 'printType') scrollToInvalidField("printType", "sequence-printType");
-        else if (firstErrorField === 'category') scrollToInvalidField("category", "sequence-category");
-        else if (firstErrorField === 'selectedDepartments') scrollToInvalidField("selectedDepartments", "sequence-departments");
-        return;
-      }
-
-      const url = editingSequenceId
-        ? `${API_BASE_URL}/sequences/${editingSequenceId}`
-        : `${API_BASE_URL}/sequences`;
-      const method = editingSequenceId ? "PUT" : "POST";
-
-      const response = await fetch(url, {
-        method,
-        headers: {
-          ...getAuthHeaders(),
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          name: sequenceForm.name,
-          printType: sequenceForm.printType,
-          category: sequenceForm.category || null,
-          subcategory: sequenceForm.subcategory || null,
-          departments: sequenceForm.selectedDepartments,
-          attributes: sequenceForm.selectedAttributes || [],
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || `Failed to ${editingSequenceId ? "update" : "create"} sequence`);
-      }
-
-      setSuccess(editingSequenceId ? "Sequence updated successfully" : "Sequence created successfully");
-      setSequenceForm({
-        name: "",
-        printType: "",
-        category: "",
-        subcategory: "",
-        selectedDepartments: [],
-        selectedAttributes: [],
-      });
-      setEditingSequenceId(null);
-      fetchSequences();
-    } catch (err) {
-      console.error("Error saving sequence:", err);
-      setError(err instanceof Error ? err.message : "Failed to save sequence");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleEditSequence = (sequenceId: string) => {
-    const sequence = (sequences || []).find((s) => s._id === sequenceId);
-    if (sequence) {
-      // Auto-scroll to top when edit button is clicked
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-
-      // Determine print type from category type, or default to digital if category exists
-      let printType = "";
-      if (sequence.category) {
-        const categoryObj = typeof sequence.category === 'object' ? sequence.category : categories.find(c => c._id === sequence.category);
-        if (categoryObj && (categoryObj.type === "Digital" || categoryObj.type === "digital")) {
-          printType = "digital";
-        } else {
-          printType = "bulk";
-        }
-      } else {
-        // If no category, it might be bulk print
-        printType = "bulk";
-      }
-
-      setSequenceForm({
-        name: sequence.name || "",
-        printType: printType,
-        category: sequence.category && typeof sequence.category === 'object' && sequence.category !== null ? sequence.category._id : sequence.category || "",
-        subcategory: sequence.subcategory && typeof sequence.subcategory === 'object' && sequence.subcategory !== null ? sequence.subcategory._id : sequence.subcategory || "",
-        selectedDepartments: (sequence.departments || []).map((d: any) => {
-          if (!d || !d.department) return null;
-          return typeof d.department === 'object' && d.department !== null
-            ? d.department._id
-            : d.department;
-        }).filter((id: any) => id !== null) || [],
-        selectedAttributes: (sequence.attributes || []).map((attr: any) => {
-          if (!attr) return null;
-          return typeof attr === 'object' && attr !== null ? attr._id : attr;
-        }).filter((id: any) => id !== null) || [],
-      });
-      setEditingSequenceId(sequenceId);
-    }
-  };
-
-  const handleDeleteSequence = async (sequenceId: string) => {
-    if (!window.confirm("Are you sure you want to delete this sequence? This action cannot be undone.")) {
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const response = await fetch(`${API_BASE_URL}/sequences/${sequenceId}`, {
-        method: "DELETE",
-        headers: getAuthHeaders(),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to delete sequence");
-      }
-
-      setSuccess("Sequence deleted successfully");
-      fetchSequences();
-    } catch (err) {
-      console.error("Error deleting sequence:", err);
-      setError(err instanceof Error ? err.message : "Failed to delete sequence");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDepartmentToggle = (departmentId: string) => {
-    const currentIndex = sequenceForm.selectedDepartments.indexOf(departmentId);
-    if (currentIndex === -1) {
-      // Add department (order is based on when it's added)
-      setSequenceForm({
-        ...sequenceForm,
-        selectedDepartments: [...sequenceForm.selectedDepartments, departmentId],
-      });
-    } else {
-      // Remove department
-      setSequenceForm({
-        ...sequenceForm,
-        selectedDepartments: sequenceForm.selectedDepartments.filter(id => id !== departmentId),
-      });
-    }
-  };
 
   const handleUpdateOrderStatus = async (orderId: string, status?: string, action?: string, deliveryDate?: string) => {
     try {
@@ -5467,6 +4144,7 @@ const AdminDashboard: React.FC = () => {
         showPriceIncludingGst: false,
         instructions: "",
         productionSequence: [] as string[],
+        existingImage: "",
       });
       setOptionsTable([]);
       setFilterPricesEnabled(false);
@@ -5540,7 +4218,17 @@ const AdminDashboard: React.FC = () => {
         ? product.category
         : null;
       categoryId = categoryObj ? categoryObj._id : (product.category || "");
-      productType = categoryObj ? categoryObj.type : "";
+
+      // Determine product type (vital for form filtering)
+      if (categoryObj && categoryObj.type) {
+        productType = categoryObj.type;
+      } else if (categoryId) {
+        // Fallback: finding category in local state if it was just an ID
+        const foundCat = categories.find((c: any) => c._id === categoryId);
+        if (foundCat) {
+          productType = foundCat.type;
+        }
+      }
 
       console.log("=== CATEGORY EXTRACTION ===");
       console.log("Category ID:", categoryId);
@@ -5549,53 +4237,43 @@ const AdminDashboard: React.FC = () => {
       console.log("Product nestedSubcategory:", product.nestedSubcategory);
 
       // Extract parent subcategory and nested subcategory IDs
-      // If nestedSubcategory exists, then:
-      //   - subcategory field contains the parent subcategory
-      //   - nestedSubcategory field contains the child subcategory
-      // If nestedSubcategory is null, then:
-      //   - subcategory field contains the direct subcategory
-      //   - nestedSubcategory is empty
+      // The backend now returns:
+      // - subcategory: the PARENT subcategory (restructured)
+      // - nestedSubcategory: the CHILD subcategory (restructured)
       if (product.nestedSubcategory) {
-        // Product has a nested subcategory
-        const nestedSubcategoryObj = typeof product.nestedSubcategory === "object" && product.nestedSubcategory !== null
-          ? product.nestedSubcategory
-          : null;
-        nestedSubcategoryId = nestedSubcategoryObj ? nestedSubcategoryObj._id : (product.nestedSubcategory || "");
+        console.log("Found explicit nestedSubcategory field in product data");
+        const nestedObj = typeof product.nestedSubcategory === "object" ? product.nestedSubcategory : null;
+        nestedSubcategoryId = nestedObj ? nestedObj._id : product.nestedSubcategory;
 
-        // Robustly determine parent subcategory ID
-        // First try to get it from nestedSubcategory.parent (most reliable source of truth for hierarchy)
-        if (nestedSubcategoryObj && nestedSubcategoryObj.parent) {
-          parentSubcategoryId = typeof nestedSubcategoryObj.parent === 'object'
-            ? nestedSubcategoryObj.parent._id
-            : nestedSubcategoryObj.parent;
-          console.log("Derived parent ID from nestedSubcategory.parent:", parentSubcategoryId);
-        }
-
-        // If not found above, fall back to the product.subcategory field (which backend should have set to parent)
-        if (!parentSubcategoryId) {
-          const parentSubcategoryObj = typeof product.subcategory === "object" && product.subcategory !== null
-            ? product.subcategory
-            : null;
-          parentSubcategoryId = parentSubcategoryObj ? parentSubcategoryObj._id : (product.subcategory || "");
-          console.log("Using product.subcategory as parent ID:", parentSubcategoryId);
-        }
-
-        console.log("Has nested subcategory - Parent:", parentSubcategoryId, "Nested:", nestedSubcategoryId);
-      } else if (product.subcategory) {
-        // Product has a top-level subcategory (no nesting)
-        const subcategoryObj = typeof product.subcategory === "object" && product.subcategory !== null
+        const subObj = typeof product.subcategory === "object" ? product.subcategory : null;
+        parentSubcategoryId = subObj ? subObj._id : (product.subcategory || "");
+      } else {
+        // Fallback or handle top-level subcategory
+        const subObj = typeof product.subcategory === "object" && product.subcategory !== null
           ? product.subcategory
           : null;
-        parentSubcategoryId = subcategoryObj ? subcategoryObj._id : (product.subcategory || "");
-        nestedSubcategoryId = "";
 
-        console.log("Has top-level subcategory:", parentSubcategoryId);
-      } else {
-        // No subcategory at all
-        parentSubcategoryId = "";
-        nestedSubcategoryId = "";
-        console.log("No subcategory");
+        if (subObj) {
+          if (subObj.parent) {
+            // Found a parent, so this IS a nested subcategory (legacy format handling)
+            console.log("Subcategory object has parent -> Identified as Nested Subcategory");
+            nestedSubcategoryId = subObj._id;
+            parentSubcategoryId = typeof subObj.parent === 'object' ? subObj.parent._id : subObj.parent;
+          } else {
+            // No parent, so this IS a top-level subcategory
+            console.log("Subcategory object has NO parent -> Identified as Parent Subcategory");
+            parentSubcategoryId = subObj._id;
+            nestedSubcategoryId = "";
+          }
+        } else if (product.subcategory) {
+          console.log("Using product.subcategory ID fallback");
+          parentSubcategoryId = typeof product.subcategory === 'string' ? product.subcategory : "";
+        }
       }
+
+      console.log("=== HIERARCHY DETERMINED ===");
+      console.log("Parent Subcategory ID:", parentSubcategoryId);
+      console.log("Nested Subcategory ID:", nestedSubcategoryId);
 
       // Set type first, then category (this will trigger filtering)
       setSelectedType(productType);
@@ -5608,14 +4286,30 @@ const AdminDashboard: React.FC = () => {
         setFilteredCategoriesByType([]);
       }
 
-      // Fetch subcategories for the selected category
+      // Fetch subcategories for the selected category using fetchCategoryChildren
+      // This populates the categoryChildrenMap which AddProductForm uses for display
       if (categoryId) {
-        await fetchSubCategoriesForCategory(categoryId);
+        await fetchCategoryChildren(categoryId);
       }
 
-      // If there's a parent subcategory, fetch nested subcategories for it
+      // We don't need to fetch nested subcategories separately because fetchCategoryChildren
+      // with the new recursive endpoint (or flatten logic) should handle it.
+      // However, to be safe and ensure the map is fully populated for the path:
       if (parentSubcategoryId) {
-        await fetchNestedSubCategories(parentSubcategoryId);
+        // This might be redundant if fetchCategoryChildren gets everything, but safe.
+        // Actually, fetchCategoryChildren stores data keyed by the *argument* ID.
+        // AddProductForm looks up categoryChildrenMap[productForm.category].
+        // It expects ALL children (sub and nested) to be in that one array list if flattened,
+        // OR it might expect children of subcategory to be in categoryChildrenMap[subcategoryId]?
+
+        // Let's re-read AddProductForm logic.
+        // Col 2: categoryChildrenMap[productForm.category].filter(parent==null)
+        // Col 3: categoryChildrenMap[productForm.category].filter(parent==subcategory)
+
+        // So yes, EVERYTHING must be in categoryChildrenMap[productForm.category].
+        // The fetchCategoryChildren(categoryId) function I viewed earlier (lines 1632+) 
+        // ALREADY does flattening: "result = result.concat(flattenSubcategories(subcat.children));"
+        // So calling it once for categoryId is sufficient!
       }
 
       // Set form data
@@ -5669,6 +4363,7 @@ const AdminDashboard: React.FC = () => {
             .map((dept: any) => typeof dept === 'object' && dept !== null ? (dept._id || "") : (dept || ""))
             .filter((id: string) => id) // Filter out empty IDs
           : [],
+        existingImage: product.image || "",
       });
 
       if (product.options && Array.isArray(product.options) && product.options.length > 0) {
@@ -5813,10 +4508,6 @@ const AdminDashboard: React.FC = () => {
 
       setEditingProductId(productId);
       updateUrl("products", "edit", productId);
-      // Reset sequence selection states
-      setSelectedSequenceId(null);
-      setIsCustomizingSequence(false);
-      setError(null);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load product");
@@ -5898,6 +4589,7 @@ const AdminDashboard: React.FC = () => {
         sortOrder: category.sortOrder || 0,
         slug: categorySlug, // Always set slug, even if auto-generated
         image: null,
+        existingImage: category.image || "",
       });
       setIsSlugManuallyEdited(!!category.slug); // If category has a slug, consider it manually set
 
@@ -5960,6 +4652,7 @@ const AdminDashboard: React.FC = () => {
       productionSequence: [] as string[],
       showPriceIncludingGst: false,
       variants: [],
+      existingImage: "",
     });
     setOptionsTable([]);
     setPrintingOptionsTable([]);
@@ -5974,6 +4667,7 @@ const AdminDashboard: React.FC = () => {
       sortOrder: getNextCategorySortOrder("Digital"),
       slug: "",
       image: null,
+      existingImage: "",
     });
     setIsSlugManuallyEdited(false);
     setSubCategoryForm({
@@ -5985,6 +4679,7 @@ const AdminDashboard: React.FC = () => {
       slug: "",
       sortOrder: 0,
       image: null,
+      existingImage: "",
     });
     setIsSubCategorySlugManuallyEdited(false);
     setEditingSubCategoryImage(null);
@@ -6160,6 +4855,7 @@ const AdminDashboard: React.FC = () => {
           sortOrder: getNextCategorySortOrder("Digital"),
           slug: "",
           image: null,
+          existingImage: "",
         });
         setIsSlugManuallyEdited(false);
         setEditingCategoryId(null);
@@ -6278,6 +4974,7 @@ const AdminDashboard: React.FC = () => {
           sortOrder: getNextCategorySortOrder("Digital"),
           slug: "",
           image: null,
+          existingImage: "",
         });
         setIsSlugManuallyEdited(false);
         setEditingCategoryId(null);
@@ -6431,6 +5128,7 @@ const AdminDashboard: React.FC = () => {
         slug: "",
         sortOrder: 0,
         image: null,
+        existingImage: "",
       });
       setIsSubCategorySlugManuallyEdited(false);
       setEditingSubCategoryId(null);
@@ -6478,6 +5176,7 @@ const AdminDashboard: React.FC = () => {
         slug: subCategorySlug, // Always set slug, even if auto-generated
         sortOrder: subCategory.sortOrder || 0,
         image: null,
+        existingImage: subCategory.image || "",
       });
       setIsSubCategorySlugManuallyEdited(!!subCategory.slug); // If subcategory has a slug, consider it manually set
 
@@ -6776,192 +5475,9 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
-  const handleUpdateUserRole = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-    setSuccess(null);
+  // handleUpdateUserRole and handleCreateEmployee moved to ManageUsers
 
-    try {
-      const response = await fetch(`${API_BASE_URL}/admin/update-user-role`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          ...getAuthHeaders(),
-        },
-        body: JSON.stringify({
-          username: userRoleForm.username,
-          role: userRoleForm.role,
-        }),
-      });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || errorData.error || `Failed to update user role: ${response.status} ${response.statusText}`);
-      }
-
-      await response.json();
-
-      setSuccess(`User role updated to ${userRoleForm.role} successfully!`);
-      setUserRoleForm({
-        username: "",
-        role: "user",
-      });
-      fetchUsers();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update user role");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleCreateEmployee = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-    setSuccess(null);
-
-    try {
-      const response = await fetch(`${API_BASE_URL}/admin/create-employee`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...getAuthHeaders(),
-        },
-        body: JSON.stringify({
-          name: createEmployeeForm.name,
-          email: createEmployeeForm.email,
-          password: createEmployeeForm.password,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || errorData.error || `Failed to create employee: ${response.status} ${response.statusText}`);
-      }
-
-      await response.json();
-
-      setSuccess("Employee created successfully!");
-      setCreateEmployeeForm({
-        name: "",
-        email: "",
-        password: "",
-      });
-      fetchUsers();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create employee");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleCreateEmployeeFromModal = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-    setSuccess(null);
-
-    try {
-      const response = await fetch(`${API_BASE_URL}/admin/create-employee`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...getAuthHeaders(),
-        },
-        body: JSON.stringify({
-          name: createEmployeeModalForm.name,
-          email: createEmployeeModalForm.email,
-          password: createEmployeeModalForm.password,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || errorData.error || `Failed to create employee: ${response.status} ${response.statusText}`);
-      }
-
-      await response.json();
-
-      setSuccess("Employee created successfully!");
-      setCreateEmployeeModalForm({
-        name: "",
-        email: "",
-        password: "",
-      });
-      setShowCreateEmployeeModal(false);
-      fetchEmployees(); // Refresh employees list so new employee appears in operators list
-      fetchUsers(); // Also refresh users list
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create employee");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleCreateDepartmentFromModal = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-    setSuccess(null);
-
-    try {
-      if (!createDepartmentModalForm.name.trim()) {
-        setError("Department name is required");
-        setLoading(false);
-        return;
-      }
-
-      const response = await fetch(`${API_BASE_URL}/departments`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...getAuthHeaders(),
-        },
-        body: JSON.stringify({
-          name: createDepartmentModalForm.name,
-          description: createDepartmentModalForm.description || "",
-          isEnabled: createDepartmentModalForm.isEnabled,
-          operators: createDepartmentModalForm.operators,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || errorData.message || `Failed to create department: ${response.status} ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      const newDepartmentId = data.data?._id || data.data?.id || data._id || data.id;
-
-      setSuccess("Department created successfully!");
-      setCreateDepartmentModalForm({
-        name: "",
-        description: "",
-        isEnabled: true,
-        operators: [],
-      });
-      setShowCreateDepartmentModal(false);
-
-      // Refresh departments list
-      await fetchDepartments();
-
-      // Refresh employees list in case new employees were assigned
-      await fetchEmployees();
-
-      // Optionally add the new department to selected departments in sequence form
-      if (newDepartmentId && sequenceForm.selectedDepartments) {
-        setSequenceForm({
-          ...sequenceForm,
-          selectedDepartments: [...sequenceForm.selectedDepartments, newDepartmentId],
-        });
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create department");
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleDeleteUpload = async (uploadId: string) => {
     if (!window.confirm("Are you sure you want to delete this uploaded image?")) {
@@ -7016,6 +5532,58 @@ const AdminDashboard: React.FC = () => {
       URL.revokeObjectURL(url);
     } catch (err) {
       setError("Failed to download image");
+    }
+  };
+
+  const handleProductReorder = async (draggedId: string, targetId: string) => {
+    // Optimistic update
+    const draggedIndex = products.findIndex((p) => p._id === draggedId);
+    const targetIndex = products.findIndex((p) => p._id === targetId);
+
+    if (draggedIndex === -1 || targetIndex === -1) return;
+
+    const newProducts = [...products];
+    const [draggedItem] = newProducts.splice(draggedIndex, 1);
+    newProducts.splice(targetIndex, 0, draggedItem);
+
+    setProducts(newProducts);
+
+    // Also update filtered products if we are viewing them
+    if (filteredProducts.length === products.length) {
+      setFilteredProducts(newProducts);
+    } else {
+      // If filtered, we might need to update filtered list too if it contains both items
+      const draggedFilteredIndex = filteredProducts.findIndex(p => p._id === draggedId);
+      const targetFilteredIndex = filteredProducts.findIndex(p => p._id === targetId);
+
+      if (draggedFilteredIndex !== -1 && targetFilteredIndex !== -1) {
+        const newFiltered = [...filteredProducts];
+        const [draggedF] = newFiltered.splice(draggedFilteredIndex, 1);
+        newFiltered.splice(targetFilteredIndex, 0, draggedF);
+        setFilteredProducts(newFiltered);
+      }
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/products/reorder`, {
+        method: "PUT",
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          draggedId,
+          targetId,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to reorder products");
+      }
+
+      // Fetch to ensure server state
+      fetchProducts();
+    } catch (err) {
+      console.error("Error reordering products:", err);
+      toast.error("Failed to reorder products");
+      fetchProducts(); // Revert
     }
   };
 
@@ -7124,10876 +5692,2183 @@ const AdminDashboard: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-cream-50 py-8">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="mb-6">
-          <BackButton fallbackPath="/" label="Back" className="text-cream-600 hover:text-cream-900 mb-4" />
-        </div>
-        <div className="mb-6 sm:mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="font-serif text-2xl sm:text-3xl md:text-4xl font-bold text-cream-900 mb-2">
-              Admin Dashboard
-            </h1>
-            <p className="text-sm sm:text-base text-cream-600">
-              Manage products,categories, uploads, and admin users
-            </p>
+    <div className="min-h-screen bg-cream-50">
+      {/* Admin Sidebar - New Professional Navigation */}
+      <AdminSidebar activeTab={activeTab} onTabChange={(tab) => {
+        updateUrl(tab);
+        setError(null);
+        setSuccess(null);
+        // Clear edit state when switching tabs
+        if (tab !== "products" && tab !== "categories") {
+          handleCancelEdit();
+        }
+        // Fetch data when switching to management tabs
+        if (tab === "manage-products") {
+          setSelectedSubCategoryFilter("");
+          fetchProducts();
+        } else if (tab === "manage-categories") {
+          fetchCategories();
+          fetchSubCategories();
+
+        } else if (tab === "print-partner-requests") {
+          fetchPrintPartnerRequests();
+        } else if (tab === "orders") {
+          fetchOrders();
+        } else if (tab === "attribute-types") {
+          fetchAttributeTypes();
+        } else if (tab === "attribute-rules") {
+          fetchAttributeTypes();
+          fetchCategories();
+          fetchProducts();
+        } else if (tab === "products") {
+          fetchAttributeTypes();
+          fetchProducts();
+
+
+        } else if (tab === "sub-attributes") {
+          fetchAttributeTypes();
+        } else if (tab === "uploads") {
+          fetchUploads();
+        }
+      }} />
+
+      {/* Main Content Area - Adjusted for Sidebar */}
+      <div className="ml-64 min-h-screen py-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="mb-6">
+            <BackButton fallbackPath="/" label="Back" className="text-cream-600 hover:text-cream-900 mb-4" />
           </div>
-          <button
-            onClick={() => navigate("/admin/services")}
-            className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
-          >
-            <Package size={20} />
-            Home
-          </button>
-        </div>
-
-        {/* Tabs - Production Ready Design */}
-        <div className="bg-white rounded-xl shadow-md border border-cream-200 p-3 mb-6">
-          <div className="flex flex-wrap gap-2 overflow-x-auto scrollbar-hide">
-            {tabs.map((tab) => {
-              const Icon = tab.icon;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => {
-                    updateUrl(tab.id);
-                    setError(null);
-                    setSuccess(null);
-                    // Clear edit state when switching tabs
-                    if (tab.id !== "products" && tab.id !== "categories") {
-                      handleCancelEdit();
-                    }
-                    // Fetch data when switching to management tabs
-                    if (tab.id === "manage-products") {
-                      setSelectedSubCategoryFilter("");
-                      fetchProducts();
-                    } else if (tab.id === "manage-categories") {
-                      fetchCategories();
-                      fetchSubCategories(); // Also fetch subcategories for the manage page
-                    } else if (tab.id === "users") {
-                      fetchUsers();
-                    } else if (tab.id === "print-partner-requests") {
-                      fetchPrintPartnerRequests();
-                    } else if (tab.id === "orders") {
-                      fetchOrders();
-                    } else if (tab.id === "attribute-types") {
-                      fetchAttributeTypes();
-                    } else if (tab.id === "attribute-rules") {
-                      fetchAttributeRules();
-                      fetchAttributeTypes();
-                      fetchCategories();
-                      fetchProducts();
-                    } else if (tab.id === "products") {
-                      // Fetch attribute types when products tab is active so they're available for assignment
-                      fetchAttributeTypes();
-                      fetchProducts(); // Also refresh products list
-                    }
-                  }}
-                  className={`flex items-center gap-2.5 px-5 py-3 text-sm sm:text-base font-semibold transition-all duration-200 whitespace-nowrap rounded-lg border-2 ${activeTab === tab.id
-                    ? "bg-cream-900 text-white border-cream-900 shadow-lg transform scale-105"
-                    : "text-cream-700 bg-white border-cream-200 hover:bg-cream-50 hover:border-cream-300 hover:text-cream-900 hover:shadow-sm"
-                    }`}
-                >
-                  <Icon size={18} className={`sm:w-5 sm:h-5 ${activeTab === tab.id ? "text-white" : "text-cream-600"}`} />
-                  <span className="hidden sm:inline">{tab.label}</span>
-                  <span className="sm:hidden">{tab.label.split(" ")[0]}</span>
-                </button>
-              );
-            })}
+          <div className="mb-6 sm:mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h1 className="font-serif text-2xl sm:text-3xl md:text-4xl font-bold text-cream-900 mb-2">
+              </h1>
+              <p className="text-sm sm:text-base text-cream-600">
+              </p>
+            </div>
           </div>
-        </div>
 
-        {/* Messages */}
-        <AnimatePresence>
-          {error && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-700"
-            >
-              <AlertCircle size={20} />
-              {error}
-            </motion.div>
-          )}
-          {success && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2 text-green-700"
-            >
-              <CheckCircle size={20} />
-              {success}
-            </motion.div>
-          )}
-        </AnimatePresence>
+          {/* 
+            OLD TABS NAVIGATION - Moved to separate file for reference
+            See: client/pages/admin/components/OldTabsNavigation.tsx
+            This horizontal tabs navigation has been replaced with AdminSidebar component
+          */}
 
-        {/* Tab Content */}
-        <div className="bg-white rounded-2xl shadow-lg p-6">
-          {/* Add/Edit Product */}
-          {activeTab === "products" && (
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                handleProductSubmit(e);
-              }}
-              onClick={(e) => {
-                // Prevent form submission when clicking on buttons inside CKEditor
-                const target = e.target as HTMLElement;
-                if (target.closest('.ckeditor-container') || target.closest('[data-ckeditor-button]')) {
-                  e.preventDefault();
-                  e.stopPropagation();
-                }
-              }}
-              className="space-y-6"
-            >
-              {editingProductId && (
-                <div className="mb-4">
-                  <BackButton
-                    onClick={() => updateUrl("products")}
-                    label="Back"
-                    className="mb-4"
-                  />
-                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
-                    <p className="text-sm text-blue-800 font-medium">
-                      Editing Product: {productForm.name || "Loading..."}
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => updateUrl("products")}
-                      className="px-3 py-1 text-sm bg-blue-100 text-blue-800 rounded-lg hover:bg-blue-200 transition-colors"
-                    >
-                      Cancel Edit
-                    </button>
-                  </div>
-                </div>
-              )}
-              {/* Form Progress Indicator - Show all required fields */}
-              <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-blue-900">Required Fields</span>
-                  <span className="text-sm text-blue-700">
-                    {(() => {
-                      // Check all fields that are marked with (*) in the form
-                      const requiredFields = [
-                        { value: productForm.name?.trim(), label: 'Product Name' },
-                        { value: productForm.basePrice, label: 'Base Price' },
-                        { value: productForm.category || productForm.subcategory, label: 'Category/Subcategory' },
-                        { value: productForm.gstPercentage, label: 'GST %' },
-                        { value: productForm.instructions?.trim(), label: 'Instructions' },
-                      ];
-                      const completed = requiredFields.filter(f => f.value).length;
-                      return `${completed}/${requiredFields.length} completed`;
-                    })()}
-                  </span>
-                </div>
-                <div className="w-full bg-blue-200 rounded-full h-2">
-                  <div
-                    className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                    style={{
-                      width: `${(() => {
-                        const requiredFields = [
-                          productForm.name?.trim(),
-                          productForm.basePrice,
-                          productForm.category || productForm.subcategory,
-                          productForm.gstPercentage,
-                          productForm.instructions?.trim(),
-                        ];
-                        return (requiredFields.filter(Boolean).length / requiredFields.length) * 100;
-                      })()}%`,
-                    }}
-                  />
-                </div>
-              </div>
+          {/* Messages */}
+          <AnimatePresence>
+            {error && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-700"
+              >
+                <AlertCircle size={20} />
+                {error}
+              </motion.div>
+            )}
+            {success && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2 text-green-700"
+              >
+                <CheckCircle size={20} />
+                {success}
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-              {/* Basic Information Section */}
-              <div className="border border-cream-300 rounded-lg p-6 bg-white">
-                <h3 className="text-lg font-semibold text-cream-900 mb-4 flex items-center gap-2">
-                  <Package size={20} />
-                  Basic Information
-                </h3>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-cream-900 mb-2 flex items-center gap-2">
-                      Product Name *
-                      <div className="group relative">
-                        <Info size={14} className="text-cream-500 cursor-help" />
-                        <div className="absolute left-0 bottom-full mb-2 hidden group-hover:block z-10 w-64 p-2 bg-cream-900 text-white text-xs rounded-lg shadow-lg">
-                          Enter a clear, descriptive name that customers will see. This should be unique and searchable.
-                        </div>
-                      </div>
-                    </label>
-                    <input
-                      id="product-name"
-                      name="name"
-                      type="text"
-                      required
-                      value={productForm.name}
-                      onChange={(e) => {
-                        const newName = e.target.value;
-                        const updates: any = { ...productForm, name: newName };
+          {/* Tab Content */}
+          <div className="bg-white rounded-2xl shadow-lg p-6">
+            {/* Add/Edit Product */}
+            {activeTab === "products" && (
+              <AddProductForm
+                productForm={productForm}
+                setProductForm={setProductForm}
+                productFormErrors={productFormErrors}
+                setProductFormErrors={setProductFormErrors}
+                isProductSlugManuallyEdited={isProductSlugManuallyEdited}
+                setIsProductSlugManuallyEdited={setIsProductSlugManuallyEdited}
+                optionsTable={optionsTable}
+                setOptionsTable={setOptionsTable}
+                printingOptionsTable={printingOptionsTable}
+                setPrintingOptionsTable={setPrintingOptionsTable}
+                deliverySpeedTable={deliverySpeedTable}
+                setDeliverySpeedTable={setDeliverySpeedTable}
+                textureTypeTable={textureTypeTable}
+                setTextureTypeTable={setTextureTypeTable}
+                filterPricesEnabled={filterPricesEnabled}
+                setFilterPricesEnabled={setFilterPricesEnabled}
+                selectedAttributeTypes={selectedAttributeTypes}
+                setSelectedAttributeTypes={setSelectedAttributeTypes}
+                categories={categories}
+                subCategories={subCategories}
+                subcategoriesByCategory={subcategoriesByCategory}
+                nestedSubcategoriesByParent={nestedSubcategoriesByParent}
+                categoryChildrenMap={categoryChildrenMap}
+                loading={loading}
+                setLoading={setLoading}
+                error={error}
+                setError={setError}
+                success={success}
+                setSuccess={setSuccess}
+                editingProductId={editingProductId}
+                setEditingProductId={setEditingProductId}
+                fetchProducts={fetchProducts}
+                fetchCategoryProducts={fetchCategoryProducts}
+                fetchSubCategories={fetchSubCategories}
+                fetchAttributeTypes={fetchAttributeTypes}
+                fetchNestedSubCategories={fetchNestedSubCategories}
+                fetchSubCategoriesForCategory={fetchSubCategoriesForCategory}
+                fetchCategoryChildren={fetchCategoryChildren}
+                handleSubCategoryClick={handleSubCategoryClick}
+                handleCategoryClick={handleCategoryClick}
+                selectedCategory={selectedCategory}
+                selectedSubCategoryForView={selectedSubCategoryForView}
+                setSubcategoryProducts={setSubcategoryProducts}
+                selectedType={selectedType}
+                setSelectedType={setSelectedType}
+                setFilteredCategoriesByType={setFilteredCategoriesByType}
+                selectedCategoryPath={selectedCategoryPath}
+                setSelectedCategoryPath={setSelectedCategoryPath}
+                setCategoryChildrenMap={setCategoryChildrenMap}
+                setFieldErrors={setFieldErrors}
+                attributeTypeForm={attributeTypeForm}
+                setAttributeTypeForm={setAttributeTypeForm}
+                attributeFormErrors={attributeFormErrors}
+                setAttributeFormErrors={setAttributeFormErrors}
+                handleAttributeTypeSubmit={handleAttributeTypeSubmit}
+                handleCancelEdit={handleCancelEdit}
+                handleEditAttributeType={handleEditAttributeType}
+                handleDeleteAttributeType={handleDeleteAttributeType}
+                showCreateAttributeModal={showCreateAttributeModal}
+                setShowCreateAttributeModal={setShowCreateAttributeModal}
+                editingAttributeTypeId={editingAttributeTypeId}
+                setEditingAttributeTypeId={setEditingAttributeTypeId}
+                updateUrl={updateUrl}
+                generateUniqueSlug={generateUniqueSlug}
+                loadingCategoryChildren={loadingCategoryChildren}
+                categoryProducts={categoryProducts}
+                setCategoryProducts={setCategoryProducts}
+                loadingCategoryProducts={loadingCategoryProducts}
+                setLoadingCategoryProducts={setLoadingCategoryProducts}
+                handleEditProduct={handleEditProduct}
 
-                        // Auto-generate slug if not manually edited
-                        if (!isProductSlugManuallyEdited) {
-                          updates.slug = newName
-                            .toLowerCase()
-                            .replace(/[^a-z0-9]+/g, '-')
-                            .replace(/^-+|-+$/g, '');
-                        }
+                attributeTypes={attributeTypes}
+                loadingAttributeTypes={loadingAttributeTypes}
+                attributeTypeSearch={attributeTypeSearch}
+                setAttributeTypeSearch={setAttributeTypeSearch}
+                loadingSubcategories={loadingSubcategories}
+              />
+            )}
 
-                        setProductForm(updates);
-                        // Clear error when user starts typing
-                        if (productFormErrors.name) {
-                          setProductFormErrors({ ...productFormErrors, name: undefined });
-                        }
-                      }}
-                      className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500 ${productFormErrors.name ? 'border-red-300 bg-red-50' : 'border-cream-300'
-                        }`}
-                      placeholder="e.g., Glossy Business Cards - Premium"
-                      maxLength={100}
-                    />
-                    {productFormErrors.name && (
-                      <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
-                        <AlertCircle size={12} />
-                        {productFormErrors.name}
-                      </p>
-                    )}
-                    {productForm.name && productForm.name.length > 80 && (
-                      <p className="text-xs text-yellow-600 mt-1">
-                        {100 - productForm.name.length} characters remaining
-                      </p>
-                    )}
-                  </div>
+            {/* Add Category Tab - using refactored component */}
+            {activeTab === "categories" && (
+              <AddCategoryForm
+                categories={categories}
+                subCategories={subCategories}
+                categoryForm={categoryForm}
+                setCategoryForm={setCategoryForm}
+                subCategoryForm={subCategoryForm}
+                setSubCategoryForm={setSubCategoryForm}
+                categoryFormErrors={categoryFormErrors}
+                setCategoryFormErrors={setCategoryFormErrors}
+                subCategoryFormErrors={subCategoryFormErrors}
+                setSubCategoryFormErrors={setSubCategoryFormErrors}
+                editingCategoryId={editingCategoryId}
+                setEditingCategoryId={setEditingCategoryId}
+                editingSubCategoryId={editingSubCategoryId}
+                setEditingSubCategoryId={setEditingSubCategoryId}
+                isNestedSubcategoryMode={isNestedSubcategoryMode}
+                setIsNestedSubcategoryMode={setIsNestedSubcategoryMode}
+                isSubCategoryMode={isSubCategoryMode}
+                setIsSubCategoryMode={setIsSubCategoryMode}
+                isSlugManuallyEdited={isSlugManuallyEdited}
+                setIsSlugManuallyEdited={setIsSlugManuallyEdited}
+                isSubCategorySlugManuallyEdited={isSubCategorySlugManuallyEdited}
+                setIsSubCategorySlugManuallyEdited={setIsSubCategorySlugManuallyEdited}
+                onCategorySubmit={handleCategorySubmit}
+                onSubCategorySubmit={handleSubCategorySubmit}
+                onCancelEdit={() => updateUrl("categories")}
+                loading={loading}
+                error={error}
+                success={success}
+                fetchCategories={fetchCategories}
+                fetchSubCategories={fetchSubCategories}
+              />
+            )}
 
-                  <div>
-                    <label className="block text-sm font-medium text-cream-900 mb-2 flex items-center gap-2">
-                      Slug (URL Friendly Name)
-                      <div className="group relative">
-                        <Info size={14} className="text-cream-500 cursor-help" />
-                        <div className="absolute left-0 bottom-full mb-2 hidden group-hover:block z-10 w-64 p-2 bg-cream-900 text-white text-xs rounded-lg shadow-lg">
-                          The URL-friendly version of the name. It will be automatically generated from the name but you can customize it if needed. Must be unique within the subcategory.
-                        </div>
-                      </div>
-                    </label>
-                    <input
-                      type="text"
-                      value={productForm.slug}
-                      onChange={(e) => {
-                        setIsProductSlugManuallyEdited(true);
-                        setProductForm({
-                          ...productForm,
-                          slug: e.target.value
-                            .toLowerCase()
-                            .replace(/[^a-z0-9-]/g, '')
-                        });
-                      }}
-                      className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500 bg-cream-50 font-mono text-sm"
-                      placeholder="auto-generated-slug"
-                    />
-                    <p className="text-xs text-cream-500 mt-1">
-                      Preview: .../products/{productForm.slug || 'auto-generated-slug'}
-                    </p>
-                  </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-cream-900 mb-2 flex items-center gap-2">
-                      Description
-                      <div className="group relative">
-                        <Info size={14} className="text-cream-500 cursor-help" />
-                        <div className="absolute left-0 bottom-full mb-2 hidden group-hover:block z-10 w-64 p-2 bg-cream-900 text-white text-xs rounded-lg shadow-lg">
-                          Detailed product description that customers will see. Use formatting to make it readable and professional. You can insert images using the toolbar buttons.
-                        </div>
-                      </div>
-                    </label>
-                    <RichTextEditor
-                      value={productForm.description}
-                      onChange={(html) =>
-                        setProductForm({
-                          ...productForm,
-                          description: html,
-                        })
-                      }
-                      placeholder="Enter product description. Use the toolbar to format text, insert images, and more."
-                    />
-                    <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                      <p className="text-xs font-medium text-blue-900 mb-1">💡 Rich Text Editor Features:</p>
-                      <ul className="text-xs text-blue-800 space-y-1 list-disc list-inside">
-                        <li>Format text with <strong>bold</strong>, <em>italic</em>, underline, strikethrough</li>
-                        <li>Change font family, font size, and text colors</li>
-                        <li>Insert images using the toolbar button</li>
-                        <li>Create ordered and bullet lists with indentation</li>
-                        <li>Align text (left, center, right, justify)</li>
-                        <li>All formatting is preserved when saved</li>
-                      </ul>
-                    </div>
-                  </div>
 
-                  {/* Product Image Upload */}
-                  <div>
-                    <label className="block text-sm font-medium text-cream-900 mb-2 flex items-center gap-2">
-                      Product Image
-                      <div className="group relative">
-                        <Info size={14} className="text-cream-500 cursor-help" />
-                        <div className="absolute left-0 bottom-full mb-2 hidden group-hover:block z-10 w-64 p-2 bg-cream-900 text-white text-xs rounded-lg shadow-lg">
-                          Upload a product image that will be displayed to customers. Supported formats: JPG, PNG, WebP. Max size: 5MB.
-                        </div>
-                      </div>
-                    </label>
-                    <div className="space-y-2">
-                      <input
-                        type="file"
-                        accept="image/jpeg,image/jpg,image/png,image/webp"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            // Validate file type
-                            const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-                            if (!validTypes.includes(file.type)) {
-                              setError("Invalid image format. Please upload JPG, PNG, or WebP image.");
-                              return;
-                            }
-                            // Validate file size (5MB)
-                            if (file.size > 5 * 1024 * 1024) {
-                              setError("Image size must be less than 5MB.");
-                              return;
-                            }
-                            setProductForm({ ...productForm, image: file });
-                            setError(null);
-                          }
-                        }}
-                        className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-cream-900 file:text-white hover:file:bg-cream-800"
-                      />
-                      {productForm.image && (
-                        <div className="mt-2">
-                          <p className="text-xs text-cream-600 mb-1">Selected: {productForm.image.name}</p>
-                          <div className="relative w-32 h-32 border border-cream-300 rounded-lg overflow-hidden">
-                            <img
-                              src={URL.createObjectURL(productForm.image)}
-                              alt="Product preview"
-                              className="w-full h-full object-cover"
-                            />
-                          </div>
-                        </div>
-                      )}
-                      {editingProductId && !productForm.image && (
-                        <p className="text-xs text-cream-600">Leave empty to keep existing image</p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
 
-              {/* Filters Section - Order Quantity and Other Options */}
-              <div className="border border-cream-300 rounded-lg p-4 bg-cream-50">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold text-cream-900">Product Filters</h3>
-                  <div className="text-sm text-cream-600">
-                    <Info size={14} className="inline mr-1" />
-                    Printing options should be configured as attributes in the Product Attributes section below
-                  </div>
-                </div>
-
-                {/* Order Quantity Configuration */}
-                <div className="mb-6 p-4 bg-white rounded-lg border border-cream-200">
-                  <div className="flex items-center justify-between mb-4">
-                    <label className="block text-sm font-medium text-cream-900">
-                      Quantity Configuration *
-                    </label>
-                    <div className="text-xs text-cream-600">
-                      <Info size={14} className="inline mr-1" />
-                      Configure quantity options based on production capabilities and raw material batching
-                    </div>
-                  </div>
-
-                  {/* Simple Quantity Configuration */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-cream-900 mb-2">
-                        Min Quantity
-                      </label>
-                      <input
-                        type="number"
-                        value={productForm.filters.orderQuantity.min}
-                        onChange={(e) =>
-                          setProductForm({
-                            ...productForm,
-                            filters: {
-                              ...productForm.filters,
-                              orderQuantity: {
-                                ...productForm.filters.orderQuantity,
-                                min: parseInt(e.target.value) || 0,
-                              },
-                            },
-                          })
-                        }
-                        className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-cream-900 mb-2">
-                        Max Quantity
-                      </label>
-                      <input
-                        type="number"
-                        value={productForm.filters.orderQuantity.max}
-                        onChange={(e) =>
-                          setProductForm({
-                            ...productForm,
-                            filters: {
-                              ...productForm.filters,
-                              orderQuantity: {
-                                ...productForm.filters.orderQuantity,
-                                max: parseInt(e.target.value) || 0,
-                              },
-                            },
-                          })
-                        }
-                        className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-cream-900 mb-2">
-                        Multiples Of
-                      </label>
-                      <input
-                        type="number"
-                        value={productForm.filters.orderQuantity.multiples}
-                        onChange={(e) =>
-                          setProductForm({
-                            ...productForm,
-                            filters: {
-                              ...productForm.filters,
-                              orderQuantity: {
-                                ...productForm.filters.orderQuantity,
-                                multiples: parseInt(e.target.value) || 0,
-                              },
-                            },
-                          })
-                        }
-                        className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
-                      />
-                    </div>
-                  </div>
-
-                </div>
-
-                {/* Delivery Speed Table */}
-                <div className="mb-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="block text-sm font-medium text-cream-900">
-                      Delivery Speed Options
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => handleAddFilterRow('deliverySpeed')}
-                      className="px-3 py-1 text-sm bg-cream-900 text-white rounded-lg hover:bg-cream-800 transition-colors flex items-center gap-2"
-                    >
-                      <Plus size={16} />
-                      Add Option
-                    </button>
-                  </div>
-                  <div className="border border-cream-300 rounded-lg overflow-hidden bg-white">
-                    {deliverySpeedTable.length === 0 ? (
-                      <p className="text-sm text-cream-600 text-center py-4">
-                        No delivery speed options added. Click "Add Option" to start.
-                      </p>
-                    ) : (
-                      <div className="overflow-x-auto">
-                        <table className="w-full border-collapse">
-                          <thead>
-                            <tr className="bg-cream-100">
-                              <th className="border border-cream-300 px-3 py-2 text-left text-sm font-medium text-cream-900">
-                                Delivery Speed
-                              </th>
-                              {filterPricesEnabled && (
-                                <th className="border border-cream-300 px-3 py-2 text-left text-sm font-medium text-cream-900">
-                                  Price Add (per 1000 units)
-                                </th>
-                              )}
-                              <th className="border border-cream-300 px-3 py-2 text-center text-sm font-medium text-cream-900 w-20">
-                                Action
-                              </th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {deliverySpeedTable.map((item, index) => {
-                              const itemName = typeof item === 'string' ? item : item.name;
-                              const itemPrice = typeof item === 'object' ? (item.priceAdd ?? 0) : 0;
-                              return (
-                                <tr key={index}>
-                                  <td className="border border-cream-300 px-3 py-2">
-                                    <input
-                                      type="text"
-                                      value={itemName}
-                                      onChange={(e) => handleUpdateFilterRow('deliverySpeed', index, 'name', e.target.value)}
-                                      className="w-full px-2 py-2.5 border border-cream-200 rounded text-sm"
-                                      placeholder="e.g., Standard"
-                                    />
-                                  </td>
-                                  {filterPricesEnabled && (
-                                    <td className="border border-cream-300 px-3 py-2">
-                                      <input
-                                        type="number"
-                                        step="0.00001"
-                                        value={itemPrice}
-                                        onChange={(e) => handleUpdateFilterRow('deliverySpeed', index, 'priceAdd', e.target.value)}
-                                        className="w-full px-2 py-2.5 border border-cream-200 rounded text-sm"
-                                        placeholder="0.00"
-                                      />
-                                    </td>
-                                  )}
-                                  <td className="border border-cream-300 px-3 py-2 text-center">
-                                    <button
-                                      type="button"
-                                      onClick={() => handleRemoveFilterRow('deliverySpeed', index)}
-                                      className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
-                                    >
-                                      <Trash2 size={16} />
-                                    </button>
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Texture Type Table (Optional) */}
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="block text-sm font-medium text-cream-900">
-                      Texture Type Options (optional)
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => handleAddFilterRow('textureType')}
-                      className="px-3 py-1 text-sm bg-cream-900 text-white rounded-lg hover:bg-cream-800 transition-colors flex items-center gap-2"
-                    >
-                      <Plus size={16} />
-                      Add Texture
-                    </button>
-                  </div>
-                  <div className="border border-cream-300 rounded-lg overflow-hidden bg-white">
-                    {textureTypeTable.length === 0 ? (
-                      <p className="text-sm text-cream-600 text-center py-4">
-                        No texture types added. Click "Add Texture" to start.
-                      </p>
-                    ) : (
-                      <div className="overflow-x-auto">
-                        <table className="w-full border-collapse">
-                          <thead>
-                            <tr className="bg-cream-100">
-                              <th className="border border-cream-300 px-3 py-2 text-left text-sm font-medium text-cream-900">
-                                Texture Type
-                              </th>
-                              {filterPricesEnabled && (
-                                <th className="border border-cream-300 px-3 py-2 text-left text-sm font-medium text-cream-900">
-                                  Price Add (per 1000 units)
-                                </th>
-                              )}
-                              <th className="border border-cream-300 px-3 py-2 text-center text-sm font-medium text-cream-900 w-20">
-                                Action
-                              </th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {textureTypeTable.map((item, index) => {
-                              const itemName = typeof item === 'string' ? item : item.name;
-                              const itemPrice = typeof item === 'object' ? (item.priceAdd ?? 0) : 0;
-                              return (
-                                <tr key={index}>
-                                  <td className="border border-cream-300 px-3 py-2">
-                                    <input
-                                      type="text"
-                                      value={itemName}
-                                      onChange={(e) => handleUpdateFilterRow('textureType', index, 'name', e.target.value)}
-                                      className="w-full px-2 py-2.5 border border-cream-200 rounded text-sm"
-                                      placeholder="e.g., Texture No.1"
-                                    />
-                                  </td>
-                                  {filterPricesEnabled && (
-                                    <td className="border border-cream-300 px-3 py-2">
-                                      <input
-                                        type="number"
-                                        step="0.00001"
-                                        value={itemPrice}
-                                        onChange={(e) => handleUpdateFilterRow('textureType', index, 'priceAdd', e.target.value)}
-                                        className="w-full px-2 py-2.5 border border-cream-200 rounded text-sm"
-                                        placeholder="0.00"
-                                      />
-                                    </td>
-                                  )}
-                                  <td className="border border-cream-300 px-3 py-2 text-center">
-                                    <button
-                                      type="button"
-                                      onClick={() => handleRemoveFilterRow('textureType', index)}
-                                      className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
-                                    >
-                                      <Trash2 size={16} />
-                                    </button>
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Quantity Discounts Section */}
-              <div className="border border-cream-300 rounded-lg p-4 bg-blue-50">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="text-lg font-semibold text-cream-900">Quantity-Based Discounts</h3>
-                    <p className="text-sm text-cream-600 mt-1">
-                      Set discounts based on order quantity. Customers get better prices when ordering in bulk.
-                    </p>
-                  </div>
+            {/* Orders Management */}
+            {activeTab === "orders" && (
+              <div>
+                <div className="mb-4 flex justify-between items-center">
+                  <h2 className="text-xl font-bold text-cream-900">
+                    Orders ({orders.length})
+                  </h2>
                   <button
-                    type="button"
-                    onClick={() => {
-                      setProductForm({
-                        ...productForm,
-                        quantityDiscounts: [
-                          ...(productForm.quantityDiscounts || []),
-                          { minQuantity: 0, maxQuantity: null, discountPercentage: 0 },
-                        ],
-                      });
-                    }}
-                    className="px-3 py-1 text-sm bg-cream-900 text-white rounded-lg hover:bg-cream-800 transition-colors flex items-center gap-2"
+                    onClick={fetchOrders}
+                    disabled={loadingOrders}
+                    className="px-4 py-2 bg-cream-200 text-cream-900 rounded-lg hover:bg-cream-300 transition-colors disabled:opacity-50 flex items-center gap-2"
                   >
-                    <Plus size={16} />
-                    Add Discount Tier
+                    {loadingOrders ? (
+                      <>
+                        <Loader className="animate-spin" size={16} />
+                        Loading...
+                      </>
+                    ) : (
+                      "Refresh"
+                    )}
                   </button>
                 </div>
 
-                {(!productForm.quantityDiscounts || productForm.quantityDiscounts.length === 0) ? (
-                  <div className="bg-cream-50 border border-cream-200 rounded-lg p-4">
-                    <p className="text-sm text-cream-600 text-center">
-                      No discount tiers added. Click "Add Discount Tier" to set quantity-based discounts.
-                    </p>
+                {loadingOrders ? (
+                  <div className="text-center py-12">
+                    <Loader className="animate-spin text-cream-600 mx-auto mb-4" size={48} />
+                    <p className="text-cream-600">Loading orders...</p>
+                  </div>
+                ) : orders.length === 0 ? (
+                  <div className="text-center py-12 bg-white rounded-lg border border-cream-200">
+                    <ShoppingBag size={48} className="mx-auto mb-4 opacity-50 text-cream-400" />
+                    <p className="text-cream-600">No orders found.</p>
                   </div>
                 ) : (
-                  <div className="border border-cream-300 rounded-lg overflow-hidden bg-white">
-                    <div className="overflow-x-auto">
-                      <table className="w-full border-collapse">
-                        <thead>
-                          <tr className="bg-cream-100">
-                            <th className="border border-cream-300 px-3 py-2 text-left text-sm font-medium text-cream-900">
-                              Min Quantity
-                            </th>
-                            <th className="border border-cream-300 px-3 py-2 text-left text-sm font-medium text-cream-900">
-                              Max Quantity
-                            </th>
-                            <th className="border border-cream-300 px-3 py-2 text-left text-sm font-medium text-cream-900">
-                              Discount (%)
-                            </th>
-                            <th className="border border-cream-300 px-3 py-2 text-center text-sm font-medium text-cream-900 w-20">
-                              Action
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {(productForm.quantityDiscounts || []).map((discount, index) => (
-                            <tr key={index}>
-                              <td className="border border-cream-300 px-3 py-2">
-                                <input
-                                  type="number"
-                                  value={discount.minQuantity}
-                                  onChange={(e) => {
-                                    const updated = [...(productForm.quantityDiscounts || [])];
-                                    updated[index].minQuantity = parseInt(e.target.value) || 0;
-                                    setProductForm({ ...productForm, quantityDiscounts: updated });
-                                  }}
-                                  className="w-full px-2 py-2.5 border border-cream-200 rounded text-sm"
-                                  placeholder="e.g., 1000"
-                                  min="0"
-                                />
-                              </td>
-                              <td className="border border-cream-300 px-3 py-2">
-                                <input
-                                  type="number"
-                                  value={discount.maxQuantity || ""}
-                                  onChange={(e) => {
-                                    const updated = [...(productForm.quantityDiscounts || [])];
-                                    updated[index].maxQuantity = e.target.value ? parseInt(e.target.value) : null;
-                                    setProductForm({ ...productForm, quantityDiscounts: updated });
-                                  }}
-                                  className="w-full px-2 py-2.5 border border-cream-200 rounded text-sm"
-                                  placeholder="Leave empty for no limit"
-                                  min="0"
-                                />
-                                <p className="text-xs text-cream-500 mt-1">Leave empty for unlimited</p>
-                              </td>
-                              <td className="border border-cream-300 px-3 py-2">
-                                <div className="flex items-center gap-2">
-                                  <input
-                                    type="number"
-                                    value={discount.discountPercentage}
-                                    onChange={(e) => {
-                                      const updated = [...(productForm.quantityDiscounts || [])];
-                                      updated[index].discountPercentage = parseFloat(e.target.value) || 0;
-                                      setProductForm({ ...productForm, quantityDiscounts: updated });
-                                    }}
-                                    className="w-full px-2 py-2.5 border border-cream-200 rounded text-sm"
-                                    placeholder="e.g., 5"
-                                    min="0"
-                                    max="100"
-                                    step="0.1"
-                                  />
-                                  <span className="text-sm text-cream-600">%</span>
-                                </div>
-                                {discount.discountPercentage > 0 && (
-                                  <p className="text-xs text-cream-600 mt-1">
-                                    Price: {((100 - discount.discountPercentage) / 100).toFixed(2)}x base price
-                                  </p>
-                                )}
-                              </td>
-                              <td className="border border-cream-300 px-3 py-2 text-center">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const updated = (productForm.quantityDiscounts || []).filter((_, i) => i !== index);
-                                    setProductForm({ ...productForm, quantityDiscounts: updated });
-                                  }}
-                                  className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
-                                >
-                                  <Trash2 size={16} />
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                    <div className="p-3 bg-blue-50 border-t border-cream-300">
-                      <p className="text-xs text-blue-800">
-                        <strong>Example:</strong> Min: 1000, Max: 5000, Discount: 5% → Customers ordering 1000-5000 units get 5% off.
-                        Min: 5000, Max: (empty), Discount: 10% → Customers ordering 5000+ units get 10% off.
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Pricing & Category Section */}
-              <div className="border border-cream-300 rounded-lg p-6 bg-white">
-                <h3 className="text-lg font-semibold text-cream-900 mb-4 flex items-center gap-2">
-                  <CreditCard size={20} />
-                  Pricing & Category
-                </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-cream-900 mb-2 flex items-center gap-2">
-                      Base Price (INR per unit) *
-                      <div className="group relative">
-                        <Info size={14} className="text-cream-500 cursor-help" />
-                        <div className="absolute left-0 bottom-full mb-2 hidden group-hover:block z-10 w-64 p-2 bg-cream-900 text-white text-xs rounded-lg shadow-lg">
-                          The base price per unit before any options, discounts, or taxes are applied.
-                        </div>
-                      </div>
-                    </label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-cream-600">₹</span>
-                      <input
-                        id="product-basePrice"
-                        name="basePrice"
-                        type="number"
-                        required
-                        step="0.00001"
-                        min="0"
-                        value={productForm.basePrice}
-                        onChange={(e) => {
-                          setProductForm({
-                            ...productForm,
-                            basePrice: e.target.value,
-                          });
-                          // Clear error when user starts typing
-                          if (productFormErrors.basePrice) {
-                            setProductFormErrors({ ...productFormErrors, basePrice: undefined });
-                          }
-                        }}
-                        className={`w-full pl-8 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500 ${productFormErrors.basePrice ? 'border-red-300 bg-red-50' : 'border-cream-300'
-                          }`}
-                        placeholder="0.00000"
-                      />
-                      {productFormErrors.basePrice && (
-                        <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
-                          <AlertCircle size={12} />
-                          {productFormErrors.basePrice}
-                        </p>
-                      )}
-                    </div>
-                    {productForm.basePrice && parseFloat(productForm.basePrice) < 0 && !productFormErrors.basePrice && (
-                      <p className="text-xs text-red-600 mt-1">Price cannot be negative</p>
-                    )}
-                  </div>
-
-                </div>
-              </div>
-
-              {/* Category & Subcategory Section */}
-              <div className="border border-cream-300 rounded-lg p-6 bg-white">
-                <h3 className="text-lg font-semibold text-cream-900 mb-4 flex items-center gap-2">
-                  <CreditCard size={20} />
-                  Category & Subcategory
-                </h3>
-                <div className="space-y-4">
-                  {/* Step 1: Type Selection */}
-                  <div>
-                    <label className="block text-sm font-medium text-cream-900 mb-2">
-                      Main Type * <span className="text-xs text-cream-500 font-normal">(Select first to filter categories)</span>
-                    </label>
-                    <ReviewFilterDropdown
-                      label="Select Type"
-                      value={selectedType || ""}
-                      onChange={async (value) => {
-                        const newType = value as string;
-                        setSelectedType(newType);
-
-                        // Clear category and subcategory when type changes
-                        setSelectedCategoryPath([]);
-                        setCategoryChildrenMap({});
-                        setProductForm({
-                          ...productForm,
-                          category: "",
-                          subcategory: "",
-                          nestedSubcategory: "",
-                        });
-                        setCategoryProducts([]);
-
-                        // Filter categories by type
-                        if (newType) {
-                          const filtered = categories.filter(cat => cat.type === newType && !cat.parent);
-                          setFilteredCategoriesByType(filtered);
-                        } else {
-                          setFilteredCategoriesByType([]);
-                        }
-                      }}
-                      options={[
-                        { value: "", label: "Select Type" },
-                        { value: "Digital", label: "Digital" },
-                        { value: "Bulk", label: "Bulk" },
-                      ]}
-                      className="w-full"
-                    />
-                    {!selectedType && (
-                      <p className="mt-1 text-xs text-amber-600 flex items-center gap-1">
-                        <AlertCircle size={12} />
-                        Please select a type first to see available categories
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Step 2: Category Selection (only shown after type is selected) */}
-                  {selectedType && (
-                    <div>
-                      <label className="block text-sm font-medium text-cream-900 mb-2">
-                        Category * <span className="text-xs text-cream-500 font-normal">(Select based on type)</span>
-                      </label>
-                      <ReviewFilterDropdown
-                        id="product-category"
-                        label="Select Category"
-                        value={String(productForm.category || selectedCategoryPath[0] || "")}
-                        onChange={async (value) => {
-                          if (value) {
-                            // Set the first level of the path
-                            setSelectedCategoryPath([String(value)]);
-                            // Update product form with the selected category
-                            setProductForm({
-                              ...productForm,
-                              category: String(value),
-                              subcategory: "", // Reset subcategory when category changes
-                            });
-
-                            // Clear error when user selects a category
-                            if (productFormErrors.category) {
-                              setProductFormErrors({ ...productFormErrors, category: undefined });
-                            }
-
-                            // Immediately fetch children for this category
-                            await fetchCategoryChildren(String(value));
-
-                            // Clear products - will show subcategories instead
-                            setCategoryProducts([]);
-                          } else {
-                            // Clear everything
-                            setSelectedCategoryPath([]);
-                            setCategoryChildrenMap({});
-                            setProductForm({
-                              ...productForm,
-                              category: "",
-                              subcategory: "",
-                            });
-                            setCategoryProducts([]);
-                          }
-                        }}
-                        options={[
-                          { value: "", label: "Select Category" },
-                          ...filteredCategoriesByType
-                            .filter(cat => !cat.parent) // Only show top-level categories
-                            .map((cat) => ({
-                              value: cat._id,
-                              label: cat.name,
-                            })),
-                        ]}
-                        className={`w-full ${productFormErrors.category ? 'border-red-300' : ''}`}
-                      />
-                      {productFormErrors.category && (
-                        <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
-                          <AlertCircle size={12} />
-                          {productFormErrors.category}
-                        </p>
-                      )}
-                      {!productForm.category && selectedType && !productFormErrors.category && (
-                        <p className="mt-1 text-xs text-amber-600 flex items-center gap-1">
-                          <AlertCircle size={12} />
-                          Please select a category to continue
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* Subcategory Selection - Only Level 1 */}
-                {productForm.category && selectedCategoryPath.length > 0 && (() => {
-                  const children = categoryChildrenMap[String(selectedCategoryPath[0] || "")] || [];
-                  const isLoading = loadingCategoryChildren[String(selectedCategoryPath[0] || "")] || false;
-                  const selectedChildId = String(selectedCategoryPath[1] || "");
-
-                  return (
-                    <div className="mt-4">
-                      <label className="block text-sm font-medium text-cream-900 mb-2">
-                        Subcategory <span className="text-xs text-cream-500 font-normal">(Optional - Leave empty to create product directly in category)</span>
-                      </label>
-                      {isLoading && children.length === 0 ? (
-                        <div className="w-full py-2 border border-cream-300 rounded-lg flex items-center justify-center">
-                          <Loader className="animate-spin text-cream-600" size={16} />
-                          <span className="ml-2 text-sm text-cream-600">Loading...</span>
-                        </div>
-                      ) : children.length > 0 ? (
-                        <ReviewFilterDropdown
-                          label="Select Subcategory"
-                          value={String(selectedChildId || productForm.subcategory || "")}
-                          onChange={async (value) => {
-                            if (value) {
-                              // Update path to include subcategory
-                              setSelectedCategoryPath([String(selectedCategoryPath[0]), String(value)]);
-
-                              // Update product form - clear nested subcategory when subcategory changes
-                              setProductForm({
-                                ...productForm,
-                                category: String(selectedCategoryPath[0]),
-                                subcategory: String(value),
-                                nestedSubcategory: "", // Clear nested subcategory
-                              });
-
-                              // Fetch nested subcategories for this subcategory
-                              await fetchNestedSubCategories(String(value));
-
-                              // Fetch products for the selected subcategory
-                              try {
-                                setLoadingCategoryProducts(true);
-                                const productsResponse = await fetch(`${API_BASE_URL}/products/category/${value}`, {
-                                  headers: getAuthHeaders(),
-                                });
-
-                                if (productsResponse.ok) {
-                                  const productsData = await productsResponse.json();
-                                  setCategoryProducts(productsData || []);
-                                }
-                              } catch (err) {
-                                console.error("Error fetching category products:", err);
-                                setCategoryProducts([]);
-                              } finally {
-                                setLoadingCategoryProducts(false);
-                              }
-                            } else {
-                              // Clear subcategory and nested subcategory
-                              setSelectedCategoryPath([selectedCategoryPath[0]]);
-                              setProductForm({
-                                ...productForm,
-                                category: selectedCategoryPath[0],
-                                subcategory: "",
-                                nestedSubcategory: "", // Clear nested subcategory
-                              });
-                              // Clear nested subcategories
-                              setNestedSubcategoriesByParent({});
-
-                              // Fetch products for the category
-                              try {
-                                setLoadingCategoryProducts(true);
-                                const productsResponse = await fetch(`${API_BASE_URL}/products/category/${selectedCategoryPath[0]}`, {
-                                  headers: getAuthHeaders(),
-                                });
-
-                                if (productsResponse.ok) {
-                                  const productsData = await productsResponse.json();
-                                  setCategoryProducts(productsData || []);
-                                }
-                              } catch (err) {
-                                console.error("Error fetching category products:", err);
-                                setCategoryProducts([]);
-                              } finally {
-                                setLoadingCategoryProducts(false);
-                              }
-                            }
-                          }}
-                          options={[
-                            { value: "", label: "None (Use Category Directly)" },
-                            ...children
-                              .filter(child => !child.parent || child._id === String(selectedChildId || productForm.subcategory))
-                              .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
-                              .map((child) => ({
-                                value: child._id,
-                                label: child.name,
-                              })),
-                          ]}
-                          className="w-full"
-                        />
-                      ) : null}
-                    </div>
-                  );
-                })()}
-
-                {/* Nested Subcategory Selection - Only shown when subcategory is selected */}
-                {productForm.subcategory && (() => {
-                  const nestedChildren = nestedSubcategoriesByParent[productForm.subcategory] || [];
-                  const isLoadingNested = loadingSubcategories;
-
-                  return (
-                    <div className="mt-4">
-                      <label className="block text-sm font-medium text-cream-900 mb-2">
-                        Nested Subcategory <span className="text-xs text-cream-500 font-normal">(Optional - Leave empty if no nested subcategory)</span>
-                      </label>
-                      {isLoadingNested && nestedChildren.length === 0 ? (
-                        <div className="w-full py-2 border border-cream-300 rounded-lg flex items-center justify-center">
-                          <Loader className="animate-spin text-cream-600" size={16} />
-                          <span className="ml-2 text-sm text-cream-600">Loading nested subcategories...</span>
-                        </div>
-                      ) : nestedChildren.length > 0 ? (
-                        <ReviewFilterDropdown
-                          label="Select Nested Subcategory"
-                          value={String(productForm.nestedSubcategory || "")}
-                          onChange={async (value) => {
-                            if (value) {
-                              // Update product form with nested subcategory
-                              setProductForm({
-                                ...productForm,
-                                nestedSubcategory: String(value),
-                              });
-
-                              // Fetch products for the selected nested subcategory
-                              try {
-                                setLoadingCategoryProducts(true);
-                                const productsResponse = await fetch(`${API_BASE_URL}/products/category/${value}`, {
-                                  headers: getAuthHeaders(),
-                                });
-
-                                if (productsResponse.ok) {
-                                  const productsData = await productsResponse.json();
-                                  setCategoryProducts(productsData || []);
-                                }
-                              } catch (err) {
-                                console.error("Error fetching nested subcategory products:", err);
-                                setCategoryProducts([]);
-                              } finally {
-                                setLoadingCategoryProducts(false);
-                              }
-                            } else {
-                              // Clear nested subcategory
-                              setProductForm({
-                                ...productForm,
-                                nestedSubcategory: "",
-                              });
-
-                              // Fetch products for the parent subcategory
-                              try {
-                                setLoadingCategoryProducts(true);
-                                const productsResponse = await fetch(`${API_BASE_URL}/products/category/${productForm.subcategory}`, {
-                                  headers: getAuthHeaders(),
-                                });
-
-                                if (productsResponse.ok) {
-                                  const productsData = await productsResponse.json();
-                                  setCategoryProducts(productsData || []);
-                                }
-                              } catch (err) {
-                                console.error("Error fetching subcategory products:", err);
-                                setCategoryProducts([]);
-                              } finally {
-                                setLoadingCategoryProducts(false);
-                              }
-                            }
-                          }}
-                          options={[
-                            { value: "", label: "None (Use Subcategory Directly)" },
-                            ...nestedChildren
-                              .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
-                              .map((child) => ({
-                                value: child._id,
-                                label: child.name,
-                              })),
-                          ]}
-                          className="w-full"
-                        />
-                      ) : (
-                        <p className="text-sm text-cream-600 py-2">
-                          No nested subcategories available for this subcategory.
-                        </p>
-                      )}
-                    </div>
-                  );
-                })()}
-
-
-                {/* Display categories, subcategories, or products based on selection */}
-                {selectedType && (
-                  <div className="mt-4 p-4 bg-cream-50 border border-cream-200 rounded-lg">
-                    <div className="flex items-center justify-between mb-3">
-                      <h4 className="text-sm font-semibold text-cream-900">
-                        Existing Products in this Category
-                      </h4>
-                      {loadingCategoryProducts && (
-                        <Loader className="animate-spin text-cream-600" size={16} />
-                      )}
-                    </div>
-
-                    {loadingCategoryProducts ? (
-                      <div className="text-center py-4">
-                        <p className="text-sm text-cream-600">Loading...</p>
-                      </div>
-                    ) : !productForm.category ? (
-                      // Show all categories under selected type
-                      <div className="space-y-2 max-h-60 overflow-y-auto">
-                        {filteredCategoriesByType
-                          .filter(cat => !cat.parent)
-                          .map((category) => (
-                            <div
-                              key={category._id}
-                              className="flex items-center justify-between p-3 bg-white border border-cream-200 rounded-lg hover:border-cream-300 transition-colors cursor-pointer"
-                              onClick={async () => {
-                                setProductForm({
-                                  ...productForm,
-                                  category: category._id,
-                                  subcategory: "",
-                                });
-                                setSelectedCategoryPath([category._id]);
-                                setCategoryProducts([]);
-                                await fetchCategoryChildren(category._id);
-                              }}
-                            >
-                              <div className="flex items-center gap-3 flex-1">
-                                {category.image && category.image.trim() !== "" && (
-                                  <img
-                                    src={category.image}
-                                    alt={category.name}
-                                    className="w-12 h-12 object-cover rounded-lg"
-                                  />
-                                )}
-                                <div className="flex-1 min-w-0">
-                                  <p className="font-medium text-cream-900 text-sm truncate">
-                                    {category.name}
-                                  </p>
-                                  <p className="text-xs text-cream-600">
-                                    {category.type} Category
-                                  </p>
-                                </div>
-                              </div>
-                              <ChevronRight className="text-cream-600" size={16} />
-                            </div>
-                          ))}
-                        {filteredCategoriesByType.filter(cat => !cat.parent).length === 0 && (
-                          <div className="text-center py-4">
-                            <p className="text-sm text-cream-600">
-                              No categories found for this type.
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    ) : !productForm.subcategory ? (
-                      // Show all subcategories under selected category
-                      <div className="space-y-2 max-h-60 overflow-y-auto">
-                        {(categoryChildrenMap[productForm.category] || []).length > 0 ? (
-                          (categoryChildrenMap[productForm.category] || [])
-                            .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
-                            .map((subcategory) => (
-                              <div
-                                key={subcategory._id}
-                                className="flex items-center justify-between p-3 bg-white border border-cream-200 rounded-lg hover:border-cream-300 transition-colors cursor-pointer"
-                                onClick={async () => {
-                                  setProductForm({
-                                    ...productForm,
-                                    subcategory: subcategory._id,
-                                  });
-                                  // Build path including parent subcategories if nested
-                                  const path = [productForm.category];
-                                  if (subcategory.parent) {
-                                    // If nested, we need to find parent chain
-                                    const parentId = typeof subcategory.parent === 'object' && subcategory.parent !== null
-                                      ? subcategory.parent._id
-                                      : String(subcategory.parent);
-                                    if (parentId) path.push(parentId);
-                                  }
-                                  path.push(subcategory._id);
-                                  setSelectedCategoryPath(path);
-                                  // Fetch products for this subcategory
-                                  try {
-                                    setLoadingCategoryProducts(true);
-                                    const response = await fetch(`${API_BASE_URL}/products/subcategory/${subcategory._id}`, {
-                                      headers: getAuthHeaders(),
-                                    });
-                                    if (response.ok) {
-                                      const data = await response.json();
-                                      setCategoryProducts(data || []);
-                                    } else {
-                                      setCategoryProducts([]);
-                                    }
-                                  } catch (err) {
-                                    console.error("Error fetching products:", err);
-                                    setCategoryProducts([]);
-                                  } finally {
-                                    setLoadingCategoryProducts(false);
-                                  }
-                                }}
-                              >
-                                <div className="flex items-center gap-3 flex-1">
-                                  {subcategory.image && subcategory.image.trim() !== "" && (
-                                    <img
-                                      src={subcategory.image}
-                                      alt={subcategory.name}
-                                      className="w-12 h-12 object-cover rounded-lg"
-                                    />
-                                  )}
-                                  <div className="flex-1 min-w-0">
-                                    <p className="font-medium text-cream-900 text-sm truncate">
-                                      {subcategory.name}
-                                    </p>
-                                    <p className="text-xs text-cream-600">
-                                      {subcategory.parent ? 'Nested Subcategory' : 'Subcategory'}
-                                    </p>
-                                  </div>
-                                </div>
-                                <ChevronRight className="text-cream-600" size={16} />
-                              </div>
-                            ))
-                        ) : (
-                          <div className="text-center py-4">
-                            <p className="text-sm text-cream-600">
-                              No subcategories found. Product will be created directly under this category.
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      // Show all products under selected subcategory
-                      categoryProducts.length === 0 ? (
-                        <div className="text-center py-4">
-                          <p className="text-sm text-cream-600">
-                            No products found in this subcategory. This will be the first product.
-                          </p>
-                        </div>
-                      ) : (
-                        <div className="space-y-2 max-h-60 overflow-y-auto">
-                          {categoryProducts.map((product) => {
-                            return (
-                              <div
-                                key={product._id}
-                                className="flex items-center justify-between p-3 bg-white border border-cream-200 rounded-lg hover:border-cream-300 transition-colors"
-                              >
-                                <div className="flex items-center gap-3 flex-1">
-                                  {product.image && product.image.trim() !== "" && (
-                                    <img
-                                      src={product.image}
-                                      alt={product.name}
-                                      className="w-12 h-12 object-cover rounded-lg"
-                                    />
-                                  )}
-                                  <div className="flex-1 min-w-0">
-                                    <p className="font-medium text-cream-900 text-sm truncate">
-                                      {product.name}
-                                    </p>
-                                    <p className="text-xs text-cream-600">
-                                      ₹{product.basePrice} per unit
-                                    </p>
-                                  </div>
-                                </div>
-                                <button
-                                  type="button"
-                                  onClick={() => handleEditProduct(product._id)}
-                                  className="px-3 py-1.5 text-xs bg-cream-200 text-cream-900 rounded-lg hover:bg-cream-300 transition-colors flex items-center gap-1 whitespace-nowrap"
-                                >
-                                  <Eye size={14} />
-                                  View
-                                </button>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )
-                    )}
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="block text-sm font-medium text-cream-900">
-                    Options
-                  </label>
-                  {productForm.options && (
-                    <button
-                      type="button"
-                      onClick={handleLoadOptionsFromJSON}
-                      className="px-3 py-1 text-xs bg-cream-200 text-cream-900 rounded-lg hover:bg-cream-300 transition-colors"
-                    >
-                      Load from JSON
-                    </button>
-                  )}
-                </div>
-
-                <div className="border border-cream-300 rounded-lg p-4">
-                  <div className="mb-4">
-                    <button
-                      type="button"
-                      onClick={handleAddOptionRow}
-                      className="px-3 py-1 text-sm bg-cream-900 text-white rounded-lg hover:bg-cream-800 transition-colors flex items-center gap-2"
-                    >
-                      <Plus size={16} />
-                      Add Option
-                    </button>
-                  </div>
-
-                  {optionsTable.length === 0 ? (
-                    <p className="text-sm text-cream-600 text-center py-4">
-                      No options added. Click "Add Option" to start.
-                    </p>
-                  ) : (
-                    <>
-                      {/* Desktop Table View */}
-                      <div className="hidden md:block overflow-x-auto -mx-4 sm:mx-0">
-                        <div className="inline-block min-w-full align-middle px-4 sm:px-0">
-                          <table className="w-full border-collapse">
-                            <thead>
-                              <tr className="bg-cream-100">
-                                <th className="border border-cream-300 px-3 py-2 text-left text-sm font-medium text-cream-900 min-w-[150px]">
-                                  Name
-                                </th>
-                                <th className="border border-cream-300 px-3 py-2 text-left text-sm font-medium text-cream-900 min-w-[150px]">
-                                  Price (INR per unit)
-                                </th>
-                                <th className="border border-cream-300 px-3 py-2 text-left text-sm font-medium text-cream-900 min-w-[200px]">
-                                  Description
-                                </th>
-                                <th className="border border-cream-300 px-3 py-2 text-center text-sm font-medium text-cream-900 w-20">
-                                  Action
-                                </th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {optionsTable.map((option, index) => (
-                                <tr key={index}>
-                                  <td className="border border-cream-300 px-3 py-2">
-                                    <input
-                                      type="text"
-                                      value={option.name}
-                                      onChange={(e) =>
-                                        handleUpdateOptionRow(
-                                          index,
-                                          "name",
-                                          e.target.value
-                                        )
-                                      }
-                                      className="w-full px-2 py-2.5 border border-cream-200 rounded text-sm"
-                                      placeholder="Option name"
-                                    />
-                                  </td>
-                                  <td className="border border-cream-300 px-3 py-2">
-                                    <input
-                                      type="number"
-                                      step="0.00001"
-                                      min="0"
-                                      value={option.priceAdd}
-                                      onChange={(e) =>
-                                        handleUpdateOptionRow(
-                                          index,
-                                          "priceAdd",
-                                          e.target.value
-                                        )
-                                      }
-                                      className="w-full px-2 py-2.5 border border-cream-200 rounded text-sm font-medium"
-                                      placeholder="0.00 (INR per unit)"
-                                    />
-                                  </td>
-                                  <td className="border border-cream-300 px-3 py-2">
-                                    <textarea
-                                      value={option.description}
-                                      onChange={(e) =>
-                                        handleUpdateOptionRow(
-                                          index,
-                                          "description",
-                                          e.target.value
-                                        )
-                                      }
-                                      rows={2}
-                                      className="w-full px-2 py-1 border border-cream-200 rounded text-sm resize-y"
-                                      placeholder="Description"
-                                    />
-                                  </td>
-                                  <td className="border border-cream-300 px-3 py-2 text-center">
-                                    <button
-                                      type="button"
-                                      onClick={() => handleRemoveOptionRow(index)}
-                                      className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
-                                    >
-                                      <Trash2 size={16} />
-                                    </button>
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-
-                      {/* Mobile Card View */}
-                      <div className="md:hidden space-y-4">
-                        {optionsTable.map((option, index) => (
+                  <div className="space-y-4">
+                    {orders.map((order) => {
+                      // Skip orders with null product
+                      if (!order.product) {
+                        return (
                           <div
-                            key={index}
-                            className="bg-white border border-cream-300 rounded-lg p-4 space-y-3"
+                            key={order._id}
+                            className="bg-white rounded-lg border border-cream-200 p-4 sm:p-6 hover:shadow-md transition-shadow"
                           >
-                            <div className="flex items-center justify-between">
-                              <h4 className="font-semibold text-cream-900">Option {index + 1}</h4>
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveOptionRow(index)}
-                                className="p-2 text-red-600 hover:bg-red-50 rounded transition-colors"
-                              >
-                                <Trash2 size={18} />
-                              </button>
-                            </div>
-                            <div>
-                              <label className="block text-xs font-medium text-cream-700 mb-1">
-                                Name
-                              </label>
-                              <input
-                                type="text"
-                                value={option.name}
-                                onChange={(e) =>
-                                  handleUpdateOptionRow(
-                                    index,
-                                    "name",
-                                    e.target.value
-                                  )
-                                }
-                                className="w-full px-3 py-2 border border-cream-200 rounded text-sm"
-                                placeholder="Option name"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-xs font-medium text-cream-700 mb-1">
-                                Price (INR per unit)
-                              </label>
-                              <input
-                                type="text"
-                                value={option.priceAdd}
-                                onChange={(e) =>
-                                  handleUpdateOptionRow(
-                                    index,
-                                    "priceAdd",
-                                    e.target.value
-                                  )
-                                }
-                                className="w-full px-3 py-2 border border-cream-200 rounded text-sm font-medium"
-                                placeholder="0.00 (INR per unit)"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-xs font-medium text-cream-700 mb-1">
-                                Description
-                              </label>
-                              <textarea
-                                value={option.description}
-                                onChange={(e) =>
-                                  handleUpdateOptionRow(
-                                    index,
-                                    "description",
-                                    e.target.value
-                                  )
-                                }
-                                rows={2}
-                                className="w-full px-3 py-2 border border-cream-200 rounded text-sm resize-y"
-                                placeholder="Description"
-                              />
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              {/* File Upload Constraints & Additional Settings */}
-              <div className="border border-cream-300 rounded-lg p-4 bg-purple-50">
-                <h3 className="text-lg font-semibold text-cream-900 mb-4">File Upload Constraints & Additional Settings</h3>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-                  {/* Maximum File Size */}
-                  <div>
-                    <label className="block text-sm font-medium text-cream-900 mb-2">
-                      Maximum File Size (MB)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      min="0"
-                      value={productForm.maxFileSizeMB}
-                      onChange={(e) =>
-                        setProductForm({
-                          ...productForm,
-                          maxFileSizeMB: e.target.value,
-                        })
-                      }
-                      className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
-                      placeholder="e.g., 10"
-                    />
-                    <p className="text-xs text-cream-600 mt-1">Enforces technical constraints for Staff uploads</p>
-                  </div>
-
-                  {/* Block CDR and JPG */}
-                  <div className="flex items-end">
-                    <label className="flex items-center gap-2 text-sm font-medium text-cream-900 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={productForm.blockCDRandJPG}
-                        onChange={(e) =>
-                          setProductForm({
-                            ...productForm,
-                            blockCDRandJPG: e.target.checked,
-                          })
-                        }
-                        className="w-4 h-4 text-cream-900 border-cream-300 rounded focus:ring-cream-500"
-                      />
-                      <span>Block CDR and JPG Files</span>
-                    </label>
-                    <p className="text-xs text-cream-600 ml-2">Restricts accepted file formats for production</p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-                  {/* File Width Constraints */}
-                  <div>
-                    <label className="block text-sm font-medium text-cream-900 mb-2">
-                      Min File Width (pixels)
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={productForm.minFileWidth}
-                      onChange={(e) =>
-                        setProductForm({
-                          ...productForm,
-                          minFileWidth: e.target.value,
-                        })
-                      }
-                      className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
-                      placeholder="e.g., 2000"
-                    />
-                    <p className="text-xs text-cream-600 mt-1">Minimum width for user artwork files</p>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-cream-900 mb-2">
-                      Max File Width (pixels)
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={productForm.maxFileWidth}
-                      onChange={(e) =>
-                        setProductForm({
-                          ...productForm,
-                          maxFileWidth: e.target.value,
-                        })
-                      }
-                      className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
-                      placeholder="e.g., 5000"
-                    />
-                    <p className="text-xs text-cream-600 mt-1">Maximum width for user artwork files</p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-                  {/* File Height Constraints */}
-                  <div>
-                    <label className="block text-sm font-medium text-cream-900 mb-2">
-                      Min File Height (pixels)
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={productForm.minFileHeight}
-                      onChange={(e) =>
-                        setProductForm({
-                          ...productForm,
-                          minFileHeight: e.target.value,
-                        })
-                      }
-                      className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
-                      placeholder="e.g., 1500"
-                    />
-                    <p className="text-xs text-cream-600 mt-1">Minimum height for user artwork files</p>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-cream-900 mb-2">
-                      Max File Height (pixels)
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={productForm.maxFileHeight}
-                      onChange={(e) =>
-                        setProductForm({
-                          ...productForm,
-                          maxFileHeight: e.target.value,
-                        })
-                      }
-                      className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
-                      placeholder="e.g., 4000"
-                    />
-                    <p className="text-xs text-cream-600 mt-1">Maximum height for user artwork files</p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* Additional Design Charge */}
-                  <div>
-                    <label className="block text-sm font-medium text-cream-900 mb-2">
-                      Additional Design Charge (INR)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.00001"
-                      min="0"
-                      value={productForm.additionalDesignCharge}
-                      onChange={(e) =>
-                        setProductForm({
-                          ...productForm,
-                          additionalDesignCharge: e.target.value,
-                        })
-                      }
-                      className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
-                      placeholder="e.g., 500"
-                    />
-                    <p className="text-xs text-cream-600 mt-1">Fixed fee if Staff requires design help</p>
-                  </div>
-
-                  {/* GST Percentage */}
-                  <div>
-                    <label className="block text-sm font-medium text-cream-900 mb-2">
-                      GST % *
-                    </label>
-                    <input
-                      id="product-gstPercentage"
-                      name="gstPercentage"
-                      type="number"
-                      required
-                      step="0.01"
-                      min="0"
-                      max="100"
-                      value={productForm.gstPercentage}
-                      onChange={(e) => {
-                        setProductForm({
-                          ...productForm,
-                          gstPercentage: e.target.value,
-                        });
-                        // Clear error when user starts typing
-                        if (productFormErrors.gstPercentage) {
-                          setProductFormErrors({ ...productFormErrors, gstPercentage: undefined });
-                        }
-                      }}
-                      className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500 ${productFormErrors.gstPercentage ? 'border-red-300 bg-red-50' : 'border-cream-300'
-                        }`}
-                      placeholder="e.g., 18"
-                    />
-                    {productFormErrors.gstPercentage && (
-                      <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
-                        <AlertCircle size={12} />
-                        {productFormErrors.gstPercentage}
-                      </p>
-                    )}
-                    {!productFormErrors.gstPercentage && (
-                      <p className="text-xs text-red-600 mt-1 font-medium">CRITICAL: Required for invoice calculation</p>
-                    )}
-                  </div>
-                </div>
-
-                {/* Price Display Setting */}
-                <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                  <label className="flex items-center gap-3 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={productForm.showPriceIncludingGst}
-                      onChange={(e) =>
-                        setProductForm({
-                          ...productForm,
-                          showPriceIncludingGst: e.target.checked,
-                        })
-                      }
-                      className="w-5 h-5 text-cream-900 border-cream-300 rounded focus:ring-cream-500"
-                    />
-                    <div>
-                      <span className="text-sm font-medium text-cream-900 block">
-                        Show Prices Including GST
-                      </span>
-                      <p className="text-xs text-cream-600 mt-1">
-                        {productForm.showPriceIncludingGst
-                          ? "Prices will be displayed including GST on the product page. (Not recommended - industry standard is to show excluding GST)"
-                          : "Prices will be displayed excluding GST on the product page. GST will be added at checkout. (Recommended - industry standard)"}
-                      </p>
-                    </div>
-                  </label>
-                </div>
-
-                {/* Custom Instructions Section */}
-                <div className="mt-6 border border-cream-300 rounded-lg p-6 bg-yellow-50">
-                  <h3 className="text-lg font-semibold text-cream-900 mb-2 flex items-center gap-2">
-                    <Info size={20} />
-                    Custom Instructions for Customers
-                  </h3>
-                  <p className="text-sm text-cream-600 mb-4">
-                    Add specific instructions that customers must follow. If instructions are not followed, the company is not responsible. These instructions will be displayed prominently to customers.
-                  </p>
-                  <div>
-                    <label className="block text-sm font-medium text-cream-900 mb-2">
-                      Instructions *
-                    </label>
-                    <textarea
-                      id="product-instructions"
-                      name="instructions"
-                      value={productForm.instructions}
-                      onChange={(e) => {
-                        setProductForm({
-                          ...productForm,
-                          instructions: e.target.value,
-                        });
-                        // Clear error when user starts typing
-                        if (productFormErrors.instructions) {
-                          setProductFormErrors({ ...productFormErrors, instructions: undefined });
-                        }
-                      }}
-                      rows={6}
-                      className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500 ${productFormErrors.instructions ? 'border-red-300 bg-red-50' : 'border-cream-300'
-                        }`}
-                      placeholder="Example: Maximum file size: 10 MB. Files must be in PNG or PDF format only. CDR and JPG files are not accepted. Required dimensions: 3000 × 2000 pixels. Please ensure all text is converted to outlines before uploading."
-                    />
-                    {productFormErrors.instructions && (
-                      <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
-                        <AlertCircle size={12} />
-                        {productFormErrors.instructions}
-                      </p>
-                    )}
-                    {!productFormErrors.instructions && (
-                      <p className="text-xs text-yellow-700 mt-2 font-medium">
-                        ⚠️ These instructions will be displayed to customers with a disclaimer that the company is not responsible if instructions are not followed.
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                {/* Production Sequence Section */}
-                <div className="mt-6 border border-cream-300 rounded-lg p-6 bg-blue-50">
-                  <h3 className="text-lg font-semibold text-cream-900 mb-2 flex items-center gap-2">
-                    <Info size={20} />
-                    Production Sequence (Department Order)
-                  </h3>
-                  <p className="text-sm text-cream-600 mb-4">
-                    Select a sequence or customize it for this specific product. If not set, the default department sequence will be used.
-                  </p>
-
-                  {(() => {
-                    // Check if we have any way to show the sequence UI
-                    const hasDepartments = departments.length > 0;
-                    const hasProductionSequence = productForm.productionSequence && productForm.productionSequence.length > 0;
-                    const hasSelectedSequence = selectedSequenceId !== null;
-                    const hasSequences = sequences.length > 0;
-
-                    // Check if selected sequence has departments
-                    const selectedSequence = hasSelectedSequence
-                      ? sequences.find((s: any) => s._id === selectedSequenceId)
-                      : null;
-                    const selectedSequenceHasDepts = selectedSequence &&
-                      selectedSequence.departments &&
-                      selectedSequence.departments.length > 0;
-
-                    // Show error only if we have no way to display sequences
-                    const shouldShowError = !hasDepartments &&
-                      !hasProductionSequence &&
-                      !hasSelectedSequence &&
-                      !hasSequences;
-
-                    return shouldShowError ? (
-                      <div className="p-4 bg-cream-50 border border-cream-200 rounded-lg">
-                        <p className="text-sm text-cream-600 text-center">
-                          No departments available. Please create departments first.
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="space-y-4">
-                        {/* Sequence List - Clickable to expand/collapse */}
-                        {sequences.length > 0 && (
-                          <div className="border border-cream-300 rounded-lg p-4 bg-white">
-                            <h4 className="text-sm font-medium text-cream-900 mb-3">Available Sequences:</h4>
-                            <div className="space-y-2">
-                              {sequences.map((seq: any) => {
-                                const isExpanded = selectedSequenceId === seq._id;
-                                const seqDepts = (seq.departments || []).map((d: any) => {
-                                  if (!d || !d.department) return null;
-                                  return typeof d.department === 'object' && d.department !== null
-                                    ? d.department._id
-                                    : d.department;
-                                }).filter((id: any) => id !== null);
-
-                                return (
-                                  <div key={seq._id} className="border border-cream-200 rounded-lg overflow-hidden">
-                                    <div
-                                      onClick={() => {
-                                        // Toggle: if same sequence, close; if different, open new one
-                                        if (selectedSequenceId === seq._id) {
-                                          // Close current
-                                          setSelectedSequenceId(null);
-                                          setProductForm({
-                                            ...productForm,
-                                            productionSequence: [],
-                                          });
-                                        } else {
-                                          // Open new sequence
-                                          setSelectedSequenceId(seq._id);
-                                          // Load sequence departments into product form
-                                          setProductForm({
-                                            ...productForm,
-                                            productionSequence: seqDepts,
-                                          });
-
-                                          // Load sequence attributes into selectedAttributeTypes
-                                          if (seq.attributes && Array.isArray(seq.attributes) && seq.attributes.length > 0) {
-                                            const loadedAttributes = seq.attributes
-                                              .map((attr: any, index: number) => {
-                                                if (!attr) return null;
-                                                const attrId = typeof attr === 'object' && attr !== null ? attr._id : attr;
-                                                if (!attrId) return null;
-                                                return {
-                                                  attributeTypeId: attrId,
-                                                  isEnabled: true,
-                                                  isRequired: false,
-                                                  displayOrder: index,
-                                                };
-                                              })
-                                              .filter((attr: any) => attr !== null);
-                                            setSelectedAttributeTypes(loadedAttributes);
-                                          }
-                                        }
-                                      }}
-                                      className={`p-3 cursor-pointer transition-colors flex items-center justify-between ${isExpanded
-                                        ? "bg-cream-100 border-cream-900"
-                                        : "bg-cream-50 hover:bg-cream-100"
-                                        }`}
-                                    >
-                                      <p className="font-medium text-cream-900">{seq.name}</p>
-                                      <ChevronRight
-                                        size={18}
-                                        className={`text-cream-600 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
-                                      />
-                                    </div>
-
-                                    {/* Expanded Sequence Details */}
-                                    <AnimatePresence>
-                                      {isExpanded && (
-                                        <motion.div
-                                          initial={{ opacity: 0, height: 0 }}
-                                          animate={{ opacity: 1, height: "auto" }}
-                                          exit={{ opacity: 0, height: 0 }}
-                                          transition={{ duration: 0.3 }}
-                                          className="border-t border-cream-200 bg-white"
-                                        >
-                                          <div className="p-4 space-y-2">
-                                            <h5 className="text-xs font-semibold text-cream-700 mb-2">Sequence Departments:</h5>
-                                            <AnimatePresence>
-                                              {productForm.productionSequence.map((deptId, index) => {
-                                                const dept = departments.find((d: any) => d._id === deptId);
-                                                if (!dept) return null;
-                                                return (
-                                                  <motion.div
-                                                    key={deptId}
-                                                    initial={{ opacity: 0, x: -20 }}
-                                                    animate={{ opacity: 1, x: 0 }}
-                                                    exit={{ opacity: 0, x: -20 }}
-                                                    transition={{
-                                                      duration: 0.4,
-                                                      delay: index * 0.1,
-                                                      ease: "easeOut"
-                                                    }}
-                                                    className="flex items-center gap-3 p-3 bg-cream-50 border border-cream-200 rounded-lg"
-                                                  >
-                                                    <motion.span
-                                                      initial={{ scale: 0 }}
-                                                      animate={{ scale: 1 }}
-                                                      transition={{
-                                                        duration: 0.3,
-                                                        delay: index * 0.1 + 0.2,
-                                                        type: "spring",
-                                                        stiffness: 200
-                                                      }}
-                                                      className="flex items-center justify-center w-8 h-8 bg-cream-900 text-white rounded-full text-sm font-medium"
-                                                    >
-                                                      {index + 1}
-                                                    </motion.span>
-                                                    <div className="flex-1">
-                                                      <p className="font-medium text-cream-900">{dept.name}</p>
-                                                      <AnimatePresence>
-                                                        {dept.description && (
-                                                          <motion.p
-                                                            initial={{ opacity: 0, height: 0, y: -10 }}
-                                                            animate={{ opacity: 1, height: "auto", y: 0 }}
-                                                            exit={{ opacity: 0, height: 0, y: -10 }}
-                                                            transition={{
-                                                              duration: 0.5,
-                                                              delay: index * 0.1 + 0.3,
-                                                              ease: "easeOut"
-                                                            }}
-                                                            className="text-xs text-cream-600 mt-1 overflow-hidden"
-                                                          >
-                                                            {dept.description}
-                                                          </motion.p>
-                                                        )}
-                                                      </AnimatePresence>
-                                                    </div>
-                                                  </motion.div>
-                                                );
-                                              })}
-                                            </AnimatePresence>
-                                          </div>
-                                        </motion.div>
-                                      )}
-                                    </AnimatePresence>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Custom Sequence Button - Appears after sequences */}
-                        {!isCustomizingSequence && (
-                          <div className="flex justify-center">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setIsCustomizingSequence(true);
-                                // Clear selected sequence when going to custom
-                                setSelectedSequenceId(null);
-                              }}
-                              className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
-                            >
-                              <Settings size={16} />
-                              Create Custom Sequence
-                            </button>
-                          </div>
-                        )}
-
-                        {/* Custom Sequence Editor - Appears after sequences section */}
-                        {isCustomizingSequence && (
-                          <>
-                            <div className="border-t-2 border-cream-300 pt-4 mt-4">
-                              <div className="flex items-center justify-between mb-4">
-                                <div>
-                                  <h4 className="text-lg font-semibold text-cream-900">Create Custom Sequence</h4>
-                                  <p className="text-sm text-cream-600 mt-1">
-                                    Select departments in order to create a custom sequence for this product
-                                  </p>
-                                </div>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setIsCustomizingSequence(false);
-                                    // Reset production sequence when going back
-                                    setProductForm({
-                                      ...productForm,
-                                      productionSequence: [],
-                                    });
-                                  }}
-                                  className="px-3 py-1 text-sm bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center gap-2"
-                                >
-                                  <ChevronLeft size={14} />
-                                  Back
-                                </button>
+                            <div className="flex items-center gap-4">
+                              <div className="w-16 h-16 sm:w-20 sm:h-20 bg-gray-200 rounded-lg border border-cream-200 flex items-center justify-center">
+                                <Package size={24} className="text-gray-400" />
                               </div>
-
-                              {/* Selected Departments (in order) - Only show in custom mode */}
-                              <AnimatePresence>
-                                {productForm.productionSequence && productForm.productionSequence.length > 0 && (
-                                  <motion.div
-                                    initial={{ opacity: 0, y: -10 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    exit={{ opacity: 0, y: -10 }}
-                                    transition={{ duration: 0.3 }}
-                                    className="border border-cream-300 rounded-lg p-4 bg-white"
-                                  >
-                                    <h4 className="text-sm font-medium text-cream-900 mb-3">Custom Production Sequence:</h4>
-                                    <div className="space-y-2">
-                                      <AnimatePresence>
-                                        {(productForm.productionSequence || []).map((deptId, index) => {
-                                          const dept = departments.find((d: any) => d._id === deptId);
-                                          if (!dept) return null;
-                                          return (
-                                            <motion.div
-                                              key={deptId}
-                                              initial={{ opacity: 0, x: -20 }}
-                                              animate={{ opacity: 1, x: 0 }}
-                                              exit={{ opacity: 0, x: 20, scale: 0.9 }}
-                                              transition={{
-                                                duration: 0.4,
-                                                delay: index * 0.1,
-                                                ease: "easeOut"
-                                              }}
-                                              className="flex items-center justify-between p-3 bg-cream-50 border border-cream-200 rounded-lg"
-                                            >
-                                              <div className="flex items-center gap-3 flex-1">
-                                                <motion.span
-                                                  initial={{ scale: 0, rotate: -180 }}
-                                                  animate={{ scale: 1, rotate: 0 }}
-                                                  transition={{
-                                                    duration: 0.4,
-                                                    delay: index * 0.1 + 0.2,
-                                                    type: "spring",
-                                                    stiffness: 200
-                                                  }}
-                                                  className="flex items-center justify-center w-8 h-8 bg-cream-900 text-white rounded-full text-sm font-medium"
-                                                >
-                                                  {index + 1}
-                                                </motion.span>
-                                                <div className="flex-1">
-                                                  <p className="font-medium text-cream-900">{dept.name}</p>
-                                                  <AnimatePresence>
-                                                    {dept.description && (
-                                                      <motion.p
-                                                        initial={{ opacity: 0, height: 0, y: -10 }}
-                                                        animate={{ opacity: 1, height: "auto", y: 0 }}
-                                                        exit={{ opacity: 0, height: 0, y: -10 }}
-                                                        transition={{
-                                                          duration: 0.5,
-                                                          delay: index * 0.1 + 0.3,
-                                                          ease: "easeOut"
-                                                        }}
-                                                        className="text-xs text-cream-600 mt-1 overflow-hidden"
-                                                      >
-                                                        {dept.description}
-                                                      </motion.p>
-                                                    )}
-                                                  </AnimatePresence>
-                                                </div>
-                                              </div>
-                                              <motion.button
-                                                whileHover={{ scale: 1.1 }}
-                                                whileTap={{ scale: 0.9 }}
-                                                type="button"
-                                                onClick={() => {
-                                                  const updated = (productForm.productionSequence || []).filter((id) => id !== deptId);
-                                                  setProductForm({
-                                                    ...productForm,
-                                                    productionSequence: updated,
-                                                  });
-                                                }}
-                                                className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
-                                              >
-                                                <Trash2 size={16} />
-                                              </motion.button>
-                                            </motion.div>
-                                          );
-                                        })}
-                                      </AnimatePresence>
-                                    </div>
-                                  </motion.div>
-                                )}
-                              </AnimatePresence>
-
-                              {/* Available Departments to Add - Only show in custom mode */}
-                              <div className="border border-cream-300 rounded-lg p-4 bg-white">
-                                <h4 className="text-sm font-medium text-cream-900 mb-3">Available Departments:</h4>
-                                <div className="space-y-2 max-h-60 overflow-y-auto">
-                                  {departments
-                                    .filter((d: any) => d.isEnabled && !(productForm.productionSequence || []).includes(d._id))
-                                    .sort((a: any, b: any) => (a.sequence || 0) - (b.sequence || 0))
-                                    .map((dept: any) => (
-                                      <div
-                                        key={dept._id}
-                                        className="flex items-center justify-between p-3 bg-cream-50 border border-cream-200 rounded-lg hover:bg-cream-100 transition-colors"
-                                      >
-                                        <div>
-                                          <p className="font-medium text-cream-900">{dept.name}</p>
-                                          {dept.description && (
-                                            <p className="text-xs text-cream-600">{dept.description}</p>
-                                          )}
-                                        </div>
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            setProductForm({
-                                              ...productForm,
-                                              productionSequence: [...(productForm.productionSequence || []), dept._id],
-                                            });
-                                          }}
-                                          className="px-3 py-1 text-sm bg-cream-900 text-white rounded-lg hover:bg-cream-800 transition-colors flex items-center gap-2"
-                                        >
-                                          <Plus size={14} />
-                                          Add
-                                        </button>
-                                      </div>
-                                    ))}
-                                </div>
-                                {departments.filter((d: any) => d.isEnabled && !(productForm.productionSequence || []).includes(d._id)).length === 0 && (
-                                  <p className="text-sm text-cream-600 text-center py-4">
-                                    All available departments have been added to the sequence.
-                                  </p>
-                                )}
-                              </div>
-
-                              {/* Save Button */}
-                              <div className="mt-4 flex items-center justify-end gap-3">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    // Save the custom sequence (it's already in productForm.productionSequence)
-                                    // Exit custom mode
-                                    setIsCustomizingSequence(false);
-                                    // Clear selected sequence ID since we're using a custom sequence now
-                                    setSelectedSequenceId(null);
-                                    // Show success message
-                                    setSuccess("Custom sequence saved for this product. The original sequence template remains unchanged.");
-                                    setTimeout(() => setSuccess(null), 3000);
-                                  }}
-                                  disabled={!productForm.productionSequence || productForm.productionSequence.length === 0}
-                                  className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 ${productForm.productionSequence && productForm.productionSequence.length > 0
-                                    ? "bg-green-600 text-white hover:bg-green-700 cursor-pointer"
-                                    : "bg-gray-400 text-gray-200 cursor-not-allowed"
-                                    }`}
-                                >
-                                  <CheckCircle size={16} />
-                                  Save Custom Sequence
-                                </button>
-                              </div>
-                            </div>
-                          </>
-                        )}
-
-                        {(!productForm.productionSequence || productForm.productionSequence.length === 0) && (
-                          <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                            <p className="text-sm text-blue-800">
-                              <strong>Note:</strong> If no custom sequence is set, the default department sequence will be used when orders are created for this product.
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })()}
-                </div>
-              </div>
-
-              {/* Product Attributes (Advanced) - Moved to end of form */}
-              <div className="border border-cream-300 rounded-lg p-4 bg-green-50">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="text-lg font-semibold text-cream-900">Product Attributes (Advanced)</h3>
-                    <p className="text-sm text-cream-600 mt-1">
-                      Assign reusable attribute types to this product. These are more flexible than the legacy options above.
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setShowCreateAttributeModal(true)}
-                      className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
-                      title="Create new attribute type"
-                    >
-                      <Plus size={14} />
-                      Create Attribute
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        // Fetch attributes filtered by selected category/subcategory
-                        const categoryId = productForm.category || (selectedCategoryPath.length > 0 ? selectedCategoryPath[0] : null);
-                        const subCategoryId = productForm.subcategory || (selectedCategoryPath.length > 1 ? selectedCategoryPath[selectedCategoryPath.length - 1] : null);
-                        fetchAttributeTypes(categoryId, subCategoryId);
-                      }}
-                      disabled={loadingAttributeTypes}
-                      className="px-3 py-1.5 text-sm bg-cream-900 text-white rounded-lg hover:bg-cream-800 transition-colors disabled:opacity-50 flex items-center gap-2"
-                      title="Refresh attribute types list"
-                    >
-                      {loadingAttributeTypes ? (
-                        <Loader className="animate-spin" size={14} />
-                      ) : (
-                        <Settings size={14} />
-                      )}
-                      Refresh
-                    </button>
-                  </div>
-                </div>
-
-                {loadingAttributeTypes ? (
-                  <div className="flex items-center justify-center py-8">
-                    <Loader className="animate-spin text-cream-600" size={24} />
-                    <span className="ml-3 text-sm text-cream-600">Loading attribute types...</span>
-                  </div>
-                ) : (!attributeTypes || attributeTypes.length === 0) ? (
-                  <div className="bg-cream-50 border border-cream-200 rounded-lg p-4">
-                    <p className="text-sm text-cream-700">
-                      <strong>No attribute types found.</strong> Click "Create Attribute" to create a new attribute type, or create attribute types in the "Attribute Types" tab.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    <label className="block text-sm font-medium text-cream-900 mb-2">
-                      Select Attribute Types to Use with This Product
-                    </label>
-
-                    {/* Search Bar */}
-                    <div className="relative mb-3">
-                      <input
-                        type="text"
-                        value={attributeTypeSearch}
-                        onChange={(e) => setAttributeTypeSearch(e.target.value)}
-                        placeholder="Search by attribute name or system name..."
-                        className="w-full px-4 py-2 pl-10 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-900 focus:border-transparent"
-                      />
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-cream-400" size={18} />
-                      {attributeTypeSearch && (
-                        <button
-                          type="button"
-                          onClick={() => setAttributeTypeSearch("")}
-                          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-cream-400 hover:text-cream-600"
-                        >
-                          <X size={18} />
-                        </button>
-                      )}
-                    </div>
-
-                    <div className="space-y-2 max-h-60 overflow-y-auto">
-                      {(attributeTypes || [])
-                        .filter((attrType) => {
-                          if (!attributeTypeSearch.trim()) return true;
-                          const searchLower = attributeTypeSearch.toLowerCase();
-                          const attributeName = (attrType.attributeName || "").toLowerCase();
-                          const systemName = (attrType.systemName || "").toLowerCase();
-                          return attributeName.includes(searchLower) || systemName.includes(searchLower);
-                        })
-                        .map((attrType) => {
-                          const isSelected = (selectedAttributeTypes || []).some(
-                            (sa) => sa.attributeTypeId === attrType._id
-                          );
-                          const selectedAttr = (selectedAttributeTypes || []).find(
-                            (sa) => sa.attributeTypeId === attrType._id
-                          );
-
-                          return (
-                            <div
-                              key={attrType._id}
-                              className={`border rounded-lg p-3 ${isSelected
-                                ? "border-green-500 bg-green-50"
-                                : "border-cream-300 bg-white"
-                                }`}
-                            >
-                              <div className="flex items-start gap-3">
-                                <input
-                                  type="checkbox"
-                                  checked={isSelected}
-                                  onChange={(e) => {
-                                    if (e.target.checked) {
-                                      setSelectedAttributeTypes([
-                                        ...(selectedAttributeTypes || []),
-                                        {
-                                          attributeTypeId: attrType._id,
-                                          isEnabled: true,
-                                          isRequired: attrType.isRequired || false,
-                                          displayOrder: (selectedAttributeTypes || []).length,
-                                        },
-                                      ]);
-                                    } else {
-                                      setSelectedAttributeTypes(
-                                        (selectedAttributeTypes || []).filter(
-                                          (sa) => sa.attributeTypeId !== attrType._id
-                                        )
-                                      );
-                                    }
-                                  }}
-                                  className="w-4 h-4 text-cream-900 border-cream-300 rounded focus:ring-cream-900 mt-1"
-                                />
-                                <div className="flex-1">
-                                  <div className="flex items-center justify-between">
-                                    <div>
-                                      <h4 className="font-medium text-cream-900">
-                                        {attrType.systemName ? `${attrType.systemName} ${attrType.attributeName ? `(${attrType.attributeName})` : ''}` : attrType.attributeName}
-                                      </h4>
-                                      <p className="text-xs text-cream-600 mt-1">
-                                        {attrType.inputStyle || "N/A"} • {attrType.primaryEffectType || "N/A"} •{" "}
-                                        {attrType.isPricingAttribute ? "Affects Price" : "No Price Impact"}
-                                      </p>
-                                    </div>
-                                  </div>
-                                  {isSelected && (
-                                    <div className="mt-3 space-y-2 pl-7">
-                                      <div className="flex items-center gap-4">
-                                        <label className="flex items-center gap-2 text-sm text-cream-700">
-                                          <input
-                                            type="checkbox"
-                                            checked={selectedAttr?.isRequired || false}
-                                            onChange={(e) => {
-                                              setSelectedAttributeTypes(
-                                                (selectedAttributeTypes || []).map((sa) =>
-                                                  sa.attributeTypeId === attrType._id
-                                                    ? { ...sa, isRequired: e.target.checked }
-                                                    : sa
-                                                )
-                                              );
-                                            }}
-                                            className="w-4 h-4 text-cream-900 border-cream-300 rounded"
-                                          />
-                                          Required for this product
-                                        </label>
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      {(attributeTypes || [])
-                        .filter((attrType) => {
-                          if (!attributeTypeSearch.trim()) return true;
-                          const searchLower = attributeTypeSearch.toLowerCase();
-                          const attributeName = (attrType.attributeName || "").toLowerCase();
-                          const systemName = (attrType.systemName || "").toLowerCase();
-                          return attributeName.includes(searchLower) || systemName.includes(searchLower);
-                        }).length === 0 && attributeTypeSearch.trim() && (
-                          <div className="p-4 bg-cream-50 border border-cream-200 rounded-lg text-center">
-                            <p className="text-sm text-cream-600">
-                              No attributes found matching "<strong>{attributeTypeSearch}</strong>"
-                            </p>
-                          </div>
-                        )}
-                    </div>
-                    {selectedAttributeTypes && selectedAttributeTypes.length > 0 && (
-                      <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                        <p className="text-sm text-blue-800">
-                          <strong>{selectedAttributeTypes.length}</strong> attribute type(s) selected. These will be available when customers customize this product.
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Create Attribute Modal - Full Form */}
-              {showCreateAttributeModal && (
-                <div
-                  data-modal="true"
-                  className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4"
-                  onClick={(e) => {
-                    if (e.target === e.currentTarget) {
-                      setShowCreateAttributeModal(false);
-                    }
-                  }}
-                  onMouseDown={(e) => {
-                    if (e.target === e.currentTarget) {
-                      e.stopPropagation();
-                    }
-                  }}
-                >
-                  <div
-                    data-modal="true"
-                    className="bg-white rounded-lg p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      e.preventDefault();
-                    }}
-                    onMouseDown={(e) => {
-                      e.stopPropagation();
-                      e.preventDefault();
-                    }}
-                    onSubmit={(e) => {
-                      e.stopPropagation();
-                      e.preventDefault();
-                    }}
-                  >
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-xl font-bold text-cream-900">Create New Attribute Type</h3>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowCreateAttributeModal(false);
-                          setEditingAttributeTypeId(null);
-                          setAttributeTypeForm({
-                            attributeName: "",
-                            systemName: "",
-                            inputStyle: "DROPDOWN",
-                            attributeImage: null,
-                            effectDescription: "",
-                            simpleOptions: "",
-                            isPriceEffect: false,
-                            isStepQuantity: false,
-                            isRangeQuantity: false,
-                            priceEffectAmount: "",
-                            stepQuantities: [],
-                            rangeQuantities: [],
-                            isFixedQuantity: false,
-                            fixedQuantityMin: "",
-                            fixedQuantityMax: "",
-                            primaryEffectType: "INFORMATIONAL",
-                            priceImpactPer1000: "",
-                            fileRequirements: "",
-                            attributeOptionsTable: [],
-                            parentAttribute: "",
-                            showWhenParentValue: [],
-                            hideWhenParentValue: [],
-                            functionType: "GENERAL",
-                            isPricingAttribute: false,
-                            isFixedQuantityNeeded: false,
-                            isFilterable: false,
-                            attributeValues: [],
-                            defaultValue: "",
-                            isRequired: false,
-                            displayOrder: 0,
-                            isCommonAttribute: true,
-                            applicableCategories: [] as string[],
-                            applicableSubCategories: [] as string[],
-                          });
-                        }}
-                        className="text-cream-600 hover:text-cream-900 p-1"
-                      >
-                        <X size={24} />
-                      </button>
-                    </div>
-                    <form
-                      onSubmit={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        handleAttributeTypeSubmit(e);
-                      }}
-                      className="space-y-6"
-                    >
-                      {/* Step 1: Basic Information */}
-                      <div className="border-b border-cream-200 pb-4">
-                        <h3 className="text-lg font-semibold text-cream-900 mb-4">Basic Information</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                          <div>
-                            <label className="block text-sm font-medium text-cream-900 mb-2">
-                              Attribute Name * <span className="text-xs text-cream-500 font-normal">(What customers will see)</span>
-                            </label>
-                            <input
-                              id="attribute-name"
-                              name="attributeName"
-                              type="text"
-                              value={attributeTypeForm.attributeName}
-                              onChange={(e) => {
-                                setAttributeTypeForm({ ...attributeTypeForm, attributeName: e.target.value });
-                                if (attributeFormErrors.attributeName) {
-                                  setAttributeFormErrors({ ...attributeFormErrors, attributeName: undefined });
-                                }
-                              }}
-                              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cream-900 focus:border-transparent ${attributeFormErrors.attributeName ? 'border-red-300 bg-red-50' : 'border-cream-300'
-                                }`}
-                              placeholder="e.g., Printing Option, Paper Type"
-                              required
-                            />
-                            {attributeFormErrors.attributeName && (
-                              <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
-                                <AlertCircle size={12} />
-                                {attributeFormErrors.attributeName}
-                              </p>
-                            )}
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-cream-900 mb-2">
-                              How Customers Select This * <span className="text-xs text-cream-500 font-normal">(Input method)</span>
-                            </label>
-                            <select
-                              id="attribute-inputStyle"
-                              name="inputStyle"
-                              value={attributeTypeForm.inputStyle}
-                              onChange={(e) => setAttributeTypeForm({ ...attributeTypeForm, inputStyle: e.target.value })}
-                              className="w-full px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-900 focus:border-transparent"
-                              required
-                            >
-                              <option value="DROPDOWN">Dropdown Menu</option>
-                              <option value="POPUP">Pop-Up</option>
-                              <option value="RADIO">Radio Buttons</option>
-                              <option value="CHECKBOX">Checkbox</option>
-                              <option value="TEXT_FIELD">Text Field</option>
-                              <option value="NUMBER">Number Input</option>
-                              <option value="FILE_UPLOAD">File Upload</option>
-                            </select>
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-cream-900 mb-2">
-                              Attribute Image <span className="text-xs text-cream-500 font-normal">(to be shown when selecting this attribute)</span>
-                            </label>
-                            <input
-                              type="file"
-                              accept="image/jpeg,image/jpg,image/png,image/webp"
-                              onChange={(e) => {
-                                const file = e.target.files?.[0] || null;
-                                if (file) {
-                                  // Validate file type
-                                  const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-                                  if (!allowedTypes.includes(file.type)) {
-                                    setError("Invalid image format. Please upload JPG, PNG, or WebP image.");
-                                    e.target.value = '';
-                                    setAttributeTypeForm({ ...attributeTypeForm, attributeImage: null });
-                                    return;
-                                  }
-                                  // Validate file size (max 5MB)
-                                  const maxSize = 5 * 1024 * 1024;
-                                  if (file.size > maxSize) {
-                                    setError("Image size must be less than 5MB. Please compress the image and try again.");
-                                    e.target.value = '';
-                                    setAttributeTypeForm({ ...attributeTypeForm, attributeImage: null });
-                                    return;
-                                  }
-                                  setError(null);
-                                }
-                                setAttributeTypeForm({ ...attributeTypeForm, attributeImage: file });
-                              }}
-                              className="w-full px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-900 focus:border-transparent"
-                            />
-                            {attributeTypeForm.attributeImage && (
-                              <div className="mt-2">
-                                <img
-                                  src={URL.createObjectURL(attributeTypeForm.attributeImage)}
-                                  alt="Attribute preview"
-                                  className="w-32 h-32 object-cover rounded-lg border border-cream-300"
-                                />
-                                <p className="text-xs text-cream-600 mt-1">
-                                  {attributeTypeForm.attributeImage.name} ({(attributeTypeForm.attributeImage.size / 1024).toFixed(2)} KB)
+                              <div>
+                                <h3 className="font-bold text-cream-900 text-lg">Product Not Found</h3>
+                                <p className="text-sm text-cream-600 font-semibold">Order #{order.orderNumber}</p>
+                                <p className="text-xs text-cream-500 mt-1">
+                                  {order.user?.name || "Unknown"} ({order.user?.email || "Unknown"})
                                 </p>
                               </div>
-                            )}
-                          </div>
-                        </div>
-                        <div className="mt-4">
-                          <label className="block text-sm font-medium text-cream-900 mb-2">
-                            What This Affects * <span className="text-xs text-cream-500 font-normal">(Description of impact on product)</span>
-                          </label>
-                          <textarea
-                            value={attributeTypeForm.effectDescription}
-                            onChange={(e) => setAttributeTypeForm({ ...attributeTypeForm, effectDescription: e.target.value })}
-                            className="w-full px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-900 focus:border-transparent"
-                            rows={3}
-                            placeholder="e.g., Changes the product price, Requires customer to upload a file, Creates different product versions, Just displays information"
-                            required
-                          />
-                          <p className="mt-1 text-xs text-cream-600">Describe how this attribute affects the product or customer experience</p>
-                        </div>
-
-                        {/* Cascading/Dependent Attributes Section */}
-                        <div className="mt-6 border-t border-cream-200 pt-4">
-                          <h3 className="text-lg font-semibold text-cream-900 mb-4">Cascading Attributes (Optional)</h3>
-                          <p className="text-sm text-cream-600 mb-4">
-                            Make this attribute appear only when a parent attribute has specific values.
-                            For example, show "Material" options only when "Card Type" is "Glossy".
-                          </p>
-
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                              <label className="block text-sm font-medium text-cream-900 mb-2">
-                                Parent Attribute <span className="text-xs text-cream-500 font-normal">(Optional - if this depends on another attribute)</span>
-                              </label>
-                              <SearchableDropdown
-                                label="None (Independent Attribute)"
-                                value={attributeTypeForm.parentAttribute}
-                                onChange={(value) => {
-                                  setAttributeTypeForm({
-                                    ...attributeTypeForm,
-                                    parentAttribute: String(value || ""),
-                                    // Clear show/hide values when parent changes
-                                    showWhenParentValue: [],
-                                    hideWhenParentValue: []
-                                  });
-                                }}
-                                options={[
-                                  { value: "", label: "None (Independent Attribute)" },
-                                  ...attributeTypes
-                                    .filter(attr => !attr.parentAttribute) // Only show attributes without parents as potential parents
-                                    .map((attr) => ({
-                                      value: attr._id,
-                                      label: attr.systemName ? `${attr.systemName} (${attr.attributeName})` : attr.attributeName,
-                                    }))
-                                ]}
-                                className="w-full"
-                                searchPlaceholder="Search attributes..."
-                              />
-                              <p className="mt-1 text-xs text-cream-600">
-                                Select a parent attribute if this attribute should only appear when the parent has certain values
-                              </p>
-                            </div>
-
-                            {attributeTypeForm.parentAttribute && (() => {
-                              const parentAttr = attributeTypes.find(a => a._id === attributeTypeForm.parentAttribute);
-                              const parentValues = parentAttr?.attributeValues || [];
-
-                              return (
-                                <>
-                                  <div>
-                                    <label className="block text-sm font-medium text-cream-900 mb-2">
-                                      Show When Parent Value Is <span className="text-xs text-cream-500 font-normal">(Leave empty to show for all values)</span>
-                                    </label>
-                                    <div className="space-y-2 max-h-40 overflow-y-auto border border-cream-300 rounded-lg p-3">
-                                      {parentValues.length === 0 ? (
-                                        <p className="text-xs text-cream-600">Parent attribute has no values defined yet</p>
-                                      ) : (
-                                        parentValues.map((val, idx) => (
-                                          <label key={idx} className="flex items-center gap-2 cursor-pointer">
-                                            <input
-                                              type="checkbox"
-                                              checked={attributeTypeForm.showWhenParentValue.includes(val.value)}
-                                              onChange={(e) => {
-                                                const current = attributeTypeForm.showWhenParentValue || [];
-                                                if (e.target.checked) {
-                                                  setAttributeTypeForm({
-                                                    ...attributeTypeForm,
-                                                    showWhenParentValue: [...current, val.value],
-                                                    // Clear hide values if showing for this value
-                                                    hideWhenParentValue: (attributeTypeForm.hideWhenParentValue || []).filter(v => v !== val.value)
-                                                  });
-                                                } else {
-                                                  setAttributeTypeForm({
-                                                    ...attributeTypeForm,
-                                                    showWhenParentValue: current.filter(v => v !== val.value)
-                                                  });
-                                                }
-                                              }}
-                                              className="rounded border-cream-300 text-cream-900 focus:ring-cream-900"
-                                            />
-                                            <span className="text-sm text-cream-700">{val.label || val.value}</span>
-                                          </label>
-                                        ))
-                                      )}
-                                    </div>
-                                    <p className="mt-1 text-xs text-cream-600">
-                                      Check values to show this attribute only when parent has those values. Leave all unchecked to show for all parent values.
-                                    </p>
-                                  </div>
-
-                                  <div>
-                                    <label className="block text-sm font-medium text-cream-900 mb-2">
-                                      Hide When Parent Value Is <span className="text-xs text-cream-500 font-normal">(Optional)</span>
-                                    </label>
-                                    <div className="space-y-2 max-h-40 overflow-y-auto border border-cream-300 rounded-lg p-3">
-                                      {parentValues.length === 0 ? (
-                                        <p className="text-xs text-cream-600">Parent attribute has no values defined yet</p>
-                                      ) : (
-                                        parentValues.map((val, idx) => (
-                                          <label key={idx} className="flex items-center gap-2 cursor-pointer">
-                                            <input
-                                              type="checkbox"
-                                              checked={attributeTypeForm.hideWhenParentValue.includes(val.value)}
-                                              onChange={(e) => {
-                                                const current = attributeTypeForm.hideWhenParentValue || [];
-                                                if (e.target.checked) {
-                                                  setAttributeTypeForm({
-                                                    ...attributeTypeForm,
-                                                    hideWhenParentValue: [...current, val.value],
-                                                    // Clear show values if hiding for this value
-                                                    showWhenParentValue: (attributeTypeForm.showWhenParentValue || []).filter(v => v !== val.value)
-                                                  });
-                                                } else {
-                                                  setAttributeTypeForm({
-                                                    ...attributeTypeForm,
-                                                    hideWhenParentValue: current.filter(v => v !== val.value)
-                                                  });
-                                                }
-                                              }}
-                                              className="rounded border-cream-300 text-cream-900 focus:ring-cream-900"
-                                            />
-                                            <span className="text-sm text-cream-700">{val.label || val.value}</span>
-                                          </label>
-                                        ))
-                                      )}
-                                    </div>
-                                    <p className="mt-1 text-xs text-cream-600">
-                                      Check values to hide this attribute when parent has those values. This overrides "Show When" settings.
-                                    </p>
-                                  </div>
-                                </>
-                              );
-                            })()}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Options Table - Show when DROPDOWN/RADIO or when Is Price Effect is checked */}
-                      {((attributeTypeForm.inputStyle === "DROPDOWN" || attributeTypeForm.inputStyle === "RADIO") || attributeTypeForm.isPriceEffect) ? (
-                        <div className="border-b border-cream-200 pb-4" data-attribute-options-table>
-                          {attributeFormErrors.attributeValues && (
-                            <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg">
-                              <p className="text-sm text-red-800 font-medium">{attributeFormErrors.attributeValues}</p>
-                            </div>
-                          )}
-                          <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-lg font-semibold text-cream-900">Options</h3>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setAttributeTypeForm({
-                                  ...attributeTypeForm,
-                                  attributeOptionsTable: [...attributeTypeForm.attributeOptionsTable, {
-                                    name: "",
-                                    priceImpactPer1000: "",
-                                    image: undefined,
-                                    optionUsage: { price: false, image: false, listing: false },
-                                    priceImpact: "",
-                                    numberOfImagesRequired: 0,
-                                    listingFilters: ""
-                                  }],
-                                });
-                              }}
-                              className="px-3 py-1 text-sm bg-cream-900 text-white rounded-lg hover:bg-cream-800 transition-colors flex items-center gap-2"
-                            >
-                              <Plus size={16} />
-                              Add Option
-                            </button>
-                          </div>
-                          <div className="border border-cream-300 rounded-lg overflow-hidden bg-white">
-                            {attributeTypeForm.attributeOptionsTable.length === 0 ? (
-                              <p className="text-sm text-cream-600 text-center py-4">
-                                No options added. Click "Add Option" to start.
-                              </p>
-                            ) : (
-                              <div className="overflow-x-auto">
-                                <table className="w-full border-collapse">
-                                  <thead>
-                                    <tr className="bg-cream-100">
-                                      <th className="border border-cream-300 px-3 py-2 text-left text-sm font-medium text-cream-900">
-                                        Option Name *
-                                      </th>
-                                      <th className="border border-cream-300 px-3 py-2 text-left text-sm font-medium text-cream-900">
-                                        Option Usage *
-                                      </th>
-                                      {attributeTypeForm.attributeOptionsTable.some(opt => opt.optionUsage?.price) && (
-                                        <th className="border border-cream-300 px-3 py-2 text-left text-sm font-medium text-cream-900">
-                                          Price Impact
-                                        </th>
-                                      )}
-                                      {attributeTypeForm.attributeOptionsTable.some(opt => opt.optionUsage?.image) && (
-                                        <th className="border border-cream-300 px-3 py-2 text-left text-sm font-medium text-cream-900">
-                                          Number of Images Required
-                                        </th>
-                                      )}
-                                      {attributeTypeForm.attributeOptionsTable.some(opt => opt.optionUsage?.listing) && (
-                                        <th className="border border-cream-300 px-3 py-2 text-left text-sm font-medium text-cream-900">
-                                          Listing Filters
-                                        </th>
-                                      )}
-                                      <th className="border border-cream-300 px-3 py-2 text-left text-sm font-medium text-cream-900">
-                                        Image (Optional)
-                                      </th>
-                                      <th className="border border-cream-300 px-3 py-2 text-center text-sm font-medium text-cream-900 w-20">
-                                        Action
-                                      </th>
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {(attributeTypeForm.attributeOptionsTable || []).map((option, index) => (
-                                      <tr key={index}>
-                                        <td className="border border-cream-300 px-3 py-2">
-                                          <input
-                                            type="text"
-                                            value={option.name}
-                                            onChange={(e) => {
-                                              const updated = [...attributeTypeForm.attributeOptionsTable];
-                                              updated[index].name = e.target.value;
-                                              setAttributeTypeForm({ ...attributeTypeForm, attributeOptionsTable: updated });
-                                            }}
-                                            className="w-full px-2 py-2.5 border border-cream-200 rounded text-sm"
-                                            placeholder="e.g., Both Sides, Express Delivery"
-                                            required
-                                          />
-                                        </td>
-                                        <td className="border border-cream-300 px-3 py-2">
-                                          <div className="space-y-2">
-                                            <label className="flex items-center gap-2 cursor-pointer">
-                                              <input
-                                                type="checkbox"
-                                                checked={option.optionUsage?.price || false}
-                                                onChange={(e) => {
-                                                  const updated = [...attributeTypeForm.attributeOptionsTable];
-                                                  if (!updated[index].optionUsage) {
-                                                    updated[index].optionUsage = { price: false, image: false, listing: false };
-                                                  }
-                                                  updated[index].optionUsage.price = e.target.checked;
-                                                  // Ensure at least one checkbox is checked
-                                                  if (!e.target.checked && !updated[index].optionUsage.image && !updated[index].optionUsage.listing) {
-                                                    setError("At least one option usage must be selected (Price, Image, or Listing)");
-                                                    return;
-                                                  }
-                                                  setAttributeTypeForm({ ...attributeTypeForm, attributeOptionsTable: updated });
-                                                  setError(null);
-                                                }}
-                                                className="w-4 h-4 text-cream-900 border-cream-300 rounded focus:ring-cream-500"
-                                              />
-                                              <span className="text-sm text-cream-900">Price</span>
-                                            </label>
-                                            <label className="flex items-center gap-2 cursor-pointer">
-                                              <input
-                                                type="checkbox"
-                                                checked={option.optionUsage?.image || false}
-                                                onChange={(e) => {
-                                                  const updated = [...attributeTypeForm.attributeOptionsTable];
-                                                  if (!updated[index].optionUsage) {
-                                                    updated[index].optionUsage = { price: false, image: false, listing: false };
-                                                  }
-                                                  updated[index].optionUsage.image = e.target.checked;
-                                                  // Ensure at least one checkbox is checked
-                                                  if (!e.target.checked && !updated[index].optionUsage.price && !updated[index].optionUsage.listing) {
-                                                    setError("At least one option usage must be selected (Price, Image, or Listing)");
-                                                    return;
-                                                  }
-                                                  setAttributeTypeForm({ ...attributeTypeForm, attributeOptionsTable: updated });
-                                                  setError(null);
-                                                }}
-                                                className="w-4 h-4 text-cream-900 border-cream-300 rounded focus:ring-cream-500"
-                                              />
-                                              <span className="text-sm text-cream-900">Image</span>
-                                            </label>
-                                            <label className="flex items-center gap-2 cursor-pointer">
-                                              <input
-                                                type="checkbox"
-                                                checked={option.optionUsage?.listing || false}
-                                                onChange={(e) => {
-                                                  const updated = [...attributeTypeForm.attributeOptionsTable];
-                                                  if (!updated[index].optionUsage) {
-                                                    updated[index].optionUsage = { price: false, image: false, listing: false };
-                                                  }
-                                                  updated[index].optionUsage.listing = e.target.checked;
-                                                  // Ensure at least one checkbox is checked
-                                                  if (!e.target.checked && !updated[index].optionUsage.price && !updated[index].optionUsage.image) {
-                                                    setError("At least one option usage must be selected (Price, Image, or Listing)");
-                                                    return;
-                                                  }
-                                                  setAttributeTypeForm({ ...attributeTypeForm, attributeOptionsTable: updated });
-                                                  setError(null);
-                                                }}
-                                                className="w-4 h-4 text-cream-900 border-cream-300 rounded focus:ring-cream-500"
-                                              />
-                                              <span className="text-sm text-cream-900">Listing</span>
-                                            </label>
-                                          </div>
-                                        </td>
-                                        {attributeTypeForm.attributeOptionsTable.some(opt => opt.optionUsage?.price) && (
-                                          <td className="border border-cream-300 px-3 py-2">
-                                            {option.optionUsage?.price ? (
-                                              <div className="flex items-center gap-2">
-                                                <span className="text-sm text-cream-700">₹</span>
-                                                <input
-                                                  type="number"
-                                                  value={option.priceImpact || ""}
-                                                  onChange={(e) => {
-                                                    const updated = [...attributeTypeForm.attributeOptionsTable];
-                                                    updated[index].priceImpact = e.target.value;
-                                                    setAttributeTypeForm({ ...attributeTypeForm, attributeOptionsTable: updated });
-                                                  }}
-                                                  className="w-full px-2 py-2.5 border border-cream-200 rounded text-sm"
-                                                  placeholder="Enter amount"
-                                                  step="0.01"
-                                                  min="0"
-                                                />
-                                              </div>
-                                            ) : (
-                                              <span className="text-sm text-cream-500">-</span>
-                                            )}
-                                          </td>
-                                        )}
-                                        {attributeTypeForm.attributeOptionsTable.some(opt => opt.optionUsage?.image) && (
-                                          <td className="border border-cream-300 px-3 py-2">
-                                            {option.optionUsage?.image ? (
-                                              <input
-                                                type="number"
-                                                value={option.numberOfImagesRequired || 0}
-                                                onChange={(e) => {
-                                                  const updated = [...attributeTypeForm.attributeOptionsTable];
-                                                  updated[index].numberOfImagesRequired = parseInt(e.target.value) || 0;
-                                                  setAttributeTypeForm({ ...attributeTypeForm, attributeOptionsTable: updated });
-                                                }}
-                                                className="w-full px-2 py-2.5 border border-cream-200 rounded text-sm"
-                                                placeholder="Number of images"
-                                                min="0"
-                                              />
-                                            ) : (
-                                              <span className="text-sm text-cream-500">-</span>
-                                            )}
-                                          </td>
-                                        )}
-                                        {attributeTypeForm.attributeOptionsTable.some(opt => opt.optionUsage?.listing) && (
-                                          <td className="border border-cream-300 px-3 py-2">
-                                            {option.optionUsage?.listing ? (
-                                              <input
-                                                type="text"
-                                                value={option.listingFilters || ""}
-                                                onChange={(e) => {
-                                                  const updated = [...attributeTypeForm.attributeOptionsTable];
-                                                  updated[index].listingFilters = e.target.value;
-                                                  setAttributeTypeForm({ ...attributeTypeForm, attributeOptionsTable: updated });
-                                                }}
-                                                className="w-full px-2 py-2.5 border border-cream-200 rounded text-sm"
-                                                placeholder="Enter filters (comma-separated)"
-                                              />
-                                            ) : (
-                                              <span className="text-sm text-cream-500">-</span>
-                                            )}
-                                          </td>
-                                        )}
-                                        <td className="border border-cream-300 px-3 py-2">
-                                          <input
-                                            type="file"
-                                            accept="image/jpeg,image/jpg,image/png,image/webp"
-                                            onChange={async (e) => {
-                                              const file = e.target.files?.[0];
-                                              if (file) {
-                                                // Validate file type
-                                                const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-                                                if (!validTypes.includes(file.type)) {
-                                                  setError("Invalid image format. Please upload JPG, PNG, or WebP image.");
-                                                  return;
-                                                }
-                                                // Validate file size (5MB)
-                                                if (file.size > 5 * 1024 * 1024) {
-                                                  setError("Image size must be less than 5MB.");
-                                                  return;
-                                                }
-
-                                                // Upload to backend API (which uploads to Cloudinary)
-                                                try {
-                                                  setLoading(true);
-                                                  const formData = new FormData();
-                                                  formData.append('image', file);
-
-                                                  const uploadResponse = await fetch(`${API_BASE_URL}/upload-image`, {
-                                                    method: 'POST',
-                                                    headers: getAuthHeaders(),
-                                                    body: formData,
-                                                  });
-
-                                                  if (!uploadResponse.ok) {
-                                                    const errorData = await uploadResponse.json().catch(() => ({}));
-                                                    throw new Error(errorData.error || 'Failed to upload image');
-                                                  }
-
-                                                  const uploadData = await uploadResponse.json();
-                                                  const imageUrl = uploadData.url || uploadData.secure_url;
-
-                                                  if (!imageUrl) {
-                                                    throw new Error('No image URL returned from server');
-                                                  }
-
-                                                  const updated = [...attributeTypeForm.attributeOptionsTable];
-                                                  updated[index].image = imageUrl;
-                                                  setAttributeTypeForm({ ...attributeTypeForm, attributeOptionsTable: updated });
-                                                  setError(null);
-                                                } catch (err) {
-                                                  console.error("Error uploading image:", err);
-                                                  setError(err instanceof Error ? err.message : "Failed to upload image. Please try again.");
-                                                } finally {
-                                                  setLoading(false);
-                                                }
-                                              }
-                                            }}
-                                            className="w-full px-2 py-2.5 border border-cream-200 rounded text-sm text-sm"
-                                          />
-
-                                        </td>
-                                        <td className="border border-cream-300 px-3 py-2 text-center">
-                                          <button
-                                            type="button"
-                                            onClick={() => {
-                                              const updated = attributeTypeForm.attributeOptionsTable.filter((_, i) => i !== index);
-                                              setAttributeTypeForm({ ...attributeTypeForm, attributeOptionsTable: updated });
-                                            }}
-                                            className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
-                                          >
-                                            <Trash2 size={16} />
-                                          </button>
-                                        </td>
-                                      </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
-                              </div>
-                            )}
-                          </div>
-                          <p className="mt-2 text-xs text-cream-600">
-                            Add all options customers can choose from. If "Is Price Effect" is checked, enter the price impact per 1000 units for each option.
-                          </p>
-                        </div>
-                      ) : null}
-
-                      {/* Step 2: Checkboxes */}
-                      <div className="border-b border-cream-200 pb-4">
-                        <h3 className="text-lg font-semibold text-cream-900 mb-4">Additional Settings</h3>
-                        <div className="space-y-4">
-                          {/* Is Price Effect Checkbox */}
-                          <div className="flex items-start gap-3 p-4 bg-cream-50 rounded-lg border border-cream-200">
-                            <input
-                              type="checkbox"
-                              checked={attributeTypeForm.isPriceEffect}
-                              onChange={(e) => setAttributeTypeForm({ ...attributeTypeForm, isPriceEffect: e.target.checked })}
-                              className="w-5 h-5 text-cream-900 border-cream-300 rounded focus:ring-cream-900 mt-1"
-                            />
-                            <div className="flex-1">
-                              <label className="text-sm font-medium text-cream-900 cursor-pointer">
-                                Is Price Effect?
-                              </label>
-                              <p className="text-xs text-cream-600 mt-1">
-                                Check this if selecting this attribute changes the product price
-                              </p>
-                              {attributeTypeForm.isPriceEffect && (
-                                <div className="mt-3">
-                                  <label className="block text-sm font-medium text-cream-900 mb-2">
-                                    Price Effect Amount (₹ per 1000 units) *
-                                  </label>
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-lg text-cream-700">₹</span>
-                                    <input
-                                      type="number"
-                                      value={attributeTypeForm.priceEffectAmount}
-                                      onChange={(e) => setAttributeTypeForm({ ...attributeTypeForm, priceEffectAmount: e.target.value })}
-                                      className="flex-1 px-3 py-2 border border-cream-300 rounded-lg"
-                                      placeholder="e.g., 20 (means +₹20 per 1000 units)"
-                                      step="0.00001"
-                                      min="0"
-                                      required={attributeTypeForm.isPriceEffect}
-                                    />
-                                    <span className="text-sm text-cream-600">per 1000 units</span>
-                                  </div>
-                                  <p className="mt-2 text-xs text-cream-600">
-                                    Enter how much the price changes per 1000 units. Example: "20" means +₹20 for every 1000 units.
-                                  </p>
-                                </div>
-                              )}
                             </div>
                           </div>
-
-                          {/* Is Step Quantity Checkbox */}
-                          <div className="flex items-start gap-3 p-4 bg-cream-50 rounded-lg border border-cream-200">
-                            <input
-                              type="checkbox"
-                              checked={attributeTypeForm.isStepQuantity}
-                              onChange={(e) => setAttributeTypeForm({ ...attributeTypeForm, isStepQuantity: e.target.checked })}
-                              className="w-5 h-5 text-cream-900 border-cream-300 rounded focus:ring-cream-900 mt-1"
-                            />
-                            <div className="flex-1">
-                              <label className="text-sm font-medium text-cream-900 cursor-pointer">
-                                Is Step Quantity?
-                              </label>
-                              <p className="text-xs text-cream-600 mt-1">
-                                Check this if this attribute restricts quantity to specific steps (e.g., 1000, 2000, 3000 only)
-                              </p>
-                              {attributeTypeForm.isStepQuantity && (
-                                <div className="mt-3 space-y-3">
-                                  <div className="flex items-center justify-between">
-                                    <h4 className="text-sm font-medium text-cream-900">Steps:</h4>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setAttributeTypeForm({
-                                          ...attributeTypeForm,
-                                          stepQuantities: [...attributeTypeForm.stepQuantities, { quantity: "", price: "" }],
-                                        });
-                                      }}
-                                      className="px-3 py-1 text-xs bg-cream-900 text-white rounded-lg hover:bg-cream-800 transition-colors flex items-center gap-1"
-                                    >
-                                      <Plus size={14} />
-                                      Add Step
-                                    </button>
-                                  </div>
-                                  {attributeTypeForm.stepQuantities.length === 0 ? (
-                                    <p className="text-xs text-cream-600">No steps added. Click "Add Step" to start.</p>
-                                  ) : (
-                                    <div className="space-y-2">
-                                      {attributeTypeForm.stepQuantities.map((step, index) => (
-                                        <div key={index} className="flex items-center gap-2 p-2 bg-white border border-cream-200 rounded-lg">
-                                          <span className="text-sm text-cream-700 whitespace-nowrap">Step - {index + 1}:</span>
-                                          <input
-                                            type="number"
-                                            value={step.quantity}
-                                            onChange={(e) => {
-                                              const updated = [...attributeTypeForm.stepQuantities];
-                                              updated[index].quantity = e.target.value;
-                                              setAttributeTypeForm({ ...attributeTypeForm, stepQuantities: updated });
-                                            }}
-                                            className="flex-1 px-2 py-1 border border-cream-300 rounded text-sm"
-                                            placeholder="quantity of step"
-                                            min="0"
-                                            step="100"
-                                          />
-                                          <span className="text-sm text-cream-700 whitespace-nowrap">Price:</span>
-                                          <input
-                                            type="number"
-                                            value={step.price}
-                                            onChange={(e) => {
-                                              const updated = [...attributeTypeForm.stepQuantities];
-                                              updated[index].price = e.target.value;
-                                              setAttributeTypeForm({ ...attributeTypeForm, stepQuantities: updated });
-                                            }}
-                                            className="flex-1 px-2 py-1 border border-cream-300 rounded text-sm"
-                                            placeholder="price of step"
-                                            min="0"
-                                            step="0.01"
-                                          />
-                                          <button
-                                            type="button"
-                                            onClick={() => {
-                                              const updated = attributeTypeForm.stepQuantities.filter((_, i) => i !== index);
-                                              setAttributeTypeForm({ ...attributeTypeForm, stepQuantities: updated });
-                                            }}
-                                            className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
-                                          >
-                                            <Trash2 size={16} />
-                                          </button>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Is Range Quantity Checkbox */}
-                          <div className="flex items-start gap-3 p-4 bg-cream-50 rounded-lg border border-cream-200">
-                            <input
-                              type="checkbox"
-                              checked={attributeTypeForm.isRangeQuantity}
-                              onChange={(e) => setAttributeTypeForm({ ...attributeTypeForm, isRangeQuantity: e.target.checked })}
-                              className="w-5 h-5 text-cream-900 border-cream-300 rounded focus:ring-cream-900 mt-1"
-                            />
-                            <div className="flex-1">
-                              <label className="text-sm font-medium text-cream-900 cursor-pointer">
-                                Is Range Quantity?
-                              </label>
-                              <p className="text-xs text-cream-600 mt-1">
-                                Check this if this attribute restricts quantity to specific Range (e.g., 1000-2000, 2000-5000)
-                              </p>
-                              {attributeTypeForm.isRangeQuantity && (
-                                <div className="mt-3 space-y-3">
-                                  <div className="flex items-center justify-between">
-                                    <h4 className="text-sm font-medium text-cream-900">Ranges:</h4>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setAttributeTypeForm({
-                                          ...attributeTypeForm,
-                                          rangeQuantities: [...attributeTypeForm.rangeQuantities, { min: "", max: "", price: "" }],
-                                        });
-                                      }}
-                                      className="px-3 py-1 text-xs bg-cream-900 text-white rounded-lg hover:bg-cream-800 transition-colors flex items-center gap-1"
-                                    >
-                                      <Plus size={14} />
-                                      Add Range
-                                    </button>
-                                  </div>
-                                  {attributeTypeForm.rangeQuantities.length === 0 ? (
-                                    <p className="text-xs text-cream-600">No ranges added. Click "Add Range" to start.</p>
-                                  ) : (
-                                    <div className="space-y-2">
-                                      {attributeTypeForm.rangeQuantities.map((range, index) => (
-                                        <div key={index} className="flex items-center gap-2 p-2 bg-white border border-cream-200 rounded-lg">
-                                          <span className="text-sm text-cream-700 whitespace-nowrap">Range - {index + 1}:</span>
-                                          <input
-                                            type="number"
-                                            value={range.min}
-                                            onChange={(e) => {
-                                              const updated = [...attributeTypeForm.rangeQuantities];
-                                              updated[index].min = e.target.value;
-                                              setAttributeTypeForm({ ...attributeTypeForm, rangeQuantities: updated });
-                                            }}
-                                            className="flex-1 px-2 py-1 border border-cream-300 rounded text-sm"
-                                            placeholder="min quantity"
-                                            min="0"
-                                            step="100"
-                                          />
-                                          <span className="text-sm text-cream-700">-</span>
-                                          <input
-                                            type="number"
-                                            value={range.max}
-                                            onChange={(e) => {
-                                              const updated = [...attributeTypeForm.rangeQuantities];
-                                              updated[index].max = e.target.value;
-                                              setAttributeTypeForm({ ...attributeTypeForm, rangeQuantities: updated });
-                                            }}
-                                            className="flex-1 px-2 py-1 border border-cream-300 rounded text-sm"
-                                            placeholder="max quantity"
-                                            min="0"
-                                            step="100"
-                                          />
-                                          <span className="text-sm text-cream-700 whitespace-nowrap">Price:</span>
-                                          <input
-                                            type="number"
-                                            value={range.price}
-                                            onChange={(e) => {
-                                              const updated = [...attributeTypeForm.rangeQuantities];
-                                              updated[index].price = e.target.value;
-                                              setAttributeTypeForm({ ...attributeTypeForm, rangeQuantities: updated });
-                                            }}
-                                            className="flex-1 px-2 py-1 border border-cream-300 rounded text-sm"
-                                            placeholder="price of range"
-                                            min="0"
-                                            step="0.01"
-                                          />
-                                          <button
-                                            type="button"
-                                            onClick={() => {
-                                              const updated = attributeTypeForm.rangeQuantities.filter((_, i) => i !== index);
-                                              setAttributeTypeForm({ ...attributeTypeForm, rangeQuantities: updated });
-                                            }}
-                                            className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
-                                          >
-                                            <Trash2 size={16} />
-                                          </button>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {attributeTypeForm.primaryEffectType === "FILE" && (
-                        <div className="border-b border-cream-200 pb-4">
-                          <h3 className="text-lg font-semibold text-cream-900 mb-4">File Requirements</h3>
-                          <div>
-                            <label className="block text-sm font-medium text-cream-900 mb-2">
-                              File Requirements Description
-                            </label>
-                            <textarea
-                              value={attributeTypeForm.fileRequirements}
-                              onChange={(e) => setAttributeTypeForm({ ...attributeTypeForm, fileRequirements: e.target.value })}
-                              className="w-full px-3 py-2 border border-cream-300 rounded-lg"
-                              rows={3}
-                              placeholder="e.g., Upload your design file (JPG, PNG, PDF). Minimum 300 DPI recommended."
-                            />
-                            <p className="mt-2 text-xs text-cream-600">
-                              Describe what type of file customers need to upload and any requirements (format, size, resolution, etc.)
-                            </p>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Step 3: Settings */}
-                      <div className="border-b border-cream-200 pb-4">
-                        <h3 className="text-lg font-semibold text-cream-900 mb-4">Settings</h3>
-                        <div className="space-y-4">
-                          {/* Allow Filtering */}
-                          <div className="flex items-start gap-3 p-4 bg-cream-50 rounded-lg border border-cream-200">
-                            <input
-                              type="checkbox"
-                              checked={attributeTypeForm.isFilterable}
-                              onChange={(e) => setAttributeTypeForm({ ...attributeTypeForm, isFilterable: e.target.checked })}
-                              className="w-5 h-5 text-cream-900 border-cream-300 rounded focus:ring-cream-900 mt-1"
-                            />
-                            <div className="flex-1">
-                              <label className="text-sm font-medium text-cream-900 cursor-pointer">
-                                Allow Filtering
-                              </label>
-                              <p className="text-xs text-cream-600 mt-1">
-                                Check this if customers can filter products by this attribute (e.g., filter by color, size, etc.)
-                              </p>
-                            </div>
-                          </div>
-
-                          {/* Required Selection */}
-                          <div className="flex items-start gap-3 p-4 bg-cream-50 rounded-lg border border-cream-200">
-                            <input
-                              type="checkbox"
-                              checked={attributeTypeForm.isRequired}
-                              onChange={(e) => setAttributeTypeForm({ ...attributeTypeForm, isRequired: e.target.checked })}
-                              className="w-5 h-5 text-cream-900 border-cream-300 rounded focus:ring-cream-900 mt-1"
-                            />
-                            <div className="flex-1">
-                              <label className="text-sm font-medium text-cream-900 cursor-pointer">
-                                Required Selection
-                              </label>
-                              <p className="text-xs text-cream-600 mt-1">
-                                Check this if customers must select an option before they can place an order
-                              </p>
-                            </div>
-                          </div>
-
-                          {/* Available for All Products */}
-                          <div className="flex items-start gap-3 p-4 bg-cream-50 rounded-lg border border-cream-200">
-                            <input
-                              type="checkbox"
-                              checked={attributeTypeForm.isCommonAttribute}
-                              onChange={(e) => setAttributeTypeForm({ ...attributeTypeForm, isCommonAttribute: e.target.checked })}
-                              className="w-5 h-5 text-cream-900 border-cream-300 rounded focus:ring-cream-900 mt-1"
-                            />
-                            <div className="flex-1">
-                              <label className="text-sm font-medium text-cream-900 cursor-pointer">
-                                Available for All Products
-                              </label>
-                              <p className="text-xs text-cream-600 mt-1">
-                                Check this if this attribute can be used with any product. Uncheck to restrict to specific categories/subcategories.
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex gap-4">
-                        <button
-                          type="submit"
-                          disabled={loading}
-                          className="flex-1 px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          {loading ? "Creating..." : "Create Attribute"}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setShowCreateAttributeModal(false);
-                            setEditingAttributeTypeId(null);
-                            setAttributeTypeForm({
-                              attributeName: "",
-                              systemName: "",
-                              inputStyle: "DROPDOWN",
-                              attributeImage: null,
-                              effectDescription: "",
-                              simpleOptions: "",
-                              isPriceEffect: false,
-                              isStepQuantity: false,
-                              isRangeQuantity: false,
-                              priceEffectAmount: "",
-                              stepQuantities: [],
-                              rangeQuantities: [],
-                              isFixedQuantity: false,
-                              fixedQuantityMin: "",
-                              fixedQuantityMax: "",
-                              primaryEffectType: "INFORMATIONAL",
-                              priceImpactPer1000: "",
-                              fileRequirements: "",
-                              attributeOptionsTable: [],
-                              parentAttribute: "",
-                              showWhenParentValue: [],
-                              hideWhenParentValue: [],
-                              functionType: "GENERAL",
-                              isPricingAttribute: false,
-                              isFixedQuantityNeeded: false,
-                              isFilterable: false,
-                              attributeValues: [],
-                              defaultValue: "",
-                              isRequired: false,
-                              displayOrder: 0,
-                              isCommonAttribute: true,
-                              applicableCategories: [],
-                              applicableSubCategories: [],
-                            });
-                          }}
-                          className="flex-1 px-6 py-2 border border-cream-300 text-cream-700 rounded-lg hover:bg-cream-50 transition-colors"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </form>
-                  </div>
-                </div>
-              )}
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-cream-900 text-white px-6 py-3 rounded-lg font-medium hover:bg-cream-800 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {loading ? (
-                  <>
-                    <Loader className="animate-spin" size={20} />
-                    {editingProductId ? "Updating..." : "Creating..."}
-                  </>
-                ) : (
-                  <>
-                    <Plus size={20} />
-                    {editingProductId ? "Update Product" : "Create Product"}
-                  </>
-                )}
-              </button>
-            </form>
-          )}
-
-          {/* Category Level - Always visible when adding (not editing) */}
-          {activeTab === "categories" && !editingCategoryId && !editingSubCategoryId && (
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-cream-900 mb-2">
-                Category Level *
-              </label>
-              <div className="space-y-3">
-                <label className="flex items-center gap-3 p-4 bg-white rounded-lg border-2 cursor-pointer hover:border-cream-400 transition-all hover:shadow-sm" style={{ borderColor: !categoryForm.parent && !isNestedSubcategoryMode ? '#d97706' : '#e5e7eb' }}>
-                  <input
-                    type="radio"
-                    name="categoryLevel"
-                    checked={!isSubCategoryMode && !isNestedSubcategoryMode}
-                    onChange={() => {
-                      setCategoryForm({ ...categoryForm, parent: "", sortOrder: 0 });
-                      setIsNestedSubcategoryMode(false);
-                      setIsSubCategoryMode(false);
-                      // Reset subcategory form when switching back to main category
-                      setSubCategoryForm({
-                        name: "",
-                        description: "",
-                        category: "",
-                        parent: "",
-                        type: "",
-                        slug: "",
-                        sortOrder: 0,
-                        image: null,
-                      });
-                      setAvailableParentSubcategories([]);
-                      setError(null);
-                    }}
-                    className="w-4 h-4 text-cream-600 focus:ring-cream-500"
-                    value="toplevel"
-                  />
-                  <div className="flex-1">
-                    <p className="font-semibold text-cream-900">Main Category</p>
-                    <p className="text-xs text-cream-600 mt-0.5">Create a top-level category</p>
-                  </div>
-                  {!categoryForm.parent && !isNestedSubcategoryMode && !isSubCategoryMode && (
-                    <CheckCircle className="text-cream-600" size={20} />
-                  )}
-                </label>
-                <label className="flex items-center gap-3 p-4 bg-white rounded-lg border-2 cursor-pointer hover:border-cream-400 transition-all hover:shadow-sm" style={{ borderColor: isSubCategoryMode ? '#d97706' : '#e5e7eb' }}>
-                  <input
-                    type="radio"
-                    name="categoryLevel"
-                    checked={isSubCategoryMode && !isNestedSubcategoryMode}
-                    onChange={() => {
-                      setIsNestedSubcategoryMode(false);
-                      setIsSubCategoryMode(true);
-                      // When subcategory is selected, initialize subcategory form to trigger subcategory form display
-                      setSubCategoryForm({
-                        name: "",
-                        description: "",
-                        category: "pending", // Set to "pending" to trigger subcategory form display
-                        parent: "",
-                        type: categoryForm.type || "",
-                        slug: "",
-                        sortOrder: 0,
-                        image: null,
-                      });
-                      setCategoryForm({ ...categoryForm, parent: "pending" });
-                      setAvailableParentSubcategories([]);
-                      setError(null);
-                    }}
-                    className="w-4 h-4 text-cream-600 focus:ring-cream-500"
-                    value="subcategory"
-                  />
-                  <div className="flex-1">
-                    <p className="font-semibold text-cream-900">Subcategory</p>
-                    <p className="text-xs text-cream-600 mt-0.5">Create under an existing category</p>
-                  </div>
-                  {isSubCategoryMode && !isNestedSubcategoryMode && (
-                    <CheckCircle className="text-cream-600" size={20} />
-                  )}
-                </label>
-                <label className="flex items-center gap-3 p-4 bg-white rounded-lg border-2 cursor-pointer hover:border-cream-400 transition-all hover:shadow-sm" style={{ borderColor: isNestedSubcategoryMode ? '#d97706' : '#e5e7eb' }}>
-                  <input
-                    type="radio"
-                    name="categoryLevel"
-                    checked={isNestedSubcategoryMode}
-                    onChange={() => {
-                      setIsNestedSubcategoryMode(true);
-                      setIsSubCategoryMode(false);
-                      setCategoryForm({ ...categoryForm, parent: "" });
-                      // Initialize nested subcategory form
-                      setSubCategoryForm({
-                        name: "",
-                        description: "",
-                        category: "",
-                        parent: "pending", // Set to "pending" to indicate we need to select a parent subcategory
-                        type: categoryForm.type || "",
-                        slug: "",
-                        sortOrder: 0,
-                        image: null,
-                      });
-                      setAvailableParentSubcategories([]);
-                      setError(null);
-                    }}
-                    className="w-4 h-4 text-cream-600 focus:ring-cream-500"
-                    value="nestedSubcategory"
-                  />
-                  <div className="flex-1">
-                    <p className="font-semibold text-cream-900">Nested Subcategory</p>
-                    <p className="text-xs text-cream-600 mt-0.5">Create under an existing subcategory</p>
-                  </div>
-                  {isNestedSubcategoryMode && (
-                    <CheckCircle className="text-cream-600" size={20} />
-                  )}
-                </label>
-              </div>
-            </div>
-          )}
-
-          {/* Add/Edit Category */}
-          {activeTab === "categories" && !editingSubCategoryId && !subCategoryForm.category && !isNestedSubcategoryMode && (
-            <form onSubmit={handleCategorySubmit} className="space-y-6">
-              {editingCategoryId && (
-                <div className="mb-4">
-                  <BackButton
-                    onClick={() => updateUrl("categories")}
-                    label="Back"
-                    className="mb-4"
-                  />
-                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
-                    <p className="text-sm text-blue-800 font-medium">
-                      Editing Category: {categoryForm.name || "Loading..."}
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => updateUrl("categories")}
-                      className="px-3 py-1 text-sm bg-blue-100 text-blue-800 rounded-lg hover:bg-blue-200 transition-colors"
-                    >
-                      Cancel Edit
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Show main category form only when Main Category is selected */}
-              {!categoryForm.parent && (
-                <>
-                  <div>
-                    <label className="block text-sm font-medium text-cream-900 mb-2">
-                      Category Name *
-                    </label>
-                    <input
-                      id="category-name"
-                      name="name"
-                      type="text"
-                      required
-                      value={categoryForm.name}
-                      onChange={(e) => {
-                        const newName = e.target.value;
-                        // Auto-generate slug if it hasn't been manually edited
-                        let newSlug = categoryForm.slug;
-                        if (!isSlugManuallyEdited) {
-                          // Generate base slug from the new name
-                          const baseSlug = newName.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-
-                          // Only check for uniqueness and add numbers if name doesn't end with space
-                          // This prevents adding numbers while user is still typing
-                          if (baseSlug && !newName.endsWith(' ')) {
-                            newSlug = generateUniqueSlug(baseSlug, editingCategoryId, null);
-                          } else {
-                            // Just use base slug without uniqueness check if name ends with space
-                            newSlug = baseSlug;
-                          }
-                        }
-                        setCategoryForm({ ...categoryForm, name: newName, slug: newSlug });
-                        setError(null); // Clear error when user starts typing
-                      }}
-                      onBlur={() => {
-                        if (!categoryForm.name.trim()) {
-                          setError("Category name is required.");
-                        } else if (!isSlugManuallyEdited) {
-                          // Generate unique slug when user finishes typing (on blur)
-                          const trimmedName = categoryForm.name.trim();
-                          if (trimmedName) {
-                            const baseSlug = trimmedName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-                            if (baseSlug) {
-                              const uniqueSlug = generateUniqueSlug(baseSlug, editingCategoryId, null);
-                              setCategoryForm({ ...categoryForm, slug: uniqueSlug });
-                            }
-                          }
-                        }
-                      }}
-                      className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500 ${(error && !categoryForm.name.trim()) || (!categoryForm.name.trim() && categoryForm.name !== "") ? 'border-red-300 bg-red-50' : 'border-cream-300'
-                        }`}
-                      placeholder="Enter category name"
-                    />
-                    {((error && !categoryForm.name.trim()) || (!categoryForm.name.trim() && categoryForm.name !== "")) && (
-                      <p className="mt-1 text-xs text-red-600">Category name is required</p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-cream-900 mb-2">
-                      Description
-                    </label>
-                    <RichTextEditor
-                      value={categoryForm.description}
-                      onChange={(value) =>
-                        setCategoryForm({
-                          ...categoryForm,
-                          description: value,
-                        })
+                        );
                       }
-                      placeholder="Enter category description..."
-                      height="200px"
-                    />
-                  </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-cream-900 mb-2">
-                      Slug (URL-friendly identifier)
-                    </label>
-                    <input
-                      type="text"
-                      value={categoryForm.slug}
-                      onChange={(e) => {
-                        setIsSlugManuallyEdited(true);
-                        setCategoryForm({ ...categoryForm, slug: e.target.value });
-                      }}
-                      className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
-                      placeholder="e.g., visiting-cards (auto-generated from name)"
-                    />
-                    <p className="mt-1 text-xs text-cream-600">
-                      Auto-generated from category name. You can customize it if needed.
-                    </p>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-cream-900 mb-2">
-                      Type *
-                    </label>
-                    <ReviewFilterDropdown
-                      id="category-type"
-                      label="Select Type"
-                      value={categoryForm.type}
-                      onChange={(value) => {
-                        const newType = value as string;
-                        setCategoryForm({
-                          ...categoryForm,
-                          type: newType,
-                          // Reset parent when type changes to ensure parent matches type
-                          parent: "",
-                          sortOrder: getNextCategorySortOrder(newType),
-                        });
-                        setError(null); // Clear error when user selects type
-                        // Refresh available parent categories filtered by type
-                        // Use setTimeout to ensure state is updated before fetching
-                        setTimeout(() => {
-                          if (editingCategoryId) {
-                            fetchAvailableParentCategories(editingCategoryId);
-                          } else {
-                            fetchAvailableParentCategories();
-                          }
-                        }, 0);
-                      }}
-                      options={[
-                        { value: "Digital", label: "Digital" },
-                        { value: "Bulk", label: "Bulk" },
-                      ]}
-                      className="w-full"
-                    />
-                    {error && !categoryForm.type && (
-                      <p className="mt-1 text-xs text-red-600">Category type is required</p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-cream-900 mb-2">
-                      Sort Order
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={categoryForm.sortOrder}
-                      onChange={(e) => {
-                        setCategoryForm({
-                          ...categoryForm,
-                          sortOrder: parseInt(e.target.value) || 0,
-                        });
-                        // Clear error when user changes sort order
-                        if (categoryFormErrors.sortOrder) {
-                          setCategoryFormErrors({ ...categoryFormErrors, sortOrder: undefined });
-                        }
-                      }}
-                      className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500 ${categoryFormErrors.sortOrder ? 'border-red-300 bg-red-50' : 'border-cream-300'
-                        }`}
-                      placeholder="Enter sort order (0 = first)"
-                    />
-                    {categoryFormErrors.sortOrder ? (
-                      <p className="mt-1 text-xs text-red-600">{categoryFormErrors.sortOrder}</p>
-                    ) : (
-                      <p className="mt-1 text-xs text-cream-600">
-                        Lower numbers appear first. Sort order must be unique within the same type (Digital or Bulk).
-                      </p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-cream-900 mb-2">
-                      Category Image *
-                      {editingCategoryId && <span className="text-xs text-cream-500 font-normal ml-2">(Leave empty to keep current)</span>}
-                      {!editingCategoryId && <span className="text-xs text-red-600 font-normal ml-2">(Required - JPG, PNG, WebP, max 5MB)</span>}
-                    </label>
-                    <input
-                      type="file"
-                      accept="image/jpeg,image/jpg,image/png,image/webp"
-                      required={!editingCategoryId}
-                      onChange={(e) => {
-                        const file = e.target.files?.[0] || null;
-                        if (file) {
-                          // Validate file type
-                          const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-                          if (!allowedTypes.includes(file.type)) {
-                            setError("Invalid image format. Please upload JPG, PNG, or WebP image.");
-                            e.target.value = '';
-                            setCategoryForm({ ...categoryForm, image: null });
-                            return;
-                          }
-                          // Validate file size (max 5MB)
-                          const maxSize = 5 * 1024 * 1024;
-                          if (file.size > maxSize) {
-                            setError("Image size must be less than 5MB. Please compress the image and try again.");
-                            e.target.value = '';
-                            setCategoryForm({ ...categoryForm, image: null });
-                            return;
-                          }
-                          setError(null);
-                        } else if (!editingCategoryId) {
-                          setError("Category image is required. Please upload an image.");
-                        }
-                        setCategoryForm({
-                          ...categoryForm,
-                          image: file,
-                        });
-                      }}
-                      onBlur={() => {
-                        if (!editingCategoryId && !categoryForm.image) {
-                          setError("Category image is required. Please upload an image.");
-                        }
-                      }}
-                      className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500 ${error && !editingCategoryId && !categoryForm.image ? 'border-red-300 bg-red-50' : 'border-cream-300'
-                        }`}
-                    />
-                    {editingCategoryId && editingCategoryImage && !categoryForm.image && (
-                      <div className="mt-3">
-                        <p className="text-sm text-cream-700 mb-2">Current Image:</p>
-                        <img
-                          src={editingCategoryImage}
-                          alt="Current category"
-                          className="w-32 h-32 object-cover rounded-lg border border-cream-300"
-                          onError={(e) => {
-                            const target = e.target as HTMLImageElement;
-                            target.src = "/Glossy.png";
-                          }}
-                        />
-                      </div>
-                    )}
-                    {categoryForm.image && (
-                      <div className="mt-3">
-                        <p className="text-sm text-green-700 mb-2 font-medium flex items-center gap-1">
-                          <CheckCircle size={14} />
-                          New Image Preview:
-                        </p>
-                        <img
-                          src={URL.createObjectURL(categoryForm.image)}
-                          alt="New category preview"
-                          className="w-32 h-32 object-cover rounded-lg border-2 border-green-400"
-                          onError={(e) => {
-                            const target = e.target as HTMLImageElement;
-                            target.src = "/Glossy.png";
-                          }}
-                        />
-                        <p className="mt-2 text-xs text-green-600">
-                          {categoryForm.image.name} ({(categoryForm.image.size / 1024).toFixed(2)} KB)
-                        </p>
-                      </div>
-                    )}
-                    {error && !editingCategoryId && !categoryForm.image && (
-                      <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
-                        <AlertCircle size={12} />
-                        Category image is required
-                      </p>
-                    )}
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="w-full bg-cream-900 text-white px-6 py-3 rounded-lg font-medium hover:bg-cream-800 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-                  >
-                    {loading ? (
-                      <>
-                        <Loader className="animate-spin" size={20} />
-                        Creating...
-                      </>
-                    ) : (
-                      <>
-                        <Plus size={20} />
-                        {editingCategoryId ? "Update Category" : "Create Category"}
-                      </>
-                    )}
-                  </button>
-                </>
-              )}
-            </form>
-          )}
-
-          {/* Subcategory Form - Show when editing subcategory, when subcategory mode is active, or when nested subcategory mode is active */}
-          {activeTab === "categories" && (editingSubCategoryId || isSubCategoryMode || isNestedSubcategoryMode) && (
-            <form onSubmit={handleSubCategorySubmit} className="space-y-6 mt-8 border-t border-cream-200 pt-8">
-              {editingSubCategoryId && (
-                <div className="mb-4">
-                  <BackButton
-                    onClick={() => updateUrl("categories")}
-                    label="Back"
-                    className="mb-4"
-                  />
-                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
-                    <p className="text-sm text-blue-800 font-medium">
-                      Editing Subcategory: {subCategoryForm.name || "Loading..."}
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => updateUrl("categories")}
-                      className="px-3 py-1 text-sm bg-blue-100 text-blue-800 rounded-lg hover:bg-blue-200 transition-colors"
-                    >
-                      Cancel Edit
-                    </button>
-                  </div>
-                </div>
-              )}
-              {!editingSubCategoryId && !isNestedSubcategoryMode && (isSubCategoryMode || (subCategoryForm.category && subCategoryForm.category !== "pending")) && (
-                <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg flex items-center justify-between">
-                  <p className="text-sm text-green-800 font-medium">
-                    {subCategoryForm.category ? `Adding Subcategory to: ${categories.find(c => c._id === subCategoryForm.category)?.name || "Category"}` : "Adding New Subcategory"}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSubCategoryForm({
-                        name: "",
-                        description: "",
-                        category: "",
-                        parent: "",
-                        type: "",
-                        slug: "",
-                        sortOrder: 0,
-                        image: null,
-                      });
-                      setIsSubCategorySlugManuallyEdited(false);
-                      setCategoryForm({ ...categoryForm, parent: "" });
-                      setIsSubCategoryMode(false);
-                      setAvailableParentSubcategories([]);
-                      setError(null);
-                    }}
-                    className="px-3 py-1 text-sm bg-green-100 text-green-800 rounded-lg hover:bg-green-200 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              )}
-
-              {/* Nested Subcategory Mode - Show parent subcategory selector first */}
-              {isNestedSubcategoryMode && (!subCategoryForm.parent || subCategoryForm.parent === "pending") && (
-                <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                  <h3 className="text-sm font-semibold text-blue-900 mb-3">Step 1: Select Parent Subcategory</h3>
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-cream-900 mb-2">
-                        Type <span className="text-red-500">*</span>
-                      </label>
-                      <ReviewFilterDropdown
-                        label="Select Type"
-                        value={subCategoryForm.type || ""}
-                        onChange={(value) => {
-                          const newType = value as string;
-                          setSubCategoryForm({
-                            ...subCategoryForm,
-                            type: newType,
-                            category: "",
-                            parent: "pending"
-                          });
-                          setAvailableParentSubcategories([]);
-                          setError(null);
-                        }}
-                        options={[
-                          { value: "", label: "Select Type" },
-                          { value: "Digital", label: "Digital" },
-                          { value: "Bulk", label: "Bulk" },
-                        ]}
-                        className="w-full"
-                      />
-                    </div>
-
-                    {subCategoryForm.type && (
-                      <div>
-                        <label className="block text-sm font-medium text-cream-900 mb-2">
-                          Category <span className="text-red-500">*</span>
-                        </label>
-                        <ReviewFilterDropdown
-                          id="nested-subcategory-category"
-                          label="Select Category"
-                          value={subCategoryForm.category || ""}
-                          onChange={async (value) => {
-                            const categoryId = (value || "") as string;
-                            setSubCategoryForm({
-                              ...subCategoryForm,
-                              category: categoryId,
-                              parent: "pending",
-                            });
-
-                            // Fetch subcategories for the selected category (with nested children)
-                            if (categoryId) {
-                              setLoadingParentSubcategories(true);
-                              try {
-                                const response = await fetch(`${API_BASE_URL}/subcategories/category/${categoryId}?includeChildren=true`);
-                                if (response.ok) {
-                                  const data = await response.json();
-                                  // Flatten nested subcategories recursively for parent selection
-                                  const flattenSubcategories = (subcats: any[], level: number = 0): any[] => {
-                                    let result: any[] = [];
-                                    subcats.forEach((subcat) => {
-                                      result.push({ ...subcat, _displayLevel: level });
-                                      if (subcat.children && subcat.children.length > 0) {
-                                        result = result.concat(flattenSubcategories(subcat.children, level + 1));
-                                      }
-                                    });
-                                    return result;
-                                  };
-                                  const flattened = flattenSubcategories(Array.isArray(data) ? data : (data?.data || []));
-                                  setAvailableParentSubcategories(flattened || []);
-                                } else {
-                                  setAvailableParentSubcategories([]);
-                                }
-                              } catch (err) {
-                                console.error("Error fetching parent subcategories:", err);
-                                setAvailableParentSubcategories([]);
-                              } finally {
-                                setLoadingParentSubcategories(false);
-                              }
-                            } else {
-                              setAvailableParentSubcategories([]);
-                            }
-                          }}
-                          options={[
-                            { value: "", label: "Select Category" },
-                            ...categories
-                              .filter(cat => cat.type === subCategoryForm.type)
-                              .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
-                              .map((cat) => {
-                                const categoryType = cat.type === "Digital" ? "Digital Print" : "Bulk Print";
-                                return {
-                                  value: cat._id,
-                                  label: `${cat.name} (${categoryType})`,
-                                };
-                              }),
-                          ]}
-                          className="w-full"
-                        />
-                      </div>
-                    )}
-
-                    {subCategoryForm.category && subCategoryForm.category !== "" && (
-                      <div>
-                        <label className="block text-sm font-medium text-cream-900 mb-2">
-                          Subcategory <span className="text-red-500">*</span>
-                        </label>
-                        {loadingParentSubcategories ? (
-                          <div className="w-full px-4 py-2 border border-cream-300 rounded-lg bg-cream-50 flex items-center gap-2">
-                            <Loader className="animate-spin" size={16} />
-                            <span className="text-sm text-cream-600">Loading subcategories...</span>
-                          </div>
-                        ) : (
-                          <ReviewFilterDropdown
-                            id="nested-subcategory-parent"
-                            label="Select Subcategory (Parent for nested subcategory)"
-                            value={subCategoryForm.parent === "pending" ? "" : (subCategoryForm.parent || "")}
-                            onChange={async (value) => {
-                              const parentId = (value || "") as string;
-                              if (parentId) {
-                                // Find the selected parent subcategory to get its category
-                                const selectedParentSubcategory = availableParentSubcategories.find(sc => sc._id === parentId);
-                                const parentCategoryId = selectedParentSubcategory?.category
-                                  ? (typeof selectedParentSubcategory.category === 'object' && selectedParentSubcategory.category !== null
-                                    ? selectedParentSubcategory.category._id
-                                    : selectedParentSubcategory.category)
-                                  : subCategoryForm.category;
-
-                                setSubCategoryForm({
-                                  ...subCategoryForm,
-                                  parent: parentId,
-                                  category: parentCategoryId || subCategoryForm.category, // Set category from parent subcategory
-                                  sortOrder: getNextSubCategorySortOrder(parentCategoryId || subCategoryForm.category as string, parentId),
-                                });
-                              }
-                            }}
-                            options={[
-                              { value: "", label: "Select Subcategory" },
-                              ...availableParentSubcategories
-                                .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
-                                .map((sub) => ({
-                                  value: sub._id,
-                                  label: `${'  '.repeat(sub._displayLevel || 0)}${sub.name}${sub._displayLevel > 0 ? ' (nested)' : ''}`,
-                                })),
-                            ]}
-                            className="w-full"
-                          />
-                        )}
-                        {availableParentSubcategories.length === 0 && subCategoryForm.category && !loadingParentSubcategories && (
-                          <p className="mt-2 text-xs text-red-600">
-                            No subcategories found for this category. Please create a subcategory first.
-                          </p>
-                        )}
-                      </div>
-                    )}
-
-                    <div className="flex items-center justify-end gap-3 pt-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsNestedSubcategoryMode(false);
-                          setSubCategoryForm({
-                            name: "",
-                            description: "",
-                            category: "",
-                            parent: "",
-                            type: "",
-                            slug: "",
-                            sortOrder: 0,
-                            image: null,
-                          });
-                          setAvailableParentSubcategories([]);
-                          setError(null);
-                        }}
-                        className="px-4 py-2 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Show nested subcategory form when parent is selected */}
-              {isNestedSubcategoryMode && subCategoryForm.parent && subCategoryForm.parent !== "pending" && (
-                <div className="mb-4 p-3 bg-purple-50 border border-purple-200 rounded-lg flex items-center justify-between">
-                  <p className="text-sm text-purple-800 font-medium">
-                    Adding Nested Subcategory under: {availableParentSubcategories.find(sc => sc._id === subCategoryForm.parent)?.name || "Subcategory"}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSubCategoryForm({
-                        ...subCategoryForm,
-                        parent: "pending",
-                      });
-                    }}
-                    className="px-3 py-1 text-sm bg-purple-100 text-purple-800 rounded-lg hover:bg-purple-200 transition-colors"
-                  >
-                    Change Parent
-                  </button>
-                </div>
-              )}
-              <div>
-                <label className="block text-sm font-medium text-cream-900 mb-2">
-                  Subcategory Name <span className="text-red-500">*</span>
-                </label>
-                <input
-                  id="subcategory-name"
-                  name="name"
-                  type="text"
-                  required
-                  value={subCategoryForm.name}
-                  onChange={(e) => {
-                    const newName = e.target.value;
-                    // Auto-generate slug if it hasn't been manually edited
-                    let newSlug = subCategoryForm.slug;
-                    if (!isSubCategorySlugManuallyEdited) {
-                      // Generate base slug from the new name
-                      const baseSlug = newName.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-
-                      // Only check for uniqueness and add numbers if name doesn't end with space
-                      // This prevents adding numbers while user is still typing
-                      if (baseSlug && !newName.endsWith(' ')) {
-                        newSlug = generateUniqueSlug(baseSlug, null, editingSubCategoryId);
-                      } else {
-                        // Just use base slug without uniqueness check if name ends with space
-                        newSlug = baseSlug;
-                      }
-                    }
-                    setSubCategoryForm({ ...subCategoryForm, name: newName, slug: newSlug });
-                    setError(null);
-                    if (subCategoryFormErrors.name) {
-                      setSubCategoryFormErrors({ ...subCategoryFormErrors, name: undefined });
-                    }
-                  }}
-                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500 ${subCategoryFormErrors.name ? 'border-red-300 bg-red-50' : 'border-cream-300'
-                    }`}
-                  placeholder="Enter subcategory name"
-                  onBlur={() => {
-                    if (!subCategoryForm.name.trim()) {
-                      setSubCategoryFormErrors({ ...subCategoryFormErrors, name: "Subcategory name is required" });
-                    } else if (!isSubCategorySlugManuallyEdited) {
-                      // Generate unique slug when user finishes typing (on blur)
-                      const trimmedName = subCategoryForm.name.trim();
-                      if (trimmedName) {
-                        const baseSlug = trimmedName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-                        if (baseSlug) {
-                          const uniqueSlug = generateUniqueSlug(baseSlug, null, editingSubCategoryId);
-                          setSubCategoryForm({ ...subCategoryForm, slug: uniqueSlug });
-                        }
-                      }
-                    }
-                  }}
-                />
-                {subCategoryFormErrors.name && (
-                  <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
-                    <AlertCircle size={12} />
-                    {subCategoryFormErrors.name}
-                  </p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-cream-900 mb-2">
-                  Description
-                </label>
-                <textarea
-                  value={subCategoryForm.description}
-                  onChange={(e) =>
-                    setSubCategoryForm({
-                      ...subCategoryForm,
-                      description: e.target.value,
-                    })
-                  }
-                  rows={3}
-                  className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
-                />
-              </div>
-
-              {/* Type and Category fields - Only show when NOT in nested subcategory mode, or when in nested mode but parent not selected yet */}
-              {!isNestedSubcategoryMode && (
-                <>
-                  <div>
-                    <label className="block text-sm font-medium text-cream-900 mb-2">
-                      Type <span className="text-red-500">*</span>
-                    </label>
-                    <ReviewFilterDropdown
-                      label="Select Type"
-                      value={subCategoryForm.type || ""}
-                      onChange={(value) => {
-                        const newType = value as string;
-                        setSubCategoryForm({
-                          ...subCategoryForm,
-                          type: newType,
-                          // Reset category when type changes to ensure category matches type
-                          // But keep "pending" if we're in add subcategory mode
-                          category: subCategoryForm.category === "pending" ? "pending" : ""
-                        });
-                        setError(null);
-                      }}
-                      options={[
-                        { value: "", label: "Select Type" },
-                        { value: "Digital", label: "Digital" },
-                        { value: "Bulk", label: "Bulk" },
-                      ]}
-                      className="w-full"
-                    />
-                    {error && !subCategoryForm.type && (
-                      <p className="mt-1 text-xs text-red-600">Type is required to select parent category</p>
-                    )}
-                  </div>
-
-                  {subCategoryForm.type && (
-                    <div>
-                      <label className="block text-sm font-medium text-cream-900 mb-2">
-                        Parent Category <span className="text-red-500">*</span>
-                      </label>
-                      <ReviewFilterDropdown
-                        id="subcategory-category"
-                        label="Select Category"
-                        value={subCategoryForm.category === "pending" ? "" : (subCategoryForm.category || "")}
-                        onChange={(value) => {
-                          setSubCategoryForm({
-                            ...subCategoryForm,
-                            category: (value || "") as string,
-                          });
-                          setError(null);
-                          if (subCategoryFormErrors.category) {
-                            setSubCategoryFormErrors({ ...subCategoryFormErrors, category: undefined });
-                          }
-                        }}
-                        options={[
-                          { value: "", label: "Select Category" },
-                          ...categories
-                            .filter(cat => cat.type === subCategoryForm.type)
-                            .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
-                            .map((cat) => {
-                              const categoryType = cat.type === "Digital" ? "Digital Print" : "Bulk Print";
-                              return {
-                                value: cat._id,
-                                label: `${cat.name} (${categoryType})`,
-                              };
-                            }),
-                        ]}
-                        className="w-full"
-                      />
-                      {error && (!subCategoryForm.category || subCategoryForm.category === "pending") && subCategoryForm.type && (
-                        <p className="mt-1 text-xs text-red-600">Parent category is required</p>
-                      )}
-                    </div>
-                  )}
-                </>
-              )}
-
-              <div>
-                <label className="block text-sm font-medium text-cream-900 mb-2">
-                  Slug (URL-friendly identifier)
-                </label>
-                <input
-                  type="text"
-                  value={subCategoryForm.slug}
-                  onChange={(e) => {
-                    setIsSubCategorySlugManuallyEdited(true);
-                    setSubCategoryForm({ ...subCategoryForm, slug: e.target.value });
-                  }}
-                  className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
-                  placeholder="e.g., gloss-finish (auto-generated from name)"
-                />
-                <p className="mt-1 text-xs text-cream-600">
-                  Auto-generated from subcategory name. You can customize it if needed.
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-cream-900 mb-2">
-                  Sort Order
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  value={subCategoryForm.sortOrder}
-                  onChange={(e) => {
-                    const value = parseInt(e.target.value, 10) || 0;
-                    setSubCategoryForm({ ...subCategoryForm, sortOrder: value });
-                    // Clear error when user changes sort order
-                    if (subCategoryFormErrors.sortOrder) {
-                      setSubCategoryFormErrors({ ...subCategoryFormErrors, sortOrder: undefined });
-                    }
-                  }}
-                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500 ${subCategoryFormErrors.sortOrder ? 'border-red-300 bg-red-50' : 'border-cream-300'
-                    }`}
-                  placeholder="0"
-                />
-                {subCategoryFormErrors.sortOrder ? (
-                  <p className="mt-1 text-xs text-red-600">{subCategoryFormErrors.sortOrder}</p>
-                ) : (
-                  <p className="mt-1 text-xs text-cream-600">
-                    Lower numbers appear first. Sort order must be unique within the same parent category.
-                  </p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-cream-900 mb-2">
-                  Subcategory Image {editingSubCategoryId && <span className="text-xs text-cream-500">(Leave empty to keep current image)</span>}
-                </label>
-                {editingSubCategoryId && editingSubCategoryImage && !subCategoryForm.image && (
-                  <div className="mb-3">
-                    <p className="text-sm text-cream-700 mb-2">Current Image:</p>
-                    <img
-                      src={getImageUrl(editingSubCategoryImage)}
-                      alt="Current subcategory"
-                      className="w-32 h-32 object-cover rounded-lg border border-cream-300"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        target.src = "/Glossy.png";
-                      }}
-                    />
-                  </div>
-                )}
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => {
-                    setSubCategoryForm({
-                      ...subCategoryForm,
-                      image: e.target.files?.[0] || null,
-                    });
-                    setError(null);
-                  }}
-                  className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
-                />
-                {subCategoryForm.image && (
-                  <div className="mt-3">
-                    <p className="text-sm text-green-700 mb-2 font-medium flex items-center gap-1">
-                      <CheckCircle size={14} />
-                      New Image Preview:
-                    </p>
-                    <img
-                      src={URL.createObjectURL(subCategoryForm.image)}
-                      alt="New subcategory preview"
-                      className="w-32 h-32 object-cover rounded-lg border-2 border-green-400"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        target.src = "/Glossy.png";
-                      }}
-                    />
-                    <p className="mt-2 text-xs text-green-600">
-                      {subCategoryForm.image.name} ({(subCategoryForm.image.size / 1024).toFixed(2)} KB)
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-cream-900 text-white px-6 py-3 rounded-lg font-medium hover:bg-cream-800 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {loading ? (
-                  <>
-                    <Loader className="animate-spin" size={20} />
-                    {editingSubCategoryId ? "Updating..." : "Creating..."}
-                  </>
-                ) : (
-                  <>
-                    {editingSubCategoryId ? <Edit size={20} /> : <Plus size={20} />}
-                    {editingSubCategoryId ? "Update Subcategory" : "Create Subcategory"}
-                  </>
-                )}
-              </button>
-            </form>
-          )}
-
-
-          {/* Orders Management */}
-          {activeTab === "orders" && (
-            <div>
-              <div className="mb-4 flex justify-between items-center">
-                <h2 className="text-xl font-bold text-cream-900">
-                  Orders ({orders.length})
-                </h2>
-                <button
-                  onClick={fetchOrders}
-                  disabled={loadingOrders}
-                  className="px-4 py-2 bg-cream-200 text-cream-900 rounded-lg hover:bg-cream-300 transition-colors disabled:opacity-50 flex items-center gap-2"
-                >
-                  {loadingOrders ? (
-                    <>
-                      <Loader className="animate-spin" size={16} />
-                      Loading...
-                    </>
-                  ) : (
-                    "Refresh"
-                  )}
-                </button>
-              </div>
-
-              {loadingOrders ? (
-                <div className="text-center py-12">
-                  <Loader className="animate-spin text-cream-600 mx-auto mb-4" size={48} />
-                  <p className="text-cream-600">Loading orders...</p>
-                </div>
-              ) : orders.length === 0 ? (
-                <div className="text-center py-12 bg-white rounded-lg border border-cream-200">
-                  <ShoppingBag size={48} className="mx-auto mb-4 opacity-50 text-cream-400" />
-                  <p className="text-cream-600">No orders found.</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {orders.map((order) => {
-                    // Skip orders with null product
-                    if (!order.product) {
                       return (
                         <div
                           key={order._id}
                           className="bg-white rounded-lg border border-cream-200 p-4 sm:p-6 hover:shadow-md transition-shadow"
                         >
-                          <div className="flex items-center gap-4">
-                            <div className="w-16 h-16 sm:w-20 sm:h-20 bg-gray-200 rounded-lg border border-cream-200 flex items-center justify-center">
-                              <Package size={24} className="text-gray-400" />
+                          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 pb-4 border-b border-cream-100">
+                            <div className="flex items-center gap-4">
+                              <img
+                                src={order.product?.image || PLACEHOLDER_IMAGE}
+                                alt={order.product?.name || "Product"}
+                                className="w-16 h-16 sm:w-20 sm:h-20 object-cover rounded-lg border border-cream-200"
+                                onError={(e) => {
+                                  const target = e.target as HTMLImageElement;
+                                  target.src = PLACEHOLDER_IMAGE;
+                                }}
+                              />
+                              <div>
+                                <h3 className="font-bold text-cream-900 text-lg">{order.product?.name || "Unknown Product"}</h3>
+                                <p className="text-sm text-cream-600 font-semibold">Order #{order.orderNumber}</p>
+                                <p className="text-xs text-cream-500 mt-1">
+                                  {order.user?.name || "Unknown"} ({order.user?.email || "Unknown"})
+                                </p>
+                              </div>
                             </div>
-                            <div>
-                              <h3 className="font-bold text-cream-900 text-lg">Product Not Found</h3>
-                              <p className="text-sm text-cream-600 font-semibold">Order #{order.orderNumber}</p>
-                              <p className="text-xs text-cream-500 mt-1">
-                                {order.user?.name || "Unknown"} ({order.user?.email || "Unknown"})
+                            <div className="flex items-center gap-3">
+                              <div className={`px-4 py-2 rounded-full border-2 flex items-center gap-2 ${order.status === "completed" ? "bg-green-100 text-green-800 border-green-200" :
+                                order.status === "processing" ? "bg-blue-100 text-blue-800 border-blue-200" :
+                                  order.status === "approved" ? "bg-purple-100 text-purple-800 border-purple-200" :
+                                    order.status === "production_ready" ? "bg-orange-100 text-orange-800 border-orange-200" :
+                                      order.status === "request" ? "bg-yellow-100 text-yellow-800 border-yellow-200" :
+                                        order.status === "rejected" ? "bg-red-100 text-red-800 border-red-200" :
+                                          "bg-gray-100 text-gray-800 border-gray-200"
+                                }`}>
+                                <span className="text-sm font-semibold capitalize">{order.status}</span>
+                              </div>
+                              {order.currentDepartment && typeof order.currentDepartment === "object" && (
+                                <div className="px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-lg border border-indigo-200 flex items-center gap-2">
+                                  <Building2 size={14} />
+                                  <span className="text-xs font-medium">
+                                    Current: {order.currentDepartment.name}
+                                    {order.currentDepartmentIndex !== null && order.currentDepartmentIndex !== undefined && (
+                                      <span className="ml-1 text-indigo-500">(#{order.currentDepartmentIndex + 1})</span>
+                                    )}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-4">
+                            <div className="bg-cream-50 rounded-lg p-3">
+                              <p className="text-xs text-cream-600 mb-1">Quantity</p>
+                              <p className="font-bold text-cream-900">{order.quantity} units</p>
+                            </div>
+                            <div className="bg-cream-50 rounded-lg p-3">
+                              <p className="text-xs text-cream-600 mb-1">Finish</p>
+                              <p className="font-bold text-cream-900">{order.finish}</p>
+                            </div>
+                            <div className="bg-cream-50 rounded-lg p-3">
+                              <p className="text-xs text-cream-600 mb-1">Shape</p>
+                              <p className="font-bold text-cream-900">{order.shape}</p>
+                            </div>
+                            <div className="bg-cream-50 rounded-lg p-3">
+                              <p className="text-xs text-cream-600 mb-1">Total Price</p>
+                              <p className="font-bold text-cream-900">₹{order.totalPrice.toFixed(2)}</p>
+                            </div>
+                            <div className="bg-cream-50 rounded-lg p-3">
+                              <p className="text-xs text-cream-600 mb-1">Mobile</p>
+                              <p className="font-bold text-cream-900 text-xs">{order.mobileNumber || "N/A"}</p>
+                            </div>
+                          </div>
+
+                          {order.selectedOptions && order.selectedOptions.length > 0 && (
+                            <div className="mb-4">
+                              <p className="text-xs font-medium text-cream-600 mb-2">Selected Options</p>
+                              <div className="flex flex-wrap gap-2">
+                                {order.selectedOptions.map((option, idx) => (
+                                  <span
+                                    key={idx}
+                                    className="px-2 py-1 bg-cream-100 text-cream-800 rounded text-xs"
+                                  >
+                                    {typeof option === "string" ? option : option.optionName}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Uploaded Front Image Display */}
+                          {order.uploadedDesign?.frontImage && (
+                            <div className="mb-4 p-3 bg-cream-50 rounded-lg border border-cream-200">
+                              <p className="text-xs font-medium text-cream-700 mb-2 flex items-center gap-2">
+                                <ImageIcon size={14} />
+                                Uploaded Front Design
                               </p>
+                              <img
+                                src={order.uploadedDesign.frontImage.data || PLACEHOLDER_IMAGE}
+                                alt="Front design"
+                                className="w-full max-h-48 object-contain rounded border border-cream-300 bg-white"
+                                onError={(e) => {
+                                  const target = e.target as HTMLImageElement;
+                                  target.style.display = "none";
+                                  const errorDiv = document.createElement("div");
+                                  errorDiv.className = "w-full h-48 flex items-center justify-center bg-red-50 text-red-600 rounded border border-red-200 text-sm";
+                                  errorDiv.textContent = "Failed to load image";
+                                  target.parentElement?.appendChild(errorDiv);
+                                }}
+                              />
                             </div>
+                          )}
+
+                          {/* Customer Notes - Small Display */}
+                          {order.notes && (
+                            <div className="mb-4 p-2 bg-blue-50 rounded-lg border border-blue-200">
+                              <p className="text-xs font-semibold text-blue-700 mb-1">Customer Notes:</p>
+                              <p className="text-xs text-blue-900 line-clamp-2">{order.notes}</p>
+                            </div>
+                          )}
+
+                          <div className="flex flex-col sm:flex-row gap-2 mb-4">
+                            <button
+                              onClick={() => {
+                                setSelectedOrder(order);
+                                setOrderStatusUpdate({
+                                  status: order.status,
+                                  deliveryDate: order.deliveryDate ? new Date(order.deliveryDate).toISOString().split('T')[0] : "",
+                                  adminNotes: order.adminNotes || "",
+                                });
+                                setShowOrderModal(true);
+                              }}
+                              className="flex-1 px-4 py-2.5 bg-cream-900 text-white rounded-lg hover:bg-cream-800 transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 font-medium"
+                            >
+                              <Eye size={16} />
+                              {order.status !== "cancelled" ? "View & Manage" : "View Details"}
+                            </button>
+                            {order.status === "request" && (
+                              <>
+                                <button
+                                  onClick={() => handleUpdateOrderStatus(order._id, "production_ready")}
+                                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
+                                >
+                                  <Check size={16} />
+                                  Production Ready
+                                </button>
+                                <button
+                                  onClick={() => handleRejectOrder(order._id)}
+                                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center gap-2"
+                                >
+                                  <XCircle size={16} />
+                                  Reject
+                                </button>
+                              </>
+                            )}
+                            {order.status === "production_ready" && (
+                              <>
+                                <div className="flex flex-col gap-2">
+                                  <input
+                                    type="date"
+                                    value={order.deliveryDate ? new Date(order.deliveryDate).toISOString().split('T')[0] : ''}
+                                    onChange={(e) => {
+                                      const newDate = e.target.value;
+                                      if (newDate) {
+                                        handleUpdateOrderStatus(order._id, undefined, undefined, newDate);
+                                      }
+                                    }}
+                                    className="px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 text-sm"
+                                    placeholder="Delivery Date"
+                                  />
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={() => handleUpdateOrderStatus(order._id, undefined, "start_production")}
+                                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+                                    >
+                                      <Play size={16} />
+                                      Start
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        if (window.confirm("Are you sure you want to cancel this order?")) {
+                                          handleUpdateOrderStatus(order._id, "cancelled");
+                                        }
+                                      }}
+                                      className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center gap-2"
+                                    >
+                                      <XCircle size={16} />
+                                      Cancel
+                                    </button>
+                                  </div>
+                                </div>
+                              </>
+                            )}
+                          </div>
+
+                          <div className="text-xs text-cream-500 pt-2 border-t border-cream-100">
+                            Ordered: {!isClient
+                              ? 'Loading...'
+                              : new Date(order.createdAt).toLocaleString()
+                            }
+                            {order.deliveryDate && (
+                              <span className="ml-4">
+                                Delivery: {!isClient
+                                  ? 'Loading...'
+                                  : new Date(order.deliveryDate).toLocaleDateString()
+                                }
+                              </span>
+                            )}
                           </div>
                         </div>
                       );
-                    }
-
-                    return (
-                      <div
-                        key={order._id}
-                        className="bg-white rounded-lg border border-cream-200 p-4 sm:p-6 hover:shadow-md transition-shadow"
-                      >
-                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 pb-4 border-b border-cream-100">
-                          <div className="flex items-center gap-4">
-                            <img
-                              src={order.product?.image || PLACEHOLDER_IMAGE}
-                              alt={order.product?.name || "Product"}
-                              className="w-16 h-16 sm:w-20 sm:h-20 object-cover rounded-lg border border-cream-200"
-                              onError={(e) => {
-                                const target = e.target as HTMLImageElement;
-                                target.src = PLACEHOLDER_IMAGE;
-                              }}
-                            />
-                            <div>
-                              <h3 className="font-bold text-cream-900 text-lg">{order.product?.name || "Unknown Product"}</h3>
-                              <p className="text-sm text-cream-600 font-semibold">Order #{order.orderNumber}</p>
-                              <p className="text-xs text-cream-500 mt-1">
-                                {order.user?.name || "Unknown"} ({order.user?.email || "Unknown"})
-                              </p>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <div className={`px-4 py-2 rounded-full border-2 flex items-center gap-2 ${order.status === "completed" ? "bg-green-100 text-green-800 border-green-200" :
-                              order.status === "processing" ? "bg-blue-100 text-blue-800 border-blue-200" :
-                                order.status === "approved" ? "bg-purple-100 text-purple-800 border-purple-200" :
-                                  order.status === "production_ready" ? "bg-orange-100 text-orange-800 border-orange-200" :
-                                    order.status === "request" ? "bg-yellow-100 text-yellow-800 border-yellow-200" :
-                                      order.status === "rejected" ? "bg-red-100 text-red-800 border-red-200" :
-                                        "bg-gray-100 text-gray-800 border-gray-200"
-                              }`}>
-                              <span className="text-sm font-semibold capitalize">{order.status}</span>
-                            </div>
-                            {order.currentDepartment && typeof order.currentDepartment === "object" && (
-                              <div className="px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-lg border border-indigo-200 flex items-center gap-2">
-                                <Building2 size={14} />
-                                <span className="text-xs font-medium">
-                                  Current: {order.currentDepartment.name}
-                                  {order.currentDepartmentIndex !== null && order.currentDepartmentIndex !== undefined && (
-                                    <span className="ml-1 text-indigo-500">(#{order.currentDepartmentIndex + 1})</span>
-                                  )}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-4">
-                          <div className="bg-cream-50 rounded-lg p-3">
-                            <p className="text-xs text-cream-600 mb-1">Quantity</p>
-                            <p className="font-bold text-cream-900">{order.quantity} units</p>
-                          </div>
-                          <div className="bg-cream-50 rounded-lg p-3">
-                            <p className="text-xs text-cream-600 mb-1">Finish</p>
-                            <p className="font-bold text-cream-900">{order.finish}</p>
-                          </div>
-                          <div className="bg-cream-50 rounded-lg p-3">
-                            <p className="text-xs text-cream-600 mb-1">Shape</p>
-                            <p className="font-bold text-cream-900">{order.shape}</p>
-                          </div>
-                          <div className="bg-cream-50 rounded-lg p-3">
-                            <p className="text-xs text-cream-600 mb-1">Total Price</p>
-                            <p className="font-bold text-cream-900">₹{order.totalPrice.toFixed(2)}</p>
-                          </div>
-                          <div className="bg-cream-50 rounded-lg p-3">
-                            <p className="text-xs text-cream-600 mb-1">Mobile</p>
-                            <p className="font-bold text-cream-900 text-xs">{order.mobileNumber || "N/A"}</p>
-                          </div>
-                        </div>
-
-                        {order.selectedOptions && order.selectedOptions.length > 0 && (
-                          <div className="mb-4">
-                            <p className="text-xs font-medium text-cream-600 mb-2">Selected Options</p>
-                            <div className="flex flex-wrap gap-2">
-                              {order.selectedOptions.map((option, idx) => (
-                                <span
-                                  key={idx}
-                                  className="px-2 py-1 bg-cream-100 text-cream-800 rounded text-xs"
-                                >
-                                  {typeof option === "string" ? option : option.optionName}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Uploaded Front Image Display */}
-                        {order.uploadedDesign?.frontImage && (
-                          <div className="mb-4 p-3 bg-cream-50 rounded-lg border border-cream-200">
-                            <p className="text-xs font-medium text-cream-700 mb-2 flex items-center gap-2">
-                              <ImageIcon size={14} />
-                              Uploaded Front Design
-                            </p>
-                            <img
-                              src={order.uploadedDesign.frontImage.data || PLACEHOLDER_IMAGE}
-                              alt="Front design"
-                              className="w-full max-h-48 object-contain rounded border border-cream-300 bg-white"
-                              onError={(e) => {
-                                const target = e.target as HTMLImageElement;
-                                target.style.display = "none";
-                                const errorDiv = document.createElement("div");
-                                errorDiv.className = "w-full h-48 flex items-center justify-center bg-red-50 text-red-600 rounded border border-red-200 text-sm";
-                                errorDiv.textContent = "Failed to load image";
-                                target.parentElement?.appendChild(errorDiv);
-                              }}
-                            />
-                          </div>
-                        )}
-
-                        {/* Customer Notes - Small Display */}
-                        {order.notes && (
-                          <div className="mb-4 p-2 bg-blue-50 rounded-lg border border-blue-200">
-                            <p className="text-xs font-semibold text-blue-700 mb-1">Customer Notes:</p>
-                            <p className="text-xs text-blue-900 line-clamp-2">{order.notes}</p>
-                          </div>
-                        )}
-
-                        <div className="flex flex-col sm:flex-row gap-2 mb-4">
-                          <button
-                            onClick={() => {
-                              setSelectedOrder(order);
-                              setOrderStatusUpdate({
-                                status: order.status,
-                                deliveryDate: order.deliveryDate ? new Date(order.deliveryDate).toISOString().split('T')[0] : "",
-                                adminNotes: order.adminNotes || "",
-                              });
-                              setShowOrderModal(true);
-                            }}
-                            className="flex-1 px-4 py-2.5 bg-cream-900 text-white rounded-lg hover:bg-cream-800 transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 font-medium"
-                          >
-                            <Eye size={16} />
-                            {order.status !== "cancelled" ? "View & Manage" : "View Details"}
-                          </button>
-                          {order.status === "request" && (
-                            <>
-                              <button
-                                onClick={() => handleUpdateOrderStatus(order._id, "production_ready")}
-                                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
-                              >
-                                <Check size={16} />
-                                Production Ready
-                              </button>
-                              <button
-                                onClick={() => handleRejectOrder(order._id)}
-                                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center gap-2"
-                              >
-                                <XCircle size={16} />
-                                Reject
-                              </button>
-                            </>
-                          )}
-                          {order.status === "production_ready" && (
-                            <>
-                              <div className="flex flex-col gap-2">
-                                <input
-                                  type="date"
-                                  value={order.deliveryDate ? new Date(order.deliveryDate).toISOString().split('T')[0] : ''}
-                                  onChange={(e) => {
-                                    const newDate = e.target.value;
-                                    if (newDate) {
-                                      handleUpdateOrderStatus(order._id, undefined, undefined, newDate);
-                                    }
-                                  }}
-                                  className="px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 text-sm"
-                                  placeholder="Delivery Date"
-                                />
-                                <div className="flex gap-2">
-                                  <button
-                                    onClick={() => handleUpdateOrderStatus(order._id, undefined, "start_production")}
-                                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
-                                  >
-                                    <Play size={16} />
-                                    Start
-                                  </button>
-                                  <button
-                                    onClick={() => {
-                                      if (window.confirm("Are you sure you want to cancel this order?")) {
-                                        handleUpdateOrderStatus(order._id, "cancelled");
-                                      }
-                                    }}
-                                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center gap-2"
-                                  >
-                                    <XCircle size={16} />
-                                    Cancel
-                                  </button>
-                                </div>
-                              </div>
-                            </>
-                          )}
-                        </div>
-
-                        <div className="text-xs text-cream-500 pt-2 border-t border-cream-100">
-                          Ordered: {!isClient
-                            ? 'Loading...'
-                            : new Date(order.createdAt).toLocaleString()
-                          }
-                          {order.deliveryDate && (
-                            <span className="ml-4">
-                              Delivery: {!isClient
-                                ? 'Loading...'
-                                : new Date(order.deliveryDate).toLocaleDateString()
-                              }
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Uploaded Images */}
-          {activeTab === "uploads" && (
-            <div>
-              <div className="mb-4 flex justify-between items-center">
-                <h2 className="text-xl font-bold text-cream-900">
-                  Uploaded Images ({uploads.length})
-                </h2>
-                <button
-                  onClick={() => fetchUploads(false)}
-                  disabled={loadingUploads}
-                  className="px-4 py-2 bg-cream-200 text-cream-900 rounded-lg hover:bg-cream-300 transition-colors disabled:opacity-50 flex items-center gap-2"
-                >
-                  {loadingUploads ? (
-                    <>
-                      <Loader className="animate-spin" size={16} />
-                      Loading...
-                    </>
-                  ) : (
-                    "Refresh"
-                  )}
-                </button>
-              </div>
-
-              {loadingUploads ? (
-                <div className="text-center py-12">
-                  <Loader className="animate-spin text-cream-600 mx-auto mb-4" size={48} />
-                  <p className="text-cream-600">Loading uploaded images...</p>
-                </div>
-              ) : uploads.length === 0 ? (
-                <div className="text-center py-12 text-cream-600">
-                  <ImageIcon size={48} className="mx-auto mb-4 opacity-50" />
-                  <p>No uploaded images yet</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-                  {uploads.map((upload) => (
-                    <div
-                      key={upload._id}
-                      className="border border-cream-300 rounded-lg overflow-hidden hover:shadow-lg transition-shadow relative bg-white"
-                    >
-                      <div
-                        className="cursor-pointer"
-                        onClick={() => {
-                          setSelectedUpload(upload);
-                          setShowUploadModal(true);
-                        }}
-                      >
-                        {upload.frontImage ? (
-                          <div className="aspect-video bg-cream-100 relative group">
-                            {imageLoading[`front-${upload._id}`] && (
-                              <div className="absolute inset-0 flex items-center justify-center bg-cream-100 z-10">
-                                <Loader className="animate-spin text-cream-600" size={24} />
-                              </div>
-                            )}
-                            <img
-                              src={getImageUrl(upload.frontImage.data, upload.frontImage.contentType) || PLACEHOLDER_IMAGE}
-                              alt={upload.frontImage.filename}
-                              className={`w-full h-full object-cover ${imageLoading[`front-${upload._id}`] ? "opacity-0" : "opacity-100"} transition-opacity`}
-                              onLoad={() => setImageLoading(prev => ({ ...prev, [`front-${upload._id}`]: false }))}
-                              onError={(e) => {
-                                setImageLoading(prev => ({ ...prev, [`front-${upload._id}`]: false }));
-                                const target = e.target as HTMLImageElement;
-                                target.style.display = "none";
-                                const errorDiv = document.createElement("div");
-                                errorDiv.className = "absolute inset-0 flex items-center justify-center bg-red-50 text-red-600 text-xs p-2";
-                                errorDiv.textContent = "Failed to load image";
-                                target.parentElement?.appendChild(errorDiv);
-                              }}
-                              onLoadStart={() => setImageLoading(prev => ({ ...prev, [`front-${upload._id}`]: true }))}
-                            />
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDownloadImage(
-                                  upload.frontImage!.data,
-                                  upload.frontImage!.filename || "image.jpg"
-                                );
-                              }}
-                              className="absolute top-2 left-2 p-2 bg-cream-900/80 text-white rounded-lg hover:bg-cream-900 transition-colors opacity-0 group-hover:opacity-100 flex items-center gap-1 shadow-md z-20"
-                              title="Download image"
-                            >
-                              <Download size={14} />
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="aspect-video bg-cream-100 flex items-center justify-center">
-                            <p className="text-cream-400 text-sm">No image</p>
-                          </div>
-                        )}
-                        <div className="p-3 sm:p-4">
-                          <p className="font-semibold text-sm sm:text-base text-cream-900 truncate">
-                            {upload.user.name}
-                          </p>
-                          <p className="text-xs sm:text-sm text-cream-600 truncate">
-                            {upload.user.email}
-                          </p>
-                          <p className="text-xs text-cream-500 mt-2">
-                            {upload.width} × {upload.height}px
-                          </p>
-                          <p className="text-xs text-cream-500">
-                            {!isClient
-                              ? 'Loading...'
-                              : new Date(upload.createdAt).toLocaleDateString()
-                            }
-                          </p>
-                        </div>
-                      </div>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteUpload(upload._id);
-                        }}
-                        disabled={loading}
-                        className="absolute top-2 right-2 p-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors disabled:opacity-50 flex items-center gap-1 shadow-md z-20"
-                        title="Delete upload"
-                      >
-                        {loading ? (
-                          <Loader className="animate-spin" size={14} />
-                        ) : (
-                          <Trash2 size={16} />
-                        )}
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Manage Products */}
-          {activeTab === "manage-products" && (
-            <div>
-              <div className="mb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <div className="flex-1">
-                  <h2 className="text-xl font-bold text-cream-900 mb-2">
-                    Products ({filteredProducts.length})
-                  </h2>
-                  <div className="flex flex-col sm:flex-row gap-3">
-                    {/* Search Input */}
-                    <div className="flex-1 sm:max-w-md">
-                      <div className="relative">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-cream-500" size={18} />
-                        <input
-                          type="text"
-                          placeholder="Search products by name, description, or subcategory..."
-                          value={productSearchQuery}
-                          onChange={(e) => setProductSearchQuery(e.target.value)}
-                          className="w-full pl-10 pr-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500 text-sm"
-                        />
-                        {productSearchQuery && (
-                          <button
-                            onClick={() => setProductSearchQuery("")}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-cream-500 hover:text-cream-700"
-                          >
-                            <X size={16} />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                    {/* Category Filter - Shows all categories (including subcategories) */}
-                    <div className="flex-1 sm:max-w-xs">
-                      <ReviewFilterDropdown
-                        label="Filter by Category"
-                        value={selectedSubCategoryFilter || ""}
-                        onChange={(value) => handleSubCategoryFilterChange(value as string)}
-                        options={[
-                          { value: "", label: "All Products" },
-                          ...categories.map((cat) => {
-                            // Build display name with hierarchy indicator
-                            const getCategoryPath = (category: Category, path: string[] = []): string[] => {
-                              if (!category.parent) {
-                                return [category.name, ...path];
-                              }
-                              const parent = categories.find(c => c._id === (typeof category.parent === 'object' && category.parent !== null ? category.parent._id : category.parent));
-                              if (parent) {
-                                return getCategoryPath(parent, [category.name, ...path]);
-                              }
-                              return [category.name, ...path];
-                            };
-
-                            const path = getCategoryPath(cat);
-                            const displayName = path.join(" > ");
-
-                            return {
-                              value: cat._id,
-                              label: `${displayName} (${cat.type})`,
-                            };
-                          }),
-                        ]}
-                        className="w-full"
-                      />
-                    </div>
-                    {(selectedSubCategoryFilter || productSearchQuery) && (
-                      <button
-                        onClick={async () => {
-                          setSelectedSubCategoryFilter("");
-                          setProductSearchQuery("");
-                          // Fetch all products after clearing filters
-                          await fetchProducts();
-                        }}
-                        className="px-4 py-2 bg-cream-200 text-cream-900 rounded-lg hover:bg-cream-300 transition-colors flex items-center gap-2 whitespace-nowrap"
-                      >
-                        <X size={16} />
-                        Clear Filters
-                      </button>
-                    )}
-                  </div>
-                </div>
-                <button
-                  onClick={async () => {
-                    setSelectedSubCategoryFilter("");
-                    setProductSearchQuery("");
-                    // Fetch all products after clearing filters
-                    await fetchProducts();
-                  }}
-                  className="px-4 py-2 bg-cream-200 text-cream-900 rounded-lg hover:bg-cream-300 transition-colors whitespace-nowrap flex items-center gap-2"
-                >
-                  <Package size={16} />
-                  Refresh
-                </button>
-              </div>
-
-              {(loadingProducts || filteringProducts) ? (
-                <div className="flex flex-col items-center justify-center py-12">
-                  <Loader className="animate-spin text-cream-600 mb-4" size={32} />
-                  <p className="text-cream-600">
-                    {loadingProducts ? "Loading products..." : "Filtering products..."}
-                  </p>
-                </div>
-              ) : filteredProducts.length === 0 ? (
-                <div className="text-center py-12 text-cream-600">
-                  <Package size={48} className="mx-auto mb-4 opacity-50" />
-                  <p>
-                    {selectedSubCategoryFilter || productSearchQuery
-                      ? "No products found matching your filters"
-                      : "No products yet"}
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {filteredProducts.map((product) => {
-                    // Get category and subcategory information
-                    let categoryName = "No Category";
-                    let subcategoryName = "";
-                    let categoryType = "";
-
-                    // Check if product has a subcategory
-                    if (product.subcategory) {
-                      const subcategoryId = product.subcategory && typeof product.subcategory === "object"
-                        ? product.subcategory._id
-                        : product.subcategory;
-
-                      // Find subcategory in subCategories state
-                      const productSubcategory = subCategories.find((sc: any) => sc._id === subcategoryId);
-
-                      if (productSubcategory) {
-                        subcategoryName = productSubcategory.name || "";
-
-                        // Get parent category from subcategory
-                        const parentCategoryId = typeof productSubcategory.category === "object" && productSubcategory.category !== null
-                          ? productSubcategory.category._id
-                          : productSubcategory.category;
-
-                        if (parentCategoryId) {
-                          const parentCategory = categories.find((c: Category) => {
-                            const catId = typeof parentCategoryId === 'string' ? parentCategoryId : (typeof parentCategoryId === 'object' && parentCategoryId?._id ? parentCategoryId._id : '');
-                            return c._id === catId;
-                          });
-                          if (parentCategory) {
-                            categoryName = parentCategory.name || "No Category";
-                            categoryType = parentCategory.type || "";
-                          }
-                        }
-                      } else if (product.subcategory && typeof product.subcategory === "object" && (product.subcategory as any).name) {
-                        // If subcategory is populated in the product object
-                        subcategoryName = (product.subcategory as any).name;
-                        if (product.subcategory && typeof product.subcategory === "object" && (product.subcategory as any).category) {
-                          const categoryRef = (product.subcategory as any).category;
-                          const parentCategory = categoryRef && typeof categoryRef === "object" && '_id' in (categoryRef as any)
-                            ? categoryRef
-                            : (typeof categoryRef === 'string'
-                              ? categories.find((c: Category) => c._id === categoryRef)
-                              : null);
-                          if (parentCategory && typeof parentCategory === "object" && '_id' in parentCategory) {
-                            categoryName = parentCategory.name || "No Category";
-                            categoryType = ('type' in parentCategory && typeof parentCategory.type === 'string' ? parentCategory.type : "") || "";
-                          }
-                        }
-                      }
-                    } else if (product.category) {
-                      // Product has direct category (no subcategory)
-                      const categoryId = product.category && typeof product.category === "object"
-                        ? product.category._id
-                        : (typeof product.category === 'string' ? product.category : '');
-
-                      const productCategory = categories.find((c: Category) => c._id === String(categoryId));
-                      if (productCategory) {
-                        categoryName = productCategory.name || "No Category";
-                        categoryType = productCategory.type || "";
-                      } else if (product.category && typeof product.category === "object" && '_id' in (product.category as any) && 'name' in (product.category as any)) {
-                        // If category is populated in the product object
-                        categoryName = product.category.name || "No Category";
-                        categoryType = ('type' in product.category && typeof product.category.type === 'string' ? product.category.type : "") || "";
-                      }
-                    }
-
-                    // Build display text - show "Direct" if no subcategory
-                    const categoryDisplay = subcategoryName
-                      ? `${categoryName} > ${subcategoryName}`
-                      : `${categoryName} (Direct)`;
-
-                    return (
-                      <div
-                        key={product._id}
-                        className="border border-cream-300 rounded-lg p-4 flex items-center justify-between hover:shadow-md transition-shadow"
-                      >
-                        <div className="flex items-center gap-4 flex-1">
-                          {product.image && product.image.trim() !== "" && (
-                            <img
-                              src={product.image}
-                              alt={product.name}
-                              className="w-16 h-16 object-cover rounded-lg"
-                            />
-                          )}
-                          <div>
-                            <h3 className="font-semibold text-cream-900">
-                              {product.name}
-                            </h3>
-                            <p className="text-sm text-cream-600">
-                              Category: {categoryDisplay}
-                            </p>
-                            {categoryType && (
-                              <p className="text-xs text-cream-500">
-                                Type: {categoryType}
-                              </p>
-                            )}
-                            <p className="text-sm text-cream-500 font-medium">
-                              ₹{product.basePrice}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => handleEditProduct(product._id)}
-                            disabled={loading}
-                            className="px-4 py-2 bg-cream-200 text-cream-900 rounded-lg hover:bg-cream-300 transition-colors disabled:opacity-50 flex items-center gap-2"
-                          >
-                            <Edit size={18} />
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => handleDeleteProduct(product._id)}
-                            disabled={loading}
-                            className="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors disabled:opacity-50 flex items-center gap-2"
-                          >
-                            <Trash2 size={18} />
-                            Delete
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Manage Categories */}
-          {activeTab === "manage-categories" && (
-            <div>
-              <div className="mb-4 flex justify-between items-center flex-wrap gap-4">
-                <h2 className="text-xl font-bold text-cream-900">
-                  Categories ({filteredCategories.length} of {categories.length})
-                </h2>
-                <button
-                  onClick={fetchCategories}
-                  className="px-4 py-2 bg-cream-200 text-cream-900 rounded-lg hover:bg-cream-300 transition-colors"
-                >
-                  Refresh
-                </button>
-              </div>
-
-              {/* Search and Filter Section */}
-              <div className="mb-6 space-y-4">
-                <div className="flex flex-col sm:flex-row gap-4">
-                  {/* Search Input */}
-                  <div className="flex-1 relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-cream-500 w-5 h-5" />
-                    <input
-                      type="text"
-                      placeholder="Search categories by name, description, or type..."
-                      value={categorySearchQuery}
-                      onChange={(e) => setCategorySearchQuery(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
-                    />
-                    {categorySearchQuery && (
-                      <button
-                        onClick={() => setCategorySearchQuery("")}
-                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-cream-500 hover:text-cream-700"
-                      >
-                        <X size={18} />
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Type Filter */}
-                  <div className="sm:w-48">
-                    <ReviewFilterDropdown
-                      label="Filter by Type"
-                      value={categoryTypeFilter}
-                      onChange={(value) => setCategoryTypeFilter(value as string)}
-                      options={[
-                        { value: "all", label: "All Types" },
-                        { value: "Digital", label: "Digital" },
-                        { value: "Bulk", label: "Bulk" },
-                      ]}
-                      className="w-full"
-                    />
-                  </div>
-
-                  {/* Top-Level Filter */}
-                  <div className="sm:w-48">
-                    <ReviewFilterDropdown
-                      label="Filter by Level"
-                      value={categoryTopLevelFilter}
-                      onChange={(value) => setCategoryTopLevelFilter(value as string)}
-                      options={[
-                        { value: "all", label: categoryTypeFilter !== "all" ? `All ${categoryTypeFilter} Categories` : "All Categories" },
-                        { value: "top-level", label: categoryTypeFilter !== "all" ? `Top-Level ${categoryTypeFilter}` : "Top-Level Only" },
-                        { value: "subcategories", label: categoryTypeFilter !== "all" ? `${categoryTypeFilter} Subcategories` : "Subcategories Only" },
-                      ]}
-                      className="w-full"
-                    />
-                  </div>
-                </div>
-
-                {/* Active Filters Display */}
-                {(categorySearchQuery || categoryTypeFilter !== "all" || categoryTopLevelFilter !== "all") && (
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-sm text-cream-600">Active filters:</span>
-                    {categorySearchQuery && (
-                      <span className="px-3 py-1 bg-cream-200 text-cream-900 rounded-full text-sm flex items-center gap-2">
-                        Search: "{categorySearchQuery}"
-                        <button
-                          onClick={() => setCategorySearchQuery("")}
-                          className="hover:text-red-600"
-                        >
-                          <X size={14} />
-                        </button>
-                      </span>
-                    )}
-                    {categoryTypeFilter !== "all" && (
-                      <span className="px-3 py-1 bg-cream-200 text-cream-900 rounded-full text-sm flex items-center gap-2">
-                        Type: {categoryTypeFilter}
-                        <button
-                          onClick={() => setCategoryTypeFilter("all")}
-                          className="hover:text-red-600"
-                        >
-                          <X size={14} />
-                        </button>
-                      </span>
-                    )}
-                    {categoryTopLevelFilter !== "all" && (
-                      <span className="px-3 py-1 bg-cream-200 text-cream-900 rounded-full text-sm flex items-center gap-2">
-                        Level: {categoryTopLevelFilter === "top-level" ? "Top-Level" : "Subcategories"}
-                        <button
-                          onClick={() => setCategoryTopLevelFilter("all")}
-                          className="hover:text-red-600"
-                        >
-                          <X size={14} />
-                        </button>
-                      </span>
-                    )}
-                    <button
-                      onClick={() => {
-                        setCategorySearchQuery("");
-                        setCategoryTypeFilter("all");
-                        setCategoryTopLevelFilter("all");
-                      }}
-                      className="text-sm text-cream-600 hover:text-cream-900 underline"
-                    >
-                      Clear all filters
-                    </button>
+                    })}
                   </div>
                 )}
               </div>
+            )}
 
-              {categories.length === 0 ? (
-                <div className="text-center py-12 text-cream-600">
-                  <FolderPlus size={48} className="mx-auto mb-4 opacity-50" />
-                  <p>No categories yet</p>
-                </div>
-              ) : filteredCategories.length === 0 ? (
-                <div className="text-center py-12 text-cream-600">
-                  <Search size={48} className="mx-auto mb-4 opacity-50" />
-                  <p>No categories match your search criteria</p>
+            {/* Uploaded Images */}
+            {activeTab === "uploads" && (
+              <div>
+                <div className="mb-4 flex justify-between items-center">
+                  <h2 className="text-xl font-bold text-cream-900">
+                    Uploaded Images ({uploads.length})
+                  </h2>
                   <button
-                    onClick={() => {
-                      setCategorySearchQuery("");
-                      setCategoryTypeFilter("all");
-                      setCategoryTopLevelFilter("all");
-                    }}
-                    className="mt-4 text-cream-900 hover:underline"
+                    onClick={() => fetchUploads(false)}
+                    disabled={loadingUploads}
+                    className="px-4 py-2 bg-cream-200 text-cream-900 rounded-lg hover:bg-cream-300 transition-colors disabled:opacity-50 flex items-center gap-2"
                   >
-                    Clear filters
+                    {loadingUploads ? (
+                      <>
+                        <Loader className="animate-spin" size={16} />
+                        Loading...
+                      </>
+                    ) : (
+                      "Refresh"
+                    )}
                   </button>
                 </div>
-              ) : (
-                <div
-                  ref={categoryListRef}
-                  className="space-y-4 max-h-[600px] overflow-y-auto pr-2 scroll-smooth"
-                  style={{ scrollBehavior: 'auto' }} // Use auto for programmatic scrolling
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    if (draggedCategoryId) {
-                      handleAutoScroll(e, categoryListRef.current);
-                    }
-                  }}
-                  onDragEnter={(e) => {
-                    e.preventDefault();
-                    if (draggedCategoryId) {
-                      handleAutoScroll(e, categoryListRef.current);
-                    }
-                  }}
-                  onDragLeave={(e) => {
-                    // Only stop if leaving the container entirely
-                    const relatedTarget = e.relatedTarget as Node;
-                    if (!categoryListRef.current?.contains(relatedTarget) && relatedTarget !== categoryListRef.current) {
-                      stopAutoScroll();
-                    }
-                  }}
-                >
-                  <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                    <p className="text-sm text-blue-800 font-medium flex items-center gap-2">
-                      <Info size={16} />
-                      💡 Drag and drop categories to reorder them. Changes will be saved after confirmation.
-                    </p>
+
+                {loadingUploads ? (
+                  <div className="text-center py-12">
+                    <Loader className="animate-spin text-cream-600 mx-auto mb-4" size={48} />
+                    <p className="text-cream-600">Loading uploaded images...</p>
                   </div>
-                  {filteredCategories.map((category, index) => {
-                    const displayLevel = (category as any).displayLevel || 0;
-                    const indentClass = displayLevel > 0 ? `ml-${displayLevel * 6}` : '';
-                    // Check if this is a subcategory (has parent or isSubcategory flag)
-                    const isSubcategory = (category as any).isSubcategory || (displayLevel > 0);
-
-                    // Get parent category name for display
-                    let parentName = '';
-                    if (isSubcategory) {
-                      // For subcategories, get parent from category field or parent field
-                      const parentId = (category as any).parent ||
-                        ((category as any).category && typeof (category as any).category === 'object'
-                          ? (category as any).category._id
-                          : (category as any).category);
-                      if (parentId) {
-                        const parentCat = categories.find(c => c._id === parentId);
-                        parentName = parentCat ? parentCat.name : 'Unknown';
-                      }
-                    }
-
-                    return (
-                      <div key={category._id} className="space-y-3">
+                ) : uploads.length === 0 ? (
+                  <div className="text-center py-12 text-cream-600">
+                    <ImageIcon size={48} className="mx-auto mb-4 opacity-50" />
+                    <p>No uploaded images yet</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+                    {uploads.map((upload) => (
+                      <div
+                        key={upload._id}
+                        className="border border-cream-300 rounded-lg overflow-hidden hover:shadow-lg transition-shadow relative bg-white"
+                      >
                         <div
-                          draggable
-                          onDragStart={(e) => {
-                            setDraggedCategoryId(category._id);
-                            e.dataTransfer.effectAllowed = "move";
-                            e.dataTransfer.setData("text/plain", category._id);
-                          }}
-                          onDragOver={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation(); // Prevent event from bubbling to container
-                            e.dataTransfer.dropEffect = "move";
-                            const target = e.currentTarget;
-                            if (draggedCategoryId !== category._id) {
-                              target.style.opacity = "0.5";
-                            }
-                            // Trigger auto-scroll when dragging over items
-                            if (draggedCategoryId) {
-                              handleAutoScroll(e, categoryListRef.current);
-                            }
-                          }}
-                          onDragLeave={(e) => {
-                            e.currentTarget.style.opacity = "1";
-                          }}
-                          onDrop={(e) => {
-                            e.preventDefault();
-                            e.currentTarget.style.opacity = "1";
-                            const draggedId = e.dataTransfer.getData("text/plain");
-                            if (draggedId && draggedId !== category._id) {
-                              // Check if either item is a subcategory - if so, use subcategory reorder
-                              const draggedItem = filteredCategories.find(c => c._id === draggedId);
-                              const targetItem = category;
-                              const isDraggedSubcategory = draggedItem && ((draggedItem as any).isSubcategory || (draggedItem as any).displayLevel > 0);
-                              const isTargetSubcategory = (targetItem as any).isSubcategory || (targetItem as any).displayLevel > 0;
-
-                              if (isDraggedSubcategory || isTargetSubcategory) {
-                                // Handle subcategory reorder in the main list
-                                handleSubCategoryReorder(draggedId, category._id);
-                                return;
-                              }
-
-                              handleCategoryReorder(draggedId, category._id, index);
-                            }
-                          }}
-                          onDragEnd={(e) => {
-                            e.currentTarget.style.opacity = "1";
-                            stopAutoScroll();
-                            // Small delay to ensure drag end is processed
-                            setTimeout(() => {
-                              setDraggedCategoryId(null);
-                            }, 100);
-                          }}
-                          className={`border border-cream-300 rounded-lg p-4 flex items-center justify-between hover:shadow-md transition-shadow cursor-move ${draggedCategoryId === category._id ? "opacity-50" : ""
-                            } ${displayLevel > 0 ? 'bg-cream-50' : 'bg-white'}`}
-                          style={{ marginLeft: `${displayLevel * 24}px` }}
-                          onClick={(e) => {
-                            // Only handle click if not dragging
-                            if (!draggedCategoryId) {
-                              handleCategoryClick(category._id);
-                            }
+                          className="cursor-pointer"
+                          onClick={() => {
+                            setSelectedUpload(upload);
+                            setShowUploadModal(true);
                           }}
                         >
-                          <div className="flex items-center gap-4 flex-1">
-                            {displayLevel > 0 && (
-                              <div className="flex items-center">
-                                <ChevronRight size={16} className="text-cream-400" />
-                              </div>
-                            )}
-                            <div className="cursor-move text-cream-400 hover:text-cream-600">
-                              <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-                                <path d="M7 2a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 2zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 8zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 14zm6-8a2 2 0 1 1-.001-4.001A2 2 0 0 1 13 6zm0 2a2 2 0 1 1 .001 4.001A2 2 0 0 1 13 8zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 13 14z" />
-                              </svg>
-                            </div>
-                            <div className="flex items-center gap-4 flex-1">
-                              {category.image && category.image.trim() !== "" && (
-                                <img
-                                  src={category.image}
-                                  alt={category.name}
-                                  className="w-16 h-16 object-cover rounded-lg"
-                                />
-                              )}
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <h3 className="font-semibold text-cream-900">
-                                    {category.name}
-                                  </h3>
-                                  {isSubcategory && (
-                                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
-                                      Subcategory
-                                    </span>
-                                  )}
-                                  {!isSubcategory && (
-                                    <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
-                                      Top-level
-                                    </span>
-                                  )}
-                                  {selectedCategory === category._id && (
-                                    <span className="text-xs bg-cream-200 text-cream-900 px-2 py-1 rounded-full">
-                                      {categorySubcategories.length} child categor{categorySubcategories.length === 1 ? 'y' : 'ies'}
-                                    </span>
-                                  )}
+                          {upload.frontImage ? (
+                            <div className="aspect-video bg-cream-100 relative group">
+                              {imageLoading[`front-${upload._id}`] && (
+                                <div className="absolute inset-0 flex items-center justify-center bg-cream-100 z-10">
+                                  <Loader className="animate-spin text-cream-600" size={24} />
                                 </div>
-                                {isSubcategory && parentName && (
-                                  <p className="text-xs text-cream-500 mt-1">
-                                    Parent: {parentName}
-                                  </p>
-                                )}
-                                <p className="text-xs text-cream-500">
-                                  Type: {category.type} | Sort Order: {category.sortOrder || 0}
-                                </p>
-                                {category.slug && (
-                                  <p className="text-xs text-cream-500">
-                                    Slug: {category.slug}
-                                  </p>
-                                )}
-                                <p className="text-xs text-cream-600 mt-1">
-                                  Click to view products | Drag handle to reorder
-                                </p>
-                              </div>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setViewDescriptionModal({
-                                  isOpen: true,
-                                  type: 'category',
-                                  name: category.name,
-                                  description: category.description || 'No description available.',
-                                });
-                              }}
-                              disabled={loading}
-                              className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors disabled:opacity-50 flex items-center gap-2"
-                            >
-                              <Eye size={18} />
-                              View
-                            </button>
-                            {isSubcategory ? (
-                              <>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleEditSubCategory(category._id);
-                                  }}
-                                  disabled={loading}
-                                  className="px-4 py-2 bg-cream-200 text-cream-900 rounded-lg hover:bg-cream-300 transition-colors disabled:opacity-50 flex items-center gap-2"
-                                >
-                                  <Edit size={18} />
-                                  Edit
-                                </button>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleDeleteSubCategory(category._id);
-                                  }}
-                                  disabled={loading}
-                                  className="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors disabled:opacity-50 flex items-center gap-2"
-                                >
-                                  <Trash2 size={18} />
-                                  Delete
-                                </button>
-                              </>
-                            ) : (
-                              <>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleEditCategory(category._id);
-                                  }}
-                                  disabled={loading}
-                                  className="px-4 py-2 bg-cream-200 text-cream-900 rounded-lg hover:bg-cream-300 transition-colors disabled:opacity-50 flex items-center gap-2"
-                                >
-                                  <Edit size={18} />
-                                  Edit
-                                </button>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleDeleteCategory(category._id);
-                                  }}
-                                  disabled={loading}
-                                  className="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors disabled:opacity-50 flex items-center gap-2"
-                                >
-                                  <Trash2 size={18} />
-                                  Delete
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-
-                  {/* Display Products when category is selected - moved outside map */}
-                  {selectedCategory && (() => {
-                    const selectedCat = categories.find(c => c._id === selectedCategory);
-                    if (!selectedCat) return null;
-
-                    return (
-                      <div className="mt-6 space-y-3 border-t-2 border-cream-300 pt-6 bg-cream-50 rounded-lg p-4">
-                        <div className="flex items-center justify-between mb-4">
-                          <h3 className="text-lg font-semibold text-cream-900">
-                            Products in: {selectedCat.name}
-                          </h3>
-                          <button
-                            onClick={() => setSelectedCategory(null)}
-                            className="text-cream-600 hover:text-cream-900"
-                          >
-                            <X size={20} />
-                          </button>
-                        </div>
-
-                        {/* Add Product and Subcategory Buttons */}
-                        <div className="mb-4 flex gap-3">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (selectedSubCategoryForView) {
-                                handleAddProductToCategory(selectedCategory, selectedSubCategoryForView);
-                              } else {
-                                handleAddProductToCategory(selectedCategory);
-                              }
-                            }}
-                            className="px-4 py-2 bg-cream-900 text-white rounded-lg hover:bg-cream-800 transition-colors flex items-center gap-2"
-                          >
-                            <Plus size={18} />
-                            {selectedSubCategoryForView
-                              ? `Add Product to ${categorySubcategories.find(sc => sc._id === selectedSubCategoryForView)?.name || 'Subcategory'}`
-                              : "Add Product to this Category"}
-                          </button>
-                          {!selectedSubCategoryForView && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleAddSubCategoryToCategory(selectedCategory || '');
-                              }}
-                              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
-                            >
-                              <Plus size={18} />
-                              Add Subcategory to this Category
-                            </button>
-                          )}
-                        </div>
-
-                        {/* Show which category/subcategory products are from */}
-                        {selectedSubCategoryForView && (
-                          <div className="mb-3 p-2 bg-blue-50 border border-blue-200 rounded-lg">
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <p className="text-xs text-blue-800 font-medium">
-                                  Showing products from: {categorySubcategories.find(sc => sc._id === selectedSubCategoryForView)?.name || 'Subcategory'}
-                                </p>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setSelectedSubCategoryForView(null);
-                                    handleCategoryClick(selectedCategory || '');
-                                  }}
-                                  className="mt-1 text-xs text-blue-600 hover:text-blue-800 underline"
-                                >
-                                  Show all products from category and subcategories
-                                </button>
-                              </div>
+                              )}
+                              <img
+                                src={getImageUrl(upload.frontImage.data, upload.frontImage.contentType) || PLACEHOLDER_IMAGE}
+                                alt={upload.frontImage.filename}
+                                className={`w-full h-full object-cover ${imageLoading[`front-${upload._id}`] ? "opacity-0" : "opacity-100"} transition-opacity`}
+                                onLoad={() => setImageLoading(prev => ({ ...prev, [`front-${upload._id}`]: false }))}
+                                onError={(e) => {
+                                  setImageLoading(prev => ({ ...prev, [`front-${upload._id}`]: false }));
+                                  const target = e.target as HTMLImageElement;
+                                  target.style.display = "none";
+                                  const errorDiv = document.createElement("div");
+                                  errorDiv.className = "absolute inset-0 flex items-center justify-center bg-red-50 text-red-600 text-xs p-2";
+                                  errorDiv.textContent = "Failed to load image";
+                                  target.parentElement?.appendChild(errorDiv);
+                                }}
+                                onLoadStart={() => setImageLoading(prev => ({ ...prev, [`front-${upload._id}`]: true }))}
+                              />
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  if (selectedCategory && selectedSubCategoryForView) {
-                                    handleAddProductToCategory(selectedCategory, selectedSubCategoryForView);
-                                  }
+                                  handleDownloadImage(
+                                    upload.frontImage!.data,
+                                    upload.frontImage!.filename || "image.jpg"
+                                  );
                                 }}
-                                className="px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-1"
+                                className="absolute top-2 left-2 p-2 bg-cream-900/80 text-white rounded-lg hover:bg-cream-900 transition-colors opacity-0 group-hover:opacity-100 flex items-center gap-1 shadow-md z-20"
+                                title="Download image"
                               >
-                                <Plus size={14} />
-                                Add Product to this Subcategory
+                                <Download size={14} />
                               </button>
                             </div>
-                          </div>
-                        )}
-
-                        {/* Products List */}
-                        {loadingCategoryProducts ? (
-                          <div className="flex items-center justify-center py-4">
-                            <Loader className="animate-spin text-cream-600" size={24} />
-                            <span className="ml-2 text-cream-600">Loading products...</span>
-                          </div>
-                        ) : categoryProducts.length === 0 ? (
-                          <div className="text-center py-4 text-cream-600 text-sm bg-white rounded-lg">
-                            {categorySubcategories.length > 0 ? (
-                              <>
-                                <p>No products found directly in this category</p>
-                                <p className="text-xs text-cream-500 mt-1">
-                                  {selectedSubCategoryForView
-                                    ? "No products found in this subcategory. Click 'Add Product to this Category' to create one."
-                                    : "Click on a subcategory above to view its products, or click 'Add Product to this Category' to add products directly to this category."}
-                                </p>
-                              </>
-                            ) : (
-                              <>
-                                <p>No products found in this category</p>
-                                <p className="text-xs text-cream-500 mt-1">
-                                  Click "Add Product to this Category" to create one
-                                </p>
-                              </>
-                            )}
-                          </div>
-                        ) : (
-                          <div className="space-y-2">
-                            {categoryProducts.map((product) => (
-                              <div
-                                key={product._id}
-                                className="border border-cream-200 rounded-lg p-3 bg-white hover:shadow-sm transition-shadow flex items-center justify-between"
-                              >
-                                <div className="flex items-center gap-3 flex-1">
-                                  {product.image && product.image.trim() !== "" && (
-                                    <img
-                                      src={product.image}
-                                      alt={product.name}
-                                      className="w-12 h-12 object-cover rounded-lg"
-                                    />
-                                  )}
-                                  <div className="flex-1">
-                                    <h5 className="font-medium text-cream-900 text-sm">
-                                      {product.name}
-                                    </h5>
-                                    <p className="text-xs text-cream-600 line-clamp-1">
-                                      {product.description || "No description"}
-                                    </p>
-                                    <div className="flex items-center gap-2 mt-1">
-                                      <p className="text-xs text-cream-700 font-medium">
-                                        ₹{product.basePrice || 0}
-                                      </p>
-                                    </div>
-                                  </div>
-                                </div>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleEditProduct(product._id);
-                                  }}
-                                  className="px-3 py-1.5 text-xs bg-cream-200 text-cream-900 rounded-lg hover:bg-cream-300 transition-colors flex items-center gap-1"
-                                >
-                                  <Edit size={14} />
-                                  Edit
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-
-                        {/* Show child categories (subcategories) - clickable to view their products */}
-                        {categorySubcategories.length > 0 && (
-                          <div className="mt-4 pt-4 border-t border-cream-200">
-                            <p className="text-xs text-cream-500 mb-2 font-medium">
-                              Subcategories ({categorySubcategories.length}) - Drag to reorder, click to view products:
-                            </p>
-                            <div className="space-y-2">
-                              {/* Recursive component to render nested subcategories */}
-                              {(() => {
-                                const renderSubCategory = (subCat: any, level: number = 0): React.ReactElement => {
-                                  const hasChildren = subCat.children && subCat.children.length > 0;
-                                  return (
-                                    <div key={subCat._id}>
-                                      <div
-                                        draggable
-                                        onDragStart={(e) => {
-                                          setDraggedSubCategoryId(subCat._id);
-                                          e.dataTransfer.effectAllowed = "move";
-                                          e.dataTransfer.setData("text/plain", subCat._id);
-                                        }}
-                                        onDragOver={(e) => {
-                                          e.preventDefault();
-                                          e.stopPropagation();
-                                          e.dataTransfer.dropEffect = "move";
-                                          const target = e.currentTarget;
-                                          if (draggedSubCategoryId && draggedSubCategoryId !== subCat._id) {
-                                            target.style.opacity = "0.5";
-                                            target.style.borderColor = "#d97706";
-                                          }
-                                        }}
-                                        onDragEnter={(e) => {
-                                          e.preventDefault();
-                                          e.stopPropagation();
-                                          if (draggedSubCategoryId && draggedSubCategoryId !== subCat._id) {
-                                            e.currentTarget.style.borderColor = "#d97706";
-                                          }
-                                        }}
-                                        onDragLeave={(e) => {
-                                          e.currentTarget.style.opacity = "1";
-                                          e.currentTarget.style.borderColor = "";
-                                        }}
-                                        onDrop={(e) => {
-                                          e.preventDefault();
-                                          e.stopPropagation();
-                                          e.currentTarget.style.opacity = "1";
-                                          e.currentTarget.style.borderColor = "";
-                                          const draggedId = e.dataTransfer.getData("text/plain");
-                                          if (draggedId && draggedId !== subCat._id) {
-                                            handleSubCategoryReorder(draggedId, subCat._id);
-                                          }
-                                        }}
-                                        onDragEnd={(e) => {
-                                          e.currentTarget.style.opacity = "1";
-                                          setDraggedSubCategoryId(null);
-                                        }}
-                                        className={`text-sm pl-3 py-2 rounded-lg border transition-colors cursor-move ${selectedSubCategoryForView === subCat._id
-                                          ? 'bg-cream-200 border-cream-400 text-cream-900 font-medium'
-                                          : 'bg-white border-cream-200 text-cream-700 hover:bg-cream-100 hover:border-cream-300'
-                                          } ${draggedSubCategoryId === subCat._id ? "opacity-50" : ""}`}
-                                        style={{ marginLeft: `${level * 20}px` }}
-                                      >
-                                        <div className="flex items-center justify-between">
-                                          <div className="flex items-center gap-2 flex-1">
-                                            <div className="cursor-move text-cream-400 hover:text-cream-600">
-                                              <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
-                                                <path d="M7 2a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 2zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 8zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 14zm6-8a2 2 0 1 1-.001-4.001A2 2 0 0 1 13 6zm0 2a2 2 0 1 1 .001 4.001A2 2 0 0 1 13 8zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 13 14z" />
-                                              </svg>
-                                            </div>
-                                            <div
-                                              onClick={(e) => handleSubCategoryClick(subCat._id, e)}
-                                              className="flex items-center gap-2 flex-1 cursor-pointer"
-                                            >
-                                              <ChevronRight
-                                                size={14}
-                                                className={`transition-transform ${selectedSubCategoryForView === subCat._id ? 'rotate-90' : ''
-                                                  }`}
-                                              />
-                                              <span>{subCat.name}</span>
-                                              {level > 0 && (
-                                                <span className="text-xs text-purple-600 font-medium">(nested)</span>
-                                              )}
-                                              {subCat.sortOrder !== undefined && subCat.sortOrder !== null && (
-                                                <span className="text-xs text-cream-500">
-                                                  (Order: {subCat.sortOrder})
-                                                </span>
-                                              )}
-                                            </div>
-                                          </div>
-                                          <div className="flex items-center gap-2">
-                                            {selectedSubCategoryForView === subCat._id && (
-                                              <span className="text-xs text-cream-600 mr-2">
-                                                {categoryProducts.length} product{categoryProducts.length !== 1 ? 's' : ''}
-                                              </span>
-                                            )}
-                                            <button
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                setViewDescriptionModal({
-                                                  isOpen: true,
-                                                  type: 'subcategory',
-                                                  name: subCat.name,
-                                                  description: subCat.description || 'No description available.',
-                                                });
-                                              }}
-                                              disabled={loading}
-                                              className="px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors disabled:opacity-50 flex items-center gap-1"
-                                              title="View Description"
-                                            >
-                                              <Eye size={14} />
-                                            </button>
-                                            <button
-                                              onClick={async (e) => {
-                                                e.stopPropagation();
-                                                e.preventDefault();
-                                                try {
-                                                  await handleEditSubCategory(subCat._id);
-                                                } catch (err) {
-                                                  console.error("Error editing subcategory:", err);
-                                                  setError("Failed to load subcategory for editing");
-                                                }
-                                              }}
-                                              disabled={loading}
-                                              className="px-2 py-1 bg-cream-200 text-cream-900 rounded hover:bg-cream-300 transition-colors disabled:opacity-50 flex items-center gap-1"
-                                              title="Edit Subcategory"
-                                            >
-                                              <Edit size={14} />
-                                            </button>
-                                            <button
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleDeleteSubCategory(subCat._id);
-                                              }}
-                                              disabled={loading}
-                                              className="px-2 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200 transition-colors disabled:opacity-50 flex items-center gap-1"
-                                              title="Delete Subcategory"
-                                            >
-                                              <Trash2 size={14} />
-                                            </button>
-                                          </div>
-                                        </div>
-                                      </div>
-                                      {hasChildren && (
-                                        <div className="mt-1">
-                                          {subCat.children
-                                            .sort((a: any, b: any) => (a.sortOrder || 0) - (b.sortOrder || 0))
-                                            .map((child: any) => renderSubCategory(child, level + 1))}
-                                        </div>
-                                      )}
-                                    </div>
-                                  );
-                                };
-
-                                return categorySubcategories
-                                  .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
-                                  .map((subCat) => renderSubCategory(subCat, 0));
-                              })()}
-                              {/* Legacy flat rendering - keeping for backward compatibility if needed */}
-                              {false && categorySubcategories
-                                .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
-                                .map((subCat, index) => (
-                                  <div
-                                    key={subCat._id}
-                                    draggable
-                                    onDragStart={(e) => {
-                                      setDraggedSubCategoryId(subCat._id);
-                                      e.dataTransfer.effectAllowed = "move";
-                                      e.dataTransfer.setData("text/plain", subCat._id);
-                                    }}
-                                    onDragOver={(e) => {
-                                      e.preventDefault();
-                                      e.stopPropagation();
-                                      e.dataTransfer.dropEffect = "move";
-                                      const target = e.currentTarget;
-                                      if (draggedSubCategoryId && draggedSubCategoryId !== subCat._id) {
-                                        target.style.opacity = "0.5";
-                                        target.style.borderColor = "#d97706"; // Highlight border
-                                      }
-                                    }}
-                                    onDragEnter={(e) => {
-                                      e.preventDefault();
-                                      e.stopPropagation();
-                                      if (draggedSubCategoryId && draggedSubCategoryId !== subCat._id) {
-                                        e.currentTarget.style.borderColor = "#d97706";
-                                      }
-                                    }}
-                                    onDragLeave={(e) => {
-                                      e.currentTarget.style.opacity = "1";
-                                      e.currentTarget.style.borderColor = "";
-                                    }}
-                                    onDrop={(e) => {
-                                      e.preventDefault();
-                                      e.stopPropagation();
-                                      e.currentTarget.style.opacity = "1";
-                                      e.currentTarget.style.borderColor = "";
-                                      const draggedId = e.dataTransfer.getData("text/plain");
-                                      if (draggedId && draggedId !== subCat._id) {
-                                        handleSubCategoryReorder(draggedId, subCat._id);
-                                      }
-                                    }}
-                                    onDragEnd={(e) => {
-                                      e.currentTarget.style.opacity = "1";
-                                      setDraggedSubCategoryId(null);
-                                    }}
-                                    className={`text-sm pl-3 py-2 rounded-lg border transition-colors cursor-move ${selectedSubCategoryForView === subCat._id
-                                      ? 'bg-cream-200 border-cream-400 text-cream-900 font-medium'
-                                      : 'bg-white border-cream-200 text-cream-700 hover:bg-cream-100 hover:border-cream-300'
-                                      } ${draggedSubCategoryId === subCat._id ? "opacity-50" : ""}`}
-                                  >
-                                    <div className="flex items-center justify-between">
-                                      <div className="flex items-center gap-2 flex-1">
-                                        <div className="cursor-move text-cream-400 hover:text-cream-600">
-                                          <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
-                                            <path d="M7 2a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 2zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 8zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 14zm6-8a2 2 0 1 1-.001-4.001A2 2 0 0 1 13 6zm0 2a2 2 0 1 1 .001 4.001A2 2 0 0 1 13 8zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 13 14z" />
-                                          </svg>
-                                        </div>
-                                        <div
-                                          onClick={(e) => handleSubCategoryClick(subCat._id, e)}
-                                          className="flex items-center gap-2 flex-1 cursor-pointer"
-                                        >
-                                          <ChevronRight
-                                            size={14}
-                                            className={`transition-transform ${selectedSubCategoryForView === subCat._id ? 'rotate-90' : ''
-                                              }`}
-                                          />
-                                          <span>{subCat.name}</span>
-                                          {subCat.sortOrder !== undefined && subCat.sortOrder !== null && (
-                                            <span className="text-xs text-cream-500">
-                                              (Order: {subCat.sortOrder})
-                                            </span>
-                                          )}
-                                        </div>
-                                      </div>
-                                      <div className="flex items-center gap-2">
-                                        {selectedSubCategoryForView === subCat._id && (
-                                          <span className="text-xs text-cream-600 mr-2">
-                                            {categoryProducts.length} product{categoryProducts.length !== 1 ? 's' : ''}
-                                          </span>
-                                        )}
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            setViewDescriptionModal({
-                                              isOpen: true,
-                                              type: 'subcategory',
-                                              name: subCat.name,
-                                              description: subCat.description || 'No description available.',
-                                            });
-                                          }}
-                                          disabled={loading}
-                                          className="px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors disabled:opacity-50 flex items-center gap-1"
-                                          title="View Description"
-                                        >
-                                          <Eye size={14} />
-                                        </button>
-                                        <button
-                                          onClick={async (e) => {
-                                            e.stopPropagation();
-                                            e.preventDefault();
-                                            try {
-                                              await handleEditSubCategory(subCat._id);
-                                            } catch (err) {
-                                              console.error("Error editing subcategory:", err);
-                                              setError("Failed to load subcategory for editing");
-                                            }
-                                          }}
-                                          disabled={loading}
-                                          className="px-2 py-1 bg-cream-200 text-cream-900 rounded hover:bg-cream-300 transition-colors disabled:opacity-50 flex items-center gap-1"
-                                          title="Edit Subcategory"
-                                        >
-                                          <Edit size={14} />
-                                        </button>
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleDeleteSubCategory(subCat._id);
-                                          }}
-                                          disabled={loading}
-                                          className="px-2 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200 transition-colors disabled:opacity-50 flex items-center gap-1"
-                                          title="Delete Subcategory"
-                                        >
-                                          <Trash2 size={14} />
-                                        </button>
-                                      </div>
-                                    </div>
-                                  </div>
-                                ))}
+                          ) : (
+                            <div className="aspect-video bg-cream-100 flex items-center justify-center">
+                              <p className="text-cream-400 text-sm">No image</p>
                             </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })()}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Attribute Types Management */}
-          {activeTab === "attribute-types" && (
-            <div className="space-y-6">
-              <div>
-                <h2 className="text-xl font-bold text-cream-900 mb-4">
-                  {editingAttributeTypeId ? "Edit Attribute Type" : "Create Attribute Type"}
-                </h2>
-                <form onSubmit={handleAttributeTypeSubmit} className="space-y-6 bg-white p-6 rounded-lg border border-cream-200">
-                  {/* Error Display */}
-                  {error && (
-                    <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-                      <p className="text-sm text-red-800 font-medium">{error}</p>
-                    </div>
-                  )}
-                  {/* Success Display */}
-                  {success && (
-                    <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-                      <p className="text-sm text-green-800 font-medium">{success}</p>
-                    </div>
-                  )}
-                  {/* Step 1: Basic Information */}
-                  <div className="border-b border-cream-200 pb-4">
-                    <h3 className="text-lg font-semibold text-cream-900 mb-4">Basic Information</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-cream-900 mb-2">
-                          Attribute Name * <span className="text-xs text-cream-500 font-normal">(What customers will see)</span>
-                        </label>
-                        <input
-                          type="text"
-                          id="attribute-name"
-                          value={attributeTypeForm.attributeName}
-                          onChange={(e) => {
-                            setAttributeTypeForm({ ...attributeTypeForm, attributeName: e.target.value });
-                            if (attributeFormErrors.attributeName) {
-                              setAttributeFormErrors({ ...attributeFormErrors, attributeName: undefined });
-                            }
-                          }}
-                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cream-900 focus:border-transparent ${attributeFormErrors.attributeName ? 'border-red-300 bg-red-50' : 'border-cream-300'
-                            }`}
-                          placeholder="e.g., Printing Option, Paper Type"
-                          required
-                        />
-                        {attributeFormErrors.attributeName && (
-                          <p className="mt-1 text-sm text-red-600">{attributeFormErrors.attributeName}</p>
-                        )}
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-cream-900 mb-2">
-                          System Name (Internal)
-                        </label>
-                        <input
-                          type="text"
-                          id="system-name"
-                          value={attributeTypeForm.systemName}
-                          onChange={(e) => setAttributeTypeForm({ ...attributeTypeForm, systemName: e.target.value })}
-                          className="w-full px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-900 focus:border-transparent"
-                          placeholder="e.g., paper_type, size_v2"
-                        />
-                        <p className="mt-1 text-xs text-cream-500">
-                          Optional. Used for internal system references or API keys.
-                        </p>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-cream-900 mb-2">
-                          How Customers Select This * <span className="text-xs text-cream-500 font-normal">(Input method)</span>
-                        </label>
-                        <select
-                          id="attribute-inputStyle"
-                          value={attributeTypeForm.inputStyle}
-                          onChange={(e) => {
-                            setAttributeTypeForm({ ...attributeTypeForm, inputStyle: e.target.value });
-                            if (attributeFormErrors.inputStyle) {
-                              setAttributeFormErrors({ ...attributeFormErrors, inputStyle: undefined });
-                            }
-                          }}
-                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cream-900 focus:border-transparent ${attributeFormErrors.inputStyle ? 'border-red-300 bg-red-50' : 'border-cream-300'
-                            }`}
-                          required
-                        >
-                          <option value="DROPDOWN">Dropdown Menu</option>
-                          <option value="POPUP">Pop-Up</option>
-                          <option value="RADIO">Radio Buttons</option>
-                          <option value="CHECKBOX">Checkbox</option>
-                          <option value="TEXT_FIELD">Text Field</option>
-                          <option value="NUMBER">Number Input</option>
-                          <option value="FILE_UPLOAD">File Upload</option>
-                        </select>
-                        {attributeFormErrors.inputStyle && (
-                          <p className="mt-1 text-sm text-red-600">{attributeFormErrors.inputStyle}</p>
-                        )}
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-cream-900 mb-2">
-                          Attribute Image <span className="text-xs text-cream-500 font-normal">(to be shown when selecting this attribute)</span>
-                        </label>
-                        <input
-                          type="file"
-                          accept="image/jpeg,image/jpg,image/png,image/webp"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0] || null;
-                            if (file) {
-                              // Validate file type
-                              const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-                              if (!allowedTypes.includes(file.type)) {
-                                setError("Invalid image format. Please upload JPG, PNG, or WebP image.");
-                                e.target.value = '';
-                                setAttributeTypeForm({ ...attributeTypeForm, attributeImage: null });
-                                return;
+                          )}
+                          <div className="p-3 sm:p-4">
+                            <p className="font-semibold text-sm sm:text-base text-cream-900 truncate">
+                              {upload.user.name}
+                            </p>
+                            <p className="text-xs sm:text-sm text-cream-600 truncate">
+                              {upload.user.email}
+                            </p>
+                            <p className="text-xs text-cream-500 mt-2">
+                              {upload.width} × {upload.height}px
+                            </p>
+                            <p className="text-xs text-cream-500">
+                              {!isClient
+                                ? 'Loading...'
+                                : new Date(upload.createdAt).toLocaleDateString()
                               }
-                              // Validate file size (max 5MB)
-                              const maxSize = 5 * 1024 * 1024;
-                              if (file.size > maxSize) {
-                                setError("Image size must be less than 5MB. Please compress the image and try again.");
-                                e.target.value = '';
-                                setAttributeTypeForm({ ...attributeTypeForm, attributeImage: null });
-                                return;
-                              }
-                              setError(null);
-                            }
-                            setAttributeTypeForm({ ...attributeTypeForm, attributeImage: file });
-                          }}
-                          className="w-full px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-900 focus:border-transparent"
-                        />
-                        {attributeTypeForm.attributeImage && (
-                          <div className="mt-2">
-                            <img
-                              src={URL.createObjectURL(attributeTypeForm.attributeImage)}
-                              alt="Attribute preview"
-                              className="w-32 h-32 object-cover rounded-lg border border-cream-300"
-                            />
-                            <p className="text-xs text-cream-600 mt-1">
-                              {attributeTypeForm.attributeImage.name} ({(attributeTypeForm.attributeImage.size / 1024).toFixed(2)} KB)
                             </p>
                           </div>
-                        )}
-                      </div>
-                    </div>
-                    <div className="mt-4">
-                      <label className="block text-sm font-medium text-cream-900 mb-2">
-                        What This Affects * <span className="text-xs text-cream-500 font-normal">(Description of impact on product)</span>
-                      </label>
-                      <textarea
-                        id="attribute-primaryEffectType"
-                        value={attributeTypeForm.effectDescription}
-                        onChange={(e) => {
-                          setAttributeTypeForm({ ...attributeTypeForm, effectDescription: e.target.value });
-                          if (attributeFormErrors.primaryEffectType) {
-                            setAttributeFormErrors({ ...attributeFormErrors, primaryEffectType: undefined });
-                          }
-                        }}
-                        className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cream-900 focus:border-transparent ${attributeFormErrors.primaryEffectType ? 'border-red-300 bg-red-50' : 'border-cream-300'
-                          }`}
-                        rows={3}
-                        placeholder="e.g., Changes the product price, Requires customer to upload a file, Creates different product versions, Just displays information"
-                        required
-                      />
-                      <p className="mt-1 text-xs text-cream-600">Describe how this attribute affects the product or customer experience</p>
-                      {attributeFormErrors.primaryEffectType && (
-                        <p className="mt-1 text-sm text-red-600">{attributeFormErrors.primaryEffectType}</p>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Options Table - Show when DROPDOWN/RADIO or when Is Price Effect is checked */}
-                  {((attributeTypeForm.inputStyle === "DROPDOWN" || attributeTypeForm.inputStyle === "RADIO") || attributeTypeForm.isPriceEffect) ? (
-                    <div className="border-b border-cream-200 pb-4" data-attribute-options-table>
-                      <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-lg font-semibold text-cream-900">Options</h3>
+                        </div>
                         <button
-                          type="button"
-                          onClick={() => {
-                            setAttributeTypeForm({
-                              ...attributeTypeForm,
-                              attributeOptionsTable: [...attributeTypeForm.attributeOptionsTable, {
-                                name: "",
-                                priceImpactPer1000: "",
-                                image: undefined,
-                                optionUsage: { price: false, image: false, listing: false },
-                                priceImpact: "",
-                                numberOfImagesRequired: 0,
-                                listingFilters: ""
-                              }],
-                            });
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteUpload(upload._id);
                           }}
-                          className="px-3 py-1 text-sm bg-cream-900 text-white rounded-lg hover:bg-cream-800 transition-colors flex items-center gap-2"
+                          disabled={loading}
+                          className="absolute top-2 right-2 p-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors disabled:opacity-50 flex items-center gap-1 shadow-md z-20"
+                          title="Delete upload"
                         >
-                          <Plus size={16} />
-                          Add Option
-                        </button>
-                      </div>
-                      <div className="border border-cream-300 rounded-lg overflow-hidden bg-white">
-                        {attributeTypeForm.attributeOptionsTable.length === 0 ? (
-                          <p className="text-sm text-cream-600 text-center py-4">
-                            No options added. Click "Add Option" to start.
-                          </p>
-                        ) : (
-                          <div className="overflow-x-auto">
-                            {attributeFormErrors.attributeValues && (
-                              <div className="mb-2 p-3 bg-red-50 border border-red-200 rounded-lg">
-                                <p className="text-sm text-red-800 font-medium">{attributeFormErrors.attributeValues}</p>
-                              </div>
-                            )}
-                            <table className="w-full border-collapse">
-                              <thead>
-                                <tr className="bg-cream-100">
-                                  <th className="border border-cream-300 px-3 py-2 text-left text-sm font-medium text-cream-900">
-                                    Option Name *
-                                  </th>
-                                  <th className="border border-cream-300 px-3 py-2 text-left text-sm font-medium text-cream-900">
-                                    Option Usage *
-                                  </th>
-                                  {attributeTypeForm.attributeOptionsTable.some(opt => opt.optionUsage?.price) && (
-                                    <th className="border border-cream-300 px-3 py-2 text-left text-sm font-medium text-cream-900">
-                                      Price Impact
-                                    </th>
-                                  )}
-                                  {attributeTypeForm.attributeOptionsTable.some(opt => opt.optionUsage?.image) && (
-                                    <th className="border border-cream-300 px-3 py-2 text-left text-sm font-medium text-cream-900">
-                                      Number of Images Required
-                                    </th>
-                                  )}
-                                  {attributeTypeForm.attributeOptionsTable.some(opt => opt.optionUsage?.listing) && (
-                                    <th className="border border-cream-300 px-3 py-2 text-left text-sm font-medium text-cream-900">
-                                      Listing Filters
-                                    </th>
-                                  )}
-                                  <th className="border border-cream-300 px-3 py-2 text-left text-sm font-medium text-cream-900">
-                                    Image (Optional)
-                                  </th>
-                                  <th className="border border-cream-300 px-3 py-2 text-center text-sm font-medium text-cream-900 w-20">
-                                    Action
-                                  </th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {(attributeTypeForm.attributeOptionsTable || []).map((option, index) => (
-                                  <tr key={index}>
-                                    <td className="border border-cream-300 px-3 py-2">
-                                      <input
-                                        type="text"
-                                        value={option.name}
-                                        onChange={(e) => {
-                                          const updated = [...attributeTypeForm.attributeOptionsTable];
-                                          updated[index].name = e.target.value;
-                                          setAttributeTypeForm({ ...attributeTypeForm, attributeOptionsTable: updated });
-                                        }}
-                                        className="w-full px-2 py-2.5 border border-cream-200 rounded text-sm"
-                                        placeholder="e.g., Both Sides, Express Delivery"
-                                        required
-                                      />
-                                    </td>
-                                    <td className="border border-cream-300 px-3 py-2">
-                                      <div className="space-y-2">
-                                        <label className="flex items-center gap-2 cursor-pointer">
-                                          <input
-                                            type="checkbox"
-                                            checked={option.optionUsage?.price || false}
-                                            onChange={(e) => {
-                                              const updated = [...attributeTypeForm.attributeOptionsTable];
-                                              if (!updated[index].optionUsage) {
-                                                updated[index].optionUsage = { price: false, image: false, listing: false };
-                                              }
-                                              updated[index].optionUsage.price = e.target.checked;
-                                              // Ensure at least one checkbox is checked
-                                              if (!e.target.checked && !updated[index].optionUsage.image && !updated[index].optionUsage.listing) {
-                                                setError("At least one option usage must be selected (Price, Image, or Listing)");
-                                                return;
-                                              }
-                                              setAttributeTypeForm({ ...attributeTypeForm, attributeOptionsTable: updated });
-                                              setError(null);
-                                            }}
-                                            className="w-4 h-4 text-cream-900 border-cream-300 rounded focus:ring-cream-500"
-                                          />
-                                          <span className="text-sm text-cream-900">Price</span>
-                                        </label>
-                                        <label className="flex items-center gap-2 cursor-pointer">
-                                          <input
-                                            type="checkbox"
-                                            checked={option.optionUsage?.image || false}
-                                            onChange={(e) => {
-                                              const updated = [...attributeTypeForm.attributeOptionsTable];
-                                              if (!updated[index].optionUsage) {
-                                                updated[index].optionUsage = { price: false, image: false, listing: false };
-                                              }
-                                              updated[index].optionUsage.image = e.target.checked;
-                                              // Ensure at least one checkbox is checked
-                                              if (!e.target.checked && !updated[index].optionUsage.price && !updated[index].optionUsage.listing) {
-                                                setError("At least one option usage must be selected (Price, Image, or Listing)");
-                                                return;
-                                              }
-                                              setAttributeTypeForm({ ...attributeTypeForm, attributeOptionsTable: updated });
-                                              setError(null);
-                                            }}
-                                            className="w-4 h-4 text-cream-900 border-cream-300 rounded focus:ring-cream-500"
-                                          />
-                                          <span className="text-sm text-cream-900">Image</span>
-                                        </label>
-                                        <label className="flex items-center gap-2 cursor-pointer">
-                                          <input
-                                            type="checkbox"
-                                            checked={option.optionUsage?.listing || false}
-                                            onChange={(e) => {
-                                              const updated = [...attributeTypeForm.attributeOptionsTable];
-                                              if (!updated[index].optionUsage) {
-                                                updated[index].optionUsage = { price: false, image: false, listing: false };
-                                              }
-                                              updated[index].optionUsage.listing = e.target.checked;
-                                              // Ensure at least one checkbox is checked
-                                              if (!e.target.checked && !updated[index].optionUsage.price && !updated[index].optionUsage.image) {
-                                                setError("At least one option usage must be selected (Price, Image, or Listing)");
-                                                return;
-                                              }
-                                              setAttributeTypeForm({ ...attributeTypeForm, attributeOptionsTable: updated });
-                                              setError(null);
-                                            }}
-                                            className="w-4 h-4 text-cream-900 border-cream-300 rounded focus:ring-cream-500"
-                                          />
-                                          <span className="text-sm text-cream-900">Listing</span>
-                                        </label>
-                                      </div>
-                                    </td>
-                                    {attributeTypeForm.attributeOptionsTable.some(opt => opt.optionUsage?.price) && (
-                                      <td className="border border-cream-300 px-3 py-2">
-                                        {option.optionUsage?.price ? (
-                                          <div className="flex items-center gap-2">
-                                            <span className="text-sm text-cream-700">₹</span>
-                                            <input
-                                              type="number"
-                                              value={option.priceImpact || ""}
-                                              onChange={(e) => {
-                                                const updated = [...attributeTypeForm.attributeOptionsTable];
-                                                updated[index].priceImpact = e.target.value;
-                                                setAttributeTypeForm({ ...attributeTypeForm, attributeOptionsTable: updated });
-                                              }}
-                                              className="w-full px-2 py-2.5 border border-cream-200 rounded text-sm"
-                                              placeholder="Enter amount"
-                                              step="0.01"
-                                              min="0"
-                                            />
-                                          </div>
-                                        ) : (
-                                          <span className="text-sm text-cream-500">-</span>
-                                        )}
-                                      </td>
-                                    )}
-                                    {attributeTypeForm.attributeOptionsTable.some(opt => opt.optionUsage?.image) && (
-                                      <td className="border border-cream-300 px-3 py-2">
-                                        {option.optionUsage?.image ? (
-                                          <input
-                                            type="number"
-                                            value={option.numberOfImagesRequired || 0}
-                                            onChange={(e) => {
-                                              const updated = [...attributeTypeForm.attributeOptionsTable];
-                                              updated[index].numberOfImagesRequired = parseInt(e.target.value) || 0;
-                                              setAttributeTypeForm({ ...attributeTypeForm, attributeOptionsTable: updated });
-                                            }}
-                                            className="w-full px-2 py-2.5 border border-cream-200 rounded text-sm"
-                                            placeholder="Number of images"
-                                            min="0"
-                                          />
-                                        ) : (
-                                          <span className="text-sm text-cream-500">-</span>
-                                        )}
-                                      </td>
-                                    )}
-                                    {attributeTypeForm.attributeOptionsTable.some(opt => opt.optionUsage?.listing) && (
-                                      <td className="border border-cream-300 px-3 py-2">
-                                        {option.optionUsage?.listing ? (
-                                          <input
-                                            type="text"
-                                            value={option.listingFilters || ""}
-                                            onChange={(e) => {
-                                              const updated = [...attributeTypeForm.attributeOptionsTable];
-                                              updated[index].listingFilters = e.target.value;
-                                              setAttributeTypeForm({ ...attributeTypeForm, attributeOptionsTable: updated });
-                                            }}
-                                            className="w-full px-2 py-2.5 border border-cream-200 rounded text-sm"
-                                            placeholder="Enter filters (comma-separated)"
-                                          />
-                                        ) : (
-                                          <span className="text-sm text-cream-500">-</span>
-                                        )}
-                                      </td>
-                                    )}
-                                    <td className="border border-cream-300 px-3 py-2">
-                                      <input
-                                        type="file"
-                                        accept="image/jpeg,image/jpg,image/png,image/webp"
-                                        onChange={async (e) => {
-                                          const file = e.target.files?.[0];
-                                          if (file) {
-                                            // Validate file type
-                                            const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-                                            if (!validTypes.includes(file.type)) {
-                                              setError("Invalid image format. Please upload JPG, PNG, or WebP image.");
-                                              return;
-                                            }
-                                            // Validate file size (5MB)
-                                            if (file.size > 5 * 1024 * 1024) {
-                                              setError("Image size must be less than 5MB.");
-                                              return;
-                                            }
-
-                                            // Upload to backend API (which uploads to Cloudinary)
-                                            try {
-                                              setLoading(true);
-                                              const formData = new FormData();
-                                              formData.append('image', file);
-
-                                              const uploadResponse = await fetch(`${API_BASE_URL}/upload-image`, {
-                                                method: 'POST',
-                                                headers: getAuthHeaders(),
-                                                body: formData,
-                                              });
-
-                                              if (!uploadResponse.ok) {
-                                                const errorData = await uploadResponse.json().catch(() => ({}));
-                                                throw new Error(errorData.error || 'Failed to upload image');
-                                              }
-
-                                              const uploadData = await uploadResponse.json();
-                                              const imageUrl = uploadData.url || uploadData.secure_url;
-
-                                              if (!imageUrl) {
-                                                throw new Error('No image URL returned from server');
-                                              }
-
-                                              const updated = [...attributeTypeForm.attributeOptionsTable];
-                                              updated[index].image = imageUrl;
-                                              setAttributeTypeForm({ ...attributeTypeForm, attributeOptionsTable: updated });
-                                              setError(null);
-                                            } catch (err) {
-                                              console.error("Error uploading image:", err);
-                                              setError(err instanceof Error ? err.message : "Failed to upload image. Please try again.");
-                                            } finally {
-                                              setLoading(false);
-                                            }
-                                          }
-                                        }}
-                                        className="w-full px-2 py-2.5 border border-cream-200 rounded text-sm text-sm"
-                                      />
-
-                                    </td>
-                                    <td className="border border-cream-300 px-3 py-2 text-center">
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          const updated = attributeTypeForm.attributeOptionsTable.filter((_, i) => i !== index);
-                                          setAttributeTypeForm({ ...attributeTypeForm, attributeOptionsTable: updated });
-                                        }}
-                                        className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
-                                      >
-                                        <Trash2 size={16} />
-                                      </button>
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        )}
-                      </div>
-                      <p className="mt-2 text-xs text-cream-600">
-                        Add all options customers can choose from. If "Is Price Effect" is checked, enter the price impact per 1000 units for each option.
-                      </p>
-                    </div>
-                  ) : null}
-
-                  {/* Step 2: Checkboxes */}
-                  <div className="border-b border-cream-200 pb-4">
-                    <h3 className="text-lg font-semibold text-cream-900 mb-4">Additional Settings</h3>
-                    <div className="space-y-4">
-                      {/* Is Price Effect Checkbox */}
-                      <div className="flex items-start gap-3 p-4 bg-cream-50 rounded-lg border border-cream-200">
-                        <input
-                          type="checkbox"
-                          checked={attributeTypeForm.isPriceEffect}
-                          onChange={(e) => setAttributeTypeForm({ ...attributeTypeForm, isPriceEffect: e.target.checked })}
-                          className="w-5 h-5 text-cream-900 border-cream-300 rounded focus:ring-cream-900 mt-1"
-                        />
-                        <div className="flex-1">
-                          <label className="text-sm font-medium text-cream-900 cursor-pointer">
-                            Is Price Effect?
-                          </label>
-                          <p className="text-xs text-cream-600 mt-1">
-                            Check this if selecting this attribute changes the product price
-                          </p>
-                          {attributeTypeForm.isPriceEffect && (
-                            <div className="mt-3">
-                              <label className="block text-sm font-medium text-cream-900 mb-2">
-                                Price Effect Amount (₹ per 1000 units) *
-                              </label>
-                              <div className="flex items-center gap-2">
-                                <span className="text-lg text-cream-700">₹</span>
-                                <input
-                                  type="number"
-                                  value={attributeTypeForm.priceEffectAmount}
-                                  onChange={(e) => setAttributeTypeForm({ ...attributeTypeForm, priceEffectAmount: e.target.value })}
-                                  className="flex-1 px-3 py-2 border border-cream-300 rounded-lg"
-                                  placeholder="e.g., 20 (means +₹20 per 1000 units)"
-                                  step="0.00001"
-                                  min="0"
-                                  required={attributeTypeForm.isPriceEffect}
-                                />
-                                <span className="text-sm text-cream-600">per 1000 units</span>
-                              </div>
-                              <p className="mt-2 text-xs text-cream-600">
-                                Enter how much the price changes per 1000 units. Example: "20" means +₹20 for every 1000 units.
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Is Step Quantity Checkbox */}
-                      <div className="flex items-start gap-3 p-4 bg-cream-50 rounded-lg border border-cream-200">
-                        <input
-                          type="checkbox"
-                          checked={attributeTypeForm.isStepQuantity}
-                          onChange={(e) => setAttributeTypeForm({ ...attributeTypeForm, isStepQuantity: e.target.checked })}
-                          className="w-5 h-5 text-cream-900 border-cream-300 rounded focus:ring-cream-900 mt-1"
-                        />
-                        <div className="flex-1">
-                          <label className="text-sm font-medium text-cream-900 cursor-pointer">
-                            Is Step Quantity?
-                          </label>
-                          <p className="text-xs text-cream-600 mt-1">
-                            Check this if this attribute restricts quantity to specific steps (e.g., 1000, 2000, 3000 only)
-                          </p>
-                          {attributeTypeForm.isStepQuantity && (
-                            <div className="mt-3 space-y-3">
-                              <div className="flex items-center justify-between">
-                                <h4 className="text-sm font-medium text-cream-900">Steps:</h4>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setAttributeTypeForm({
-                                      ...attributeTypeForm,
-                                      stepQuantities: [...attributeTypeForm.stepQuantities, { quantity: "", price: "" }],
-                                    });
-                                  }}
-                                  className="px-3 py-1 text-xs bg-cream-900 text-white rounded-lg hover:bg-cream-800 transition-colors flex items-center gap-1"
-                                >
-                                  <Plus size={14} />
-                                  Add Step
-                                </button>
-                              </div>
-                              {attributeTypeForm.stepQuantities.length === 0 ? (
-                                <p className="text-xs text-cream-600">No steps added. Click "Add Step" to start.</p>
-                              ) : (
-                                <div className="space-y-2">
-                                  {attributeTypeForm.stepQuantities.map((step, index) => (
-                                    <div key={index} className="flex items-center gap-2 p-2 bg-white border border-cream-200 rounded-lg">
-                                      <span className="text-sm text-cream-700 whitespace-nowrap">Step - {index + 1}:</span>
-                                      <input
-                                        type="number"
-                                        value={step.quantity}
-                                        onChange={(e) => {
-                                          const updated = [...attributeTypeForm.stepQuantities];
-                                          updated[index].quantity = e.target.value;
-                                          setAttributeTypeForm({ ...attributeTypeForm, stepQuantities: updated });
-                                        }}
-                                        className="flex-1 px-2 py-1 border border-cream-300 rounded text-sm"
-                                        placeholder="quantity of step"
-                                        min="0"
-                                        step="100"
-                                      />
-                                      <span className="text-sm text-cream-700 whitespace-nowrap">Price:</span>
-                                      <input
-                                        type="number"
-                                        value={step.price}
-                                        onChange={(e) => {
-                                          const updated = [...attributeTypeForm.stepQuantities];
-                                          updated[index].price = e.target.value;
-                                          setAttributeTypeForm({ ...attributeTypeForm, stepQuantities: updated });
-                                        }}
-                                        className="flex-1 px-2 py-1 border border-cream-300 rounded text-sm"
-                                        placeholder="price of step"
-                                        min="0"
-                                        step="0.01"
-                                      />
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          const updated = attributeTypeForm.stepQuantities.filter((_, i) => i !== index);
-                                          setAttributeTypeForm({ ...attributeTypeForm, stepQuantities: updated });
-                                        }}
-                                        className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
-                                      >
-                                        <Trash2 size={16} />
-                                      </button>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Is Range Quantity Checkbox */}
-                      <div className="flex items-start gap-3 p-4 bg-cream-50 rounded-lg border border-cream-200">
-                        <input
-                          type="checkbox"
-                          checked={attributeTypeForm.isRangeQuantity}
-                          onChange={(e) => setAttributeTypeForm({ ...attributeTypeForm, isRangeQuantity: e.target.checked })}
-                          className="w-5 h-5 text-cream-900 border-cream-300 rounded focus:ring-cream-900 mt-1"
-                        />
-                        <div className="flex-1">
-                          <label className="text-sm font-medium text-cream-900 cursor-pointer">
-                            Is Range Quantity?
-                          </label>
-                          <p className="text-xs text-cream-600 mt-1">
-                            Check this if this attribute restricts quantity to specific Range (e.g., 1000-2000, 2000-5000)
-                          </p>
-                          {attributeTypeForm.isRangeQuantity && (
-                            <div className="mt-3 space-y-3">
-                              <div className="flex items-center justify-between">
-                                <h4 className="text-sm font-medium text-cream-900">Ranges:</h4>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setAttributeTypeForm({
-                                      ...attributeTypeForm,
-                                      rangeQuantities: [...attributeTypeForm.rangeQuantities, { min: "", max: "", price: "" }],
-                                    });
-                                  }}
-                                  className="px-3 py-1 text-xs bg-cream-900 text-white rounded-lg hover:bg-cream-800 transition-colors flex items-center gap-1"
-                                >
-                                  <Plus size={14} />
-                                  Add Range
-                                </button>
-                              </div>
-                              {attributeTypeForm.rangeQuantities.length === 0 ? (
-                                <p className="text-xs text-cream-600">No ranges added. Click "Add Range" to start.</p>
-                              ) : (
-                                <div className="space-y-2">
-                                  {attributeTypeForm.rangeQuantities.map((range, index) => (
-                                    <div key={index} className="flex items-center gap-2 p-2 bg-white border border-cream-200 rounded-lg">
-                                      <span className="text-sm text-cream-700 whitespace-nowrap">Range - {index + 1}:</span>
-                                      <input
-                                        type="number"
-                                        value={range.min}
-                                        onChange={(e) => {
-                                          const updated = [...attributeTypeForm.rangeQuantities];
-                                          updated[index].min = e.target.value;
-                                          setAttributeTypeForm({ ...attributeTypeForm, rangeQuantities: updated });
-                                        }}
-                                        className="flex-1 px-2 py-1 border border-cream-300 rounded text-sm"
-                                        placeholder="min quantity"
-                                        min="0"
-                                        step="100"
-                                      />
-                                      <span className="text-sm text-cream-700">-</span>
-                                      <input
-                                        type="number"
-                                        value={range.max}
-                                        onChange={(e) => {
-                                          const updated = [...attributeTypeForm.rangeQuantities];
-                                          updated[index].max = e.target.value;
-                                          setAttributeTypeForm({ ...attributeTypeForm, rangeQuantities: updated });
-                                        }}
-                                        className="flex-1 px-2 py-1 border border-cream-300 rounded text-sm"
-                                        placeholder="max quantity"
-                                        min="0"
-                                        step="100"
-                                      />
-                                      <span className="text-sm text-cream-700 whitespace-nowrap">Price:</span>
-                                      <input
-                                        type="number"
-                                        value={range.price}
-                                        onChange={(e) => {
-                                          const updated = [...attributeTypeForm.rangeQuantities];
-                                          updated[index].price = e.target.value;
-                                          setAttributeTypeForm({ ...attributeTypeForm, rangeQuantities: updated });
-                                        }}
-                                        className="flex-1 px-2 py-1 border border-cream-300 rounded text-sm"
-                                        placeholder="price of range"
-                                        min="0"
-                                        step="0.01"
-                                      />
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          const updated = attributeTypeForm.rangeQuantities.filter((_, i) => i !== index);
-                                          setAttributeTypeForm({ ...attributeTypeForm, rangeQuantities: updated });
-                                        }}
-                                        className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
-                                      >
-                                        <Trash2 size={16} />
-                                      </button>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-
-                  {attributeTypeForm.primaryEffectType === "FILE" && (
-                    <div className="border-b border-cream-200 pb-4">
-                      <h3 className="text-lg font-semibold text-cream-900 mb-4">File Requirements</h3>
-                      <div>
-                        <label className="block text-sm font-medium text-cream-900 mb-2">
-                          File Requirements Description
-                        </label>
-                        <textarea
-                          value={attributeTypeForm.fileRequirements}
-                          onChange={(e) => setAttributeTypeForm({ ...attributeTypeForm, fileRequirements: e.target.value })}
-                          className="w-full px-3 py-2 border border-cream-300 rounded-lg"
-                          rows={3}
-                          placeholder="e.g., Upload your design file (JPG, PNG, PDF). Minimum 300 DPI recommended."
-                        />
-                        <p className="mt-2 text-xs text-cream-600">
-                          Describe what type of file customers need to upload and any requirements (format, size, resolution, etc.)
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Step 3: Settings */}
-                  <div className="border-b border-cream-200 pb-4">
-                    <h3 className="text-lg font-semibold text-cream-900 mb-4">Settings</h3>
-                    <div className="space-y-4">
-                      {/* Allow Filtering */}
-                      <div className="flex items-start gap-3 p-4 bg-cream-50 rounded-lg border border-cream-200">
-                        <input
-                          type="checkbox"
-                          checked={attributeTypeForm.isFilterable}
-                          onChange={(e) => setAttributeTypeForm({ ...attributeTypeForm, isFilterable: e.target.checked })}
-                          className="w-5 h-5 text-cream-900 border-cream-300 rounded focus:ring-cream-900 mt-1"
-                        />
-                        <div className="flex-1">
-                          <label className="text-sm font-medium text-cream-900 cursor-pointer">
-                            Allow Filtering
-                          </label>
-                          <p className="text-xs text-cream-600 mt-1">
-                            Check this if customers can filter products by this attribute (e.g., filter by color, size, etc.)
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Required Selection */}
-                      <div className="flex items-start gap-3 p-4 bg-cream-50 rounded-lg border border-cream-200">
-                        <input
-                          type="checkbox"
-                          checked={attributeTypeForm.isRequired}
-                          onChange={(e) => setAttributeTypeForm({ ...attributeTypeForm, isRequired: e.target.checked })}
-                          className="w-5 h-5 text-cream-900 border-cream-300 rounded focus:ring-cream-900 mt-1"
-                        />
-                        <div className="flex-1">
-                          <label className="text-sm font-medium text-cream-900 cursor-pointer">
-                            Required Selection
-                          </label>
-                          <p className="text-xs text-cream-600 mt-1">
-                            Check this if customers must select an option before they can place an order
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Available for All Products */}
-                      <div className="flex items-start gap-3 p-4 bg-cream-50 rounded-lg border border-cream-200">
-                        <input
-                          type="checkbox"
-                          checked={attributeTypeForm.isCommonAttribute}
-                          onChange={(e) => setAttributeTypeForm({ ...attributeTypeForm, isCommonAttribute: e.target.checked })}
-                          className="w-5 h-5 text-cream-900 border-cream-300 rounded focus:ring-cream-900 mt-1"
-                        />
-                        <div className="flex-1">
-                          <label className="text-sm font-medium text-cream-900 cursor-pointer">
-                            Available for All Products
-                          </label>
-                          <p className="text-xs text-cream-600 mt-1">
-                            Check this if this attribute can be used with any product. Uncheck to restrict to specific categories/subcategories.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex gap-4">
-                    <button
-                      type="submit"
-                      disabled={loading}
-                      className="px-6 py-2 bg-cream-900 text-white rounded-lg hover:bg-cream-800 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {loading ? "Saving..." : editingAttributeTypeId ? "Update Attribute Type" : "Create Attribute Type"}
-                    </button>
-                    {editingAttributeTypeId && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingAttributeTypeId(null);
-                          setAttributeTypeForm({
-                            attributeName: "",
-                            systemName: "",
-                            inputStyle: "DROPDOWN",
-                            attributeImage: null,
-                            effectDescription: "",
-                            simpleOptions: "",
-                            isPriceEffect: false,
-                            isStepQuantity: false,
-                            isRangeQuantity: false,
-                            isFixedQuantity: false,
-                            priceEffectAmount: "",
-                            stepQuantities: [],
-                            rangeQuantities: [],
-                            fixedQuantityMin: "",
-                            fixedQuantityMax: "",
-                            primaryEffectType: "INFORMATIONAL",
-                            priceImpactPer1000: "",
-                            fileRequirements: "",
-                            attributeOptionsTable: [],
-                            // Reset auto-set fields
-                            functionType: "GENERAL",
-                            isPricingAttribute: false,
-                            isFixedQuantityNeeded: false,
-                            isFilterable: false,
-                            attributeValues: [],
-                            defaultValue: "",
-                            isRequired: false,
-                            displayOrder: 0,
-                            isCommonAttribute: true,
-                            applicableCategories: [],
-                            applicableSubCategories: [],
-                            parentAttribute: "",
-                            showWhenParentValue: [],
-                            hideWhenParentValue: [],
-                          });
-                        }}
-                        className="px-6 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600"
-                      >
-                        Cancel
-                      </button>
-                    )}
-                  </div>
-                </form>
-              </div>
-
-              <div className="bg-white rounded-lg border border-cream-200 p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-xl font-bold text-cream-900">All Attribute Types</h2>
-                  <div className="flex items-center gap-3">
-                    <div className="relative">
-                      <input
-                        type="text"
-                        value={attributeTypeSearch}
-                        onChange={(e) => setAttributeTypeSearch(e.target.value)}
-                        placeholder="Search attribute types..."
-                        className="pl-10 pr-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500 w-64"
-                      />
-                      <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-cream-500" />
-                    </div>
-                    <div className="text-sm text-cream-600">
-                      {(() => {
-                        const filtered = attributeTypes.filter((at) =>
-                          !attributeTypeSearch ||
-                          at.attributeName?.toLowerCase().includes(attributeTypeSearch.toLowerCase()) ||
-                          at.inputStyle?.toLowerCase().includes(attributeTypeSearch.toLowerCase()) ||
-                          at.primaryEffectType?.toLowerCase().includes(attributeTypeSearch.toLowerCase())
-                        );
-                        return `${filtered.length} of ${attributeTypes.length}`;
-                      })()}
-                    </div>
-                  </div>
-                </div>
-                {loadingAttributeTypes ? (
-                  <div className="text-center py-8">
-                    <Loader className="animate-spin text-cream-900 mx-auto" size={32} />
-                  </div>
-                ) : attributeTypes.length === 0 ? (
-                  <div className="text-center py-8 bg-cream-50 rounded-lg border border-cream-200">
-                    <p className="text-cream-600">No attribute types found. Create one above.</p>
-                  </div>
-                ) : (
-                  <div className="bg-white rounded-lg border border-cream-200 overflow-hidden">
-                    <div className="overflow-x-auto">
-                      <table className="w-full">
-                        <thead className="bg-cream-100">
-                          <tr>
-                            <th className="px-4 py-3 text-left text-sm font-medium text-cream-900">Name</th>
-                            <th className="px-4 py-3 text-left text-sm font-medium text-cream-900">System Name</th>
-                            <th className="px-4 py-3 text-left text-sm font-medium text-cream-900">Input Style</th>
-                            <th className="px-4 py-3 text-left text-sm font-medium text-cream-900">Effect Type</th>
-                            <th className="px-4 py-3 text-left text-sm font-medium text-cream-900">Pricing</th>
-                            <th className="px-4 py-3 text-left text-sm font-medium text-cream-900">Common</th>
-                            <th className="px-4 py-3 text-center text-sm font-medium text-cream-900">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-cream-200">
-                          {attributeTypes
-                            .filter((at) =>
-                              !attributeTypeSearch ||
-                              at.attributeName?.toLowerCase().includes(attributeTypeSearch.toLowerCase()) ||
-                              at.systemName?.toLowerCase().includes(attributeTypeSearch.toLowerCase()) ||
-                              at.inputStyle?.toLowerCase().includes(attributeTypeSearch.toLowerCase()) ||
-                              at.primaryEffectType?.toLowerCase().includes(attributeTypeSearch.toLowerCase())
-                            )
-                            .map((at) => (
-                              <tr key={at._id} className="hover:bg-cream-50">
-                                <td className="px-4 py-3 text-sm text-cream-900">{at.attributeName}</td>
-                                <td className="px-4 py-3 text-sm text-gray-500 font-mono font-bold">{at.systemName || "-"}</td>
-                                <td className="px-4 py-3 text-sm text-cream-600">{at.inputStyle}</td>
-                                <td className="px-4 py-3 text-sm text-cream-600">{at.primaryEffectType}</td>
-                                <td className="px-4 py-3 text-sm text-cream-600">{at.isPricingAttribute ? "Yes" : "No"}</td>
-                                <td className="px-4 py-3 text-sm text-cream-600">{at.isCommonAttribute ? "Yes" : "No"}</td>
-                                <td className="px-4 py-3 text-center">
-                                  <div className="flex items-center justify-center gap-2">
-                                    <button
-                                      onClick={() => handleEditAttributeType(at._id)}
-                                      className="p-2 text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                                    >
-                                      <Edit size={16} />
-                                    </button>
-                                    <button
-                                      onClick={() => handleDeleteAttributeType(at._id)}
-                                      className="p-2 text-red-600 hover:bg-red-50 rounded transition-colors"
-                                    >
-                                      <Trash2 size={16} />
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
-                            ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Department Management */}
-          {activeTab === "departments" && (
-            <div className="space-y-6">
-              <div>
-                <h2 className="text-xl font-bold text-cream-900 mb-4">
-                  {editingDepartmentId ? "Edit Department" : "Create Department"}
-                </h2>
-                <form onSubmit={handleDepartmentSubmit} className="space-y-6 bg-white p-6 rounded-lg border border-cream-200">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-cream-900 mb-2">
-                        Department Name *
-                      </label>
-                      <input
-                        id="department-name"
-                        name="name"
-                        type="text"
-                        required
-                        value={departmentForm.name}
-                        onChange={(e) => {
-                          setDepartmentForm({ ...departmentForm, name: e.target.value });
-                          if (departmentFormErrors.name) {
-                            setDepartmentFormErrors({ ...departmentFormErrors, name: undefined });
-                          }
-                        }}
-                        className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500 ${departmentFormErrors.name ? 'border-red-300 bg-red-50' : 'border-cream-300'
-                          }`}
-                        placeholder="e.g., Prepress, Digital Printing"
-                      />
-                      {departmentFormErrors.name && (
-                        <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
-                          <AlertCircle size={12} />
-                          {departmentFormErrors.name}
-                        </p>
-                      )}
-                    </div>
-
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-cream-900 mb-2">
-                      Description
-                    </label>
-                    <textarea
-                      value={departmentForm.description}
-                      onChange={(e) =>
-                        setDepartmentForm({ ...departmentForm, description: e.target.value })
-                      }
-                      rows={3}
-                      className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
-                      placeholder="Brief description of department responsibilities"
-                    />
-                  </div>
-
-                  <div className="flex items-center gap-4">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={departmentForm.isEnabled}
-                        onChange={(e) =>
-                          setDepartmentForm({ ...departmentForm, isEnabled: e.target.checked })
-                        }
-                        className="w-4 h-4 text-cream-900 border-cream-300 rounded focus:ring-cream-500"
-                      />
-                      <span className="text-sm font-medium text-cream-900">Enabled</span>
-                    </label>
-                  </div>
-
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="block text-sm font-medium text-cream-900">
-                        Assign Operators (Optional)
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => setShowCreateEmployeeModal(true)}
-                        className="px-3 py-1.5 text-xs bg-cream-900 text-white rounded-lg hover:bg-cream-800 transition-colors flex items-center gap-1.5"
-                      >
-                        <UserPlus size={14} />
-                        Create Employee
-                      </button>
-                    </div>
-                    <p className="text-xs text-cream-600 mb-2">
-                      Select employees who can perform actions for this department. Only employees can be assigned. Leave empty to allow all authenticated users.
-                    </p>
-                    <div className="space-y-2 max-h-40 overflow-y-auto border border-cream-200 rounded-lg p-3">
-                      {employees.length === 0 ? (
-                        <p className="text-sm text-cream-600">No employees available. Create users and mark them as employees first.</p>
-                      ) : (
-                        employees.map((employee) => {
-                          // Ensure proper ID comparison (handle both string and ObjectId formats)
-                          const isAssigned = departmentForm.operators.some((opId: any) =>
-                            String(opId) === String(employee._id)
-                          );
-
-                          // Find all departments where this employee is assigned as operator
-                          const assignedDepartments = departments
-                            .filter((dept: any) => {
-                              if (!dept.operators || dept.operators.length === 0) return false;
-                              return dept.operators.some((op: any) => {
-                                const opId = typeof op === 'object' ? (op._id || op.id || String(op)) : String(op);
-                                return String(opId) === String(employee._id);
-                              });
-                            })
-                            .map((dept: any) => dept.name);
-
-                          return (
-                            <label key={employee._id} className="flex items-center gap-3 p-3 bg-cream-50 border border-cream-200 rounded-lg hover:bg-cream-100 transition-colors cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={isAssigned}
-                                onChange={(e) => {
-                                  if (e.target.checked) {
-                                    setDepartmentForm({
-                                      ...departmentForm,
-                                      operators: [...departmentForm.operators, employee._id],
-                                    });
-                                  } else {
-                                    setDepartmentForm({
-                                      ...departmentForm,
-                                      operators: departmentForm.operators.filter((id: any) => String(id) !== String(employee._id)),
-                                    });
-                                  }
-                                }}
-                                className="w-4 h-4 text-cream-900 border-cream-300 rounded focus:ring-cream-500 focus:ring-2"
-                              />
-                              <div className="flex-1">
-                                <p className="font-medium text-cream-900">{employee.name}</p>
-                                <p className="text-xs text-cream-600">
-                                  {employee.email}
-                                  {assignedDepartments.length > 0 && (
-                                    <span className="ml-1 text-cream-500">
-                                      ({assignedDepartments.join(", ")})
-                                    </span>
-                                  )}
-                                </p>
-                              </div>
-                              {isAssigned && (
-                                <Check className="text-cream-900" size={20} />
-                              )}
-                            </label>
-                          );
-                        })
-                      )}
-                    </div>
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="w-full bg-cream-900 text-white px-6 py-3 rounded-lg font-medium hover:bg-cream-800 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-                  >
-                    {loading ? (
-                      <>
-                        <Loader className="animate-spin" size={20} />
-                        {editingDepartmentId ? "Updating..." : "Creating..."}
-                      </>
-                    ) : (
-                      <>
-                        <Plus size={20} />
-                        {editingDepartmentId ? "Update Department" : "Create Department"}
-                      </>
-                    )}
-                  </button>
-                </form>
-              </div>
-
-              <div className="border-t border-cream-300 pt-6">
-                <div className="mb-4 flex justify-between items-center">
-                  <h2 className="text-xl font-bold text-cream-900">
-                    All Departments ({departments.length})
-                  </h2>
-                  <button
-                    onClick={fetchDepartments}
-                    className="px-4 py-2 bg-cream-200 text-cream-900 rounded-lg hover:bg-cream-300 transition-colors"
-                  >
-                    Refresh
-                  </button>
-                </div>
-
-                {loadingDepartments ? (
-                  <div className="text-center py-8">
-                    <Loader className="animate-spin text-cream-900 mx-auto" size={32} />
-                  </div>
-                ) : departments.length === 0 ? (
-                  <div className="text-center py-8 bg-cream-50 rounded-lg border border-cream-200">
-                    <Building2 size={48} className="mx-auto mb-4 opacity-50" />
-                    <p className="text-cream-600">No departments found. Create one above.</p>
-                  </div>
-                ) : (
-                  <div className="bg-white rounded-lg border border-cream-200 overflow-hidden">
-                    <div className="overflow-x-auto">
-                      <table className="w-full">
-                        <thead className="bg-cream-100">
-                          <tr>
-                            <th className="px-4 py-3 text-left text-sm font-medium text-cream-900">Name</th>
-                            <th className="px-4 py-3 text-left text-sm font-medium text-cream-900">Description</th>
-                            <th className="px-4 py-3 text-left text-sm font-medium text-cream-900">Status</th>
-                            <th className="px-4 py-3 text-left text-sm font-medium text-cream-900">Operators</th>
-                            <th className="px-4 py-3 text-center text-sm font-medium text-cream-900">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-cream-200">
-                          {departments
-                            .sort((a, b) => (a.name || "").localeCompare(b.name || ""))
-                            .map((dept) => (
-                              <tr key={dept._id} className="hover:bg-cream-50">
-                                <td className="px-4 py-3 text-sm text-cream-900 font-semibold">{dept.name}</td>
-                                <td className="px-4 py-3 text-sm text-cream-600">{dept.description || "-"}</td>
-                                <td className="px-4 py-3">
-                                  <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${dept.isEnabled
-                                    ? "bg-green-100 text-green-800"
-                                    : "bg-red-100 text-red-800"
-                                    }`}>
-                                    {dept.isEnabled ? "Enabled" : "Disabled"}
-                                  </span>
-                                </td>
-                                <td className="px-4 py-3 text-sm text-cream-600">
-                                  {dept.operators && dept.operators.length > 0
-                                    ? `${dept.operators.length} operator(s)`
-                                    : "All users"}
-                                </td>
-                                <td className="px-4 py-3 text-center">
-                                  <div className="flex items-center justify-center gap-2">
-                                    <button
-                                      onClick={() => handleEditDepartment(dept._id)}
-                                      className="p-2 text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                                    >
-                                      <Edit size={16} />
-                                    </button>
-                                    <button
-                                      onClick={() => handleDeleteDepartment(dept._id)}
-                                      className="p-2 text-red-600 hover:bg-red-50 rounded transition-colors"
-                                    >
-                                      <Trash2 size={16} />
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
-                            ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Sequences Management */}
-          {activeTab === "sequences" && (
-            <div className="space-y-6">
-              <div>
-                <h2 className="text-xl font-bold text-cream-900 mb-4">
-                  {editingSequenceId ? "Edit Sequence" : "Create Sequence"}
-                </h2>
-                <p className="text-sm text-cream-600 mb-4">
-                  Create production sequences for categories/subcategories. Select departments in order - first selected gets sequence 1, second gets 2, etc.
-                </p>
-                {editingSequenceId && (
-                  <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
-                    <p className="text-sm text-blue-800 font-medium">
-                      Editing Sequence: {sequenceForm.name || "Loading..."}
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditingSequenceId(null);
-                        setSequenceForm({
-                          name: "",
-                          printType: "",
-                          category: "",
-                          subcategory: "",
-                          selectedDepartments: [],
-                          selectedAttributes: [],
-                        });
-                      }}
-                      className="px-3 py-1 text-sm bg-blue-100 text-blue-800 rounded-lg hover:bg-blue-200 transition-colors"
-                    >
-                      Cancel Edit
-                    </button>
-                  </div>
-                )}
-                <form onSubmit={handleSequenceSubmit} className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-cream-900 mb-2">
-                      Sequence Name *
-                    </label>
-                    <input
-                      id="sequence-name"
-                      name="name"
-                      type="text"
-                      required
-                      value={sequenceForm.name}
-                      onChange={(e) => {
-                        setSequenceForm({ ...sequenceForm, name: e.target.value });
-                        if (sequenceFormErrors.name) {
-                          setSequenceFormErrors({ ...sequenceFormErrors, name: undefined });
-                        }
-                      }}
-                      className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500 ${sequenceFormErrors.name ? 'border-red-300 bg-red-50' : 'border-cream-300'
-                        }`}
-                      placeholder="e.g., Standard Printing Sequence"
-                    />
-                    {sequenceFormErrors.name && (
-                      <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
-                        <AlertCircle size={12} />
-                        {sequenceFormErrors.name}
-                      </p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-cream-900 mb-2">
-                      Print Type *
-                    </label>
-                    <ReviewFilterDropdown
-                      id="sequence-printType"
-                      label="Select Print Type"
-                      value={sequenceForm.printType}
-                      onChange={(value) => {
-                        setSequenceForm({
-                          ...sequenceForm,
-                          printType: String(value),
-                          category: "", // Reset category when print type changes
-                          subcategory: "", // Reset subcategory when print type changes
-                        });
-                        if (sequenceFormErrors.printType) {
-                          setSequenceFormErrors({ ...sequenceFormErrors, printType: undefined });
-                        }
-                      }}
-                      options={[
-                        { value: "", label: "Select Print Type" },
-                        { value: "digital", label: "Digital Print" },
-                        { value: "bulk", label: "Bulk Print" },
-                      ]}
-                      className="w-full"
-                    />
-                    {sequenceFormErrors.printType && (
-                      <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
-                        <AlertCircle size={12} />
-                        {sequenceFormErrors.printType}
-                      </p>
-                    )}
-                  </div>
-
-                  {(sequenceForm.printType === "digital" || sequenceForm.printType === "bulk") && (
-                    <>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium text-cream-900 mb-2">
-                            Category *
-                          </label>
-                          <ReviewFilterDropdown
-                            id="sequence-category"
-                            label="Select Category"
-                            value={String(sequenceForm.category || "")}
-                            onChange={(value) => {
-                              setSequenceForm({
-                                ...sequenceForm,
-                                category: String(value),
-                                subcategory: "", // Reset subcategory when category changes
-                              });
-                            }}
-                            options={[
-                              { value: "", label: "Select Category" },
-                              ...categories
-                                .filter((cat) => {
-                                  // Only show top-level categories (no parent)
-                                  const isTopLevel = !cat.parent || cat.parent === null || (typeof cat.parent === 'object' && !cat.parent._id);
-                                  if (!isTopLevel) return false;
-
-                                  if (sequenceForm.printType === "digital") {
-                                    return cat.type === "Digital" || cat.type === "digital";
-                                  } else if (sequenceForm.printType === "bulk") {
-                                    return cat.type === "Bulk" || cat.type === "bulk";
-                                  }
-                                  return false;
-                                })
-                                .map((cat) => ({
-                                  value: cat._id,
-                                  label: cat.name,
-                                })),
-                            ]}
-                            className="w-full"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-cream-900 mb-2">
-                            Subcategory {sequenceForm.category ? "*" : "(Optional)"}
-                          </label>
-                          <ReviewFilterDropdown
-                            label="Select Subcategory"
-                            value={sequenceForm.subcategory}
-                            onChange={(value) =>
-                              setSequenceForm({ ...sequenceForm, subcategory: String(value) })
-                            }
-                            options={[
-                              { value: "", label: "Select Subcategory (Optional)" },
-                              ...subCategories
-                                .filter((subCat) => {
-                                  if (!sequenceForm.category) return false;
-                                  const categoryId = subCat.category
-                                    ? (typeof subCat.category === 'object' && subCat.category !== null ? subCat.category._id : subCat.category)
-                                    : null;
-                                  return String(categoryId) === String(sequenceForm.category);
-                                })
-                                .sort((a, b) => ((a as Category).sortOrder || 0) - ((b as Category).sortOrder || 0))
-                                .map((subCat) => ({
-                                  value: subCat._id,
-                                  label: subCat.name,
-                                })),
-                            ]}
-                            className="w-full"
-                          />
-                        </div>
-                      </div>
-                    </>
-                  )}
-
-                  <div id="sequence-departments">
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="block text-sm font-medium text-cream-900">
-                        Select Departments (in order) *
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => setShowCreateDepartmentModal(true)}
-                        className="px-3 py-1.5 text-xs bg-cream-900 text-white rounded-lg hover:bg-cream-800 transition-colors flex items-center gap-1.5"
-                      >
-                        <Building2 size={14} />
-                        Create Department
-                      </button>
-                    </div>
-                    <p className="text-xs text-cream-600 mb-3">
-                      Check departments in the order they should process. First checked = Sequence 1, second = Sequence 2, etc.
-                    </p>
-                    {departments.length === 0 ? (
-                      <div className="p-4 bg-cream-50 border border-cream-200 rounded-lg">
-                        <p className="text-sm text-cream-600 text-center">
-                          No departments available. Please create departments first.
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="border border-cream-300 rounded-lg p-4 bg-white max-h-96 overflow-y-auto">
-                        <div className="space-y-2">
-                          {(departments || [])
-                            .filter((d: any) => d.isEnabled)
-                            .map((dept: any) => {
-                              const selectedDepts = sequenceForm.selectedDepartments || [];
-                              const isSelected = selectedDepts.includes(dept._id);
-                              const orderIndex = selectedDepts.indexOf(dept._id);
-                              return (
-                                <div
-                                  key={dept._id}
-                                  className={`flex items-center gap-3 p-3 border rounded-lg transition-colors ${isSelected
-                                    ? "border-green-500 bg-green-50"
-                                    : "border-cream-200 bg-white hover:bg-cream-50"
-                                    }`}
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={isSelected}
-                                    onChange={() => handleDepartmentToggle(dept._id)}
-                                    className="w-4 h-4 text-cream-900 border-cream-300 rounded focus:ring-cream-500"
-                                  />
-                                  <div className="flex-1">
-                                    <div className="flex items-center gap-2">
-                                      {isSelected && (
-                                        <span className="flex items-center justify-center w-6 h-6 bg-green-500 text-white rounded-full text-xs font-bold">
-                                          {orderIndex + 1}
-                                        </span>
-                                      )}
-                                      <span className="font-medium text-cream-900">{dept.name}</span>
-                                    </div>
-                                    {dept.operators && dept.operators.length > 0 && (
-                                      <div className="mt-1">
-                                        <p className="text-xs font-medium text-cream-700">Operators:</p>
-                                        <div className="flex flex-wrap gap-1 mt-0.5">
-                                          {dept.operators.map((op: any) => (
-                                            <span key={op && typeof op === 'object' ? op._id : op} className="text-xs text-cream-600 bg-cream-100 px-2 py-0.5 rounded">
-                                              {op && typeof op === 'object' ? op.name : 'N/A'}
-                                            </span>
-                                          ))}
-                                        </div>
-                                      </div>
-                                    )}
-                                    {(!dept.operators || dept.operators.length === 0) && (
-                                      <p className="text-xs text-cream-500 mt-1">No operators assigned</p>
-                                    )}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                        </div>
-                      </div>
-                    )}
-
-                    {sequenceForm.selectedDepartments && sequenceForm.selectedDepartments.length > 0 && (
-                      <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                        <p className="text-sm font-medium text-blue-900 mb-2">Selected Sequence:</p>
-                        <div className="space-y-1">
-                          {sequenceForm.selectedDepartments.map((deptId, index) => {
-                            const dept = departments.find((d: any) => d._id === deptId);
-                            return dept ? (
-                              <div key={deptId} className="flex items-center gap-2 text-sm text-blue-800">
-                                <span className="flex items-center justify-center w-6 h-6 bg-blue-500 text-white rounded-full text-xs font-bold">
-                                  {index + 1}
-                                </span>
-                                <span>{dept.name}</span>
-                              </div>
-                            ) : null;
-                          })}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Attributes Selection */}
-                  <div className="mt-6">
-                    <label className="block text-sm font-medium text-cream-900 mb-2">
-                      Select Attributes (Optional)
-                    </label>
-                    <p className="text-xs text-cream-600 mb-3">
-                      Select attribute types that should be automatically assigned when this sequence is used for a product.
-                    </p>
-                    {loadingAttributeTypes ? (
-                      <div className="flex items-center justify-center py-4">
-                        <Loader className="animate-spin text-cream-600" size={20} />
-                        <span className="ml-2 text-sm text-cream-600">Loading attributes...</span>
-                      </div>
-                    ) : (!attributeTypes || attributeTypes.length === 0) ? (
-                      <div className="p-4 bg-cream-50 border border-cream-200 rounded-lg">
-                        <p className="text-sm text-cream-600 text-center">
-                          No attribute types available. Create attribute types first in the "Attribute Types" tab.
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="border border-cream-300 rounded-lg p-4 bg-white max-h-96 overflow-y-auto">
-                        <div className="space-y-2">
-                          {attributeTypes.map((attrType: any) => {
-                            const isSelected = (sequenceForm.selectedAttributes || []).includes(attrType._id);
-                            return (
-                              <div
-                                key={attrType._id}
-                                className={`flex items-center gap-3 p-3 border rounded-lg transition-colors ${isSelected
-                                  ? "border-green-500 bg-green-50"
-                                  : "border-cream-200 bg-white hover:bg-cream-50"
-                                  }`}
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={isSelected}
-                                  onChange={(e) => {
-                                    if (e.target.checked) {
-                                      setSequenceForm({
-                                        ...sequenceForm,
-                                        selectedAttributes: [...(sequenceForm.selectedAttributes || []), attrType._id],
-                                      });
-                                    } else {
-                                      setSequenceForm({
-                                        ...sequenceForm,
-                                        selectedAttributes: (sequenceForm.selectedAttributes || []).filter(
-                                          (id) => id !== attrType._id
-                                        ),
-                                      });
-                                    }
-                                  }}
-                                  className="w-4 h-4 text-cream-900 border-cream-300 rounded focus:ring-cream-500"
-                                />
-                                <div className="flex-1">
-                                  <div className="flex items-center justify-between">
-                                    <div>
-                                      <h4 className="font-medium text-cream-900">
-                                        {attrType.systemName ? `${attrType.systemName} (${attrType.attributeName})` : attrType.attributeName}
-                                      </h4>
-                                      <p className="text-xs text-cream-600 mt-1">
-                                        {attrType.inputStyle || "N/A"} • {attrType.primaryEffectType || "N/A"} •{" "}
-                                        {attrType.isPricingAttribute ? "Affects Price" : "No Price Impact"}
-                                      </p>
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-
-                    {sequenceForm.selectedAttributes && sequenceForm.selectedAttributes.length > 0 && (
-                      <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                        <p className="text-sm font-medium text-blue-900 mb-2">Selected Attributes:</p>
-                        <div className="flex flex-wrap gap-2">
-                          {sequenceForm.selectedAttributes.map((attrId) => {
-                            const attr = attributeTypes.find((a: any) => a._id === attrId);
-                            return attr ? (
-                              <span
-                                key={attrId}
-                                className="text-xs text-blue-800 bg-blue-100 px-2 py-1 rounded"
-                              >
-                                {attr.systemName ? `${attr.systemName} (${attr.attributeName})` : attr.attributeName}
-                              </span>
-                            ) : null;
-                          })}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="w-full bg-cream-900 text-white px-6 py-3 rounded-lg font-medium hover:bg-cream-800 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-                  >
-                    {loading ? (
-                      <>
-                        <Loader className="animate-spin" size={20} />
-                        {editingSequenceId ? "Updating..." : "Creating..."}
-                      </>
-                    ) : (
-                      <>
-                        <Plus size={20} />
-                        {editingSequenceId ? "Update Sequence" : "Create Sequence"}
-                      </>
-                    )}
-                  </button>
-                </form>
-              </div>
-
-              {/* Sequences List */}
-              <div className="mt-8">
-                <h2 className="text-xl font-bold text-cream-900 mb-4">All Sequences</h2>
-                {loadingSequences ? (
-                  <div className="text-center py-12">
-                    <Loader className="animate-spin mx-auto mb-4 text-cream-900" size={32} />
-                    <p className="text-cream-600">Loading sequences...</p>
-                  </div>
-                ) : !sequences || sequences.length === 0 ? (
-                  <div className="text-center py-12 bg-cream-50 rounded-lg border border-cream-200">
-                    <Settings size={48} className="mx-auto mb-4 text-cream-400" />
-                    <p className="text-cream-600">No sequences found. Create one to get started!</p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {(sequences || []).map((sequence) => (
-                      <div
-                        key={sequence._id}
-                        className="bg-white border border-cream-200 rounded-lg p-4 hover:shadow-md transition-shadow"
-                      >
-                        <div className="flex items-start justify-between mb-3">
-                          <div className="flex-1">
-                            <h3 className="font-semibold text-cream-900 mb-1">{sequence.name}</h3>
-                            <p className="text-xs text-cream-600 mb-1">
-                              Category: {sequence.category && typeof sequence.category === 'object' && sequence.category !== null ? (sequence.category as any).name : 'N/A'}
-                            </p>
-                            <p className="text-xs text-cream-600 mb-2">
-                              Subcategory: {sequence.subcategory && typeof sequence.subcategory === 'object' && sequence.subcategory !== null ? (sequence.subcategory as any).name : 'N/A'}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="mb-3">
-                          <p className="text-xs font-medium text-cream-700 mb-1">Department Order:</p>
-                          <div className="space-y-1">
-                            {(sequence.departments || [])
-                              .sort((a: any, b: any) => (a.order || 0) - (b.order || 0))
-                              .map((deptEntry: any, index: number) => {
-                                const dept = typeof deptEntry.department === 'object'
-                                  ? deptEntry.department
-                                  : departments.find((d: any) => d._id === deptEntry.department);
-                                return dept ? (
-                                  <div key={index} className="text-xs mb-2">
-                                    <div className="flex items-center gap-2 text-cream-600 mb-1">
-                                      <span className="flex items-center justify-center w-5 h-5 bg-cream-900 text-white rounded-full text-xs font-bold">
-                                        {deptEntry.order || index + 1}
-                                      </span>
-                                      <span className="font-medium">{dept.name}</span>
-                                    </div>
-                                    {dept.operators && dept.operators.length > 0 ? (
-                                      <div className="ml-7">
-                                        <p className="text-xs font-medium text-cream-700 mb-0.5">Operators:</p>
-                                        <div className="flex flex-wrap gap-1">
-                                          {dept.operators.map((op: any) => (
-                                            <span key={op && typeof op === 'object' ? op._id : op} className="text-xs text-cream-600 bg-cream-100 px-2 py-0.5 rounded">
-                                              {op && typeof op === 'object' ? op.name : 'N/A'}
-                                            </span>
-                                          ))}
-                                        </div>
-                                      </div>
-                                    ) : (
-                                      <div className="ml-7">
-                                        <p className="text-xs text-cream-500">No operators assigned</p>
-                                      </div>
-                                    )}
-                                  </div>
-                                ) : null;
-                              })}
-                          </div>
-                        </div>
-                        <div className="flex gap-2 mt-4">
-                          <button
-                            onClick={() => handleEditSequence(sequence._id)}
-                            disabled={loading}
-                            className="px-3 py-1.5 bg-cream-200 text-cream-900 rounded-lg hover:bg-cream-300 transition-colors disabled:opacity-50 flex items-center gap-2 text-sm"
-                          >
-                            <Edit size={16} />
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => handleDeleteSequence(sequence._id)}
-                            disabled={loading}
-                            className="px-3 py-1.5 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors disabled:opacity-50 flex items-center gap-2 text-sm"
-                          >
+                          {loading ? (
+                            <Loader className="animate-spin" size={14} />
+                          ) : (
                             <Trash2 size={16} />
-                            Delete
-                          </button>
-                        </div>
+                          )}
+                        </button>
                       </div>
                     ))}
                   </div>
                 )}
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Attribute Rules Management */}
-          {activeTab === "attribute-rules" && (
-            <div className="space-y-6">
-              <div className="flex justify-between items-center">
-                <h2 className="text-xl font-bold text-cream-900">
-                  Attribute Rules ({attributeRules.length})
-                </h2>
-                <div className="flex items-center gap-4">
-                  <button
-                    onClick={() => {
-                      setEditingRuleId(null);
-                      setRuleForm({
-                        name: "",
-                        scope: "GLOBAL",
-                        scopeRefId: "",
-                        when: { attribute: "", value: "" },
-                        then: [],
-                        priority: 0,
-                        isActive: true,
-                      });
-                      setShowRuleBuilder(true);
-                    }}
-                    className="px-4 py-2 bg-cream-900 text-white rounded-lg hover:bg-cream-800 transition-colors flex items-center gap-2"
-                  >
-                    <Plus size={18} />
-                    Create Rule
-                  </button>
-                </div>
-              </div>
+            {/* Manage Products */}
+            {/* Manage Products */}
+            {activeTab === "manage-products" && (
+              <ManageProductsView
+                products={products}
+                filteredProducts={filteredProducts}
+                productSearchQuery={productSearchQuery}
+                setProductSearchQuery={setProductSearchQuery}
+                selectedCategoryFilter={selectedCategoryFilter}
+                setSelectedCategoryFilter={setSelectedCategoryFilter}
+                selectedSubCategoryFilter={selectedSubCategoryFilter}
+                setSelectedSubCategoryFilter={setSelectedSubCategoryFilter}
+                handleEditProduct={handleEditProduct}
+                handleDeleteProduct={handleDeleteProduct}
+                fetchProducts={fetchProducts}
+                loading={loading || loadingProducts || filteringProducts}
+                error={error}
+                success={success}
+                categories={categories}
+                subCategories={subCategories}
+              />
+            )}
 
-              {/* Attribute Rules Search and Filter */}
-              <div className="mb-4 space-y-4">
-                <div className="flex flex-col md:flex-row gap-4">
-                  <div className="relative flex-1">
-                    <input
-                      type="text"
-                      value={attributeRuleSearch}
-                      onChange={(e) => setAttributeRuleSearch(e.target.value)}
-                      placeholder="Search attribute rules (min 2 characters)..."
-                      className="pl-10 pr-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500 w-full"
-                    />
-                    <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-cream-500" />
-                  </div>
-                  <div className="w-full md:w-48">
-                    <SearchableDropdown
-                      label="All Attributes"
-                      value={attributeRuleFilter}
-                      onChange={(value) => setAttributeRuleFilter(String(value || ""))}
-                      options={[
-                        { value: "", label: "All Attributes" },
-                        ...attributeTypes.map((attr) => ({
-                          value: attr._id,
-                          label: attr.systemName ? `${attr.systemName} ${attr.attributeName ? `(${attr.attributeName})` : ''}` : attr.attributeName || ""
-                        }))
-                      ]}
-                      searchPlaceholder="Search attributes..."
-                    />
-                  </div>
-                  <div className="w-full md:w-48">
-                    <SearchableDropdown
-                      label="All Action Types"
-                      value={ruleActionTypeFilter}
-                      onChange={(value) => setRuleActionTypeFilter(String(value || ""))}
-                      options={[
-                        { value: "", label: "All Action Types" },
-                        { value: "SHOW", label: "Show" },
-                        { value: "HIDE", label: "Hide" },
-                        { value: "SHOW_ONLY", label: "Show Only" },
-                        { value: "SET_DEFAULT", label: "Set Default" },
-                        { value: "QUANTITY", label: "Quantity" },
-                      ]}
-                      searchPlaceholder="Search action types..."
-                      enableSearch={false}
-                    />
-                  </div>
-                  <div className="w-full md:w-40">
-                    <SearchableDropdown
-                      label="All Status"
-                      value={ruleStatusFilter}
-                      onChange={(value) => setRuleStatusFilter(String(value || "all") as "all" | "active" | "inactive")}
-                      options={[
-                        { value: "all", label: "All Status" },
-                        { value: "active", label: "Active" },
-                        { value: "inactive", label: "Inactive" },
-                      ]}
-                      searchPlaceholder="Search status..."
-                      enableSearch={false}
-                    />
-                  </div>
-                  <div className="w-full md:w-40">
-                    <SearchableDropdown
-                      label="All Scopes"
-                      value={ruleScopeFilter}
-                      onChange={(value) => setRuleScopeFilter(String(value || "all") as "all" | "global" | "product")}
-                      options={[
-                        { value: "all", label: "All Scopes" },
-                        { value: "global", label: "Global" },
-                        { value: "product", label: "Product-Specific" },
-                      ]}
-                      searchPlaceholder="Search scopes..."
-                      enableSearch={false}
-                    />
-                  </div>
-                </div>
-                <div className="flex items-center justify-between">
+            {/* Manage Categories */}
+            {activeTab === "manage-categories" && (
+              <ManageCategoriesView
+                categories={categories}
+                filteredCategories={filteredCategories}
+                subCategories={subCategories}
+                filteredSubCategories={filteredSubCategories}
+                categorySearchQuery={categorySearchQuery}
+                setCategorySearchQuery={setCategorySearchQuery}
+                categoryTypeFilter={categoryTypeFilter}
+                setCategoryTypeFilter={setCategoryTypeFilter}
+                categoryTopLevelFilter={categoryTopLevelFilter}
+                setCategoryTopLevelFilter={setCategoryTopLevelFilter}
+                subCategorySearchQuery={subCategorySearchQuery}
+                setSubCategorySearchQuery={setSubCategorySearchQuery}
+                draggedCategoryId={draggedCategoryId}
+                setDraggedCategoryId={setDraggedCategoryId}
+                draggedSubCategoryId={draggedSubCategoryId}
+                setDraggedSubCategoryId={setDraggedSubCategoryId}
+                handleCategoryReorder={handleCategoryReorder}
+                handleSubCategoryReorder={handleSubCategoryReorder}
+                handleEditCategory={handleEditCategory}
+                handleDeleteCategory={handleDeleteCategory}
+                handleEditSubCategory={handleEditSubCategory}
+                handleDeleteSubCategory={handleDeleteSubCategory}
+                deleteConfirmModal={deleteConfirmModal}
+                setDeleteConfirmModal={setDeleteConfirmModal}
+                viewDescriptionModal={viewDescriptionModal}
+                setViewDescriptionModal={setViewDescriptionModal}
+                loading={loading}
+                error={error}
+                success={success}
+                updateUrl={updateUrl}
+                fetchCategories={fetchCategories}
+                fetchSubCategories={fetchSubCategories}
+                expandedCategories={expandedCategories}
+                setExpandedCategories={setExpandedCategories}
+                selectedCategory={selectedCategory}
+                setSelectedCategory={setSelectedCategory}
+              />
+            )}
 
-                  {(() => {
-                    const activeFilters = [
-                      attributeRuleSearch,
-                      attributeRuleFilter,
-                      ruleActionTypeFilter,
-                      ruleStatusFilter !== "all" ? ruleStatusFilter : "",
-                      ruleScopeFilter !== "all" ? ruleScopeFilter : ""
-                    ].filter(Boolean).length;
+            {/* Attribute Types Management */}
+            {activeTab === "attribute-types" && (
+              <ManageAttributeTypes
+                attributeTypeForm={attributeTypeForm}
+                setAttributeTypeForm={setAttributeTypeForm}
+                attributeFormErrors={attributeFormErrors}
+                setAttributeFormErrors={setAttributeFormErrors}
+                editingAttributeTypeId={editingAttributeTypeId}
+                setEditingAttributeTypeId={setEditingAttributeTypeId}
+                handleAttributeTypeSubmit={handleAttributeTypeSubmit}
+                handleEditAttributeType={handleEditAttributeType}
+                handleDeleteAttributeType={handleDeleteAttributeType}
+                error={error}
+                setError={setError}
+                success={success}
+                loading={loading}
+                setLoading={setLoading}
+                attributeTypeSearch={attributeTypeSearch}
+                setAttributeTypeSearch={setAttributeTypeSearch}
+                attributeTypes={attributeTypes}
+                loadingAttributeTypes={loadingAttributeTypes}
+                getAuthHeaders={getAuthHeaders}
+              />
+            )}
 
-                    return (
-                      <>
-                        {activeFilters > 0 && (
-                          <button
-                            onClick={() => {
-                              setAttributeRuleSearch("");
-                              setAttributeRuleFilter("");
-                              setRuleActionTypeFilter("");
-                              setRuleStatusFilter("all");
-                              setRuleScopeFilter("all");
-                            }}
-                            className="px-4 py-2 bg-cream-100 text-cream-900 rounded-lg hover:bg-cream-200 transition-colors text-sm flex items-center gap-2"
-                          >
-                            <X size={16} />
-                            Clear All Filters
-                          </button>
-                        )}
-                        <div className="text-sm text-cream-600">
-                          {activeFilters > 0 ? `${activeFilters} filter${activeFilters > 1 ? 's' : ''} active` : 'No filters active'}
-                        </div>
-                      </>
-                    );
-                  })()}
-                </div>
-              </div>
+            {/* Department Management */}
+            {activeTab === "departments" && (
+              <ManageDepartments
+                setError={setError}
+                setSuccess={setSuccess}
+                loading={loading}
+                setLoading={setLoading}
+              />
+            )}
 
-              {loadingAttributeRules ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader className="animate-spin text-cream-600" size={24} />
-                  <span className="ml-3 text-sm text-cream-600">Loading rules...</span>
-                </div>
-              ) : attributeRules.length === 0 ? (
-                <div className="text-center py-8 text-cream-600">
-                  <p>No attribute rules found. Create your first rule to get started.</p>
-                </div>
-              ) : (
-                <>
-                  <div className="mb-3 text-sm text-cream-600">
-                    Showing {filteredAttributeRules.length} of {attributeRules.length} rules
-                  </div>
 
-                  <div className="overflow-x-auto min-h-[400px]">
-                    <table className="w-full border-collapse">
-                      <thead>
-                        <tr className="bg-cream-100 border-b border-cream-300">
-                          <th className="px-4 py-3 text-left text-sm font-semibold text-cream-900">Rule Name</th>
-                          <th className="px-4 py-3 text-left text-sm font-semibold text-cream-900">Scope</th>
-                          <th className="px-4 py-3 text-left text-sm font-semibold text-cream-900">Condition</th>
-                          <th className="px-4 py-3 text-left text-sm font-semibold text-cream-900">Actions</th>
-                          <th className="px-4 py-3 text-left text-sm font-semibold text-cream-900">Status</th>
-                          <th className="px-4 py-3 text-left text-sm font-semibold text-cream-900">Priority</th>
-                          <th className="px-4 py-3 text-left text-sm font-semibold text-cream-900">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredAttributeRules
-                          .slice((attributeRulePage - 1) * ITEMS_PER_PAGE, attributeRulePage * ITEMS_PER_PAGE)
-                          .map((rule) => {
-                            // Safety check: ensure rule.then is an array
-                            // For QUANTITY actions, targetAttribute is not required
-                            const validActions = (rule.then || []).filter((action: any) =>
-                              action && (action.targetAttribute || action.action === 'QUANTITY')
-                            );
+            {/* Sequences Management */}
+            {activeTab === "sequences" && (
+              <ManageSequences
+                setError={setError}
+                setSuccess={setSuccess}
+                loading={loading}
+                setLoading={setLoading}
+              />
+            )}
 
-                            const whenAttr = typeof rule.when?.attribute === 'object' && rule.when.attribute !== null
-                              ? rule.when.attribute.attributeName
-                              : attributeTypes.find(attr => attr._id === rule.when?.attribute)?.attributeName || 'Unknown';
 
-                            const scopeLabel = rule.applicableProduct
-                              ? `Product: ${typeof rule.applicableProduct === 'object' && rule.applicableProduct !== null && rule.applicableProduct.name ? rule.applicableProduct.name : (products.find(p => p._id === (typeof rule.applicableProduct === 'object' && rule.applicableProduct !== null ? rule.applicableProduct._id : rule.applicableProduct))?.name || 'N/A')}`
-                              : rule.applicableCategory
-                                ? `Category: ${typeof rule.applicableCategory === 'object' && rule.applicableCategory !== null && rule.applicableCategory.name ? rule.applicableCategory.name : (categories.find(c => c._id === (typeof rule.applicableCategory === 'object' && rule.applicableCategory !== null ? rule.applicableCategory._id : rule.applicableCategory))?.name || 'N/A')}`
-                                : 'Global';
 
-                            return (
-                              <tr key={rule._id} className="border-b border-cream-200 hover:bg-cream-50">
-                                <td className="px-4 py-3 text-sm text-cream-900 font-medium">{rule.name}</td>
-                                <td className="px-4 py-3 text-sm text-cream-700">{scopeLabel}</td>
-                                <td className="px-4 py-3 text-sm text-cream-700">
-                                  IF {whenAttr} = {rule.when?.value || ''}
-                                </td>
-                                <td className="px-4 py-3 text-sm text-cream-700">
-                                  {validActions.length} action{validActions.length !== 1 ? 's' : ''}
-                                </td>
-                                <td className="px-4 py-3">
-                                  <span className={`px-2 py-1 rounded text-xs font-medium ${rule.isActive
-                                    ? 'bg-green-100 text-green-800'
-                                    : 'bg-gray-100 text-gray-800'
-                                    }`}>
-                                    {rule.isActive ? 'Active' : 'Disabled'}
-                                  </span>
-                                </td>
-                                <td className="px-4 py-3 text-sm text-cream-700">{rule.priority || 0}</td>
-                                <td className="px-4 py-3">
-                                  <div className="flex gap-2">
-                                    <button
-                                      onClick={() => handleEditRule(rule)}
-                                      className="px-2 py-1 text-sm bg-cream-200 text-cream-900 rounded hover:bg-cream-300 transition-colors"
-                                    >
-                                      <Edit size={14} />
-                                    </button>
-                                    <button
-                                      onClick={() => handleDuplicateRule(rule)}
-                                      className="px-2 py-1 text-sm bg-cream-100 text-cream-900 rounded hover:bg-cream-200 transition-colors"
-                                      title="Duplicate rule"
-                                    >
-                                      <Copy size={14} />
-                                    </button>
-                                    <button
-                                      onClick={() => handleDeleteRule(rule._id)}
-                                      className="px-2 py-1 text-sm bg-red-100 text-red-700 rounded hover:bg-red-200 transition-colors"
-                                    >
-                                      <Trash2 size={14} />
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                      </tbody>
-                    </table>
-                  </div>
 
-                  {/* Pagination Controls for Attribute Rules */}
-                  <Pagination
-                    currentPage={attributeRulePage}
-                    totalItems={filteredAttributeRules.length}
-                    itemsPerPage={ITEMS_PER_PAGE}
-                    onPageChange={setAttributeRulePage}
-                  />
-                </>
-              )}
+            {/* Attribute Rules Management */}
+            {
+              activeTab === "attribute-rules" && (
+                <ManageAttributeRules
+                  attributeTypes={attributeTypes}
+                  products={products}
+                  categories={categories}
+                  setLoading={setLoading}
+                  setError={setError}
+                  setSuccess={setSuccess}
+                />
+              )
+            }
 
-              {/* Rule Builder Modal/Drawer */}
-              {showRuleBuilder && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-                  <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-                    <div className="sticky top-0 bg-white border-b border-cream-200 p-6 flex justify-between items-center">
-                      <h3 className="text-xl font-bold text-cream-900">
-                        {editingRuleId ? "Edit Rule" : "Create Rule"}
-                      </h3>
-                      <button
-                        onClick={handleCancelRuleEdit}
-                        className="text-cream-600 hover:text-cream-900"
+            {
+              activeTab === "sub-attributes" && (
+                <ManageSubAttributes
+                  attributeTypes={attributeTypes}
+                  setLoading={setLoading}
+                  setError={setError}
+                  setSuccess={setSuccess}
+                />
+              )
+            }
+
+            {/* Manage Users */}
+            {
+              activeTab === "users" && (
+                <ManageUsers setError={setError} />
+              )
+            }
+
+            {/* Print Partner Requests Tab */}
+            {
+              activeTab === "print-partner-requests" && (
+                <div className="bg-white rounded-xl shadow-md border border-cream-200 p-6">
+                  <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div>
+                      <h2 className="text-2xl font-bold text-cream-900 mb-2">
+                        Print Partner Requests
+                      </h2>
+                      <p className="text-sm text-cream-600">
+                        Review and approve print partner registration requests
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <select
+                        value={printPartnerRequestFilter}
+                        onChange={(e) => {
+                          setPrintPartnerRequestFilter(e.target.value as typeof printPartnerRequestFilter);
+                          fetchPrintPartnerRequests();
+                        }}
+                        className="px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500 text-sm"
                       >
-                        <X size={24} />
+                        <option value="all">All Requests</option>
+                        <option value="pending">Pending</option>
+                        <option value="approved">Approved</option>
+                        <option value="rejected">Rejected</option>
+                      </select>
+                      <button
+                        onClick={fetchPrintPartnerRequests}
+                        className="px-4 py-2 bg-cream-200 text-cream-900 rounded-lg hover:bg-cream-300 transition-colors text-sm"
+                      >
+                        Refresh
                       </button>
                     </div>
+                  </div>
 
-                    <form onSubmit={handleRuleSubmit} className="p-6 space-y-6">
-                      {/* Section 1: Rule Meta */}
-                      <div className="border-b border-cream-200 pb-4">
-                        <h4 className="text-lg font-semibold text-cream-900 mb-4">Rule Information</h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-sm font-medium text-cream-900 mb-2">
-                              Rule Name *
-                            </label>
-                            <input
-                              type="text"
-                              value={ruleForm.name}
-                              onChange={(e) => setRuleForm({ ...ruleForm, name: e.target.value })}
-                              className="w-full px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-900"
-                              placeholder="e.g., 350 GSM Rule"
-                              required
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-cream-900 mb-2">
-                              Priority *
-                            </label>
-                            <input
-                              type="number"
-                              value={ruleForm.priority}
-                              onChange={(e) => setRuleForm({ ...ruleForm, priority: parseInt(e.target.value) || 0 })}
-                              className="w-full px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-900"
-                              placeholder="0"
-                              required
-                            />
-                            <p className="text-xs text-cream-600 mt-1">Higher priority rules are evaluated first</p>
-                          </div>
-                        </div>
+                  {printPartnerRequests.length === 0 ? (
+                    <div className="text-center py-12 text-cream-600">
+                      <Briefcase size={48} className="mx-auto mb-4 opacity-50" />
+                      <p>No print partner requests found</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {printPartnerRequests.map((request) => (
+                        <div
+                          key={request._id}
+                          className={`border - 2 rounded - lg p - 5 transition - all ${request.status === "pending"
+                            ? "border-yellow-300 bg-yellow-50"
+                            : request.status === "approved"
+                              ? "border-green-300 bg-green-50"
+                              : "border-red-300 bg-red-50"
+                            } `}
+                        >
+                          <div className="flex flex-col lg:flex-row gap-4">
+                            <div className="flex-1">
+                              <div className="flex items-start justify-between mb-3">
+                                <div>
+                                  <h3 className="text-lg font-bold text-cream-900 mb-1">
+                                    {request.businessName}
+                                  </h3>
+                                  <p className="text-sm text-cream-600">
+                                    Owner: {request.ownerName}
+                                  </p>
+                                </div>
+                                <span
+                                  className={`px - 3 py - 1 rounded - full text - xs font - semibold ${request.status === "pending"
+                                    ? "bg-yellow-200 text-yellow-800"
+                                    : request.status === "approved"
+                                      ? "bg-green-200 text-green-800"
+                                      : "bg-red-200 text-red-800"
+                                    } `}
+                                >
+                                  {request.status.toUpperCase()}
+                                </span>
+                              </div>
 
-                        <div className="mt-4">
-                          <label className="block text-sm font-medium text-cream-900 mb-2">
-                            Scope *
-                          </label>
-                          <div className="space-y-2">
-                            <label className="flex items-center gap-2">
-                              <input
-                                type="radio"
-                                value="GLOBAL"
-                                checked={ruleForm.scope === "GLOBAL"}
-                                onChange={(e) => setRuleForm({ ...ruleForm, scope: "GLOBAL", scopeRefId: "" })}
-                                className="text-cream-900"
-                              />
-                              <span className="text-sm text-cream-700">Global (applies to all products)</span>
-                            </label>
-                            <label className="flex items-center gap-2">
-                              <input
-                                type="radio"
-                                value="CATEGORY"
-                                checked={ruleForm.scope === "CATEGORY"}
-                                onChange={(e) => setRuleForm({ ...ruleForm, scope: "CATEGORY", scopeRefId: "" })}
-                                className="text-cream-900"
-                              />
-                              <span className="text-sm text-cream-700">Category</span>
-                            </label>
-                            {ruleForm.scope === "CATEGORY" && (
-                              <select
-                                value={ruleForm.scopeRefId}
-                                onChange={(e) => setRuleForm({ ...ruleForm, scopeRefId: e.target.value })}
-                                className="ml-6 w-full max-w-md px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-900"
-                                required
-                              >
-                                <option value="">Select Category</option>
-                                {categories.map((cat) => (
-                                  <option key={cat._id} value={cat._id}>
-                                    {cat.name}
-                                  </option>
-                                ))}
-                              </select>
-                            )}
-                            <label className="flex items-center gap-2">
-                              <input
-                                type="radio"
-                                value="PRODUCT"
-                                checked={ruleForm.scope === "PRODUCT"}
-                                onChange={(e) => setRuleForm({ ...ruleForm, scope: "PRODUCT", scopeRefId: "" })}
-                                className="text-cream-900"
-                              />
-                              <span className="text-sm text-cream-700">Product</span>
-                            </label>
-                            {ruleForm.scope === "PRODUCT" && (
-                              <select
-                                value={ruleForm.scopeRefId}
-                                onChange={(e) => setRuleForm({ ...ruleForm, scopeRefId: e.target.value })}
-                                className="ml-6 w-full max-w-md px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-900"
-                                required
-                              >
-                                <option value="">Select Product</option>
-                                {products.map((prod) => (
-                                  <option key={prod._id} value={prod._id}>
-                                    {prod.name}
-                                  </option>
-                                ))}
-                              </select>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="mt-4">
-                          <label className="flex items-center gap-2">
-                            <input
-                              type="checkbox"
-                              checked={ruleForm.isActive}
-                              onChange={(e) => setRuleForm({ ...ruleForm, isActive: e.target.checked })}
-                              className="text-cream-900"
-                            />
-                            <span className="text-sm text-cream-700">Active</span>
-                          </label>
-                        </div>
-                      </div>
-
-                      {/* Section 2: IF Condition */}
-                      <div className="border-b border-cream-200 pb-4">
-                        <h4 className="text-lg font-semibold text-cream-900 mb-4">IF Condition (WHEN)</h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-sm font-medium text-cream-900 mb-2">
-                              Attribute *
-                            </label>
-                            <SearchableDropdown
-                              label="Select Attribute"
-                              value={ruleForm.when.attribute}
-                              onChange={(value) => {
-                                setRuleForm({
-                                  ...ruleForm,
-                                  when: { ...ruleForm.when, attribute: String(value || ""), value: "" },
-                                });
-                              }}
-                              options={[
-                                { value: "", label: "Select Attribute" },
-                                ...attributeTypes.map((attr) => ({
-                                  value: attr._id,
-                                  label: attr.systemName ? `${attr.systemName} ${attr.attributeName ? `(${attr.attributeName})` : ''}` : attr.attributeName,
-                                }))
-                              ]}
-                              className="w-full"
-                              searchPlaceholder="Search attributes..."
-                              enableSearch={attributeTypes.length > 5}
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-cream-900 mb-2">
-                              Value *
-                            </label>
-                            <SearchableDropdown
-                              label="Select Value"
-                              value={ruleForm.when.value}
-                              onChange={(value) => setRuleForm({ ...ruleForm, when: { ...ruleForm.when, value: String(value || "") } })}
-                              options={[
-                                { value: "", label: "Select Value" },
-                                ...(() => {
-                                  const selectedAttr = attributeTypes.find(attr => attr._id === ruleForm.when.attribute);
-                                  return selectedAttr?.attributeValues?.map((av: any) => ({
-                                    value: av.value,
-                                    label: av.label,
-                                  })) || [];
-                                })()
-                              ]}
-                              className="w-full"
-                              searchPlaceholder="Search values..."
-                              enableSearch={(() => {
-                                const selectedAttr = attributeTypes.find(attr => attr._id === ruleForm.when.attribute);
-                                return (selectedAttr?.attributeValues?.length || 0) > 5;
-                              })()}
-                            />
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Section 3: THEN Actions */}
-                      <div>
-                        <div className="flex justify-between items-center mb-4">
-                          <h4 className="text-lg font-semibold text-cream-900">THEN Actions</h4>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setRuleForm({
-                                ...ruleForm,
-                                then: [
-                                  ...ruleForm.then,
-                                  {
-                                    action: "SHOW",
-                                    targetAttribute: "",
-                                  },
-                                ],
-                              });
-                            }}
-                            className="px-3 py-1.5 bg-cream-200 text-cream-900 rounded-lg hover:bg-cream-300 transition-colors flex items-center gap-2 text-sm"
-                          >
-                            <Plus size={16} />
-                            Add Action
-                          </button>
-                        </div>
-
-                        {ruleForm.then.length === 0 ? (
-                          <p className="text-sm text-cream-600 italic">No actions defined. Add at least one action.</p>
-                        ) : (
-                          <div className="space-y-4">
-                            {ruleForm.then.map((action, index) => {
-                              const selectedTargetAttr = attributeTypes.find(attr => attr._id === action.targetAttribute);
-                              const targetAttrValues = selectedTargetAttr?.attributeValues || [];
-
-                              return (
-                                <div key={index} className="border border-cream-200 rounded-lg p-4 bg-cream-50">
-                                  <div className="flex justify-between items-start mb-4">
-                                    <span className="text-sm font-medium text-cream-900">Action {index + 1}</span>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setRuleForm({
-                                          ...ruleForm,
-                                          then: ruleForm.then.filter((_, i) => i !== index),
-                                        });
-                                      }}
-                                      className="text-red-600 hover:text-red-800"
-                                    >
-                                      <X size={18} />
-                                    </button>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                                <div>
+                                  <p className="text-xs text-cream-600 mb-1">Email</p>
+                                  <p className="text-sm font-medium text-cream-900">{request.emailAddress}</p>
+                                </div>
+                                <div>
+                                  <p className="text-xs text-cream-600 mb-1">Mobile</p>
+                                  <p className="text-sm font-medium text-cream-900">+91 {request.mobileNumber}</p>
+                                </div>
+                                <div>
+                                  <p className="text-xs text-cream-600 mb-1">WhatsApp</p>
+                                  <p className="text-sm font-medium text-cream-900">+91 {request.whatsappNumber}</p>
+                                </div>
+                                {request.gstNumber && (
+                                  <div>
+                                    <p className="text-xs text-cream-600 mb-1">GST Number</p>
+                                    <p className="text-sm font-medium text-cream-900">{request.gstNumber}</p>
                                   </div>
+                                )}
+                              </div>
 
-                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                      <label className="block text-sm font-medium text-cream-900 mb-2">
-                                        Action Type *
-                                      </label>
-                                      <SearchableDropdown
-                                        label="Select Action Type"
-                                        value={action.action}
-                                        onChange={(value) => {
-                                          const val = String(value || "SHOW");
-                                          const newThen = [...ruleForm.then];
-                                          newThen[index] = {
-                                            ...action,
-                                            action: val as any,
-                                            // Auto-set targetAttribute to "Cutting" for QUANTITY actions
-                                            targetAttribute: val === "QUANTITY" ? "Cutting" : action.targetAttribute,
-                                            allowedValues: val === "SHOW_ONLY" ? [] : action.allowedValues,
-                                            defaultValue: val === "SET_DEFAULT" ? "" : action.defaultValue,
-                                            minQuantity: val === "QUANTITY" ? undefined : action.minQuantity,
-                                            maxQuantity: val === "QUANTITY" ? undefined : action.maxQuantity,
-                                            stepQuantity: val === "QUANTITY" ? undefined : action.stepQuantity,
-                                          };
-                                          setRuleForm({ ...ruleForm, then: newThen });
-                                        }}
-                                        options={[
-                                          { value: "SHOW", label: "SHOW" },
-                                          { value: "HIDE", label: "HIDE" },
-                                          { value: "SHOW_ONLY", label: "SHOW_ONLY" },
-                                          { value: "SET_DEFAULT", label: "SET_DEFAULT" },
-                                          { value: "QUANTITY", label: "QUANTITY" },
-                                        ]}
-                                        className="w-full"
-                                        searchPlaceholder="Search action..."
-                                        enableSearch={false}
-                                      />
-                                    </div>
-                                    {/* Hide Target Attribute field for QUANTITY actions - it's auto-set to "Cutting" */}
-                                    {action.action !== "QUANTITY" && (
-                                      <div>
-                                        <label className="block text-sm font-medium text-cream-900 mb-2">
-                                          Target Attribute *
-                                        </label>
-                                        <SearchableDropdown
-                                          label="Select Attribute"
-                                          value={action.targetAttribute}
-                                          onChange={(value) => {
-                                            const newThen = [...ruleForm.then];
-                                            newThen[index] = { ...action, targetAttribute: String(value || "") };
-                                            setRuleForm({ ...ruleForm, then: newThen });
-                                          }}
-                                          options={[
-                                            { value: "", label: "Select Attribute" },
-                                            ...attributeTypes
-                                              .filter(attr => attr._id !== ruleForm.when.attribute)
-                                              .map((attr) => ({
-                                                value: attr._id,
-                                                label: attr.systemName ? `${attr.systemName} ${attr.attributeName ? `(${attr.attributeName})` : ''}` : attr.attributeName,
-                                              }))
-                                          ]}
-                                          className="w-full"
-                                          searchPlaceholder="Search attributes..."
-                                          enableSearch={attributeTypes.length > 5}
-                                        />
-                                      </div>
+                              <div className="mb-3">
+                                <p className="text-xs text-cream-600 mb-1">Business Address</p>
+                                <p className="text-sm text-cream-900">
+                                  {request.fullBusinessAddress}, {request.city}, {request.state} - {request.pincode}
+                                </p>
+                              </div>
+
+                              {request.proofFileUrl && (
+                                <div className="mb-3">
+                                  <p className="text-xs text-cream-600 mb-2">Proof Document</p>
+                                  <img
+                                    src={request.proofFileUrl}
+                                    alt="Proof"
+                                    className="max-w-xs h-auto rounded-lg border border-cream-200 cursor-pointer hover:opacity-80 transition-opacity"
+                                    onClick={() => window.open(request.proofFileUrl, "_blank")}
+                                  />
+                                </div>
+                              )}
+
+                              {request.status === "approved" && request.userId && (
+                                <div className="mt-3 p-3 bg-green-100 rounded-lg">
+                                  <p className="text-xs text-green-700 mb-1">User Account Created</p>
+                                  <p className="text-sm font-medium text-green-900">
+                                    {request.userId.name} ({request.userId.email})
+                                  </p>
+                                </div>
+                              )}
+
+                              {request.status === "rejected" && request.rejectionReason && (
+                                <div className="mt-3 p-3 bg-red-100 rounded-lg">
+                                  <p className="text-xs text-red-700 mb-1">Rejection Reason</p>
+                                  <p className="text-sm text-red-900">{request.rejectionReason}</p>
+                                </div>
+                              )}
+
+                              <div className="text-xs text-cream-500 mt-3">
+                                Submitted: {new Date(request.createdAt).toLocaleString()}
+                                {request.approvedAt && (
+                                  <> | {request.status === "approved" ? "Approved" : "Rejected"}: {new Date(request.approvedAt).toLocaleString()}</>
+                                )}
+                              </div>
+                            </div>
+
+                            {request.status === "pending" && (
+                              <div className="flex flex-col gap-2 lg:w-48">
+                                <button
+                                  onClick={() => handleApprovePrintPartnerRequest(request._id)}
+                                  className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium flex items-center justify-center gap-2"
+                                >
+                                  <CheckCircle size={18} />
+                                  Approve
+                                </button>
+                                <button
+                                  onClick={() => setSelectedRequestId(request._id)}
+                                  className="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium flex items-center justify-center gap-2"
+                                >
+                                  <XCircle size={18} />
+                                  Reject
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            }
+
+            {/* Rejection Modal */}
+            <AnimatePresence>
+              {selectedRequestId && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
+                  onClick={() => {
+                    setSelectedRequestId(null);
+                    setRejectionReason("");
+                  }}
+                >
+                  <motion.div
+                    initial={{ scale: 0.9, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.9, opacity: 0 }}
+                    onClick={(e) => e.stopPropagation()}
+                    className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6"
+                  >
+                    <h3 className="text-xl font-bold text-cream-900 mb-4">
+                      Reject Print Partner Request
+                    </h3>
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-cream-700 mb-2">
+                        Reason for Rejection <span className="text-red-500">*</span>
+                      </label>
+                      <textarea
+                        value={rejectionReason}
+                        onChange={(e) => setRejectionReason(e.target.value)}
+                        rows={4}
+                        className="w-full px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500 resize-none"
+                        placeholder="Please provide a reason for rejection..."
+                      />
+                    </div>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => {
+                          setSelectedRequestId(null);
+                          setRejectionReason("");
+                        }}
+                        className="flex-1 px-4 py-2 border border-cream-300 text-cream-900 rounded-lg hover:bg-cream-50 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={() => handleRejectPrintPartnerRequest(selectedRequestId)}
+                        className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
+                      >
+                        Confirm Rejection
+                      </button>
+                    </div>
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div >
+        </div >
+
+        {/* Order Details Modal */}
+        <AnimatePresence>
+          {
+            showOrderModal && selectedOrder && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto p-6"
+                >
+                  <div className="flex justify-between items-center mb-6 pb-4 border-b border-cream-200">
+                    <div>
+                      <h2 className="text-2xl font-bold text-cream-900">
+                        Order #{selectedOrder.orderNumber}
+                      </h2>
+                      <p className="text-sm text-cream-600 mt-1">
+                        {!isClient
+                          ? 'Loading...'
+                          : new Date(selectedOrder.createdAt).toLocaleString()
+                        }
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setShowOrderModal(false);
+                        setSelectedOrder(null);
+                        setOrderStatusUpdate({ status: "", deliveryDate: "", adminNotes: "" });
+                      }}
+                      className="p-2 hover:bg-cream-100 rounded-lg transition-colors"
+                    >
+                      <X size={24} />
+                    </button>
+                  </div>
+
+                  {/* Complete Order Information */}
+                  <div className="space-y-6 mb-6">
+                    {/* Order Status */}
+                    <div className="flex items-center gap-4">
+                      <span className="text-sm font-medium text-cream-700">Status:</span>
+                      <div className={`px - 4 py - 2 rounded - full border - 2 ${selectedOrder.status === "completed" ? "bg-green-100 text-green-800 border-green-200" :
+                        selectedOrder.status === "processing" ? "bg-blue-100 text-blue-800 border-blue-200" :
+                          selectedOrder.status === "production_ready" ? "bg-orange-100 text-orange-800 border-orange-200" :
+                            selectedOrder.status === "request" ? "bg-yellow-100 text-yellow-800 border-yellow-200" :
+                              selectedOrder.status === "rejected" ? "bg-red-100 text-red-800 border-red-200" :
+                                "bg-gray-100 text-gray-800 border-gray-200"
+                        } `}>
+                        <span className="text-sm font-semibold capitalize">{selectedOrder.status}</span>
+                      </div>
+                    </div>
+
+                    {/* User Information */}
+                    <div className="bg-cream-50 rounded-lg p-4 border border-cream-200">
+                      <h3 className="font-bold text-cream-900 mb-3 flex items-center gap-2">
+                        <Users size={18} />
+                        Customer Information
+                      </h3>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-xs text-cream-600 mb-1 font-medium">Customer Name</p>
+                          <p className="font-semibold text-cream-900 text-base">{selectedOrder.user.name}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-cream-600 mb-1 font-medium">Email Address</p>
+                          <p className="font-semibold text-cream-900 text-base">{selectedOrder.user.email}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Product Information */}
+                    <div className="bg-cream-50 rounded-lg p-4 border border-cream-200">
+                      <h3 className="font-bold text-cream-900 mb-3 flex items-center gap-2">
+                        <Package size={18} />
+                        Product Information
+                      </h3>
+                      <div className="flex gap-4 mb-3">
+                        <img
+                          src={selectedOrder.product.image || PLACEHOLDER_IMAGE}
+                          alt={selectedOrder.product.name}
+                          className="w-24 h-24 object-cover rounded-lg border border-cream-200"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.src = PLACEHOLDER_IMAGE;
+                          }}
+                        />
+                        <div className="flex-1">
+                          <p className="font-bold text-cream-900 text-lg mb-1">{selectedOrder.product.name}</p>
+                          <p className="text-sm text-cream-600 mb-2">
+                            Category: {selectedOrder.product.category && typeof selectedOrder.product.category === "object" && selectedOrder.product.category !== null && '_id' in selectedOrder.product.category
+                              ? ((selectedOrder.product.category as { _id: string; name: string }).name || "N/A")
+                              : (typeof selectedOrder.product.category === 'string' ? selectedOrder.product.category : "N/A")}
+                          </p>
+                          <p className="text-sm text-cream-600">
+                            Base Price: ₹{selectedOrder.product.basePrice?.toFixed(2) || "0.00"} per unit
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Order Customization Details */}
+                    <div className="bg-cream-50 rounded-lg p-4 border border-cream-200">
+                      <h3 className="font-bold text-cream-900 mb-3 flex items-center gap-2">
+                        <Settings size={18} />
+                        Customization Details
+                      </h3>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                        <div>
+                          <p className="text-xs text-cream-600 mb-1">Quantity</p>
+                          <p className="font-bold text-cream-900">{selectedOrder.quantity} units</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-cream-600 mb-1">Finish</p>
+                          <p className="font-bold text-cream-900">{selectedOrder.finish}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-cream-600 mb-1">Shape</p>
+                          <p className="font-bold text-cream-900">{selectedOrder.shape}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-cream-600 mb-1">Total Price</p>
+                          <p className="font-bold text-cream-900">₹{selectedOrder.totalPrice.toFixed(2)}</p>
+                        </div>
+                      </div>
+
+                      {selectedOrder.selectedOptions && selectedOrder.selectedOptions.length > 0 && (
+                        <div className="mt-4 pt-4 border-t border-cream-200">
+                          <p className="text-xs text-cream-600 mb-2 font-semibold">Selected Options</p>
+                          <div className="flex flex-wrap gap-2">
+                            {selectedOrder.selectedOptions.map((option, idx) => (
+                              <span
+                                key={idx}
+                                className="px-3 py-1 bg-cream-200 text-cream-800 rounded-full text-xs font-medium"
+                              >
+                                {typeof option === "string" ? option : (option.optionName || option.name || "Option")}
+                                {typeof option === "object" && option.priceAdd ? ` (+₹${option.priceAdd.toFixed(2)})` : ""}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Selected Dynamic Attributes */}
+                      {selectedOrder.selectedDynamicAttributes && selectedOrder.selectedDynamicAttributes.length > 0 && (
+                        <div className="mt-4 pt-4 border-t border-cream-200">
+                          <p className="text-xs text-cream-600 mb-2 font-semibold">Selected Attributes</p>
+                          <div className="space-y-2">
+                            {selectedOrder.selectedDynamicAttributes.map((attr, idx) => (
+                              <div
+                                key={idx}
+                                className="flex justify-between items-center p-2 rounded-lg bg-cream-100 border border-cream-200"
+                              >
+                                <div className="flex items-center gap-2">
+                                  {attr.image && attr.image.trim() !== "" && (
+                                    <img src={attr.image} alt={attr.attributeName} className="w-8 h-8 object-cover rounded" />
+                                  )}
+                                  <div>
+                                    <p className="text-xs font-medium text-cream-900">{attr.attributeName}</p>
+                                    <p className="text-xs text-cream-600">{attr.label}</p>
+                                    {attr.description && <p className="text-xs text-cream-500 mt-0.5">{attr.description}</p>}
+                                  </div>
+                                </div>
+                                {(attr.priceAdd > 0 || attr.priceMultiplier) && (
+                                  <div className="text-right">
+                                    {attr.priceAdd > 0 && (
+                                      <span className="block text-xs font-bold text-cream-900">
+                                        +₹{attr.priceAdd.toFixed(2)}
+                                      </span>
+                                    )}
+                                    {attr.priceMultiplier && attr.priceMultiplier !== 1 && (
+                                      <span className="block text-xs text-cream-600">
+                                        ×{attr.priceMultiplier.toFixed(2)}
+                                      </span>
                                     )}
                                   </div>
-
-                                  {action.action === "SHOW_ONLY" && (
-                                    <div className="mt-4">
-                                      <label className="block text-sm font-medium text-cream-900 mb-2">
-                                        Allowed Values * (Select multiple)
-                                      </label>
-                                      <div className="border border-cream-300 rounded-lg p-3 max-h-48 overflow-y-auto bg-white">
-                                        {targetAttrValues.length === 0 ? (
-                                          <p className="text-sm text-cream-600 italic">No values available for this attribute</p>
-                                        ) : (
-                                          <div className="space-y-2">
-                                            {targetAttrValues.map((av: any) => (
-                                              <label key={av.value} className="flex items-center gap-2">
-                                                <input
-                                                  type="checkbox"
-                                                  checked={action.allowedValues?.includes(av.value) || false}
-                                                  onChange={(e) => {
-                                                    const newThen = [...ruleForm.then];
-                                                    const currentValues = action.allowedValues || [];
-                                                    if (e.target.checked) {
-                                                      newThen[index] = {
-                                                        ...action,
-                                                        allowedValues: [...currentValues, av.value],
-                                                      };
-                                                    } else {
-                                                      newThen[index] = {
-                                                        ...action,
-                                                        allowedValues: currentValues.filter((v) => v !== av.value),
-                                                      };
-                                                    }
-                                                    setRuleForm({ ...ruleForm, then: newThen });
-                                                  }}
-                                                  className="text-cream-900"
-                                                />
-                                                <span className="text-sm text-cream-700">{av.label}</span>
-                                              </label>
-                                            ))}
+                                )}
+                                {/* Display uploaded images if any */}
+                                {attr.uploadedImages && attr.uploadedImages.length > 0 && (
+                                  <div className="mt-2 pt-2 border-t border-cream-200 w-full">
+                                    <p className="text-xs text-cream-600 mb-2 font-semibold">Uploaded Images:</p>
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                      {attr.uploadedImages.map((img, imgIdx) => {
+                                        // Convert buffer to base64 data URL for display
+                                        let imageUrl = '';
+                                        if (img.data) {
+                                          if (typeof img.data === 'string') {
+                                            imageUrl = `data:${img.contentType || 'image/jpeg'};base64,${img.data}`;
+                                          } else if (Buffer.isBuffer(img.data)) {
+                                            imageUrl = `data:${img.contentType || 'image/jpeg'};base64,${img.data.toString('base64')}`;
+                                          }
+                                        }
+                                        return imageUrl ? (
+                                          <div key={imgIdx} className="relative">
+                                            <img
+                                              src={imageUrl}
+                                              alt={img.filename || `Image ${imgIdx + 1}`}
+                                              className="w-full h-24 object-cover rounded border border-cream-200"
+                                            />
+                                            <p className="text-xs text-cream-500 mt-1 truncate">{img.filename}</p>
                                           </div>
-                                        )}
-                                      </div>
+                                        ) : null;
+                                      })}
                                     </div>
-                                  )}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
 
-                                  {action.action === "SET_DEFAULT" && (
-                                    <div className="mt-4">
-                                      <label className="block text-sm font-medium text-cream-900 mb-2">
-                                        Default Value *
-                                      </label>
-                                      <select
-                                        value={action.defaultValue || ""}
-                                        onChange={(e) => {
-                                          const newThen = [...ruleForm.then];
-                                          newThen[index] = { ...action, defaultValue: e.target.value };
-                                          setRuleForm({ ...ruleForm, then: newThen });
-                                        }}
-                                        className="w-full px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-900"
-                                        required
-                                        disabled={!action.targetAttribute}
-                                      >
-                                        <option value="">Select Default Value</option>
-                                        {targetAttrValues.map((av: any) => (
-                                          <option key={av.value} value={av.value}>
-                                            {av.label}
-                                          </option>
-                                        ))}
-                                      </select>
-                                    </div>
-                                  )}
+                    {/* Price Breakdown */}
+                    {(() => {
+                      const orderForCalc: OrderForCalculation = {
+                        quantity: selectedOrder.quantity,
+                        product: {
+                          basePrice: selectedOrder.product.basePrice || 0,
+                          gstPercentage: selectedOrder.product.gstPercentage || 18,
+                          options: selectedOrder.product.options,
+                          filters: selectedOrder.product.filters,
+                          quantityDiscounts: (selectedOrder.product as any)?.quantityDiscounts || [],
+                        },
+                        finish: selectedOrder.finish,
+                        shape: selectedOrder.shape,
+                        selectedOptions: selectedOrder.selectedOptions?.map((opt) => ({
+                          name: typeof opt === 'string' ? opt : (opt.optionName || opt.name || 'Option'),
+                          optionName: typeof opt === 'string' ? opt : (opt.optionName || opt.name || 'Option'),
+                          priceAdd: typeof opt === 'object' ? (opt.priceAdd || 0) : 0,
+                        })) || [],
+                        selectedDynamicAttributes: selectedOrder.selectedDynamicAttributes?.map((attr) => ({
+                          attributeName: attr.attributeName,
+                          label: attr.label,
+                          priceMultiplier: attr.priceMultiplier,
+                          priceAdd: attr.priceAdd,
+                        })),
+                      };
 
-                                  {action.action === "QUANTITY" && (
-                                    <div className="mt-4">
-                                      <label className="block text-sm font-medium text-cream-900 mb-3">
-                                        Quantity Constraints *
-                                      </label>
-                                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                        <div>
-                                          <label className="block text-xs font-medium text-cream-700 mb-1">
-                                            Min Quantity
-                                          </label>
-                                          <input
-                                            type="number"
-                                            min="0"
-                                            value={action.minQuantity ?? ""}
-                                            onChange={(e) => {
-                                              const newThen = [...ruleForm.then];
-                                              newThen[index] = {
-                                                ...action,
-                                                minQuantity: e.target.value ? parseInt(e.target.value) : undefined,
-                                              };
-                                              setRuleForm({ ...ruleForm, then: newThen });
-                                            }}
-                                            className="w-full px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-900"
-                                            placeholder="e.g., 100"
-                                          />
-                                        </div>
-                                        <div>
-                                          <label className="block text-xs font-medium text-cream-700 mb-1">
-                                            Max Quantity
-                                          </label>
-                                          <input
-                                            type="number"
-                                            min="0"
-                                            value={action.maxQuantity ?? ""}
-                                            onChange={(e) => {
-                                              const newThen = [...ruleForm.then];
-                                              newThen[index] = {
-                                                ...action,
-                                                maxQuantity: e.target.value ? parseInt(e.target.value) : undefined,
-                                              };
-                                              setRuleForm({ ...ruleForm, then: newThen });
-                                            }}
-                                            className="w-full px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-900"
-                                            placeholder="e.g., 1000"
-                                          />
-                                        </div>
-                                        <div>
-                                          <label className="block text-xs font-medium text-cream-700 mb-1">
-                                            Step (Multiples)
-                                          </label>
-                                          <input
-                                            type="number"
-                                            min="1"
-                                            value={action.stepQuantity ?? ""}
-                                            onChange={(e) => {
-                                              const newThen = [...ruleForm.then];
-                                              newThen[index] = {
-                                                ...action,
-                                                stepQuantity: e.target.value ? parseInt(e.target.value) : undefined,
-                                              };
-                                              setRuleForm({ ...ruleForm, then: newThen });
-                                            }}
-                                            className="w-full px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-900"
-                                            placeholder="e.g., 50"
-                                          />
-                                        </div>
+                      const calculations = calculateOrderBreakdown(orderForCalc);
+
+                      return (
+                        <div className="bg-cream-50 rounded-lg p-4 border border-cream-200">
+                          <h3 className="font-bold text-cream-900 mb-3 flex items-center gap-2">
+                            <CreditCard size={18} />
+                            Price Breakdown
+                          </h3>
+                          <div className="space-y-2 text-sm">
+                            <div className="flex justify-between items-center pb-2 border-b border-cream-200">
+                              <div className="text-cream-600">
+                                <span>
+                                  Base Price ({selectedOrder.quantity.toLocaleString()} ×{' '}
+                                  {formatCurrency(selectedOrder.product.basePrice || 0)})
+                                </span>
+                              </div>
+                              <span className="font-medium text-cream-900">{formatCurrency(calculations.rawBaseTotal)}</span>
+                            </div>
+
+                            {calculations.discountPercentage > 0 && (
+                              <div className="flex justify-between items-center text-green-700 bg-green-50 p-2 rounded-md">
+                                <div>
+                                  <span className="font-semibold">
+                                    Bulk Discount ({calculations.discountPercentage}%)
+                                  </span>
+                                  <p className="text-xs opacity-80">Applied for {selectedOrder.quantity} units</p>
+                                </div>
+                                <span className="font-bold">
+                                  -{formatCurrency(calculations.rawBaseTotal - calculations.discountedBaseTotal)}
+                                </span>
+                              </div>
+                            )}
+
+                            {calculations.optionBreakdowns.map((opt, idx) => (
+                              <div key={idx} className="flex justify-between items-center text-cream-600">
+                                <span>
+                                  {opt.name} {opt.isPerUnit ? `(${selectedOrder.quantity} × ${formatCurrency(opt.priceAdd)})` : ''}
+                                </span>
+                                <span>+{formatCurrency(opt.cost)}</span>
+                              </div>
+                            ))}
+
+                            {/* Show dynamic attributes if they have price impact */}
+                            {selectedOrder.selectedDynamicAttributes && selectedOrder.selectedDynamicAttributes.length > 0 && (
+                              <>
+                                {selectedOrder.selectedDynamicAttributes
+                                  .filter(attr => attr.priceAdd > 0 || (attr.priceMultiplier && attr.priceMultiplier !== 1))
+                                  .map((attr, idx) => {
+                                    // Calculate price impact for this attribute
+                                    const basePrice = selectedOrder.product.basePrice || 0;
+                                    let attributeCost = 0;
+                                    let pricePerUnit = 0;
+                                    if (attr.priceAdd > 0) {
+                                      pricePerUnit = attr.priceAdd;
+                                      attributeCost = attr.priceAdd * selectedOrder.quantity;
+                                    } else if (attr.priceMultiplier && attr.priceMultiplier !== 1) {
+                                      pricePerUnit = basePrice * (attr.priceMultiplier - 1);
+                                      attributeCost = pricePerUnit * selectedOrder.quantity;
+                                    }
+
+                                    if (attributeCost === 0) return null;
+
+                                    return (
+                                      <div key={`attr-${idx}`} className="flex justify-between items-center text-cream-600">
+                                        <span>
+                                          {attr.attributeName} ({attr.label})
+                                        </span>
+                                        <span>+{formatCurrency(pricePerUnit)}/unit × {selectedOrder.quantity.toLocaleString()} = {formatCurrency(attributeCost)}</span>
                                       </div>
-                                      <p className="text-xs text-cream-600 mt-2">
-                                        At least one constraint is required. Step defines the increment (e.g., 50 means quantities must be multiples of 50).
-                                      </p>
+                                    );
+                                  })}
+                              </>
+                            )}
+
+                            <div className="flex justify-between items-center pt-2 font-medium text-cream-900 border-t border-cream-200">
+                              <span>Subtotal</span>
+                              <span>{formatCurrency(calculations.subtotal)}</span>
+                            </div>
+
+                            <div className="flex justify-between items-center text-cream-600 text-xs">
+                              <span>GST ({selectedOrder.product.gstPercentage || 18}%)</span>
+                              <span>+{formatCurrency(calculations.gstAmount)}</span>
+                            </div>
+
+                            <div className="flex justify-between items-center pt-3 mt-2 border-t-2 border-cream-300">
+                              <span className="text-base font-bold text-cream-900">Total Amount</span>
+                              <span className="text-lg font-bold text-cream-900">{formatCurrency(selectedOrder.totalPrice)}</span>
+                            </div>
+
+                            <div className="mt-3 pt-3 border-t border-cream-200">
+                              <div className="flex justify-between items-center mb-2">
+                                <span className="text-cream-600 text-xs">Advance Paid</span>
+                                <span className="font-medium text-green-700">
+                                  {formatCurrency(selectedOrder.advancePaid || 0)}
+                                </span>
+                              </div>
+                              <div className="flex justify-between items-center">
+                                <span className="text-cream-600 text-xs">Balance Due</span>
+                                <span
+                                  className={`font-bold ${selectedOrder.totalPrice - (selectedOrder.advancePaid || 0) > 0
+                                    ? 'text-red-600'
+                                    : 'text-cream-500'
+                                    }`}
+                                >
+                                  {formatCurrency(selectedOrder.totalPrice - (selectedOrder.advancePaid || 0))}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    {/* Delivery Information */}
+                    <div className="bg-cream-50 rounded-lg p-4 border border-cream-200">
+                      <h3 className="font-bold text-cream-900 mb-3 flex items-center gap-2">
+                        <Truck size={18} />
+                        Delivery Information
+                      </h3>
+                      <div className="space-y-3">
+                        <div>
+                          <p className="text-xs text-cream-600 mb-1">Complete Address</p>
+                          <p className="font-semibold text-cream-900 text-sm whitespace-pre-wrap">{selectedOrder.address || "N/A"}</p>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          <div>
+                            <p className="text-xs text-cream-600 mb-1">Mobile Number</p>
+                            <p className="font-semibold text-cream-900">{selectedOrder.mobileNumber || "N/A"}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-cream-600 mb-1">Pincode</p>
+                            <p className="font-semibold text-cream-900">{selectedOrder.pincode}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-cream-600 mb-1">Delivery Date</p>
+                            <p className="font-semibold text-cream-900">
+                              {selectedOrder.deliveryDate
+                                ? (!isClient
+                                  ? 'Loading...'
+                                  : new Date(selectedOrder.deliveryDate).toLocaleDateString('en-US', {
+                                    year: 'numeric',
+                                    month: 'long',
+                                    day: 'numeric'
+                                  }))
+                                : "Not set"}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Current Department Status */}
+                    {selectedOrder.currentDepartment && (
+                      <div className="bg-indigo-50 rounded-lg p-4 border border-indigo-200 mb-4">
+                        <h3 className="font-bold text-indigo-900 mb-2 flex items-center gap-2">
+                          <Building2 size={18} />
+                          Current Department
+                        </h3>
+                        <div className="flex items-center gap-3">
+                          <div className="px-4 py-2 bg-white rounded-lg border border-indigo-200">
+                            <p className="text-xs text-indigo-600 mb-1">Currently Working On</p>
+                            <p className="text-lg font-bold text-indigo-900">
+                              {typeof selectedOrder.currentDepartment === "object" && selectedOrder.currentDepartment !== null
+                                ? (selectedOrder.currentDepartment as { _id: string; name: string; sequence: number }).name
+                                : "Department"}
+                            </p>
+                            {selectedOrder.currentDepartmentIndex !== null && selectedOrder.currentDepartmentIndex !== undefined && (
+                              <p className="text-xs text-indigo-500 mt-1">
+                                Position in Sequence: #{selectedOrder.currentDepartmentIndex + 1}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Production Progress - Enhanced */}
+                    {selectedOrder.departmentStatuses && selectedOrder.departmentStatuses.length > 0 && (
+                      <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                        <div className="flex items-center justify-between mb-3">
+                          <h3 className="font-bold text-blue-900 flex items-center gap-2">
+                            <Truck size={18} />
+                            Production Progress
+                          </h3>
+                          {(() => {
+                            const totalStages = selectedOrder.departmentStatuses.length;
+                            const completedStages = selectedOrder.departmentStatuses.filter(ds => ds.status === "completed").length;
+                            const inProgressStages = selectedOrder.departmentStatuses.filter(ds => ds.status === "in_progress").length;
+
+                            return (
+                              <div className="text-xs text-blue-700 font-medium">
+                                {completedStages}/{totalStages} Stages Completed
+                                {inProgressStages > 0 && ` • ${inProgressStages} In Progress`}
+                              </div>
+                            );
+                          })()}
+                        </div>
+
+                        {/* Progress Bar */}
+                        {(() => {
+                          const totalStages = selectedOrder.departmentStatuses.length;
+                          const completedStages = selectedOrder.departmentStatuses.filter(ds => ds.status === "completed").length;
+                          const progressPercent = Math.round((completedStages / totalStages) * 100);
+
+                          return (
+                            <div className="mb-4">
+                              <div className="w-full bg-blue-200 rounded-full h-2.5 mb-1">
+                                <div
+                                  className="bg-blue-600 h-2.5 rounded-full transition-all duration-500"
+                                  style={{ width: `${progressPercent}%` }}
+                                />
+                              </div>
+                              <p className="text-xs text-blue-700 text-right">{progressPercent}% Complete</p>
+                            </div>
+                          );
+                        })()}
+
+                        <div className="space-y-2">
+                          {selectedOrder.departmentStatuses
+                            .sort((a, b) => {
+                              const seqA = typeof a.department === "object" ? a.department.sequence : 0;
+                              const seqB = typeof b.department === "object" ? b.department.sequence : 0;
+                              return seqA - seqB;
+                            })
+                            .map((deptStatus, idx) => {
+                              const deptName = typeof deptStatus.department === "object"
+                                ? deptStatus.department.name
+                                : "Department";
+                              const status = deptStatus.status;
+
+                              // Calculate duration if started and completed
+                              let durationText = "";
+                              if (deptStatus.startedAt && deptStatus.completedAt) {
+                                const start = new Date(deptStatus.startedAt);
+                                const end = new Date(deptStatus.completedAt);
+                                const durationMs = end.getTime() - start.getTime();
+                                const hours = Math.floor(durationMs / (1000 * 60 * 60));
+                                const minutes = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60));
+                                if (hours > 0) {
+                                  durationText = `${hours}h ${minutes}m`;
+                                } else {
+                                  durationText = `${minutes}m`;
+                                }
+                              }
+
+                              return (
+                                <div key={idx} className="flex items-start gap-3 p-3 bg-white rounded-lg border border-blue-100">
+                                  <div className={`w-4 h-4 rounded-full mt-0.5 flex-shrink-0 ${status === "completed" ? "bg-green-500" :
+                                    status === "in_progress" ? "bg-blue-500 animate-pulse" :
+                                      status === "paused" ? "bg-yellow-500" :
+                                        status === "stopped" ? "bg-red-500" :
+                                          "bg-gray-300"
+                                    }`} />
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center justify-between mb-1">
+                                      <span className="text-sm font-semibold text-blue-900">{deptName}</span>
+                                      <span className={`text-xs px-2 py-1 rounded-full font-medium ${status === "completed" ? "bg-green-100 text-green-800" :
+                                        status === "in_progress" ? "bg-blue-100 text-blue-800" :
+                                          status === "paused" ? "bg-yellow-100 text-yellow-800" :
+                                            status === "stopped" ? "bg-red-100 text-red-800" :
+                                              "bg-gray-100 text-gray-800"
+                                        }`}>
+                                        {status.replace("_", " ").toUpperCase()}
+                                      </span>
                                     </div>
-                                  )}
+
+                                    {/* Timestamps */}
+                                    <div className="space-y-1 mt-2">
+                                      {deptStatus.whenAssigned && (
+                                        <div className="flex items-center gap-2 text-xs">
+                                          <Clock size={12} className="text-purple-600" />
+                                          <span className="text-purple-600">
+                                            Assigned: {new Date(deptStatus.whenAssigned).toLocaleString()}
+                                          </span>
+                                        </div>
+                                      )}
+                                      {deptStatus.startedAt && (
+                                        <div className="flex items-center gap-2 text-xs">
+                                          <Clock size={12} className="text-blue-600" />
+                                          <span className="text-blue-600">
+                                            Started: {new Date(deptStatus.startedAt).toLocaleString()}
+                                          </span>
+                                        </div>
+                                      )}
+                                      {deptStatus.completedAt && (
+                                        <div className="flex items-center gap-2 text-xs">
+                                          <CheckCircle size={12} className="text-green-600" />
+                                          <span className="text-green-600">
+                                            Completed: {new Date(deptStatus.completedAt).toLocaleString()}
+                                            {durationText && ` (Duration: ${durationText})`}
+                                          </span>
+                                        </div>
+                                      )}
+                                      {deptStatus.pausedAt && status === "paused" && (
+                                        <div className="flex items-center gap-2 text-xs">
+                                          <Clock size={12} className="text-yellow-600" />
+                                          <span className="text-yellow-600">
+                                            Paused: {new Date(deptStatus.pausedAt).toLocaleString()}
+                                          </span>
+                                        </div>
+                                      )}
+                                      {deptStatus.stoppedAt && status === "stopped" && (
+                                        <div className="flex items-center gap-2 text-xs">
+                                          <X size={12} className="text-red-600" />
+                                          <span className="text-red-600">
+                                            Stopped: {new Date(deptStatus.stoppedAt).toLocaleString()}
+                                          </span>
+                                        </div>
+                                      )}
+                                      {deptStatus.operator && (
+                                        <div className="flex items-center gap-2 text-xs mt-1">
+                                          <Users size={12} className="text-cream-600" />
+                                          <span className="text-cream-600">
+                                            Operator: {typeof deptStatus.operator === "object" && deptStatus.operator && '_id' in deptStatus.operator
+                                              ? `${deptStatus.operator.name || 'N/A'} (${('email' in deptStatus.operator && typeof deptStatus.operator.email === 'string' ? deptStatus.operator.email : 'N/A')})`
+                                              : 'N/A'}
+                                          </span>
+                                        </div>
+                                      )}
+                                      {deptStatus.notes && (
+                                        <div className="text-xs text-cream-600 mt-1 italic">
+                                          Notes: {deptStatus.notes}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
                                 </div>
                               );
                             })}
-                          </div>
-                        )}
+                        </div>
                       </div>
+                    )}
 
-                      {/* Form Actions */}
-                      <div className="flex justify-end gap-3 pt-4 border-t border-cream-200">
-                        <button
-                          type="button"
-                          onClick={handleCancelRuleEdit}
-                          className="px-4 py-2 border border-cream-300 text-cream-700 rounded-lg hover:bg-cream-50 transition-colors"
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          type="submit"
-                          disabled={loading}
-                          className="px-4 py-2 bg-cream-900 text-white rounded-lg hover:bg-cream-800 transition-colors disabled:opacity-50 flex items-center gap-2"
-                        >
-                          {loading && <Loader className="animate-spin" size={16} />}
-                          {editingRuleId ? "Update Rule" : "Create Rule"}
-                        </button>
-                      </div>
-                    </form>
-                  </div>
-                </div>
-              )}
+                    {/* Production Timeline - Activity Log */}
+                    {selectedOrder.productionTimeline && selectedOrder.productionTimeline.length > 0 && (
+                      <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-lg p-4 border border-purple-200">
+                        <h3 className="font-bold text-purple-900 mb-3 flex items-center gap-2">
+                          <Clock size={18} />
+                          Production Activity Timeline
+                        </h3>
+                        <div className="space-y-2 max-h-96 overflow-y-auto">
+                          {Array.isArray(selectedOrder.productionTimeline) && selectedOrder.productionTimeline
+                            .sort((a: any, b: any) => (new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime()))
+                            .map((timelineItem: any, idx: number) => {
+                              const deptName = typeof timelineItem.department === "object"
+                                ? timelineItem.department.name
+                                : "Department";
+                              const operatorName = timelineItem.operator
+                                ? (typeof timelineItem.operator === "object"
+                                  ? `${timelineItem.operator.name} (${timelineItem.operator.email})`
+                                  : timelineItem.operator)
+                                : "System";
 
-              {/* Sub-Attributes Management Section */}
-              <div className="mt-8 pt-8 border-t border-cream-300">
-                <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-lg font-bold text-cream-900">
-                    Sub-Attributes ({subAttributes.length})
-                  </h3>
-                  <button
-                    onClick={() => {
-                      handleCancelSubAttributeEdit();
-                      // Reset to single row for new creation
-                      setMultipleSubAttributes([{ value: "", label: "", image: null, priceAdd: 0, isEnabled: true, systemName: "" }]);
-                      setShowSubAttributeForm(true);
-                    }}
-                    className="px-4 py-2 bg-cream-900 text-white rounded-lg hover:bg-cream-800 transition-colors flex items-center gap-2"
-                  >
-                    <Plus size={18} />
-                    Create Sub-Attributes
-                  </button>
-                </div>
-
-
-                <div className="mb-4 space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-cream-900 mb-2">
-                        Search
-                      </label>
-                      <div className="relative">
-                        <input
-                          type="text"
-                          value={subAttributeSearch}
-                          onChange={(e) => setSubAttributeSearch(e.target.value)}
-                          placeholder="Search sub-attributes..."
-                          className="pl-10 pr-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-900 w-full"
-                        />
-                        <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-cream-500" />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-cream-900 mb-2">
-                        Filter by Attribute
-                      </label>
-                      <SearchableDropdown
-                        label="All Attributes"
-                        value={subAttributeFilter.attributeId}
-                        onChange={(value) => {
-                          setSubAttributeFilter({ ...subAttributeFilter, attributeId: String(value || "") });
-                        }}
-                        options={[
-                          { value: "", label: "All Attributes" },
-                          ...attributeTypes.map((attr) => ({
-                            value: attr._id,
-                            label: attr.systemName ? `${attr.systemName} ${attr.attributeName ? `(${attr.attributeName})` : ''}` : attr.attributeName || ""
-                          }))
-                        ]}
-                        searchPlaceholder="Search attributes..."
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-cream-900 mb-2">
-                        Filter by Parent Value
-                      </label>
-                      <SearchableDropdown
-                        label="All Parent Values"
-                        value={subAttributeFilter.parentValue}
-                        onChange={(value) => {
-                          setSubAttributeFilter({ ...subAttributeFilter, parentValue: String(value || "") });
-                        }}
-                        options={[
-                          { value: "", label: "All Parent Values" },
-                          ...(() => {
-                            if (subAttributeFilter.attributeId) {
-                              const attr = attributeTypes.find(a => a._id === subAttributeFilter.attributeId);
-                              if (attr && attr.attributeValues) {
-                                return attr.attributeValues.map(av => ({ value: av.value, label: av.label }));
-                              }
-                            }
-                            // Fallback to showing unique values from the current list if no attribute selected
-                            return Array.from(new Set(subAttributes.map(sa => sa.parentValue).filter(Boolean)))
-                              .sort()
-                              .map((pv) => ({
-                                value: pv,
-                                label: pv
-                              }));
-                          })()
-                        ]}
-                        searchPlaceholder="Search parent values..."
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-cream-900 mb-2">
-                        Filter by Status
-                      </label>
-                      <SearchableDropdown
-                        label="All Status"
-                        value={subAttributeStatusFilter}
-                        onChange={(value) => setSubAttributeStatusFilter(String(value || "all") as "all" | "enabled" | "disabled")}
-                        options={[
-                          { value: "all", label: "All Status" },
-                          { value: "enabled", label: "Enabled Only" },
-                          { value: "disabled", label: "Disabled Only" },
-                        ]}
-                        searchPlaceholder="Search status..."
-                        enableSearch={false}
-                      />
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    {(() => {
-                      const activeFilters = [
-                        subAttributeSearch,
-                        subAttributeFilter.attributeId,
-                        subAttributeFilter.parentValue,
-                        subAttributeStatusFilter !== "all" ? subAttributeStatusFilter : ""
-                      ].filter(Boolean).length;
-
-                      return (
-                        <>
-                          {activeFilters > 0 && (
-                            <button
-                              onClick={() => {
-                                setSubAttributeSearch("");
-                                setSubAttributeFilter({ attributeId: "", parentValue: "" });
-                                setSubAttributeStatusFilter("all");
-                              }}
-                              className="px-4 py-2 bg-cream-100 text-cream-900 rounded-lg hover:bg-cream-200 transition-colors text-sm flex items-center gap-2"
-                            >
-                              <X size={16} />
-                              Clear All Filters
-                            </button>
-                          )}
-                          <div className="text-sm text-cream-600">
-                            {activeFilters > 0 ? `${activeFilters} filter${activeFilters > 1 ? 's' : ''} active` : 'No filters active'}
-                          </div>
-                        </>
-                      );
-                    })()}
-                  </div>
-                </div>
-                <div className="mb-4">
-                  <button
-                    onClick={() => fetchSubAttributes()}
-                    className="px-4 py-2 bg-cream-200 text-cream-900 rounded-lg hover:bg-cream-300 transition-colors text-sm"
-                  >
-                    Apply Filters
-                  </button>
-                </div>
-
-                {/* Sub-Attributes List */}
-                {loadingSubAttributes ? (
-                  <div className="flex items-center justify-center py-8">
-                    <Loader className="animate-spin text-cream-600" size={24} />
-                    <span className="ml-3 text-sm text-cream-600">Loading sub-attributes...</span>
-                  </div>
-                ) : subAttributes.length === 0 ? (
-                  <div className="text-center py-8 text-cream-600">
-                    <p>No sub-attributes found. Create your first sub-attribute to get started.</p>
-                  </div>
-                ) : (
-                  <>
-                    <div className="mb-3 text-sm text-cream-600">
-                      Showing {filteredSubAttributes.length} of {subAttributes.length} sub-attributes
-                    </div>
-                    <div className="overflow-x-auto min-h-[400px]">
-                      <table className="w-full border-collapse">
-                        <thead>
-                          <tr className="bg-cream-100 border-b border-cream-300">
-                            <th className="px-4 py-3 text-left text-sm font-semibold text-cream-900">Parent Attribute</th>
-                            <th className="px-4 py-3 text-left text-sm font-semibold text-cream-900">Parent Value</th>
-                            <th className="px-4 py-3 text-left text-sm font-semibold text-cream-900">Value</th>
-                            <th className="px-4 py-3 text-left text-sm font-semibold text-cream-900">Label</th>
-                            <th className="px-4 py-3 text-left text-sm font-semibold text-cream-900">System Name</th>
-                            <th className="px-4 py-3 text-left text-sm font-semibold text-cream-900">Image</th>
-                            <th className="px-4 py-3 text-left text-sm font-semibold text-cream-900">Price Addition</th>
-                            <th className="px-4 py-3 text-left text-sm font-semibold text-cream-900">Status</th>
-                            <th className="px-4 py-3 text-left text-sm font-semibold text-cream-900">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {filteredSubAttributes
-                            .slice((subAttributePage - 1) * ITEMS_PER_PAGE, subAttributePage * ITEMS_PER_PAGE)
-                            .map((subAttr) => {
-
-                              const parentAttrObj = typeof subAttr.parentAttribute === 'object' && subAttr.parentAttribute !== null
-                                ? subAttr.parentAttribute
-                                : attributeTypes.find(attr => attr._id === subAttr.parentAttribute);
-
-                              const parentAttrName = parentAttrObj
-                                ? (parentAttrObj.systemName ? `${parentAttrObj.systemName} ${parentAttrObj.attributeName ? `(${parentAttrObj.attributeName})` : ''}` : parentAttrObj.attributeName)
-                                : 'Unknown';
+                              const actionColors: { [key: string]: string } = {
+                                started: "bg-blue-100 text-blue-800 border-blue-300",
+                                paused: "bg-yellow-100 text-yellow-800 border-yellow-300",
+                                resumed: "bg-green-100 text-green-800 border-green-300",
+                                completed: "bg-green-100 text-green-800 border-green-300",
+                                stopped: "bg-red-100 text-red-800 border-red-300",
+                              };
 
                               return (
-                                <tr key={subAttr._id} className="border-b border-cream-200 hover:bg-cream-50">
-                                  <td className="px-4 py-3 text-sm text-cream-900">{parentAttrName}</td>
-                                  <td className="px-4 py-3 text-sm text-cream-700">{subAttr.parentValue}</td>
-                                  <td className="px-4 py-3 text-sm text-cream-700">{subAttr.value}</td>
-                                  <td className="px-4 py-3 text-sm text-cream-700">{subAttr.label}</td>
-                                  <td className="px-4 py-3 text-sm text-gray-500 font-mono font-bold">
-                                    {subAttr.systemName || "N/A"} {subAttr.label ? `(${subAttr.label})` : ''}
-                                  </td>
-                                  <td className="px-4 py-3">
-                                    {subAttr.image ? (
-                                      <img src={subAttr.image} alt={subAttr.label} className="w-16 h-16 object-cover rounded" />
-                                    ) : (
-                                      <span className="text-xs text-cream-500">No image</span>
-                                    )}
-                                  </td>
-                                  <td className="px-4 py-3 text-sm text-cream-700">₹{subAttr.priceAdd || 0}/piece</td>
-                                  <td className="px-4 py-3">
-                                    <span className={`px-2 py-1 rounded text-xs font-medium ${subAttr.isEnabled
-                                      ? 'bg-green-100 text-green-800'
-                                      : 'bg-gray-100 text-gray-800'
-                                      }`}>
-                                      {subAttr.isEnabled ? 'Enabled' : 'Disabled'}
-                                    </span>
-                                  </td>
-                                  <td className="px-4 py-3">
-                                    <div className="flex gap-2">
-                                      <button
-                                        onClick={() => handleEditSubAttribute(subAttr)}
-                                        className="px-2 py-1 text-sm bg-cream-200 text-cream-900 rounded hover:bg-cream-300 transition-colors"
-                                      >
-                                        <Edit size={14} />
-                                      </button>
-                                      <button
-                                        onClick={() => handleDeleteSubAttribute(subAttr._id)}
-                                        className="px-2 py-1 text-sm bg-red-100 text-red-700 rounded hover:bg-red-200 transition-colors"
-                                      >
-                                        <Trash2 size={14} />
-                                      </button>
+                                <div
+                                  key={idx}
+                                  className="flex items-start gap-3 p-3 bg-white rounded-lg border border-purple-100 shadow-sm hover:shadow-md transition-shadow"
+                                >
+                                  <div className={`w-2 h-2 rounded-full mt-2 flex-shrink-0 ${timelineItem.action === "completed" ? "bg-green-500" :
+                                    timelineItem.action === "started" ? "bg-blue-500" :
+                                      timelineItem.action === "paused" ? "bg-yellow-500" :
+                                        timelineItem.action === "stopped" ? "bg-red-500" :
+                                          "bg-gray-400"
+                                    }`} />
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center justify-between mb-1 flex-wrap gap-2">
+                                      <span className="text-sm font-semibold text-purple-900">{deptName}</span>
+                                      <span className={`text-xs px-2 py-1 rounded-full font-medium border ${actionColors[timelineItem.action] || "bg-gray-100 text-gray-800 border-gray-300"
+                                        }`}>
+                                        {timelineItem.action.toUpperCase()}
+                                      </span>
                                     </div>
-                                  </td>
-                                </tr>
-
+                                    <div className="flex items-center gap-2 text-xs text-purple-600 mb-1">
+                                      <Clock size={12} />
+                                      <span>{new Date(timelineItem.timestamp).toLocaleString()}</span>
+                                    </div>
+                                    {operatorName && (
+                                      <div className="flex items-center gap-2 text-xs text-purple-600 mb-1">
+                                        <Users size={12} />
+                                        <span>Operator: {operatorName}</span>
+                                      </div>
+                                    )}
+                                    {timelineItem.notes && (
+                                      <div className="text-xs text-purple-700 mt-1 italic bg-purple-50 p-2 rounded border border-purple-100">
+                                        {timelineItem.notes}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
                               );
                             })}
-                        </tbody>
-                      </table>
-                    </div>
-                    {/* Pagination Controls for Sub-Attributes */}
-                    <Pagination
-                      currentPage={subAttributePage}
-                      totalItems={filteredSubAttributes.length}
-                      itemsPerPage={ITEMS_PER_PAGE}
-                      onPageChange={setSubAttributePage}
-                    />
-                  </>
-                )}
+                        </div>
+                      </div>
+                    )}
 
-                {/* Sub-Attribute Form Modal */}
-                {showSubAttributeForm && (
-                  <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-                      <div className="sticky top-0 bg-white border-b border-cream-200 p-6 flex justify-between items-center">
-                        <h3 className="text-xl font-bold text-cream-900">
-                          {editingSubAttributeId ? "Edit Sub-Attribute & Add More" : "Create Sub-Attributes"}
+                    {/* Customer Notes */}
+                    {selectedOrder.notes && (
+                      <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                        <h3 className="font-bold text-blue-900 mb-2 flex items-center gap-2">
+                          <Info size={18} />
+                          Customer Notes
                         </h3>
+                        <p className="text-sm text-blue-900 whitespace-pre-wrap">{selectedOrder.notes}</p>
+                      </div>
+                    )}
+
+                    {/* Admin Notes */}
+                    {selectedOrder.adminNotes && (
+                      <div className="bg-amber-50 rounded-lg p-4 border border-amber-200">
+                        <h3 className="font-bold text-amber-900 mb-2 flex items-center gap-2">
+                          <Settings size={18} />
+                          Admin Notes
+                        </h3>
+                        <p className="text-sm text-amber-900 whitespace-pre-wrap">{selectedOrder.adminNotes}</p>
+                      </div>
+                    )}
+
+                    {/* Uploaded Designs */}
+                    {(selectedOrder.uploadedDesign?.frontImage || selectedOrder.uploadedDesign?.backImage) && (
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ duration: 0.4 }}
+                        className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-lg p-6 border border-blue-200"
+                      >
+                        <h3 className="font-bold text-blue-900 mb-4 flex items-center gap-2 text-lg">
+                          <ImageIcon size={20} />
+                          Uploaded Customer Designs
+                        </h3>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                          {selectedOrder.uploadedDesign?.frontImage && (
+                            <motion.div
+                              initial={{ opacity: 0, x: -20 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              transition={{ duration: 0.5, delay: 0.1 }}
+                            >
+                              <p className="text-sm font-semibold text-blue-700 mb-3 flex items-center gap-2">
+                                <FileText size={16} />
+                                Front Design
+                              </p>
+                              <div className="relative bg-white rounded-lg border-2 border-blue-200 p-4 shadow-md hover:shadow-lg transition-shadow">
+                                <img
+                                  src={selectedOrder.uploadedDesign.frontImage.data || PLACEHOLDER_IMAGE_LARGE}
+                                  alt="Front design"
+                                  className="w-full h-80 object-contain rounded-lg"
+                                  onError={(e) => {
+                                    const target = e.target as HTMLImageElement;
+                                    target.src = PLACEHOLDER_IMAGE_LARGE;
+                                  }}
+                                />
+                                <div className="mt-3 pt-3 border-t border-blue-100 flex items-center justify-between">
+                                  <div>
+                                    <p className="text-xs text-blue-600 font-medium">
+                                      File: {selectedOrder.uploadedDesign.frontImage.filename || "front-design.png"}
+                                    </p>
+                                    <p className="text-xs text-blue-500 mt-1">
+                                      Type: {selectedOrder.uploadedDesign.frontImage.contentType || "image/png"}
+                                    </p>
+                                  </div>
+                                  <button
+                                    onClick={() => {
+                                      const link = document.createElement('a');
+                                      link.href = selectedOrder.uploadedDesign.frontImage.data || PLACEHOLDER_IMAGE_LARGE;
+                                      link.download = selectedOrder.uploadedDesign.frontImage.filename || "front-design.png";
+                                      document.body.appendChild(link);
+                                      link.click();
+                                      document.body.removeChild(link);
+                                    }}
+                                    className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 text-sm"
+                                    title="Download image"
+                                  >
+                                    <Download size={14} />
+                                    Download
+                                  </button>
+                                </div>
+                              </div>
+                            </motion.div>
+                          )}
+                          {selectedOrder.uploadedDesign?.backImage && (
+                            <motion.div
+                              initial={{ opacity: 0, x: 20 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              transition={{ duration: 0.5, delay: 0.2 }}
+                            >
+                              <p className="text-sm font-semibold text-blue-700 mb-3 flex items-center gap-2">
+                                <FileText size={16} />
+                                Back Design
+                              </p>
+                              <div className="relative bg-white rounded-lg border-2 border-blue-200 p-4 shadow-md hover:shadow-lg transition-shadow">
+                                <img
+                                  src={selectedOrder.uploadedDesign.backImage.data || PLACEHOLDER_IMAGE_LARGE}
+                                  alt="Back design"
+                                  className="w-full h-80 object-contain rounded-lg"
+                                  onError={(e) => {
+                                    const target = e.target as HTMLImageElement;
+                                    target.src = PLACEHOLDER_IMAGE_LARGE;
+                                  }}
+                                />
+                                <div className="mt-3 pt-3 border-t border-blue-100 flex items-center justify-between">
+                                  <div>
+                                    <p className="text-xs text-blue-600 font-medium">
+                                      File: {selectedOrder.uploadedDesign.backImage.filename || "back-design.png"}
+                                    </p>
+                                    <p className="text-xs text-blue-500 mt-1">
+                                      Type: {selectedOrder.uploadedDesign.backImage.contentType || "image/png"}
+                                    </p>
+                                  </div>
+                                  <button
+                                    onClick={() => {
+                                      const link = document.createElement('a');
+                                      link.href = selectedOrder.uploadedDesign.backImage.data || PLACEHOLDER_IMAGE_LARGE;
+                                      link.download = selectedOrder.uploadedDesign.backImage.filename || "back-design.png";
+                                      document.body.appendChild(link);
+                                      link.click();
+                                      document.body.removeChild(link);
+                                    }}
+                                    className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 text-sm"
+                                    title="Download image"
+                                  >
+                                    <Download size={14} />
+                                    Download
+                                  </button>
+                                </div>
+                              </div>
+                            </motion.div>
+                          )}
+                        </div>
+                      </motion.div>
+                    )}
+                  </div>
+
+                  {/* Order Management Section */}
+                  {selectedOrder.status !== "cancelled" && (
+                    <div className="border-t border-cream-200 pt-6">
+                      <h3 className="font-bold text-cream-900 mb-4 flex items-center gap-2">
+                        <Settings size={18} />
+                        Manage Order
+                      </h3>
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-medium text-cream-900 mb-2">
+                            Order Status
+                          </label>
+                          <ReviewFilterDropdown
+                            label="Select Status"
+                            value={orderStatusUpdate.status}
+                            onChange={(value) =>
+                              setOrderStatusUpdate({ ...orderStatusUpdate, status: value as string })
+                            }
+                            options={[
+                              { value: "request", label: "Request" },
+                              { value: "processing", label: "Processing" },
+                              { value: "completed", label: "Completed" },
+                              { value: "rejected", label: "Rejected" },
+                            ]}
+                            className="w-full"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-cream-900 mb-2">
+                            Delivery Date
+                          </label>
+                          <input
+                            type="date"
+                            value={orderStatusUpdate.deliveryDate}
+                            onChange={(e) =>
+                              setOrderStatusUpdate({ ...orderStatusUpdate, deliveryDate: e.target.value })
+                            }
+                            className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-cream-900 mb-2">
+                            Admin Notes
+                          </label>
+                          <textarea
+                            value={orderStatusUpdate.adminNotes}
+                            onChange={(e) =>
+                              setOrderStatusUpdate({ ...orderStatusUpdate, adminNotes: e.target.value })
+                            }
+                            rows={4}
+                            className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
+                            placeholder="Add notes for this order..."
+                          />
+                        </div>
+
+                        <div className="flex gap-3 pt-4">
+                          <button
+                            onClick={() => handleUpdateOrderStatus(selectedOrder._id)}
+                            disabled={loading}
+                            className="flex-1 bg-cream-900 text-white px-6 py-3 rounded-lg font-medium hover:bg-cream-800 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                          >
+                            {loading ? (
+                              <>
+                                <Loader className="animate-spin" size={20} />
+                                Updating...
+                              </>
+                            ) : (
+                              <>
+                                <Check size={20} />
+                                Update Order
+                              </>
+                            )}
+                          </button>
+                          <button
+                            onClick={() => {
+                              setShowOrderModal(false);
+                              setSelectedOrder(null);
+                              setOrderStatusUpdate({ status: "", deliveryDate: "", adminNotes: "" });
+                            }}
+                            className="px-6 py-3 border border-cream-300 rounded-lg hover:bg-cream-50 transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </motion.div>
+              </div>
+            )
+          }
+        </AnimatePresence >
+
+        {/* Upload Modal */}
+        <AnimatePresence>
+          {
+            showUploadModal && selectedUpload && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+                >
+                  <div className="p-6">
+                    <div className="flex justify-between items-center mb-4">
+                      <h2 className="text-2xl font-bold text-cream-900">
+                        Upload Details
+                      </h2>
+                      <div className="flex items-center gap-2">
                         <button
-                          onClick={handleCancelSubAttributeEdit}
-                          className="text-cream-600 hover:text-cream-900"
+                          onClick={() => {
+                            if (selectedUpload && window.confirm("Are you sure you want to delete this uploaded image?")) {
+                              handleDeleteUpload(selectedUpload._id);
+                              setShowUploadModal(false);
+                              setSelectedUpload(null);
+                            }
+                          }}
+                          disabled={loading}
+                          className="p-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors disabled:opacity-50 flex items-center gap-2"
+                          title="Delete upload"
+                        >
+                          <Trash2 size={20} />
+                          Delete
+                        </button>
+                        <button
+                          onClick={() => {
+                            setShowUploadModal(false);
+                            setSelectedUpload(null);
+                          }}
+                          className="p-2 hover:bg-cream-100 rounded-lg transition-colors"
                         >
                           <X size={24} />
                         </button>
                       </div>
+                    </div>
 
-                      <form onSubmit={handleSubAttributeSubmit} className="p-6 space-y-4">
-                        {/* Common fields - Parent Attribute and Parent Value */}
+                    <div className="space-y-4">
+                      <div>
+                        <p className="text-sm text-cream-600">User</p>
+                        <p className="font-semibold text-cream-900">
+                          {selectedUpload.user.name} ({selectedUpload.user.email})
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-sm text-cream-600">Dimensions</p>
+                        <p className="font-semibold text-cream-900">
+                          {selectedUpload.width} × {selectedUpload.height}px
+                        </p>
+                      </div>
+
+                      {selectedUpload.description && (
                         <div>
-                          <label className="block text-sm font-medium text-cream-900 mb-2">
-                            Parent Attribute *
-                          </label>
-                          <SearchableDropdown
-                            label="Select Attribute"
-                            value={subAttributeForm.parentAttribute}
-                            onChange={(value) => {
-                              setSubAttributeForm({ ...subAttributeForm, parentAttribute: String(value || ""), parentValue: "" });
-                            }}
-                            options={[
-                              { value: "", label: "Select Attribute" },
-                              ...attributeTypes.map((attr) => ({
-                                value: attr._id,
-                                label: attr.systemName ? `${attr.systemName} ${attr.attributeName ? `(${attr.attributeName})` : ''} ` : attr.attributeName,
-                              }))
-                            ]}
-                            className="w-full"
-                            searchPlaceholder="Search attributes..."
-                            enableSearch={attributeTypes.length > 5}
-                          />
+                          <p className="text-sm text-cream-600">Description</p>
+                          <p className="text-cream-900">{selectedUpload.description}</p>
                         </div>
+                      )}
 
-                        <div>
-                          <label className="block text-sm font-medium text-cream-900 mb-2">
-                            Parent Value *
-                          </label>
-                          <SearchableDropdown
-                            label="Select Parent Value"
-                            value={subAttributeForm.parentValue}
-                            onChange={(value) => setSubAttributeForm({ ...subAttributeForm, parentValue: String(value || "") })}
-                            options={[
-                              { value: "", label: "Select Parent Value" },
-                              ...(() => {
-                                const selectedAttr = attributeTypes.find(attr => attr._id === subAttributeForm.parentAttribute);
-                                return selectedAttr?.attributeValues?.map((av: any) => ({
-                                  value: av.value,
-                                  label: av.label,
-                                })) || [];
-                              })()
-                            ]}
-                            className="w-full"
-                            searchPlaceholder="Search values..."
-                            enableSearch={(() => {
-                              const selectedAttr = attributeTypes.find(attr => attr._id === subAttributeForm.parentAttribute);
-                              return (selectedAttr?.attributeValues?.length || 0) > 5;
-                            })()}
-                          />
-                          <p className="text-xs text-cream-600 mt-1">The attribute value that triggers these sub-attributes</p>
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-sm text-cream-600">Front Image</p>
+                          {selectedUpload.frontImage && (
+                            <button
+                              onClick={() =>
+                                handleDownloadImage(
+                                  selectedUpload.frontImage!.data,
+                                  selectedUpload.frontImage!.filename ||
+                                  "front-image.jpg"
+                                )
+                              }
+                              className="px-3 py-1 text-xs bg-cream-900 text-white rounded-lg hover:bg-cream-800 transition-colors flex items-center gap-2"
+                            >
+                              <Download size={14} />
+                              Download
+                            </button>
+                          )}
                         </div>
-
-                        {/* Edit Mode - Edit Existing + Add New */}
-                        {editingSubAttributeId ? (
-                          <>
-                            {/* Section: Edit Existing Sub-Attribute */}
-                            <div className="border-b border-cream-200 pb-4 mb-4">
-                              <h4 className="text-sm font-semibold text-cream-900 mb-3">Edit Sub-Attribute</h4>
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                  <label className="block text-sm font-medium text-cream-900 mb-2">
-                                    Value *
-                                  </label>
-                                  <input
-                                    type="text"
-                                    value={subAttributeForm.value}
-                                    onChange={(e) => setSubAttributeForm({ ...subAttributeForm, value: e.target.value })}
-                                    className="w-full px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-900"
-                                    placeholder="e.g., shape-1"
-                                    required
-                                  />
-                                </div>
-                                <div>
-                                  <label className="block text-sm font-medium text-cream-900 mb-2">
-                                    Label *
-                                  </label>
-                                  <input
-                                    type="text"
-                                    value={subAttributeForm.label}
-                                    onChange={(e) => setSubAttributeForm({ ...subAttributeForm, label: e.target.value })}
-                                    className="w-full px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-900"
-                                    placeholder="e.g., Round Shape"
-                                    required
-                                  />
-                                </div>
-                                <div className="col-span-2">
-                                  <label className="block text-sm font-medium text-cream-900 mb-2">
-                                    System Name (Internal)
-                                  </label>
-                                  <input
-                                    type="text"
-                                    value={subAttributeForm.systemName}
-                                    onChange={(e) => setSubAttributeForm({ ...subAttributeForm, systemName: e.target.value })}
-                                    className="w-full px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-900 font-mono"
-                                    placeholder="e.g., INTERNAL_ID"
-                                  />
-                                </div>
+                        {selectedUpload.frontImage && (
+                          <div className="relative">
+                            {imageLoading[`modal-front-${selectedUpload._id}`] && (
+                              <div className="absolute inset-0 flex items-center justify-center bg-cream-100 rounded-lg">
+                                <Loader className="animate-spin text-cream-600" size={32} />
                               </div>
-
-                              <div className="mt-4">
-                                <label className="block text-sm font-medium text-cream-900 mb-2">
-                                  Image
-                                </label>
-                                {(() => {
-                                  const existingSubAttr = subAttributes.find(sa => sa._id === editingSubAttributeId);
-                                  return existingSubAttr?.image && !subAttributeForm.image ? (
-                                    <div className="mb-2">
-                                      <p className="text-xs text-cream-600 mb-1">Current image:</p>
-                                      <img src={existingSubAttr.image} alt="Current" className="w-32 h-32 object-cover rounded border border-cream-300" />
-                                    </div>
-                                  ) : null;
-                                })()}
-                                <input
-                                  type="file"
-                                  accept="image/*"
-                                  onChange={(e) => {
-                                    const file = e.target.files?.[0] || null;
-                                    setSubAttributeForm({ ...subAttributeForm, image: file });
-                                  }}
-                                  className="w-full px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-900"
-                                />
-                                {subAttributeForm.image && (
-                                  <div className="mt-2">
-                                    <p className="text-xs text-cream-600 mb-1">New image preview:</p>
-                                    <img
-                                      src={URL.createObjectURL(subAttributeForm.image)}
-                                      alt="Preview"
-                                      className="w-32 h-32 object-cover rounded border border-cream-300"
-                                    />
-                                  </div>
-                                )}
-                              </div>
-
-                              <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                  <label className="block text-sm font-medium text-cream-900 mb-2">
-                                    Price Addition (₹/piece)
-                                  </label>
-                                  <input
-                                    type="number"
-                                    step="0.01"
-                                    value={subAttributeForm.priceAdd}
-                                    onChange={(e) => setSubAttributeForm({ ...subAttributeForm, priceAdd: parseFloat(e.target.value) || 0 })}
-                                    className="w-full px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-900"
-                                    placeholder="0.00"
-                                  />
-                                  <p className="text-xs text-cream-600 mt-1">Fixed price addition per piece (e.g., 20 = +₹20/piece)</p>
-                                </div>
-                                <div className="flex items-end">
-                                  <label className="flex items-center gap-2">
-                                    <input
-                                      type="checkbox"
-                                      checked={subAttributeForm.isEnabled}
-                                      onChange={(e) => setSubAttributeForm({ ...subAttributeForm, isEnabled: e.target.checked })}
-                                      className="text-cream-900"
-                                    />
-                                    <span className="text-sm text-cream-700">Enabled</span>
-                                  </label>
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Section: Add New Sub-Attributes */}
-                            <div className="border-t border-cream-200 pt-4">
-                              <div className="flex justify-between items-center mb-3">
-                                <h4 className="text-sm font-semibold text-cream-900">Add New Sub-Attributes (Optional)</h4>
-                                <button
-                                  type="button"
-                                  onClick={addSubAttributeRow}
-                                  className="px-3 py-1.5 text-sm bg-cream-200 text-cream-900 rounded-lg hover:bg-cream-300 transition-colors flex items-center gap-2"
-                                >
-                                  <Plus size={16} />
-                                  Add Row
-                                </button>
-                              </div>
-                              <p className="text-xs text-cream-600 mb-4">You can add additional sub-attributes with the same parent attribute and value</p>
-
-                              {multipleSubAttributes.map((subAttr, index) => (
-                                <div key={index} className="border border-cream-200 rounded-lg p-4 bg-cream-50/50 mb-3">
-                                  <div className="flex justify-between items-center mb-3">
-                                    <h5 className="text-xs font-semibold text-cream-800">New Sub-Attribute #{index + 1}</h5>
-                                    {multipleSubAttributes.length > 1 && (
-                                      <button
-                                        type="button"
-                                        onClick={() => removeSubAttributeRow(index)}
-                                        className="text-red-600 hover:text-red-800 p-1"
-                                        title="Remove this row"
-                                      >
-                                        <Trash2 size={14} />
-                                      </button>
-                                    )}
-                                  </div>
-
-                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                                    <div>
-                                      <label className="block text-xs font-medium text-cream-700 mb-1">
-                                        Value *
-                                      </label>
-                                      <input
-                                        type="text"
-                                        value={subAttr.value}
-                                        onChange={(e) => updateSubAttributeRow(index, "value", e.target.value)}
-                                        className="w-full px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-900 text-sm"
-                                        placeholder="e.g., shape-2"
-                                      />
-                                    </div>
-                                    <div>
-                                      <label className="block text-xs font-medium text-cream-700 mb-1">
-                                        Label *
-                                      </label>
-                                      <input
-                                        type="text"
-                                        value={subAttr.label}
-                                        onChange={(e) => updateSubAttributeRow(index, "label", e.target.value)}
-                                        className="w-full px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-900 text-sm"
-                                        placeholder="e.g., Square Shape"
-                                      />
-                                    </div>
-                                    <div className="col-span-2">
-                                      <label className="block text-xs font-medium text-cream-700 mb-1">
-                                        System Name
-                                      </label>
-                                      <input
-                                        type="text"
-                                        value={subAttr.systemName}
-                                        onChange={(e) => updateSubAttributeRow(index, "systemName", e.target.value)}
-                                        className="w-full px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-900 text-sm font-mono"
-                                        placeholder="INTERNAL_ID"
-                                      />
-                                    </div>
-                                  </div>
-
-                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                      <label className="block text-xs font-medium text-cream-700 mb-1">
-                                        Image
-                                      </label>
-                                      <input
-                                        type="file"
-                                        accept="image/*"
-                                        onChange={(e) => {
-                                          const file = e.target.files?.[0] || null;
-                                          updateSubAttributeRow(index, "image", file);
-                                        }}
-                                        className="w-full px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-900 text-sm"
-                                      />
-                                      {subAttr.image && (
-                                        <div className="mt-2">
-                                          <img
-                                            src={URL.createObjectURL(subAttr.image)}
-                                            alt="Preview"
-                                            className="w-24 h-24 object-cover rounded border border-cream-300"
-                                          />
-                                        </div>
-                                      )}
-                                    </div>
-                                    <div className="space-y-2">
-                                      <div>
-                                        <label className="block text-xs font-medium text-cream-700 mb-1">
-                                          Price Addition (₹/piece)
-                                        </label>
-                                        <input
-                                          type="number"
-                                          step="0.01"
-                                          value={subAttr.priceAdd}
-                                          onChange={(e) => updateSubAttributeRow(index, "priceAdd", parseFloat(e.target.value) || 0)}
-                                          className="w-full px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-900 text-sm"
-                                          placeholder="0.00"
-                                        />
-                                      </div>
-                                      <div>
-                                        <label className="flex items-center gap-2">
-                                          <input
-                                            type="checkbox"
-                                            checked={subAttr.isEnabled}
-                                            onChange={(e) => updateSubAttributeRow(index, "isEnabled", e.target.checked)}
-                                            className="text-cream-900"
-                                          />
-                                          <span className="text-xs text-cream-700">Enabled</span>
-                                        </label>
-                                      </div>
-                                    </div>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </>
-                        ) : (
-                          /* Create Mode - Multiple Sub-Attributes */
-                          <div className="space-y-4">
-                            <div className="flex justify-between items-center">
-                              <label className="block text-sm font-medium text-cream-900">
-                                Sub-Attributes ({multipleSubAttributes.length})
-                              </label>
-                              <button
-                                type="button"
-                                onClick={addSubAttributeRow}
-                                className="px-3 py-1.5 text-sm bg-cream-200 text-cream-900 rounded-lg hover:bg-cream-300 transition-colors flex items-center gap-2"
-                              >
-                                <Plus size={16} />
-                                Add Row
-                              </button>
-                            </div>
-
-                            {multipleSubAttributes.map((subAttr, index) => (
-                              <div key={index} className="border border-cream-200 rounded-lg p-4 bg-cream-50/50">
-                                <div className="flex justify-between items-center mb-3">
-                                  <h4 className="text-sm font-semibold text-cream-900">Sub-Attribute #{index + 1}</h4>
-                                  {multipleSubAttributes.length > 1 && (
-                                    <button
-                                      type="button"
-                                      onClick={() => removeSubAttributeRow(index)}
-                                      className="text-red-600 hover:text-red-800 p-1"
-                                      title="Remove this row"
-                                    >
-                                      <Trash2 size={16} />
-                                    </button>
-                                  )}
-                                </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                                  <div>
-                                    <label className="block text-xs font-medium text-cream-700 mb-1">
-                                      Value *
-                                    </label>
-                                    <input
-                                      type="text"
-                                      value={subAttr.value}
-                                      onChange={(e) => updateSubAttributeRow(index, "value", e.target.value)}
-                                      className="w-full px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-900 text-sm"
-                                      placeholder="e.g., shape-1"
-                                    />
-                                  </div>
-                                  <div>
-                                    <label className="block text-xs font-medium text-cream-700 mb-1">
-                                      Label *
-                                    </label>
-                                    <input
-                                      type="text"
-                                      value={subAttr.label}
-                                      onChange={(e) => updateSubAttributeRow(index, "label", e.target.value)}
-                                      className="w-full px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-900 text-sm"
-                                      placeholder="e.g., Round Shape"
-                                    />
-                                  </div>
-                                  <div className="col-span-2">
-                                    <label className="block text-xs font-medium text-cream-700 mb-1">
-                                      System Name
-                                    </label>
-                                    <input
-                                      type="text"
-                                      value={subAttr.systemName}
-                                      onChange={(e) => updateSubAttributeRow(index, "systemName", e.target.value)}
-                                      className="w-full px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-900 text-sm font-mono"
-                                      placeholder="INTERNAL_ID"
-                                    />
-                                  </div>
-                                </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                  <div>
-                                    <label className="block text-xs font-medium text-cream-700 mb-1">
-                                      Image
-                                    </label>
-                                    <input
-                                      type="file"
-                                      accept="image/*"
-                                      onChange={(e) => {
-                                        const file = e.target.files?.[0] || null;
-                                        updateSubAttributeRow(index, "image", file);
-                                      }}
-                                      className="w-full px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-900 text-sm"
-                                    />
-                                    {subAttr.image && (
-                                      <div className="mt-2">
-                                        <img
-                                          src={URL.createObjectURL(subAttr.image)}
-                                          alt="Preview"
-                                          className="w-24 h-24 object-cover rounded border border-cream-300"
-                                        />
-                                      </div>
-                                    )}
-                                  </div>
-                                  <div className="space-y-2">
-                                    <div>
-                                      <label className="block text-xs font-medium text-cream-700 mb-1">
-                                        Price Addition (₹/piece)
-                                      </label>
-                                      <input
-                                        type="number"
-                                        step="0.01"
-                                        value={subAttr.priceAdd}
-                                        onChange={(e) => updateSubAttributeRow(index, "priceAdd", parseFloat(e.target.value) || 0)}
-                                        className="w-full px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-900 text-sm"
-                                        placeholder="0.00"
-                                      />
-                                    </div>
-                                    <div>
-                                      <label className="flex items-center gap-2">
-                                        <input
-                                          type="checkbox"
-                                          checked={subAttr.isEnabled}
-                                          onChange={(e) => updateSubAttributeRow(index, "isEnabled", e.target.checked)}
-                                          className="text-cream-900"
-                                        />
-                                        <span className="text-xs text-cream-700">Enabled</span>
-                                      </label>
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
+                            )}
+                            <img
+                              src={getImageUrl(selectedUpload.frontImage.data, selectedUpload.frontImage.contentType) || PLACEHOLDER_IMAGE_LARGE}
+                              alt={selectedUpload.frontImage.filename}
+                              className={`w-full rounded-lg border border-cream-300 ${imageLoading[`modal-front-${selectedUpload._id}`] ? "opacity-0" : "opacity-100"} transition-opacity`}
+                              onLoad={() => setImageLoading(prev => ({ ...prev, [`modal-front-${selectedUpload._id}`]: false }))}
+                              onError={() => {
+                                setImageLoading(prev => ({ ...prev, [`modal-front-${selectedUpload._id}`]: false }));
+                                console.error("Failed to load image:", selectedUpload.frontImage?.filename);
+                              }}
+                              onLoadStart={() => setImageLoading(prev => ({ ...prev, [`modal-front-${selectedUpload._id}`]: true }))}
+                            />
                           </div>
                         )}
+                      </div>
 
-                        <div className="flex justify-end gap-3 pt-4 border-t border-cream-200">
-                          <button
-                            type="button"
-                            onClick={handleCancelSubAttributeEdit}
-                            className="px-4 py-2 border border-cream-300 text-cream-700 rounded-lg hover:bg-cream-50 transition-colors"
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            type="submit"
-                            disabled={loading}
-                            className="px-4 py-2 bg-cream-900 text-white rounded-lg hover:bg-cream-800 transition-colors disabled:opacity-50 flex items-center gap-2"
-                          >
-                            {loading && <Loader className="animate-spin" size={16} />}
-                            {editingSubAttributeId
-                              ? (multipleSubAttributes.some(sa => sa.value.trim() && sa.label.trim())
-                                ? "Update & Add New Sub-Attributes"
-                                : "Update Sub-Attribute")
-                              : "Create Sub-Attributes"}
-                          </button>
+                      {selectedUpload.backImage && (
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <p className="text-sm text-cream-600">Back Image</p>
+                            <button
+                              onClick={() =>
+                                handleDownloadImage(
+                                  selectedUpload.backImage!.data,
+                                  selectedUpload.backImage!.filename ||
+                                  "back-image.jpg"
+                                )
+                              }
+                              className="px-3 py-1 text-xs bg-cream-900 text-white rounded-lg hover:bg-cream-800 transition-colors flex items-center gap-2"
+                            >
+                              <Download size={14} />
+                              Download
+                            </button>
+                          </div>
+                          <div className="relative">
+                            {imageLoading[`modal-back-${selectedUpload._id}`] && (
+                              <div className="absolute inset-0 flex items-center justify-center bg-cream-100 rounded-lg">
+                                <Loader className="animate-spin text-cream-600" size={32} />
+                              </div>
+                            )}
+                            <img
+                              src={getImageUrl(selectedUpload.backImage.data, selectedUpload.backImage.contentType) || PLACEHOLDER_IMAGE_LARGE}
+                              alt={selectedUpload.backImage.filename}
+                              className={`w-full rounded-lg border border-cream-300 ${imageLoading[`modal-back-${selectedUpload._id}`] ? "opacity-0" : "opacity-100"} transition-opacity`}
+                              onLoad={() => setImageLoading(prev => ({ ...prev, [`modal-back-${selectedUpload._id}`]: false }))}
+                              onError={() => {
+                                setImageLoading(prev => ({ ...prev, [`modal-back-${selectedUpload._id}`]: false }));
+                                console.error("Failed to load image:", selectedUpload.backImage?.filename);
+                              }}
+                              onLoadStart={() => setImageLoading(prev => ({ ...prev, [`modal-back-${selectedUpload._id}`]: true }))}
+                            />
+                          </div>
                         </div>
-                      </form>
+                      )}
+
+                      <div>
+                        <p className="text-sm text-cream-600">Uploaded</p>
+                        <p className="text-cream-900">
+                          {!isClient
+                            ? 'Loading...'
+                            : new Date(selectedUpload.createdAt).toLocaleString()
+                          }
+                        </p>
+                      </div>
                     </div>
                   </div>
-                )}
+                </motion.div>
               </div>
-            </div>
-          )}
+            )
+          }
+        </AnimatePresence >
 
-          {/* Manage Users */}
-          {activeTab === "users" && (
-            <div className="space-y-6">
-              <div>
-                <h2 className="text-xl font-bold text-cream-900 mb-4">
-                  Create Employee
-                </h2>
-                <p className="text-sm text-cream-600 mb-4">
-                  Create a new employee account. Employees can access the employee dashboard to manage orders assigned to their departments.
-                </p>
-                <form onSubmit={handleCreateEmployee} className="space-y-4">
-                  <div>
+        {/* Delete Confirmation Modal */}
+        {
+          deleteConfirmModal.isOpen && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+              <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <AlertCircle className="text-red-600" size={24} />
+                  <h3 className="text-xl font-bold text-cream-900">
+                    Delete {deleteConfirmModal.type === 'category' ? 'Category' : 'Subcategory'}
+                  </h3>
+                </div>
+
+                <div className="mb-4">
+                  <p className="text-cream-700 mb-3">
+                    Are you sure you want to delete <strong>{deleteConfirmModal.name}</strong>?
+                  </p>
+
+                  {deleteConfirmModal.subcategoryCount > 0 && (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+                      <div className="flex items-start gap-2">
+                        <AlertCircle className="text-red-600 mt-0.5" size={20} />
+                        <div>
+                          <p className="text-red-800 font-semibold mb-1">
+                            ⚠️ Cannot Delete: This category has {deleteConfirmModal.subcategoryCount} subcategor{deleteConfirmModal.subcategoryCount === 1 ? 'y' : 'ies'}!
+                          </p>
+                          <p className="text-red-700 text-sm">
+                            Please delete or reassign all subcategories before deleting this category.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {deleteConfirmModal.productCount > 0 && (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+                      <div className="flex items-start gap-2">
+                        <AlertCircle className="text-red-600 mt-0.5" size={20} />
+                        <div>
+                          <p className="text-red-800 font-semibold mb-1">
+                            ⚠️ Warning: This will delete {deleteConfirmModal.productCount} product{deleteConfirmModal.productCount !== 1 ? 's' : ''}!
+                          </p>
+                          <p className="text-red-700 text-sm">
+                            All products under this {deleteConfirmModal.type === 'category' ? 'category and its subcategories' : 'subcategory'} will be permanently deleted. This action cannot be undone.
+                          </p>
+                          <p className="text-red-700 text-sm mt-2 font-medium">
+                            Please be careful before proceeding.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="mb-4">
                     <label className="block text-sm font-medium text-cream-900 mb-2">
-                      Name *
+                      Type <strong>"delete"</strong> to confirm:
                     </label>
                     <input
                       type="text"
-                      required
-                      value={createEmployeeForm.name}
-                      onChange={(e) =>
-                        setCreateEmployeeForm({
-                          ...createEmployeeForm,
-                          name: e.target.value,
-                        })
-                      }
-                      placeholder="Enter employee name"
+                      value={deleteConfirmModal.deleteText}
+                      onChange={(e) => setDeleteConfirmModal({ ...deleteConfirmModal, deleteText: e.target.value })}
                       className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
+                      placeholder="Type 'delete' to confirm"
+                      autoFocus
                     />
                   </div>
+                </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-cream-900 mb-2">
-                      Email *
-                    </label>
-                    <input
-                      type="email"
-                      required
-                      value={createEmployeeForm.email}
-                      onChange={(e) =>
-                        setCreateEmployeeForm({
-                          ...createEmployeeForm,
-                          email: e.target.value,
-                        })
-                      }
-                      placeholder="Enter employee email"
-                      className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-cream-900 mb-2">
-                      Password *
-                    </label>
-                    <input
-                      type="password"
-                      required
-                      value={createEmployeeForm.password}
-                      onChange={(e) =>
-                        setCreateEmployeeForm({
-                          ...createEmployeeForm,
-                          password: e.target.value,
-                        })
-                      }
-                      placeholder="Enter password"
-                      className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
-                    />
-                  </div>
-
+                <div className="flex gap-3">
                   <button
-                    type="submit"
-                    disabled={loading}
-                    className="w-full bg-cream-900 text-white px-6 py-3 rounded-lg font-medium hover:bg-cream-800 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                    onClick={() => setDeleteConfirmModal({ ...deleteConfirmModal, isOpen: false, deleteText: '' })}
+                    className="flex-1 px-4 py-2 border border-cream-300 text-cream-700 rounded-lg hover:bg-cream-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (deleteConfirmModal.type === 'category') {
+                        confirmDeleteCategory();
+                      } else {
+                        confirmDeleteSubCategory();
+                      }
+                    }}
+                    disabled={deleteConfirmModal.deleteText.toLowerCase() !== 'delete' || loading || deleteConfirmModal.subcategoryCount > 0}
+                    className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {loading ? (
                       <>
-                        <Loader className="animate-spin" size={20} />
-                        Creating...
+                        <Loader className="animate-spin inline mr-2" size={16} />
+                        Deleting...
                       </>
                     ) : (
-                      <>
-                        <UserPlus size={20} />
-                        Create Employee
-                      </>
+                      'Delete'
                     )}
                   </button>
-                </form>
-              </div>
-
-              <div className="border-t border-cream-300 pt-6">
-                <div>
-                  <h2 className="text-xl font-bold text-cream-900 mb-4">
-                    Update User Role
-                  </h2>
-                  <p className="text-sm text-cream-600 mb-4">
-                    Users are created through the signup page. Use this form to update existing users' roles to admin or employee.
-                  </p>
-                  <form onSubmit={handleUpdateUserRole} className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-cream-900 mb-2">
-                        Username (Name) *
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={userRoleForm.username}
-                        onChange={(e) =>
-                          setUserRoleForm({
-                            ...userRoleForm,
-                            username: e.target.value,
-                          })
-                        }
-                        placeholder="Enter user's name"
-                        className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-cream-900 mb-2">
-                        Role *
-                      </label>
-                      <ReviewFilterDropdown
-                        label="Select Role"
-                        value={userRoleForm.role}
-                        onChange={(value) =>
-                          setUserRoleForm({
-                            ...userRoleForm,
-                            role: value as string,
-                          })
-                        }
-                        options={[
-                          { value: "user", label: "User" },
-                          { value: "admin", label: "Admin" },
-                          { value: "emp", label: "Employee" },
-                        ]}
-                        className="w-full"
-                      />
-                    </div>
-
-                    <button
-                      type="submit"
-                      disabled={loading}
-                      className="w-full bg-cream-900 text-white px-6 py-3 rounded-lg font-medium hover:bg-cream-800 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-                    >
-                      {loading ? (
-                        <>
-                          <Loader className="animate-spin" size={20} />
-                          Updating...
-                        </>
-                      ) : (
-                        <>
-                          <Settings size={20} />
-                          Update Role
-                        </>
-                      )}
-                    </button>
-                  </form>
                 </div>
-              </div>
-
-              <div className="border-t border-cream-300 pt-6">
-                <div className="mb-4 flex justify-between items-center">
-                  <h2 className="text-xl font-bold text-cream-900">
-                    All Users ({users.length})
-                  </h2>
-                  <button
-                    onClick={fetchUsers}
-                    className="px-4 py-2 bg-cream-200 text-cream-900 rounded-lg hover:bg-cream-300 transition-colors"
-                  >
-                    Refresh
-                  </button>
-                </div>
-
-                {users.length === 0 ? (
-                  <div className="text-center py-12 text-cream-600">
-                    <Users size={48} className="mx-auto mb-4 opacity-50" />
-                    <p>No users found</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {users.map((user) => (
-                      <div
-                        key={user._id}
-                        className="border border-cream-300 rounded-lg p-4 flex items-center justify-between hover:shadow-md transition-shadow"
-                      >
-                        <div>
-                          <h3 className="font-semibold text-cream-900">
-                            {user.name}
-                          </h3>
-                          <p className="text-sm text-cream-600">{user.email}</p>
-                          <div className="flex items-center gap-2 mt-2">
-                            <span
-                              className={`inline - block px - 2 py - 1 rounded - full text - xs font - medium ${user.role === "admin"
-                                ? "bg-cream-900 text-white"
-                                : "bg-cream-200 text-cream-900"
-                                } `}
-                            >
-                              {user.role}
-                            </span>
-                            {user.isEmployee && (
-                              <span className="inline-block px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                Employee
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        <div className="text-xs text-cream-500">
-                          {user.createdAt
-                            ? new Date(user.createdAt).toLocaleDateString()
-                            : 'N/A'
-                          }
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
               </div>
             </div>
-          )}
+          )
+        }
 
-          {/* Print Partner Requests Tab */}
-          {activeTab === "print-partner-requests" && (
-            <div className="bg-white rounded-xl shadow-md border border-cream-200 p-6">
-              <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <div>
-                  <h2 className="text-2xl font-bold text-cream-900 mb-2">
-                    Print Partner Requests
-                  </h2>
-                  <p className="text-sm text-cream-600">
-                    Review and approve print partner registration requests
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                  <select
-                    value={printPartnerRequestFilter}
-                    onChange={(e) => {
-                      setPrintPartnerRequestFilter(e.target.value as typeof printPartnerRequestFilter);
-                      fetchPrintPartnerRequests();
-                    }}
-                    className="px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500 text-sm"
-                  >
-                    <option value="all">All Requests</option>
-                    <option value="pending">Pending</option>
-                    <option value="approved">Approved</option>
-                    <option value="rejected">Rejected</option>
-                  </select>
-                  <button
-                    onClick={fetchPrintPartnerRequests}
-                    className="px-4 py-2 bg-cream-200 text-cream-900 rounded-lg hover:bg-cream-300 transition-colors text-sm"
-                  >
-                    Refresh
-                  </button>
-                </div>
-              </div>
-
-              {printPartnerRequests.length === 0 ? (
-                <div className="text-center py-12 text-cream-600">
-                  <Briefcase size={48} className="mx-auto mb-4 opacity-50" />
-                  <p>No print partner requests found</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {printPartnerRequests.map((request) => (
-                    <div
-                      key={request._id}
-                      className={`border - 2 rounded - lg p - 5 transition - all ${request.status === "pending"
-                        ? "border-yellow-300 bg-yellow-50"
-                        : request.status === "approved"
-                          ? "border-green-300 bg-green-50"
-                          : "border-red-300 bg-red-50"
-                        } `}
-                    >
-                      <div className="flex flex-col lg:flex-row gap-4">
-                        <div className="flex-1">
-                          <div className="flex items-start justify-between mb-3">
-                            <div>
-                              <h3 className="text-lg font-bold text-cream-900 mb-1">
-                                {request.businessName}
-                              </h3>
-                              <p className="text-sm text-cream-600">
-                                Owner: {request.ownerName}
-                              </p>
-                            </div>
-                            <span
-                              className={`px - 3 py - 1 rounded - full text - xs font - semibold ${request.status === "pending"
-                                ? "bg-yellow-200 text-yellow-800"
-                                : request.status === "approved"
-                                  ? "bg-green-200 text-green-800"
-                                  : "bg-red-200 text-red-800"
-                                } `}
-                            >
-                              {request.status.toUpperCase()}
-                            </span>
-                          </div>
-
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-                            <div>
-                              <p className="text-xs text-cream-600 mb-1">Email</p>
-                              <p className="text-sm font-medium text-cream-900">{request.emailAddress}</p>
-                            </div>
-                            <div>
-                              <p className="text-xs text-cream-600 mb-1">Mobile</p>
-                              <p className="text-sm font-medium text-cream-900">+91 {request.mobileNumber}</p>
-                            </div>
-                            <div>
-                              <p className="text-xs text-cream-600 mb-1">WhatsApp</p>
-                              <p className="text-sm font-medium text-cream-900">+91 {request.whatsappNumber}</p>
-                            </div>
-                            {request.gstNumber && (
-                              <div>
-                                <p className="text-xs text-cream-600 mb-1">GST Number</p>
-                                <p className="text-sm font-medium text-cream-900">{request.gstNumber}</p>
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="mb-3">
-                            <p className="text-xs text-cream-600 mb-1">Business Address</p>
-                            <p className="text-sm text-cream-900">
-                              {request.fullBusinessAddress}, {request.city}, {request.state} - {request.pincode}
-                            </p>
-                          </div>
-
-                          {request.proofFileUrl && (
-                            <div className="mb-3">
-                              <p className="text-xs text-cream-600 mb-2">Proof Document</p>
-                              <img
-                                src={request.proofFileUrl}
-                                alt="Proof"
-                                className="max-w-xs h-auto rounded-lg border border-cream-200 cursor-pointer hover:opacity-80 transition-opacity"
-                                onClick={() => window.open(request.proofFileUrl, "_blank")}
-                              />
-                            </div>
-                          )}
-
-                          {request.status === "approved" && request.userId && (
-                            <div className="mt-3 p-3 bg-green-100 rounded-lg">
-                              <p className="text-xs text-green-700 mb-1">User Account Created</p>
-                              <p className="text-sm font-medium text-green-900">
-                                {request.userId.name} ({request.userId.email})
-                              </p>
-                            </div>
-                          )}
-
-                          {request.status === "rejected" && request.rejectionReason && (
-                            <div className="mt-3 p-3 bg-red-100 rounded-lg">
-                              <p className="text-xs text-red-700 mb-1">Rejection Reason</p>
-                              <p className="text-sm text-red-900">{request.rejectionReason}</p>
-                            </div>
-                          )}
-
-                          <div className="text-xs text-cream-500 mt-3">
-                            Submitted: {new Date(request.createdAt).toLocaleString()}
-                            {request.approvedAt && (
-                              <> | {request.status === "approved" ? "Approved" : "Rejected"}: {new Date(request.approvedAt).toLocaleString()}</>
-                            )}
-                          </div>
-                        </div>
-
-                        {request.status === "pending" && (
-                          <div className="flex flex-col gap-2 lg:w-48">
-                            <button
-                              onClick={() => handleApprovePrintPartnerRequest(request._id)}
-                              className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium flex items-center justify-center gap-2"
-                            >
-                              <CheckCircle size={18} />
-                              Approve
-                            </button>
-                            <button
-                              onClick={() => setSelectedRequestId(request._id)}
-                              className="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium flex items-center justify-center gap-2"
-                            >
-                              <XCircle size={18} />
-                              Reject
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Rejection Modal */}
-          <AnimatePresence>
-            {selectedRequestId && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
-                onClick={() => {
-                  setSelectedRequestId(null);
-                  setRejectionReason("");
-                }}
-              >
-                <motion.div
-                  initial={{ scale: 0.9, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  exit={{ scale: 0.9, opacity: 0 }}
-                  onClick={(e) => e.stopPropagation()}
-                  className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6"
-                >
-                  <h3 className="text-xl font-bold text-cream-900 mb-4">
-                    Reject Print Partner Request
-                  </h3>
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-cream-700 mb-2">
-                      Reason for Rejection <span className="text-red-500">*</span>
-                    </label>
-                    <textarea
-                      value={rejectionReason}
-                      onChange={(e) => setRejectionReason(e.target.value)}
-                      rows={4}
-                      className="w-full px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500 resize-none"
-                      placeholder="Please provide a reason for rejection..."
-                    />
-                  </div>
-                  <div className="flex gap-3">
-                    <button
-                      onClick={() => {
-                        setSelectedRequestId(null);
-                        setRejectionReason("");
-                      }}
-                      className="flex-1 px-4 py-2 border border-cream-300 text-cream-900 rounded-lg hover:bg-cream-50 transition-colors"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={() => handleRejectPrintPartnerRequest(selectedRequestId)}
-                      className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
-                    >
-                      Confirm Rejection
-                    </button>
-                  </div>
-                </motion.div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-      </div >
-
-      {/* Order Details Modal */}
-      <AnimatePresence>
+        {/* View Description Modal */}
         {
-          showOrderModal && selectedOrder && (
-            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto p-6"
-              >
-                <div className="flex justify-between items-center mb-6 pb-4 border-b border-cream-200">
-                  <div>
-                    <h2 className="text-2xl font-bold text-cream-900">
-                      Order #{selectedOrder.orderNumber}
-                    </h2>
-                    <p className="text-sm text-cream-600 mt-1">
-                      {!isClient
-                        ? 'Loading...'
-                        : new Date(selectedOrder.createdAt).toLocaleString()
-                      }
-                    </p>
+          viewDescriptionModal.isOpen && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+              <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <Eye className="text-blue-600" size={24} />
+                    <h3 className="text-xl font-bold text-cream-900">
+                      {viewDescriptionModal.type === 'category' ? 'Category' : 'Subcategory'} Description
+                    </h3>
                   </div>
                   <button
-                    onClick={() => {
-                      setShowOrderModal(false);
-                      setSelectedOrder(null);
-                      setOrderStatusUpdate({ status: "", deliveryDate: "", adminNotes: "" });
-                    }}
-                    className="p-2 hover:bg-cream-100 rounded-lg transition-colors"
+                    onClick={() => setViewDescriptionModal({ ...viewDescriptionModal, isOpen: false })}
+                    className="text-cream-600 hover:text-cream-900 transition-colors"
                   >
                     <X size={24} />
                   </button>
                 </div>
 
-                {/* Complete Order Information */}
-                <div className="space-y-6 mb-6">
-                  {/* Order Status */}
-                  <div className="flex items-center gap-4">
-                    <span className="text-sm font-medium text-cream-700">Status:</span>
-                    <div className={`px - 4 py - 2 rounded - full border - 2 ${selectedOrder.status === "completed" ? "bg-green-100 text-green-800 border-green-200" :
-                      selectedOrder.status === "processing" ? "bg-blue-100 text-blue-800 border-blue-200" :
-                        selectedOrder.status === "production_ready" ? "bg-orange-100 text-orange-800 border-orange-200" :
-                          selectedOrder.status === "request" ? "bg-yellow-100 text-yellow-800 border-yellow-200" :
-                            selectedOrder.status === "rejected" ? "bg-red-100 text-red-800 border-red-200" :
-                              "bg-gray-100 text-gray-800 border-gray-200"
-                      } `}>
-                      <span className="text-sm font-semibold capitalize">{selectedOrder.status}</span>
-                    </div>
-                  </div>
-
-                  {/* User Information */}
-                  <div className="bg-cream-50 rounded-lg p-4 border border-cream-200">
-                    <h3 className="font-bold text-cream-900 mb-3 flex items-center gap-2">
-                      <Users size={18} />
-                      Customer Information
-                    </h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div>
-                        <p className="text-xs text-cream-600 mb-1 font-medium">Customer Name</p>
-                        <p className="font-semibold text-cream-900 text-base">{selectedOrder.user.name}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-cream-600 mb-1 font-medium">Email Address</p>
-                        <p className="font-semibold text-cream-900 text-base">{selectedOrder.user.email}</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Product Information */}
-                  <div className="bg-cream-50 rounded-lg p-4 border border-cream-200">
-                    <h3 className="font-bold text-cream-900 mb-3 flex items-center gap-2">
-                      <Package size={18} />
-                      Product Information
-                    </h3>
-                    <div className="flex gap-4 mb-3">
-                      <img
-                        src={selectedOrder.product.image || PLACEHOLDER_IMAGE}
-                        alt={selectedOrder.product.name}
-                        className="w-24 h-24 object-cover rounded-lg border border-cream-200"
-                        onError={(e) => {
-                          const target = e.target as HTMLImageElement;
-                          target.src = PLACEHOLDER_IMAGE;
-                        }}
-                      />
-                      <div className="flex-1">
-                        <p className="font-bold text-cream-900 text-lg mb-1">{selectedOrder.product.name}</p>
-                        <p className="text-sm text-cream-600 mb-2">
-                          Category: {selectedOrder.product.category && typeof selectedOrder.product.category === "object" && selectedOrder.product.category !== null && '_id' in selectedOrder.product.category
-                            ? ((selectedOrder.product.category as { _id: string; name: string }).name || "N/A")
-                            : (typeof selectedOrder.product.category === 'string' ? selectedOrder.product.category : "N/A")}
-                        </p>
-                        <p className="text-sm text-cream-600">
-                          Base Price: ₹{selectedOrder.product.basePrice?.toFixed(2) || "0.00"} per unit
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Order Customization Details */}
-                  <div className="bg-cream-50 rounded-lg p-4 border border-cream-200">
-                    <h3 className="font-bold text-cream-900 mb-3 flex items-center gap-2">
-                      <Settings size={18} />
-                      Customization Details
-                    </h3>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                      <div>
-                        <p className="text-xs text-cream-600 mb-1">Quantity</p>
-                        <p className="font-bold text-cream-900">{selectedOrder.quantity} units</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-cream-600 mb-1">Finish</p>
-                        <p className="font-bold text-cream-900">{selectedOrder.finish}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-cream-600 mb-1">Shape</p>
-                        <p className="font-bold text-cream-900">{selectedOrder.shape}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-cream-600 mb-1">Total Price</p>
-                        <p className="font-bold text-cream-900">₹{selectedOrder.totalPrice.toFixed(2)}</p>
-                      </div>
-                    </div>
-
-                    {selectedOrder.selectedOptions && selectedOrder.selectedOptions.length > 0 && (
-                      <div className="mt-4 pt-4 border-t border-cream-200">
-                        <p className="text-xs text-cream-600 mb-2 font-semibold">Selected Options</p>
-                        <div className="flex flex-wrap gap-2">
-                          {selectedOrder.selectedOptions.map((option, idx) => (
-                            <span
-                              key={idx}
-                              className="px-3 py-1 bg-cream-200 text-cream-800 rounded-full text-xs font-medium"
-                            >
-                              {typeof option === "string" ? option : (option.optionName || option.name || "Option")}
-                              {typeof option === "object" && option.priceAdd ? ` (+₹${option.priceAdd.toFixed(2)})` : ""}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Selected Dynamic Attributes */}
-                    {selectedOrder.selectedDynamicAttributes && selectedOrder.selectedDynamicAttributes.length > 0 && (
-                      <div className="mt-4 pt-4 border-t border-cream-200">
-                        <p className="text-xs text-cream-600 mb-2 font-semibold">Selected Attributes</p>
-                        <div className="space-y-2">
-                          {selectedOrder.selectedDynamicAttributes.map((attr, idx) => (
-                            <div
-                              key={idx}
-                              className="flex justify-between items-center p-2 rounded-lg bg-cream-100 border border-cream-200"
-                            >
-                              <div className="flex items-center gap-2">
-                                {attr.image && attr.image.trim() !== "" && (
-                                  <img src={attr.image} alt={attr.attributeName} className="w-8 h-8 object-cover rounded" />
-                                )}
-                                <div>
-                                  <p className="text-xs font-medium text-cream-900">{attr.attributeName}</p>
-                                  <p className="text-xs text-cream-600">{attr.label}</p>
-                                  {attr.description && <p className="text-xs text-cream-500 mt-0.5">{attr.description}</p>}
-                                </div>
-                              </div>
-                              {(attr.priceAdd > 0 || attr.priceMultiplier) && (
-                                <div className="text-right">
-                                  {attr.priceAdd > 0 && (
-                                    <span className="block text-xs font-bold text-cream-900">
-                                      +₹{attr.priceAdd.toFixed(2)}
-                                    </span>
-                                  )}
-                                  {attr.priceMultiplier && attr.priceMultiplier !== 1 && (
-                                    <span className="block text-xs text-cream-600">
-                                      ×{attr.priceMultiplier.toFixed(2)}
-                                    </span>
-                                  )}
-                                </div>
-                              )}
-                              {/* Display uploaded images if any */}
-                              {attr.uploadedImages && attr.uploadedImages.length > 0 && (
-                                <div className="mt-2 pt-2 border-t border-cream-200 w-full">
-                                  <p className="text-xs text-cream-600 mb-2 font-semibold">Uploaded Images:</p>
-                                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                                    {attr.uploadedImages.map((img, imgIdx) => {
-                                      // Convert buffer to base64 data URL for display
-                                      let imageUrl = '';
-                                      if (img.data) {
-                                        if (typeof img.data === 'string') {
-                                          imageUrl = `data:${img.contentType || 'image/jpeg'};base64,${img.data}`;
-                                        } else if (Buffer.isBuffer(img.data)) {
-                                          imageUrl = `data:${img.contentType || 'image/jpeg'};base64,${img.data.toString('base64')}`;
-                                        }
-                                      }
-                                      return imageUrl ? (
-                                        <div key={imgIdx} className="relative">
-                                          <img
-                                            src={imageUrl}
-                                            alt={img.filename || `Image ${imgIdx + 1}`}
-                                            className="w-full h-24 object-cover rounded border border-cream-200"
-                                          />
-                                          <p className="text-xs text-cream-500 mt-1 truncate">{img.filename}</p>
-                                        </div>
-                                      ) : null;
-                                    })}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Price Breakdown */}
-                  {(() => {
-                    const orderForCalc: OrderForCalculation = {
-                      quantity: selectedOrder.quantity,
-                      product: {
-                        basePrice: selectedOrder.product.basePrice || 0,
-                        gstPercentage: selectedOrder.product.gstPercentage || 18,
-                        options: selectedOrder.product.options,
-                        filters: selectedOrder.product.filters,
-                        quantityDiscounts: (selectedOrder.product as any)?.quantityDiscounts || [],
-                      },
-                      finish: selectedOrder.finish,
-                      shape: selectedOrder.shape,
-                      selectedOptions: selectedOrder.selectedOptions?.map((opt) => ({
-                        name: typeof opt === 'string' ? opt : (opt.optionName || opt.name || 'Option'),
-                        optionName: typeof opt === 'string' ? opt : (opt.optionName || opt.name || 'Option'),
-                        priceAdd: typeof opt === 'object' ? (opt.priceAdd || 0) : 0,
-                      })) || [],
-                      selectedDynamicAttributes: selectedOrder.selectedDynamicAttributes?.map((attr) => ({
-                        attributeName: attr.attributeName,
-                        label: attr.label,
-                        priceMultiplier: attr.priceMultiplier,
-                        priceAdd: attr.priceAdd,
-                      })),
-                    };
-
-                    const calculations = calculateOrderBreakdown(orderForCalc);
-
-                    return (
-                      <div className="bg-cream-50 rounded-lg p-4 border border-cream-200">
-                        <h3 className="font-bold text-cream-900 mb-3 flex items-center gap-2">
-                          <CreditCard size={18} />
-                          Price Breakdown
-                        </h3>
-                        <div className="space-y-2 text-sm">
-                          <div className="flex justify-between items-center pb-2 border-b border-cream-200">
-                            <div className="text-cream-600">
-                              <span>
-                                Base Price ({selectedOrder.quantity.toLocaleString()} ×{' '}
-                                {formatCurrency(selectedOrder.product.basePrice || 0)})
-                              </span>
-                            </div>
-                            <span className="font-medium text-cream-900">{formatCurrency(calculations.rawBaseTotal)}</span>
-                          </div>
-
-                          {calculations.discountPercentage > 0 && (
-                            <div className="flex justify-between items-center text-green-700 bg-green-50 p-2 rounded-md">
-                              <div>
-                                <span className="font-semibold">
-                                  Bulk Discount ({calculations.discountPercentage}%)
-                                </span>
-                                <p className="text-xs opacity-80">Applied for {selectedOrder.quantity} units</p>
-                              </div>
-                              <span className="font-bold">
-                                -{formatCurrency(calculations.rawBaseTotal - calculations.discountedBaseTotal)}
-                              </span>
-                            </div>
-                          )}
-
-                          {calculations.optionBreakdowns.map((opt, idx) => (
-                            <div key={idx} className="flex justify-between items-center text-cream-600">
-                              <span>
-                                {opt.name} {opt.isPerUnit ? `(${selectedOrder.quantity} × ${formatCurrency(opt.priceAdd)})` : ''}
-                              </span>
-                              <span>+{formatCurrency(opt.cost)}</span>
-                            </div>
-                          ))}
-
-                          {/* Show dynamic attributes if they have price impact */}
-                          {selectedOrder.selectedDynamicAttributes && selectedOrder.selectedDynamicAttributes.length > 0 && (
-                            <>
-                              {selectedOrder.selectedDynamicAttributes
-                                .filter(attr => attr.priceAdd > 0 || (attr.priceMultiplier && attr.priceMultiplier !== 1))
-                                .map((attr, idx) => {
-                                  // Calculate price impact for this attribute
-                                  const basePrice = selectedOrder.product.basePrice || 0;
-                                  let attributeCost = 0;
-                                  let pricePerUnit = 0;
-                                  if (attr.priceAdd > 0) {
-                                    pricePerUnit = attr.priceAdd;
-                                    attributeCost = attr.priceAdd * selectedOrder.quantity;
-                                  } else if (attr.priceMultiplier && attr.priceMultiplier !== 1) {
-                                    pricePerUnit = basePrice * (attr.priceMultiplier - 1);
-                                    attributeCost = pricePerUnit * selectedOrder.quantity;
-                                  }
-
-                                  if (attributeCost === 0) return null;
-
-                                  return (
-                                    <div key={`attr-${idx}`} className="flex justify-between items-center text-cream-600">
-                                      <span>
-                                        {attr.attributeName} ({attr.label})
-                                      </span>
-                                      <span>+{formatCurrency(pricePerUnit)}/unit × {selectedOrder.quantity.toLocaleString()} = {formatCurrency(attributeCost)}</span>
-                                    </div>
-                                  );
-                                })}
-                            </>
-                          )}
-
-                          <div className="flex justify-between items-center pt-2 font-medium text-cream-900 border-t border-cream-200">
-                            <span>Subtotal</span>
-                            <span>{formatCurrency(calculations.subtotal)}</span>
-                          </div>
-
-                          <div className="flex justify-between items-center text-cream-600 text-xs">
-                            <span>GST ({selectedOrder.product.gstPercentage || 18}%)</span>
-                            <span>+{formatCurrency(calculations.gstAmount)}</span>
-                          </div>
-
-                          <div className="flex justify-between items-center pt-3 mt-2 border-t-2 border-cream-300">
-                            <span className="text-base font-bold text-cream-900">Total Amount</span>
-                            <span className="text-lg font-bold text-cream-900">{formatCurrency(selectedOrder.totalPrice)}</span>
-                          </div>
-
-                          <div className="mt-3 pt-3 border-t border-cream-200">
-                            <div className="flex justify-between items-center mb-2">
-                              <span className="text-cream-600 text-xs">Advance Paid</span>
-                              <span className="font-medium text-green-700">
-                                {formatCurrency(selectedOrder.advancePaid || 0)}
-                              </span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                              <span className="text-cream-600 text-xs">Balance Due</span>
-                              <span
-                                className={`font-bold ${selectedOrder.totalPrice - (selectedOrder.advancePaid || 0) > 0
-                                  ? 'text-red-600'
-                                  : 'text-cream-500'
-                                  }`}
-                              >
-                                {formatCurrency(selectedOrder.totalPrice - (selectedOrder.advancePaid || 0))}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })()}
-
-                  {/* Delivery Information */}
-                  <div className="bg-cream-50 rounded-lg p-4 border border-cream-200">
-                    <h3 className="font-bold text-cream-900 mb-3 flex items-center gap-2">
-                      <Truck size={18} />
-                      Delivery Information
-                    </h3>
-                    <div className="space-y-3">
-                      <div>
-                        <p className="text-xs text-cream-600 mb-1">Complete Address</p>
-                        <p className="font-semibold text-cream-900 text-sm whitespace-pre-wrap">{selectedOrder.address || "N/A"}</p>
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        <div>
-                          <p className="text-xs text-cream-600 mb-1">Mobile Number</p>
-                          <p className="font-semibold text-cream-900">{selectedOrder.mobileNumber || "N/A"}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-cream-600 mb-1">Pincode</p>
-                          <p className="font-semibold text-cream-900">{selectedOrder.pincode}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-cream-600 mb-1">Delivery Date</p>
-                          <p className="font-semibold text-cream-900">
-                            {selectedOrder.deliveryDate
-                              ? (!isClient
-                                ? 'Loading...'
-                                : new Date(selectedOrder.deliveryDate).toLocaleDateString('en-US', {
-                                  year: 'numeric',
-                                  month: 'long',
-                                  day: 'numeric'
-                                }))
-                              : "Not set"}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Current Department Status */}
-                  {selectedOrder.currentDepartment && (
-                    <div className="bg-indigo-50 rounded-lg p-4 border border-indigo-200 mb-4">
-                      <h3 className="font-bold text-indigo-900 mb-2 flex items-center gap-2">
-                        <Building2 size={18} />
-                        Current Department
-                      </h3>
-                      <div className="flex items-center gap-3">
-                        <div className="px-4 py-2 bg-white rounded-lg border border-indigo-200">
-                          <p className="text-xs text-indigo-600 mb-1">Currently Working On</p>
-                          <p className="text-lg font-bold text-indigo-900">
-                            {typeof selectedOrder.currentDepartment === "object" && selectedOrder.currentDepartment !== null
-                              ? (selectedOrder.currentDepartment as { _id: string; name: string; sequence: number }).name
-                              : "Department"}
-                          </p>
-                          {selectedOrder.currentDepartmentIndex !== null && selectedOrder.currentDepartmentIndex !== undefined && (
-                            <p className="text-xs text-indigo-500 mt-1">
-                              Position in Sequence: #{selectedOrder.currentDepartmentIndex + 1}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Production Progress - Enhanced */}
-                  {selectedOrder.departmentStatuses && selectedOrder.departmentStatuses.length > 0 && (
-                    <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                      <div className="flex items-center justify-between mb-3">
-                        <h3 className="font-bold text-blue-900 flex items-center gap-2">
-                          <Truck size={18} />
-                          Production Progress
-                        </h3>
-                        {(() => {
-                          const totalStages = selectedOrder.departmentStatuses.length;
-                          const completedStages = selectedOrder.departmentStatuses.filter(ds => ds.status === "completed").length;
-                          const inProgressStages = selectedOrder.departmentStatuses.filter(ds => ds.status === "in_progress").length;
-
-                          return (
-                            <div className="text-xs text-blue-700 font-medium">
-                              {completedStages}/{totalStages} Stages Completed
-                              {inProgressStages > 0 && ` • ${inProgressStages} In Progress`}
-                            </div>
-                          );
-                        })()}
-                      </div>
-
-                      {/* Progress Bar */}
-                      {(() => {
-                        const totalStages = selectedOrder.departmentStatuses.length;
-                        const completedStages = selectedOrder.departmentStatuses.filter(ds => ds.status === "completed").length;
-                        const progressPercent = Math.round((completedStages / totalStages) * 100);
-
-                        return (
-                          <div className="mb-4">
-                            <div className="w-full bg-blue-200 rounded-full h-2.5 mb-1">
-                              <div
-                                className="bg-blue-600 h-2.5 rounded-full transition-all duration-500"
-                                style={{ width: `${progressPercent}%` }}
-                              />
-                            </div>
-                            <p className="text-xs text-blue-700 text-right">{progressPercent}% Complete</p>
-                          </div>
-                        );
-                      })()}
-
-                      <div className="space-y-2">
-                        {selectedOrder.departmentStatuses
-                          .sort((a, b) => {
-                            const seqA = typeof a.department === "object" ? a.department.sequence : 0;
-                            const seqB = typeof b.department === "object" ? b.department.sequence : 0;
-                            return seqA - seqB;
-                          })
-                          .map((deptStatus, idx) => {
-                            const deptName = typeof deptStatus.department === "object"
-                              ? deptStatus.department.name
-                              : "Department";
-                            const status = deptStatus.status;
-
-                            // Calculate duration if started and completed
-                            let durationText = "";
-                            if (deptStatus.startedAt && deptStatus.completedAt) {
-                              const start = new Date(deptStatus.startedAt);
-                              const end = new Date(deptStatus.completedAt);
-                              const durationMs = end.getTime() - start.getTime();
-                              const hours = Math.floor(durationMs / (1000 * 60 * 60));
-                              const minutes = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60));
-                              if (hours > 0) {
-                                durationText = `${hours}h ${minutes}m`;
-                              } else {
-                                durationText = `${minutes}m`;
-                              }
-                            }
-
-                            return (
-                              <div key={idx} className="flex items-start gap-3 p-3 bg-white rounded-lg border border-blue-100">
-                                <div className={`w-4 h-4 rounded-full mt-0.5 flex-shrink-0 ${status === "completed" ? "bg-green-500" :
-                                  status === "in_progress" ? "bg-blue-500 animate-pulse" :
-                                    status === "paused" ? "bg-yellow-500" :
-                                      status === "stopped" ? "bg-red-500" :
-                                        "bg-gray-300"
-                                  }`} />
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center justify-between mb-1">
-                                    <span className="text-sm font-semibold text-blue-900">{deptName}</span>
-                                    <span className={`text-xs px-2 py-1 rounded-full font-medium ${status === "completed" ? "bg-green-100 text-green-800" :
-                                      status === "in_progress" ? "bg-blue-100 text-blue-800" :
-                                        status === "paused" ? "bg-yellow-100 text-yellow-800" :
-                                          status === "stopped" ? "bg-red-100 text-red-800" :
-                                            "bg-gray-100 text-gray-800"
-                                      }`}>
-                                      {status.replace("_", " ").toUpperCase()}
-                                    </span>
-                                  </div>
-
-                                  {/* Timestamps */}
-                                  <div className="space-y-1 mt-2">
-                                    {deptStatus.whenAssigned && (
-                                      <div className="flex items-center gap-2 text-xs">
-                                        <Clock size={12} className="text-purple-600" />
-                                        <span className="text-purple-600">
-                                          Assigned: {new Date(deptStatus.whenAssigned).toLocaleString()}
-                                        </span>
-                                      </div>
-                                    )}
-                                    {deptStatus.startedAt && (
-                                      <div className="flex items-center gap-2 text-xs">
-                                        <Clock size={12} className="text-blue-600" />
-                                        <span className="text-blue-600">
-                                          Started: {new Date(deptStatus.startedAt).toLocaleString()}
-                                        </span>
-                                      </div>
-                                    )}
-                                    {deptStatus.completedAt && (
-                                      <div className="flex items-center gap-2 text-xs">
-                                        <CheckCircle size={12} className="text-green-600" />
-                                        <span className="text-green-600">
-                                          Completed: {new Date(deptStatus.completedAt).toLocaleString()}
-                                          {durationText && ` (Duration: ${durationText})`}
-                                        </span>
-                                      </div>
-                                    )}
-                                    {deptStatus.pausedAt && status === "paused" && (
-                                      <div className="flex items-center gap-2 text-xs">
-                                        <Clock size={12} className="text-yellow-600" />
-                                        <span className="text-yellow-600">
-                                          Paused: {new Date(deptStatus.pausedAt).toLocaleString()}
-                                        </span>
-                                      </div>
-                                    )}
-                                    {deptStatus.stoppedAt && status === "stopped" && (
-                                      <div className="flex items-center gap-2 text-xs">
-                                        <X size={12} className="text-red-600" />
-                                        <span className="text-red-600">
-                                          Stopped: {new Date(deptStatus.stoppedAt).toLocaleString()}
-                                        </span>
-                                      </div>
-                                    )}
-                                    {deptStatus.operator && (
-                                      <div className="flex items-center gap-2 text-xs mt-1">
-                                        <Users size={12} className="text-cream-600" />
-                                        <span className="text-cream-600">
-                                          Operator: {typeof deptStatus.operator === "object" && deptStatus.operator && '_id' in deptStatus.operator
-                                            ? `${deptStatus.operator.name || 'N/A'} (${('email' in deptStatus.operator && typeof deptStatus.operator.email === 'string' ? deptStatus.operator.email : 'N/A')})`
-                                            : 'N/A'}
-                                        </span>
-                                      </div>
-                                    )}
-                                    {deptStatus.notes && (
-                                      <div className="text-xs text-cream-600 mt-1 italic">
-                                        Notes: {deptStatus.notes}
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Production Timeline - Activity Log */}
-                  {selectedOrder.productionTimeline && selectedOrder.productionTimeline.length > 0 && (
-                    <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-lg p-4 border border-purple-200">
-                      <h3 className="font-bold text-purple-900 mb-3 flex items-center gap-2">
-                        <Clock size={18} />
-                        Production Activity Timeline
-                      </h3>
-                      <div className="space-y-2 max-h-96 overflow-y-auto">
-                        {Array.isArray(selectedOrder.productionTimeline) && selectedOrder.productionTimeline
-                          .sort((a: any, b: any) => (new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime()))
-                          .map((timelineItem: any, idx: number) => {
-                            const deptName = typeof timelineItem.department === "object"
-                              ? timelineItem.department.name
-                              : "Department";
-                            const operatorName = timelineItem.operator
-                              ? (typeof timelineItem.operator === "object"
-                                ? `${timelineItem.operator.name} (${timelineItem.operator.email})`
-                                : timelineItem.operator)
-                              : "System";
-
-                            const actionColors: { [key: string]: string } = {
-                              started: "bg-blue-100 text-blue-800 border-blue-300",
-                              paused: "bg-yellow-100 text-yellow-800 border-yellow-300",
-                              resumed: "bg-green-100 text-green-800 border-green-300",
-                              completed: "bg-green-100 text-green-800 border-green-300",
-                              stopped: "bg-red-100 text-red-800 border-red-300",
-                            };
-
-                            return (
-                              <div
-                                key={idx}
-                                className="flex items-start gap-3 p-3 bg-white rounded-lg border border-purple-100 shadow-sm hover:shadow-md transition-shadow"
-                              >
-                                <div className={`w-2 h-2 rounded-full mt-2 flex-shrink-0 ${timelineItem.action === "completed" ? "bg-green-500" :
-                                  timelineItem.action === "started" ? "bg-blue-500" :
-                                    timelineItem.action === "paused" ? "bg-yellow-500" :
-                                      timelineItem.action === "stopped" ? "bg-red-500" :
-                                        "bg-gray-400"
-                                  }`} />
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center justify-between mb-1 flex-wrap gap-2">
-                                    <span className="text-sm font-semibold text-purple-900">{deptName}</span>
-                                    <span className={`text-xs px-2 py-1 rounded-full font-medium border ${actionColors[timelineItem.action] || "bg-gray-100 text-gray-800 border-gray-300"
-                                      }`}>
-                                      {timelineItem.action.toUpperCase()}
-                                    </span>
-                                  </div>
-                                  <div className="flex items-center gap-2 text-xs text-purple-600 mb-1">
-                                    <Clock size={12} />
-                                    <span>{new Date(timelineItem.timestamp).toLocaleString()}</span>
-                                  </div>
-                                  {operatorName && (
-                                    <div className="flex items-center gap-2 text-xs text-purple-600 mb-1">
-                                      <Users size={12} />
-                                      <span>Operator: {operatorName}</span>
-                                    </div>
-                                  )}
-                                  {timelineItem.notes && (
-                                    <div className="text-xs text-purple-700 mt-1 italic bg-purple-50 p-2 rounded border border-purple-100">
-                                      {timelineItem.notes}
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          })}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Customer Notes */}
-                  {selectedOrder.notes && (
-                    <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                      <h3 className="font-bold text-blue-900 mb-2 flex items-center gap-2">
-                        <Info size={18} />
-                        Customer Notes
-                      </h3>
-                      <p className="text-sm text-blue-900 whitespace-pre-wrap">{selectedOrder.notes}</p>
-                    </div>
-                  )}
-
-                  {/* Admin Notes */}
-                  {selectedOrder.adminNotes && (
-                    <div className="bg-amber-50 rounded-lg p-4 border border-amber-200">
-                      <h3 className="font-bold text-amber-900 mb-2 flex items-center gap-2">
-                        <Settings size={18} />
-                        Admin Notes
-                      </h3>
-                      <p className="text-sm text-amber-900 whitespace-pre-wrap">{selectedOrder.adminNotes}</p>
-                    </div>
-                  )}
-
-                  {/* Uploaded Designs */}
-                  {(selectedOrder.uploadedDesign?.frontImage || selectedOrder.uploadedDesign?.backImage) && (
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.95 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ duration: 0.4 }}
-                      className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-lg p-6 border border-blue-200"
-                    >
-                      <h3 className="font-bold text-blue-900 mb-4 flex items-center gap-2 text-lg">
-                        <ImageIcon size={20} />
-                        Uploaded Customer Designs
-                      </h3>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                        {selectedOrder.uploadedDesign?.frontImage && (
-                          <motion.div
-                            initial={{ opacity: 0, x: -20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{ duration: 0.5, delay: 0.1 }}
-                          >
-                            <p className="text-sm font-semibold text-blue-700 mb-3 flex items-center gap-2">
-                              <FileText size={16} />
-                              Front Design
-                            </p>
-                            <div className="relative bg-white rounded-lg border-2 border-blue-200 p-4 shadow-md hover:shadow-lg transition-shadow">
-                              <img
-                                src={selectedOrder.uploadedDesign.frontImage.data || PLACEHOLDER_IMAGE_LARGE}
-                                alt="Front design"
-                                className="w-full h-80 object-contain rounded-lg"
-                                onError={(e) => {
-                                  const target = e.target as HTMLImageElement;
-                                  target.src = PLACEHOLDER_IMAGE_LARGE;
-                                }}
-                              />
-                              <div className="mt-3 pt-3 border-t border-blue-100 flex items-center justify-between">
-                                <div>
-                                  <p className="text-xs text-blue-600 font-medium">
-                                    File: {selectedOrder.uploadedDesign.frontImage.filename || "front-design.png"}
-                                  </p>
-                                  <p className="text-xs text-blue-500 mt-1">
-                                    Type: {selectedOrder.uploadedDesign.frontImage.contentType || "image/png"}
-                                  </p>
-                                </div>
-                                <button
-                                  onClick={() => {
-                                    const link = document.createElement('a');
-                                    link.href = selectedOrder.uploadedDesign.frontImage.data || PLACEHOLDER_IMAGE_LARGE;
-                                    link.download = selectedOrder.uploadedDesign.frontImage.filename || "front-design.png";
-                                    document.body.appendChild(link);
-                                    link.click();
-                                    document.body.removeChild(link);
-                                  }}
-                                  className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 text-sm"
-                                  title="Download image"
-                                >
-                                  <Download size={14} />
-                                  Download
-                                </button>
-                              </div>
-                            </div>
-                          </motion.div>
-                        )}
-                        {selectedOrder.uploadedDesign?.backImage && (
-                          <motion.div
-                            initial={{ opacity: 0, x: 20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{ duration: 0.5, delay: 0.2 }}
-                          >
-                            <p className="text-sm font-semibold text-blue-700 mb-3 flex items-center gap-2">
-                              <FileText size={16} />
-                              Back Design
-                            </p>
-                            <div className="relative bg-white rounded-lg border-2 border-blue-200 p-4 shadow-md hover:shadow-lg transition-shadow">
-                              <img
-                                src={selectedOrder.uploadedDesign.backImage.data || PLACEHOLDER_IMAGE_LARGE}
-                                alt="Back design"
-                                className="w-full h-80 object-contain rounded-lg"
-                                onError={(e) => {
-                                  const target = e.target as HTMLImageElement;
-                                  target.src = PLACEHOLDER_IMAGE_LARGE;
-                                }}
-                              />
-                              <div className="mt-3 pt-3 border-t border-blue-100 flex items-center justify-between">
-                                <div>
-                                  <p className="text-xs text-blue-600 font-medium">
-                                    File: {selectedOrder.uploadedDesign.backImage.filename || "back-design.png"}
-                                  </p>
-                                  <p className="text-xs text-blue-500 mt-1">
-                                    Type: {selectedOrder.uploadedDesign.backImage.contentType || "image/png"}
-                                  </p>
-                                </div>
-                                <button
-                                  onClick={() => {
-                                    const link = document.createElement('a');
-                                    link.href = selectedOrder.uploadedDesign.backImage.data || PLACEHOLDER_IMAGE_LARGE;
-                                    link.download = selectedOrder.uploadedDesign.backImage.filename || "back-design.png";
-                                    document.body.appendChild(link);
-                                    link.click();
-                                    document.body.removeChild(link);
-                                  }}
-                                  className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 text-sm"
-                                  title="Download image"
-                                >
-                                  <Download size={14} />
-                                  Download
-                                </button>
-                              </div>
-                            </div>
-                          </motion.div>
-                        )}
-                      </div>
-                    </motion.div>
-                  )}
-                </div>
-
-                {/* Order Management Section */}
-                {selectedOrder.status !== "cancelled" && (
-                  <div className="border-t border-cream-200 pt-6">
-                    <h3 className="font-bold text-cream-900 mb-4 flex items-center gap-2">
-                      <Settings size={18} />
-                      Manage Order
-                    </h3>
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-sm font-medium text-cream-900 mb-2">
-                          Order Status
-                        </label>
-                        <ReviewFilterDropdown
-                          label="Select Status"
-                          value={orderStatusUpdate.status}
-                          onChange={(value) =>
-                            setOrderStatusUpdate({ ...orderStatusUpdate, status: value as string })
-                          }
-                          options={[
-                            { value: "request", label: "Request" },
-                            { value: "processing", label: "Processing" },
-                            { value: "completed", label: "Completed" },
-                            { value: "rejected", label: "Rejected" },
-                          ]}
-                          className="w-full"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-cream-900 mb-2">
-                          Delivery Date
-                        </label>
-                        <input
-                          type="date"
-                          value={orderStatusUpdate.deliveryDate}
-                          onChange={(e) =>
-                            setOrderStatusUpdate({ ...orderStatusUpdate, deliveryDate: e.target.value })
-                          }
-                          className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-cream-900 mb-2">
-                          Admin Notes
-                        </label>
-                        <textarea
-                          value={orderStatusUpdate.adminNotes}
-                          onChange={(e) =>
-                            setOrderStatusUpdate({ ...orderStatusUpdate, adminNotes: e.target.value })
-                          }
-                          rows={4}
-                          className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
-                          placeholder="Add notes for this order..."
-                        />
-                      </div>
-
-                      <div className="flex gap-3 pt-4">
-                        <button
-                          onClick={() => handleUpdateOrderStatus(selectedOrder._id)}
-                          disabled={loading}
-                          className="flex-1 bg-cream-900 text-white px-6 py-3 rounded-lg font-medium hover:bg-cream-800 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-                        >
-                          {loading ? (
-                            <>
-                              <Loader className="animate-spin" size={20} />
-                              Updating...
-                            </>
-                          ) : (
-                            <>
-                              <Check size={20} />
-                              Update Order
-                            </>
-                          )}
-                        </button>
-                        <button
-                          onClick={() => {
-                            setShowOrderModal(false);
-                            setSelectedOrder(null);
-                            setOrderStatusUpdate({ status: "", deliveryDate: "", adminNotes: "" });
-                          }}
-                          className="px-6 py-3 border border-cream-300 rounded-lg hover:bg-cream-50 transition-colors"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </motion.div>
-            </div>
-          )
-        }
-      </AnimatePresence >
-
-      {/* Upload Modal */}
-      <AnimatePresence>
-        {
-          showUploadModal && selectedUpload && (
-            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto"
-              >
-                <div className="p-6">
-                  <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-2xl font-bold text-cream-900">
-                      Upload Details
-                    </h2>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => {
-                          if (selectedUpload && window.confirm("Are you sure you want to delete this uploaded image?")) {
-                            handleDeleteUpload(selectedUpload._id);
-                            setShowUploadModal(false);
-                            setSelectedUpload(null);
-                          }
-                        }}
-                        disabled={loading}
-                        className="p-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors disabled:opacity-50 flex items-center gap-2"
-                        title="Delete upload"
-                      >
-                        <Trash2 size={20} />
-                        Delete
-                      </button>
-                      <button
-                        onClick={() => {
-                          setShowUploadModal(false);
-                          setSelectedUpload(null);
-                        }}
-                        className="p-2 hover:bg-cream-100 rounded-lg transition-colors"
-                      >
-                        <X size={24} />
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-4">
-                    <div>
-                      <p className="text-sm text-cream-600">User</p>
-                      <p className="font-semibold text-cream-900">
-                        {selectedUpload.user.name} ({selectedUpload.user.email})
-                      </p>
-                    </div>
-
-                    <div>
-                      <p className="text-sm text-cream-600">Dimensions</p>
-                      <p className="font-semibold text-cream-900">
-                        {selectedUpload.width} × {selectedUpload.height}px
-                      </p>
-                    </div>
-
-                    {selectedUpload.description && (
-                      <div>
-                        <p className="text-sm text-cream-600">Description</p>
-                        <p className="text-cream-900">{selectedUpload.description}</p>
-                      </div>
-                    )}
-
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <p className="text-sm text-cream-600">Front Image</p>
-                        {selectedUpload.frontImage && (
-                          <button
-                            onClick={() =>
-                              handleDownloadImage(
-                                selectedUpload.frontImage!.data,
-                                selectedUpload.frontImage!.filename ||
-                                "front-image.jpg"
-                              )
-                            }
-                            className="px-3 py-1 text-xs bg-cream-900 text-white rounded-lg hover:bg-cream-800 transition-colors flex items-center gap-2"
-                          >
-                            <Download size={14} />
-                            Download
-                          </button>
-                        )}
-                      </div>
-                      {selectedUpload.frontImage && (
-                        <div className="relative">
-                          {imageLoading[`modal-front-${selectedUpload._id}`] && (
-                            <div className="absolute inset-0 flex items-center justify-center bg-cream-100 rounded-lg">
-                              <Loader className="animate-spin text-cream-600" size={32} />
-                            </div>
-                          )}
-                          <img
-                            src={getImageUrl(selectedUpload.frontImage.data, selectedUpload.frontImage.contentType) || PLACEHOLDER_IMAGE_LARGE}
-                            alt={selectedUpload.frontImage.filename}
-                            className={`w-full rounded-lg border border-cream-300 ${imageLoading[`modal-front-${selectedUpload._id}`] ? "opacity-0" : "opacity-100"} transition-opacity`}
-                            onLoad={() => setImageLoading(prev => ({ ...prev, [`modal-front-${selectedUpload._id}`]: false }))}
-                            onError={() => {
-                              setImageLoading(prev => ({ ...prev, [`modal-front-${selectedUpload._id}`]: false }));
-                              console.error("Failed to load image:", selectedUpload.frontImage?.filename);
-                            }}
-                            onLoadStart={() => setImageLoading(prev => ({ ...prev, [`modal-front-${selectedUpload._id}`]: true }))}
-                          />
-                        </div>
-                      )}
-                    </div>
-
-                    {selectedUpload.backImage && (
-                      <div>
-                        <div className="flex items-center justify-between mb-2">
-                          <p className="text-sm text-cream-600">Back Image</p>
-                          <button
-                            onClick={() =>
-                              handleDownloadImage(
-                                selectedUpload.backImage!.data,
-                                selectedUpload.backImage!.filename ||
-                                "back-image.jpg"
-                              )
-                            }
-                            className="px-3 py-1 text-xs bg-cream-900 text-white rounded-lg hover:bg-cream-800 transition-colors flex items-center gap-2"
-                          >
-                            <Download size={14} />
-                            Download
-                          </button>
-                        </div>
-                        <div className="relative">
-                          {imageLoading[`modal-back-${selectedUpload._id}`] && (
-                            <div className="absolute inset-0 flex items-center justify-center bg-cream-100 rounded-lg">
-                              <Loader className="animate-spin text-cream-600" size={32} />
-                            </div>
-                          )}
-                          <img
-                            src={getImageUrl(selectedUpload.backImage.data, selectedUpload.backImage.contentType) || PLACEHOLDER_IMAGE_LARGE}
-                            alt={selectedUpload.backImage.filename}
-                            className={`w-full rounded-lg border border-cream-300 ${imageLoading[`modal-back-${selectedUpload._id}`] ? "opacity-0" : "opacity-100"} transition-opacity`}
-                            onLoad={() => setImageLoading(prev => ({ ...prev, [`modal-back-${selectedUpload._id}`]: false }))}
-                            onError={() => {
-                              setImageLoading(prev => ({ ...prev, [`modal-back-${selectedUpload._id}`]: false }));
-                              console.error("Failed to load image:", selectedUpload.backImage?.filename);
-                            }}
-                            onLoadStart={() => setImageLoading(prev => ({ ...prev, [`modal-back-${selectedUpload._id}`]: true }))}
-                          />
-                        </div>
-                      </div>
-                    )}
-
-                    <div>
-                      <p className="text-sm text-cream-600">Uploaded</p>
-                      <p className="text-cream-900">
-                        {!isClient
-                          ? 'Loading...'
-                          : new Date(selectedUpload.createdAt).toLocaleString()
-                        }
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            </div>
-          )
-        }
-      </AnimatePresence >
-
-      {/* Delete Confirmation Modal */}
-      {
-        deleteConfirmModal.isOpen && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <AlertCircle className="text-red-600" size={24} />
-                <h3 className="text-xl font-bold text-cream-900">
-                  Delete {deleteConfirmModal.type === 'category' ? 'Category' : 'Subcategory'}
-                </h3>
-              </div>
-
-              <div className="mb-4">
-                <p className="text-cream-700 mb-3">
-                  Are you sure you want to delete <strong>{deleteConfirmModal.name}</strong>?
-                </p>
-
-                {deleteConfirmModal.subcategoryCount > 0 && (
-                  <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
-                    <div className="flex items-start gap-2">
-                      <AlertCircle className="text-red-600 mt-0.5" size={20} />
-                      <div>
-                        <p className="text-red-800 font-semibold mb-1">
-                          ⚠️ Cannot Delete: This category has {deleteConfirmModal.subcategoryCount} subcategor{deleteConfirmModal.subcategoryCount === 1 ? 'y' : 'ies'}!
-                        </p>
-                        <p className="text-red-700 text-sm">
-                          Please delete or reassign all subcategories before deleting this category.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {deleteConfirmModal.productCount > 0 && (
-                  <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
-                    <div className="flex items-start gap-2">
-                      <AlertCircle className="text-red-600 mt-0.5" size={20} />
-                      <div>
-                        <p className="text-red-800 font-semibold mb-1">
-                          ⚠️ Warning: This will delete {deleteConfirmModal.productCount} product{deleteConfirmModal.productCount !== 1 ? 's' : ''}!
-                        </p>
-                        <p className="text-red-700 text-sm">
-                          All products under this {deleteConfirmModal.type === 'category' ? 'category and its subcategories' : 'subcategory'} will be permanently deleted. This action cannot be undone.
-                        </p>
-                        <p className="text-red-700 text-sm mt-2 font-medium">
-                          Please be careful before proceeding.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
                 <div className="mb-4">
-                  <label className="block text-sm font-medium text-cream-900 mb-2">
-                    Type <strong>"delete"</strong> to confirm:
-                  </label>
-                  <input
-                    type="text"
-                    value={deleteConfirmModal.deleteText}
-                    onChange={(e) => setDeleteConfirmModal({ ...deleteConfirmModal, deleteText: e.target.value })}
-                    className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
-                    placeholder="Type 'delete' to confirm"
-                    autoFocus
-                  />
-                </div>
-              </div>
-
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setDeleteConfirmModal({ ...deleteConfirmModal, isOpen: false, deleteText: '' })}
-                  className="flex-1 px-4 py-2 border border-cream-300 text-cream-700 rounded-lg hover:bg-cream-50 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => {
-                    if (deleteConfirmModal.type === 'category') {
-                      confirmDeleteCategory();
-                    } else {
-                      confirmDeleteSubCategory();
-                    }
-                  }}
-                  disabled={deleteConfirmModal.deleteText.toLowerCase() !== 'delete' || loading || deleteConfirmModal.subcategoryCount > 0}
-                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {loading ? (
-                    <>
-                      <Loader className="animate-spin inline mr-2" size={16} />
-                      Deleting...
-                    </>
-                  ) : (
-                    'Delete'
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        )
-      }
-
-      {/* View Description Modal */}
-      {
-        viewDescriptionModal.isOpen && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <Eye className="text-blue-600" size={24} />
-                  <h3 className="text-xl font-bold text-cream-900">
-                    {viewDescriptionModal.type === 'category' ? 'Category' : 'Subcategory'} Description
-                  </h3>
-                </div>
-                <button
-                  onClick={() => setViewDescriptionModal({ ...viewDescriptionModal, isOpen: false })}
-                  className="text-cream-600 hover:text-cream-900 transition-colors"
-                >
-                  <X size={24} />
-                </button>
-              </div>
-
-              <div className="mb-4">
-                <h4 className="text-lg font-semibold text-cream-900 mb-2">
-                  {viewDescriptionModal.name}
-                </h4>
-                <div className="bg-cream-50 border border-cream-200 rounded-lg p-4 max-h-96 overflow-y-auto">
-                  <div
-                    className="text-cream-700 leading-relaxed rich-text-content"
-                    dangerouslySetInnerHTML={{ __html: viewDescriptionModal.description }}
-                  />
-                </div>
-              </div>
-
-              <div className="flex justify-end">
-                <button
-                  onClick={() => setViewDescriptionModal({ ...viewDescriptionModal, isOpen: false })}
-                  className="px-6 py-2 bg-cream-900 text-white rounded-lg hover:bg-cream-800 transition-colors"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
-        )
-      }
-
-      {/* Create Employee Modal (for Department Section) */}
-      <AnimatePresence>
-        {showCreateEmployeeModal && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              className="bg-white rounded-lg max-w-md w-full p-6"
-            >
-              <div className="flex justify-between items-center mb-6 pb-4 border-b border-cream-200">
-                <h2 className="text-xl font-bold text-cream-900">
-                  Create Employee
-                </h2>
-                <button
-                  onClick={() => {
-                    setShowCreateEmployeeModal(false);
-                    setCreateEmployeeModalForm({
-                      name: "",
-                      email: "",
-                      password: "",
-                    });
-                  }}
-                  className="p-2 hover:bg-cream-100 rounded-lg transition-colors"
-                >
-                  <X size={24} />
-                </button>
-              </div>
-
-              <form onSubmit={handleCreateEmployeeFromModal} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-cream-900 mb-2">
-                    Name *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={createEmployeeModalForm.name}
-                    onChange={(e) =>
-                      setCreateEmployeeModalForm({
-                        ...createEmployeeModalForm,
-                        name: e.target.value,
-                      })
-                    }
-                    placeholder="Enter employee name"
-                    className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-cream-900 mb-2">
-                    Email *
-                  </label>
-                  <input
-                    type="email"
-                    required
-                    value={createEmployeeModalForm.email}
-                    onChange={(e) =>
-                      setCreateEmployeeModalForm({
-                        ...createEmployeeModalForm,
-                        email: e.target.value,
-                      })
-                    }
-                    placeholder="Enter employee email"
-                    className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-cream-900 mb-2">
-                    Password *
-                  </label>
-                  <input
-                    type="password"
-                    required
-                    value={createEmployeeModalForm.password}
-                    onChange={(e) =>
-                      setCreateEmployeeModalForm({
-                        ...createEmployeeModalForm,
-                        password: e.target.value,
-                      })
-                    }
-                    placeholder="Enter password"
-                    className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
-                  />
-                </div>
-
-                <div className="flex gap-3 pt-4">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowCreateEmployeeModal(false);
-                      setCreateEmployeeModalForm({
-                        name: "",
-                        email: "",
-                        password: "",
-                      });
-                    }}
-                    className="flex-1 px-4 py-2 border border-cream-300 text-cream-700 rounded-lg hover:bg-cream-50 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="flex-1 px-4 py-2 bg-cream-900 text-white rounded-lg hover:bg-cream-800 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-                  >
-                    {loading ? (
-                      <>
-                        <Loader className="animate-spin" size={20} />
-                        Creating...
-                      </>
-                    ) : (
-                      <>
-                        <UserPlus size={20} />
-                        Create Employee
-                      </>
-                    )}
-                  </button>
-                </div>
-              </form>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* Create Department Modal (for Sequence Section) */}
-      <AnimatePresence>
-        {showCreateDepartmentModal && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6"
-            >
-              <div className="flex justify-between items-center mb-6 pb-4 border-b border-cream-200">
-                <h2 className="text-xl font-bold text-cream-900">
-                  Create Department
-                </h2>
-                <button
-                  onClick={() => {
-                    setShowCreateDepartmentModal(false);
-                    setCreateDepartmentModalForm({
-                      name: "",
-                      description: "",
-                      isEnabled: true,
-                      operators: [],
-                    });
-                  }}
-                  className="p-2 hover:bg-cream-100 rounded-lg transition-colors"
-                >
-                  <X size={24} />
-                </button>
-              </div>
-
-              <form onSubmit={handleCreateDepartmentFromModal} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-cream-900 mb-2">
-                    Department Name *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={createDepartmentModalForm.name}
-                    onChange={(e) =>
-                      setCreateDepartmentModalForm({
-                        ...createDepartmentModalForm,
-                        name: e.target.value,
-                      })
-                    }
-                    placeholder="Enter department name"
-                    className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-cream-900 mb-2">
-                    Description (Optional)
-                  </label>
-                  <textarea
-                    value={createDepartmentModalForm.description}
-                    onChange={(e) =>
-                      setCreateDepartmentModalForm({
-                        ...createDepartmentModalForm,
-                        description: e.target.value,
-                      })
-                    }
-                    placeholder="Enter department description"
-                    rows={3}
-                    className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="flex items-center gap-2 text-sm font-medium text-cream-900 mb-2">
-                    <input
-                      type="checkbox"
-                      checked={createDepartmentModalForm.isEnabled}
-                      onChange={(e) =>
-                        setCreateDepartmentModalForm({
-                          ...createDepartmentModalForm,
-                          isEnabled: e.target.checked,
-                        })
-                      }
-                      className="w-4 h-4 text-cream-900 border-cream-300 rounded focus:ring-cream-500"
+                  <h4 className="text-lg font-semibold text-cream-900 mb-2">
+                    {viewDescriptionModal.name}
+                  </h4>
+                  <div className="bg-cream-50 border border-cream-200 rounded-lg p-4 max-h-96 overflow-y-auto">
+                    <div
+                      className="text-cream-700 leading-relaxed rich-text-content"
+                      dangerouslySetInnerHTML={{ __html: viewDescriptionModal.description }}
                     />
-                    <span>Enabled</span>
-                  </label>
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="block text-sm font-medium text-cream-900">
-                      Assign Operators (Optional)
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => setShowCreateEmployeeModal(true)}
-                      className="px-3 py-1.5 text-xs bg-cream-900 text-white rounded-lg hover:bg-cream-800 transition-colors flex items-center gap-1.5"
-                    >
-                      <UserPlus size={14} />
-                      Create Employee
-                    </button>
-                  </div>
-                  <p className="text-xs text-cream-600 mb-2">
-                    Select employees who can perform actions for this department. Only employees can be assigned.
-                  </p>
-                  <div className="space-y-2 max-h-40 overflow-y-auto border border-cream-200 rounded-lg p-3">
-                    {employees.length === 0 ? (
-                      <p className="text-sm text-cream-600">No employees available. Create employees first.</p>
-                    ) : (
-                      employees.map((employee) => {
-                        const isAssigned = createDepartmentModalForm.operators.some((opId: any) =>
-                          String(opId) === String(employee._id)
-                        );
-
-                        return (
-                          <label key={employee._id} className="flex items-center gap-3 p-3 bg-cream-50 border border-cream-200 rounded-lg hover:bg-cream-100 transition-colors cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={isAssigned}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setCreateDepartmentModalForm({
-                                    ...createDepartmentModalForm,
-                                    operators: [...createDepartmentModalForm.operators, employee._id],
-                                  });
-                                } else {
-                                  setCreateDepartmentModalForm({
-                                    ...createDepartmentModalForm,
-                                    operators: createDepartmentModalForm.operators.filter((id: any) => String(id) !== String(employee._id)),
-                                  });
-                                }
-                              }}
-                              className="w-4 h-4 text-cream-900 border-cream-300 rounded focus:ring-cream-500 focus:ring-2"
-                            />
-                            <div className="flex-1">
-                              <p className="font-medium text-cream-900">{employee.name}</p>
-                              <p className="text-xs text-cream-600">{employee.email}</p>
-                            </div>
-                            {isAssigned && (
-                              <Check className="text-cream-900" size={20} />
-                            )}
-                          </label>
-                        );
-                      })
-                    )}
                   </div>
                 </div>
 
-                <div className="flex gap-3 pt-4">
+                <div className="flex justify-end">
                   <button
-                    type="button"
-                    onClick={() => {
-                      setShowCreateDepartmentModal(false);
-                      setCreateDepartmentModalForm({
-                        name: "",
-                        description: "",
-                        isEnabled: true,
-                        operators: [],
-                      });
-                    }}
-                    className="flex-1 px-4 py-2 border border-cream-300 text-cream-700 rounded-lg hover:bg-cream-50 transition-colors"
+                    onClick={() => setViewDescriptionModal({ ...viewDescriptionModal, isOpen: false })}
+                    className="px-6 py-2 bg-cream-900 text-white rounded-lg hover:bg-cream-800 transition-colors"
                   >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="flex-1 px-4 py-2 bg-cream-900 text-white rounded-lg hover:bg-cream-800 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-                  >
-                    {loading ? (
-                      <>
-                        <Loader className="animate-spin" size={20} />
-                        Creating...
-                      </>
-                    ) : (
-                      <>
-                        <Building2 size={20} />
-                        Create Department
-                      </>
-                    )}
+                    Close
                   </button>
                 </div>
-              </form>
-            </motion.div>
-          </div>
+              </div>
+            </div>
+          )
+        }
+
+        {/* Services Management */}
+        {activeTab === "services" && (
+          <ServiceManagement />
         )}
-      </AnimatePresence>
+
+        {/* Create Employee Modal (for Department Section) */}
+        <AnimatePresence>
+
+        </AnimatePresence>
+      </div >
     </div >
   );
 };
 
+// Force rebuild
 export default AdminDashboard;

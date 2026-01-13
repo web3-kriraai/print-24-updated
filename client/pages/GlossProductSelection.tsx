@@ -1106,6 +1106,10 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
       setLoading(true);
       setSelectedNestedSubcategoryId(nestedSubcategoryId);
 
+      // Find the selected nested subcategory to get its slug
+      const selectedNestedSubcat = availableNestedSubcategories.find(ns => ns._id === nestedSubcategoryId);
+      const nestedSubcategorySlug = selectedNestedSubcat?.slug || nestedSubcategoryId;
+
       // Fetch products for the selected nested subcategory
       const productsUrl = `${API_BASE_URL}/products/subcategory/${nestedSubcategoryId}`;
       const productsResponse = await fetch(productsUrl, {
@@ -1162,9 +1166,12 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
             const firstProduct = mappedProducts[0];
             setSelectedProduct(firstProduct);
 
-            // Update URL to reflect the new selection
+            // Create product slug from product name (convert to lowercase and replace spaces with hyphens)
+            const productSlug = firstProduct.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+
+            // Update URL to reflect the new selection using slugs
             if (categoryId && subCategoryId) {
-              navigate(`/services/${categoryId}/${subCategoryId}/${nestedSubcategoryId}/${firstProduct._id}`, { replace: false });
+              navigate(`/services/${categoryId}/${subCategoryId}/${nestedSubcategorySlug}/${productSlug}`, { replace: true });
             }
 
             // Reset filters for new product
@@ -2353,7 +2360,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                     if (!firstErrorField.current) {
                       const wrapper = document.querySelector(`[data-attribute="${attrType._id}"]`) as HTMLElement;
                       if (wrapper) {
-                        const imageSection = wrapper.querySelector('.bg-cream-50') as HTMLElement;
+                        const imageSection = wrapper.querySelector('.bg-gray-50') as HTMLElement;
                         firstErrorField.current = imageSection || wrapper;
                       }
                     }
@@ -3010,7 +3017,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
   return (
 
-    <div className="min-h-screen bg-cream-50 py-4 sm:py-8">
+    <div className="min-h-screen bg-gray-50 py-4 sm:py-8">
       {/* Preview Effect Styles */}
       <style>{`
         .preview-container {
@@ -3288,7 +3295,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                   ? "Back to Category"
                   : "Back to Home"
             }
-            className="text-sm sm:text-base text-cream-600 hover:text-cream-900"
+            className="text-sm sm:text-base text-gray-600 hover:text-gray-900"
           />
         </div>
 
@@ -3298,9 +3305,9 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3 }}
-            className="bg-white rounded-lg shadow-sm border border-cream-200 p-4 sm:p-6 mb-6"
+            className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6 mb-6"
           >
-            <h3 className="text-sm font-semibold text-cream-600 uppercase tracking-wider mb-4">
+            <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wider mb-4">
               Product Variants
             </h3>
             <div className="flex flex-wrap gap-3">
@@ -3309,8 +3316,8 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                   key={nestedSubcat._id}
                   onClick={() => handleNestedSubcategoryChange(nestedSubcat._id)}
                   className={`px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg border-2 font-medium transition-all text-sm sm:text-base ${selectedNestedSubcategoryId === nestedSubcat._id
-                    ? 'border-cream-800 bg-cream-800 text-white shadow-md'
-                    : 'border-cream-300 bg-white text-cream-700 hover:border-cream-600 hover:bg-cream-50'
+                    ? 'border-gray-800 bg-gray-800 text-white shadow-md'
+                    : 'border-gray-300 bg-white text-gray-700 hover:border-gray-600 hover:bg-gray-50'
                     }`}
                 >
                   {nestedSubcat.name}
@@ -3324,7 +3331,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
         {loading && (
           <div className="flex items-center justify-center py-20">
-            <Loader className="animate-spin text-cream-900" size={48} />
+            <Loader className="animate-spin text-gray-900" size={48} />
           </div>
         )}
 
@@ -3337,24 +3344,24 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
         {/* Loading state for PDP
         {pdpLoading && productId && (
-          <div className="min-h-screen flex items-center justify-center bg-cream-50">
+          <div className="min-h-screen flex items-center justify-center bg-gray-50">
             <div className="text-center">
-              <Loader className="w-8 h-8 animate-spin text-cream-900 mx-auto mb-4" />
-              <p className="text-cream-700">Loading product details...</p>
+              <Loader className="w-8 h-8 animate-spin text-gray-900 mx-auto mb-4" />
+              <p className="text-gray-700">Loading product details...</p>
             </div>
           </div>
         )} */}
 
         {/* Error state for PDP */}
         {pdpError && productId && (
-          <div className="min-h-screen flex items-center justify-center bg-cream-50">
+          <div className="min-h-screen flex items-center justify-center bg-gray-50">
             <div className="text-center max-w-md mx-auto p-6">
               <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-              <h2 className="text-xl font-bold text-cream-900 mb-2">Error Loading Product</h2>
-              <p className="text-cream-700 mb-4">{pdpError}</p>
+              <h2 className="text-xl font-bold text-gray-900 mb-2">Error Loading Product</h2>
+              <p className="text-gray-700 mb-4">{pdpError}</p>
               <button
                 onClick={() => window.location.reload()}
-                className="px-4 py-2 bg-cream-900 text-white rounded-lg hover:bg-cream-800"
+                className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800"
               >
                 Retry
               </button>
@@ -3371,7 +3378,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
               <div className="lg:w-1/2">
                 <div className="lg:sticky lg:top-24 space-y-4">
                   <motion.div
-                    className="bg-white p-4 sm:p-6 md:p-8 lg:p-12 rounded-2xl sm:rounded-3xl shadow-sm border border-cream-100 flex items-center justify-center min-h-[320px] sm:min-h-[420px] md:min-h-[520px] bg-cream-100/50"
+                    className="bg-white p-4 sm:p-6 md:p-8 lg:p-12 rounded-2xl sm:rounded-3xl shadow-sm border border-gray-100 flex items-center justify-center min-h-[320px] sm:min-h-[420px] md:min-h-[520px] bg-gray-100/50"
                   >
                     <div className="w-full h-full flex items-center justify-center">
                       {(() => {
@@ -3388,16 +3395,21 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                         // Only check for attribute images if user has explicitly selected at least one attribute
                         // This ensures the main product image is shown initially
                         if (selectedProduct && selectedProduct.dynamicAttributes && userSelectedAttributes.size > 0) {
-                          const sortedAttributes = [...selectedProduct.dynamicAttributes]
-                            .filter(attr => attr.isEnabled)
-                            .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+                          // Iterate through userSelectedAttributes in REVERSE order (most recent first)
+                          // to find the most recently selected attribute that has an image
+                          const selectionOrderArray = Array.from(userSelectedAttributes).reverse();
 
-                          for (const attr of sortedAttributes) {
+                          for (const attrId of selectionOrderArray) {
+                            // Find the attribute configuration for this ID
+                            const attr = selectedProduct.dynamicAttributes.find(a => {
+                              const aType = typeof a.attributeType === 'object' ? a.attributeType : null;
+                              return aType && aType._id === attrId;
+                            });
+
+                            if (!attr || !attr.isEnabled) continue;
+
                             const attrType = typeof attr.attributeType === 'object' ? attr.attributeType : null;
                             if (!attrType) continue;
-
-                            // Only use attribute image if user has explicitly selected this attribute
-                            if (!userSelectedAttributes.has(attrType._id)) continue;
 
                             const selectedValue = selectedDynamicAttributes[attrType._id];
                             if (!selectedValue) continue;
@@ -3409,9 +3421,24 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                               ? attr.customValues
                               : attrType.attributeValues || [];
 
-                            // Find the first selected value that has an image
                             let foundImage = false;
                             for (const val of selectedValues) {
+                              // Check for sub-attribute image first
+                              const subAttrKey = `${attrId}__${val}`;
+                              const selectedSubValue = selectedDynamicAttributes[subAttrKey];
+                              if (selectedSubValue) {
+                                const valueSubAttributesKey = `${attrId}:${val}`;
+                                const valueSubAttributes = pdpSubAttributes[valueSubAttributesKey] || [];
+                                const selectedSubAttr = valueSubAttributes.find(sa => sa.value === selectedSubValue);
+                                if (selectedSubAttr && selectedSubAttr.image && selectedSubAttr.image.trim() !== "") {
+                                  displayImage = selectedSubAttr.image;
+                                  displayAlt = `${attrType.attributeName} - ${selectedSubAttr.label}`;
+                                  foundImage = true;
+                                  break;
+                                }
+                              }
+
+                              // Then check for parent attribute value image
                               const selectedAttrValue = attributeValues.find((av: any) =>
                                 av.value === val || av.value === String(val)
                               );
@@ -3420,12 +3447,11 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                 displayImage = selectedAttrValue.image;
                                 displayAlt = `${attrType.attributeName} - ${selectedAttrValue.label}`;
                                 foundImage = true;
-                                // Use the first matching image and break
                                 break;
                               }
                             }
 
-                            // If we found an image, use it (prioritize by displayOrder) and stop searching
+                            // If we found an image for the most recent selection, use it and stop
                             if (foundImage) {
                               break;
                             }
@@ -3456,33 +3482,33 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
                   {/* Compact Order Summary - shown when a product is selected */}
                   {selectedProduct && (
-                    <div className="bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-cream-100 p-4 sm:p-5 md:p-6">
+                    <div className="bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-gray-100 p-4 sm:p-5 md:p-6">
                       <div className="flex items-center justify-between mb-3">
-                        <h2 className="text-sm sm:text-base font-semibold text-cream-900">
+                        <h2 className="text-sm sm:text-base font-semibold text-gray-900">
                           Order Summary
                         </h2>
-                        <span className="text-xs text-cream-500">
+                        <span className="text-xs text-white0">
                           Live estimate
                         </span>
                       </div>
 
-                      <div className="space-y-2 text-xs sm:text-sm text-cream-800">
+                      <div className="space-y-2 text-xs sm:text-sm text-gray-800">
                         <div className="flex justify-between">
-                          <span className="text-cream-600">Product</span>
+                          <span className="text-gray-600">Product</span>
                           <span className="font-medium text-right line-clamp-1 ml-2">
                             {selectedProduct.name}
                           </span>
                         </div>
 
                         <div className="flex justify-between">
-                          <span className="text-cream-600">Quantity</span>
+                          <span className="text-gray-600">Quantity</span>
                           <span className="font-medium">
                             {(quantity || 0).toLocaleString()}
                           </span>
                         </div>
 
                         <div className="flex justify-between">
-                          <span className="text-cream-600">Base price</span>
+                          <span className="text-gray-600">Base price</span>
                           <span className="font-medium">
                             ₹{(baseSubtotalBeforeDiscount || 0).toFixed(2)}
                           </span>
@@ -3492,7 +3518,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                           <>
                             {dynamicAttributesCharges.map((attrCharge, idx) => (
                               <div key={idx} className="flex justify-between">
-                                <span className="text-cream-600 text-[11px]">
+                                <span className="text-gray-600 text-[11px]">
                                   {attrCharge.name}: {attrCharge.label}
                                 </span>
                                 <span className="font-medium text-[11px]">
@@ -3505,7 +3531,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
                         {additionalDesignCharge > 0 && (
                           <div className="flex justify-between">
-                            <span className="text-cream-600">Design charge</span>
+                            <span className="text-gray-600">Design charge</span>
                             <span className="font-medium">
                               ₹{additionalDesignCharge.toFixed(2)}
                             </span>
@@ -3514,7 +3540,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
                         {gstAmount > 0 && (
                           <div className="flex justify-between">
-                            <span className="text-cream-600">
+                            <span className="text-gray-600">
                               GST ({selectedProduct.gstPercentage || 18}%)
                             </span>
                             <span className="font-medium">
@@ -3530,16 +3556,16 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                           </div>
                         )}
 
-                        <div className="border-t border-cream-200 mt-3 pt-3 flex justify-between items-center">
-                          <span className="text-xs sm:text-sm font-semibold text-cream-700">
+                        <div className="border-t border-gray-200 mt-3 pt-3 flex justify-between items-center">
+                          <span className="text-xs sm:text-sm font-semibold text-gray-700">
                             Estimated total
                           </span>
-                          <span className="text-base sm:text-lg font-bold text-cream-900">
+                          <span className="text-base sm:text-lg font-bold text-gray-900">
                             ₹{(price + gstAmount).toFixed(2)}
                           </span>
                         </div>
 
-                        <p className="text-[11px] text-cream-500 mt-1">
+                        <p className="text-[11px] text-white0 mt-1">
                           Final price may adjust slightly based on selected options and taxes at checkout.
                         </p>
                       </div>
@@ -3550,15 +3576,15 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
               {/* Right Side: Product List or Product Details */}
               <div className="lg:w-1/2">
-                <div className="bg-white p-4 sm:p-6 md:p-8 rounded-2xl sm:rounded-3xl shadow-lg border border-cream-100 min-h-[600px] lg:min-h-[700px] flex flex-col">
+                <div className="bg-white p-4 sm:p-6 md:p-8 rounded-2xl sm:rounded-3xl shadow-lg border border-gray-100 min-h-[600px] lg:min-h-[700px] flex flex-col">
                   {!selectedProduct ? (
                     /* Product Selection List or Nested Subcategories */
                     <div>
-                      <div className="mb-6 sm:mb-8 border-b border-cream-100 pb-4 sm:pb-6">
-                        <h1 className="font-serif text-xl sm:text-2xl md:text-3xl font-bold text-cream-900 mb-2">
+                      <div className="mb-6 sm:mb-8 border-b border-gray-100 pb-4 sm:pb-6">
+                        <h1 className="font-serif text-xl sm:text-2xl md:text-3xl font-bold text-gray-900 mb-2">
                           {selectedSubCategory?.name || "Products"}
                         </h1>
-                        <p className="text-sm sm:text-base text-cream-600">
+                        <p className="text-sm sm:text-base text-gray-600">
                           {nestedSubCategories.length > 0
                             ? "Select a subcategory to view products."
                             : "Select a product to customize and place your order."}
@@ -3586,10 +3612,10 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                   window.scrollTo({ top: 0, behavior: 'smooth' });
                                 }}
                               >
-                                <div className="w-full p-4 sm:p-5 rounded-xl border-2 border-cream-200 hover:border-cream-900 text-left transition-all duration-200 hover:bg-cream-50 group">
+                                <div className="w-full p-4 sm:p-5 rounded-xl border-2 border-gray-200 hover:border-gray-900 text-left transition-all duration-200 hover:bg-gray-50 group">
                                   <div className="flex items-start gap-4">
                                     {/* Subcategory Image */}
-                                    <div className="flex-shrink-0 w-20 sm:w-24 h-20 sm:h-24 rounded-lg overflow-hidden bg-cream-100 border border-cream-200">
+                                    <div className="flex-shrink-0 w-20 sm:w-24 h-20 sm:h-24 rounded-lg overflow-hidden bg-gray-100 border border-gray-200">
                                       <img
                                         src={imageUrl}
                                         alt={nestedSubCategory.name}
@@ -3600,19 +3626,19 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                     {/* Subcategory Content */}
                                     <div className="flex-1 flex flex-col min-w-0">
                                       <div className="flex items-start justify-between gap-3 mb-2">
-                                        <h3 className="font-serif text-base sm:text-lg font-bold text-cream-900 group-hover:text-cream-600 transition-colors flex-1">
+                                        <h3 className="font-serif text-base sm:text-lg font-bold text-gray-900 group-hover:text-gray-600 transition-colors flex-1">
                                           {nestedSubCategory.name}
                                         </h3>
-                                        <ArrowRight size={18} className="text-cream-400 group-hover:text-cream-600 group-hover:translate-x-1 transition-all flex-shrink-0" />
+                                        <ArrowRight size={18} className="text-gray-400 group-hover:text-gray-600 group-hover:translate-x-1 transition-all flex-shrink-0" />
                                       </div>
 
                                       {nestedSubCategory.description && (
-                                        <div className="text-cream-600 text-xs sm:text-sm mb-2 leading-relaxed">
+                                        <div className="text-gray-600 text-xs sm:text-sm mb-2 leading-relaxed">
                                           <p className="line-clamp-2">{nestedSubCategory.description}</p>
                                         </div>
                                       )}
 
-                                      <div className="mt-auto flex items-center text-cream-500 text-xs sm:text-sm font-medium">
+                                      <div className="mt-auto flex items-center text-white0 text-xs sm:text-sm font-medium">
                                         <span>View Products</span>
                                       </div>
                                     </div>
@@ -3627,7 +3653,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                         <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2">
                           {products.length === 0 ? (
                             <div className="text-center py-12">
-                              <p className="text-cream-600">No products available</p>
+                              <p className="text-gray-600">No products available</p>
                             </div>
                           ) : (
                             products.map((product) => {
@@ -3674,18 +3700,18 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                   key={product._id || product.id}
                                   data-product-select
                                   onClick={() => handleProductSelect(product)}
-                                  className="w-full p-3 sm:p-4 rounded-xl border-2 border-cream-200 hover:border-cream-900 text-left transition-all duration-200 hover:bg-cream-50 group"
+                                  className="w-full p-3 sm:p-4 rounded-xl border-2 border-gray-200 hover:border-gray-900 text-left transition-all duration-200 hover:bg-gray-50 group"
                                 >
                                   <div className="flex items-start justify-between gap-3 mb-2">
-                                    <h3 className="font-serif text-base sm:text-lg font-bold text-cream-900 group-hover:text-cream-600 transition-colors flex-1">
+                                    <h3 className="font-serif text-base sm:text-lg font-bold text-gray-900 group-hover:text-gray-600 transition-colors flex-1">
                                       {product.name}
                                     </h3>
                                     <div className="text-right flex-shrink-0">
-                                      <div className="text-lg sm:text-xl font-bold text-cream-900">
+                                      <div className="text-lg sm:text-xl font-bold text-gray-900">
                                         ₹{displayPrice}
                                       </div>
                                       {priceLabel && (
-                                        <div className="text-xs text-cream-500 mt-0.5">
+                                        <div className="text-xs text-white0 mt-0.5">
                                           {priceLabel}
                                         </div>
                                       )}
@@ -3693,12 +3719,12 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                   </div>
 
                                   {shortDescription && (
-                                    <div className="text-cream-600 text-xs sm:text-sm mb-2 leading-relaxed">
+                                    <div className="text-gray-600 text-xs sm:text-sm mb-2 leading-relaxed">
                                       <p className="line-clamp-3">{shortDescription}</p>
                                     </div>
                                   )}
 
-                                  <div className="mt-2 flex items-center text-cream-500 text-xs sm:text-sm font-medium">
+                                  <div className="mt-2 flex items-center text-white0 text-xs sm:text-sm font-medium">
                                     <span>View Details & Customize</span>
                                     <ArrowRight size={14} className="ml-2 group-hover:translate-x-1 transition-transform" />
                                   </div>
@@ -3722,24 +3748,25 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                       >
                         <div className="flex-1 overflow-y-auto pr-2">
                           {/* Product Header */}
-                          <div className="mb-6 sm:mb-8 border-b border-cream-100 pb-4 sm:pb-6 relative">
+                          <div className="mb-6 sm:mb-8 border-b border-gray-100 pb-4 sm:pb-6 relative">
                             <div className="flex items-start justify-between mb-2">
                               <BackButton
                                 onClick={() => {
                                   // Navigate back by removing the product from the URL
-                                  // IMPORTANT: When forcedProductId is set, URL structure is different
+                                  // IMPORTANT: Check for most specific case first (4-level URL with productId)
 
                                   if (forcedProductId) {
                                     // forcedProductId means VisitingCards is rendering us
                                     // This happens when a single product is directly under a category
                                     // Navigate to main digital-print page to avoid auto-redirect loop
                                     navigate("/services");
-                                  } else if (availableNestedSubcategories.length > 0 && subCategoryId && categoryId) {
-                                    // Product with nested subcategory filters → go back to parent subcategory
-                                    navigate(`/services/${categoryId}/${subCategoryId}`);
-                                  } else if (nestedSubCategoryId && subCategoryId && categoryId) {
-                                    // Product in nested subcategory → go back to nested subcategory products list
+                                  } else if (params.productId && nestedSubCategoryId && subCategoryId && categoryId) {
+                                    // 4-level URL: Product in nested subcategory → go back to nested subcategory products list
+                                    // This must be checked BEFORE availableNestedSubcategories to handle the correct case
                                     navigate(`/services/${categoryId}/${subCategoryId}/${nestedSubCategoryId}`);
+                                  } else if (availableNestedSubcategories.length > 0 && subCategoryId && categoryId) {
+                                    // Product with nested subcategory filters (not in a nested subcategory) → go back to parent subcategory
+                                    navigate(`/services/${categoryId}/${subCategoryId}`);
                                   } else if (subCategoryId && categoryId) {
                                     // Product in subcategory → go back to subcategory products list
                                     navigate(`/services/${categoryId}/${subCategoryId}`);
@@ -3755,10 +3782,10 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                 fallbackPath={
                                   forcedProductId
                                     ? "/services"
-                                    : availableNestedSubcategories.length > 0 && subCategoryId && categoryId
-                                      ? `/services/${categoryId}/${subCategoryId}`
-                                      : nestedSubCategoryId && subCategoryId && categoryId
-                                        ? `/services/${categoryId}/${subCategoryId}/${nestedSubCategoryId}`
+                                    : params.productId && nestedSubCategoryId && subCategoryId && categoryId
+                                      ? `/services/${categoryId}/${subCategoryId}/${nestedSubCategoryId}`
+                                      : availableNestedSubcategories.length > 0 && subCategoryId && categoryId
+                                        ? `/services/${categoryId}/${subCategoryId}`
                                         : subCategoryId && categoryId
                                           ? `/services/${categoryId}/${subCategoryId}`
                                           : categoryId
@@ -3766,25 +3793,27 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                             : "/services"
                                 }
                                 label={
-                                  nestedSubCategoryId
-                                    ? "Back to Subcategory"
-                                    : subCategoryId
+                                  params.productId && nestedSubCategoryId
+                                    ? "Back to Products"
+                                    : nestedSubCategoryId
                                       ? "Back to Subcategory"
-                                      : "Back to Category"
+                                      : subCategoryId
+                                        ? "Back to Subcategory"
+                                        : "Back to Category"
                                 }
-                                className="text-sm text-cream-600 hover:text-cream-900 mb-2"
+                                className="text-sm text-gray-600 hover:text-gray-900 mb-2"
                               />
                             </div>
                             <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
                               <div className="flex-1">
-                                <h1 className="font-serif text-xl sm:text-2xl md:text-3xl font-bold text-cream-900 mb-2">
+                                <h1 className="font-serif text-xl sm:text-2xl md:text-3xl font-bold text-gray-900 mb-2">
                                   {selectedProduct.name}
                                 </h1>
 
                                 {/* Product Variants Filter - Only shown when nested subcategories exist */}
                                 {availableNestedSubcategories.length > 0 && (
-                                  <div className="mb-4 bg-white p-4 rounded-xl border border-cream-200 shadow-sm">
-                                    <h3 className="text-xs font-bold text-cream-900 mb-3 tracking-wide uppercase">PRODUCT VARIANTS</h3>
+                                  <div className="mb-4 bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+                                    <h3 className="text-xs font-bold text-gray-900 mb-3 tracking-wide uppercase">PRODUCT VARIANTS</h3>
                                     <div className="flex flex-wrap gap-2">
                                       {availableNestedSubcategories.map((nestedSub) => {
                                         const isSelected = selectedNestedSubcategoryId === nestedSub._id;
@@ -3794,8 +3823,8 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                             onClick={() => handleNestedSubcategorySwitch(nestedSub._id)}
                                             disabled={loading}
                                             className={`px-4 py-2 rounded-lg border-2 transition-all text-sm font-medium ${isSelected
-                                              ? 'border-cream-900 bg-cream-900 text-white font-bold shadow-md'
-                                              : 'border-cream-300 bg-white text-cream-900 hover:border-cream-600 hover:bg-cream-50'
+                                              ? 'border-gray-900 bg-gray-900 text-white font-bold shadow-md'
+                                              : 'border-gray-300 bg-white text-gray-900 hover:border-gray-600 hover:bg-gray-50'
                                               } ${loading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
                                           >
                                             {nestedSub.name}
@@ -3809,7 +3838,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                 {/* Instructions Button */}
                                 <button
                                   onClick={() => setIsInstructionsOpen(!isInstructionsOpen)}
-                                  className="mt-2 mb-4 px-4 py-2 bg-cream-100 hover:bg-cream-200 text-cream-900 rounded-lg border border-cream-300 text-sm font-medium transition-all flex items-center gap-2"
+                                  className="mt-2 mb-4 px-4 py-2 bg-gray-100 hover:bg-purple-200 text-gray-900 rounded-lg border border-gray-300 text-sm font-medium transition-all flex items-center gap-2"
                                 >
                                   <Info size={16} />
                                   Instructions
@@ -3917,7 +3946,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                   )}
                                 </AnimatePresence>
 
-                                <div className="text-sm sm:text-base text-cream-600 space-y-2">
+                                <div className="text-sm sm:text-base text-gray-600 space-y-2">
                                   {(() => {
                                     // First check if description contains HTML (prioritize description field)
                                     if (selectedProduct.description) {
@@ -3967,7 +3996,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                         }
                                       `}</style>
                                             <div
-                                              className="product-description-html text-cream-600"
+                                              className="product-description-html text-gray-600"
                                               dangerouslySetInnerHTML={{ __html: selectedProduct.description }}
                                             />
                                           </>
@@ -3983,7 +4012,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                         return parts.map((part, idx) => {
                                           if (part.startsWith('**') && part.endsWith('**')) {
                                             const boldText = part.slice(2, -2);
-                                            return <strong key={idx} className="font-bold text-cream-800">{boldText}</strong>;
+                                            return <strong key={idx} className="font-bold text-gray-800">{boldText}</strong>;
                                           }
                                           return <span key={idx}>{part}</span>;
                                         });
@@ -3996,7 +4025,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                         if (desc.includes(':')) {
                                           return (
                                             <div key={i} className="mt-3 first:mt-0">
-                                              <p className="font-semibold text-cream-700 mb-1.5">
+                                              <p className="font-semibold text-gray-700 mb-1.5">
                                                 {renderTextWithBold(desc)}
                                               </p>
                                             </div>
@@ -4005,14 +4034,14 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                           const cleanDesc = desc.replace(/^[→•\-]+\s*/, '').trim();
                                           return (
                                             <p key={i} className="flex items-start">
-                                              <span className="mr-2 text-cream-500 mt-1">→</span>
+                                              <span className="mr-2 text-gray-500 mt-1">→</span>
                                               <span>{renderTextWithBold(cleanDesc)}</span>
                                             </p>
                                           );
                                         } else {
                                           return (
                                             <p key={i} className="flex items-start">
-                                              <span className="mr-2 text-cream-500 mt-1">→</span>
+                                              <span className="mr-2 text-gray-500 mt-1">→</span>
                                               <span>{renderTextWithBold(desc)}</span>
                                             </p>
                                           );
@@ -4026,7 +4055,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                         return parts.map((part, idx) => {
                                           if (part.startsWith('**') && part.endsWith('**')) {
                                             const boldText = part.slice(2, -2);
-                                            return <strong key={idx} className="font-bold text-cream-800">{boldText}</strong>;
+                                            return <strong key={idx} className="font-bold text-gray-800">{boldText}</strong>;
                                           }
                                           return <span key={idx}>{part}</span>;
                                         });
@@ -4035,7 +4064,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                         if (desc.includes(':')) {
                                           return (
                                             <div key={i} className="mt-3 first:mt-0">
-                                              <p className="font-semibold text-cream-700 mb-1.5">
+                                              <p className="font-semibold text-gray-700 mb-1.5">
                                                 {renderTextWithBold(desc)}
                                               </p>
                                             </div>
@@ -4044,30 +4073,30 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                           const cleanDesc = desc.replace(/^[→•\-]+\s*/, '').trim();
                                           return (
                                             <p key={i} className="flex items-start">
-                                              <span className="mr-2 text-cream-500 mt-1">→</span>
+                                              <span className="mr-2 text-gray-500 mt-1">→</span>
                                               <span>{renderTextWithBold(cleanDesc)}</span>
                                             </p>
                                           );
                                         } else {
                                           return (
                                             <p key={i} className="flex items-start">
-                                              <span className="mr-2 text-cream-500 mt-1">→</span>
+                                              <span className="mr-2 text-gray-500 mt-1">→</span>
                                               <span>{renderTextWithBold(desc)}</span>
                                             </p>
                                           );
                                         }
                                       });
                                     } else {
-                                      return <p className="text-cream-500 italic">No description available</p>;
+                                      return <p className="text-gray-500 italic">No description available</p>;
                                     }
                                   })()}
                                 </div>
                               </div>
 
                               {/* Per Unit Price Display - Top Right */}
-                              <div className="mt-4 sm:mt-0 sm:absolute sm:top-0 sm:right-0 bg-cream-50 p-4 rounded-lg border border-cream-200 min-w-[200px] shadow-sm">
-                                <p className="text-xs sm:text-sm text-cream-600 mb-1">Price Per Unit</p>
-                                <div className="text-2xl sm:text-3xl font-bold text-cream-900">
+                              <div className="mt-4 sm:mt-0 sm:absolute sm:top-0 sm:right-0 bg-gray-50 p-4 rounded-lg border border-gray-200 min-w-[200px] shadow-sm">
+                                <p className="text-xs sm:text-sm text-gray-600 mb-1">Price Per Unit</p>
+                                <div className="text-2xl sm:text-3xl font-bold text-gray-900">
                                   {(() => {
                                     // Use stored per unit price excluding GST
                                     const showIncludingGst = selectedProduct?.showPriceIncludingGst || false;
@@ -4078,7 +4107,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                     return `₹${perUnitPriceExcludingGst.toFixed(2)}`;
                                   })()}
                                 </div>
-                                <p className="text-xs text-cream-500 mt-1">
+                                <p className="text-xs text-gray-500 mt-1">
                                   {selectedProduct?.showPriceIncludingGst ? 'including GST' : 'excluding GST'}
                                 </p>
                               </div>
@@ -4098,7 +4127,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                 {/* Product Options (from options table) */}
                                 {hasOptions && (
                                   <div className="mb-6 sm:mb-8">
-                                    <label className="block text-xs sm:text-sm font-bold text-cream-900 mb-2 sm:mb-3 uppercase tracking-wider">
+                                    <label className="block text-xs sm:text-sm font-bold text-gray-900 mb-2 sm:mb-3 uppercase tracking-wider">
                                       {sectionNum++}. Product Options
                                     </label>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
@@ -4115,24 +4144,24 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                 setSelectedProductOptions([...selectedProductOptions, option.name]);
                                               }
                                             }}
-                                            className={`p-4 rounded-xl border text-left transition-all duration-200 relative ${isSelected
-                                              ? "border-cream-900 bg-cream-50 text-cream-900 ring-1 ring-cream-900"
-                                              : "border-cream-200 text-cream-600 hover:border-cream-400 hover:bg-cream-50"
+                                            className={`p-4 rounded-xl border text-left transition-all duration-200 relative shadow-sm hover:shadow-md ${isSelected
+                                              ? "border-slate-800 bg-slate-50 text-slate-900 ring-1 ring-slate-800"
+                                              : "border-slate-200 text-slate-600 hover:border-slate-400 hover:bg-slate-50"
                                               }`}
                                           >
                                             {isSelected && (
                                               <div className="absolute top-2 right-2">
-                                                <Check size={18} className="text-cream-900" />
+                                                <Check size={18} className="text-slate-900" />
                                               </div>
                                             )}
                                             <div className="font-bold text-sm mb-1">{option.name}</div>
                                             {option.description && (
-                                              <p className="text-xs text-cream-600 mt-1">
+                                              <p className="text-xs text-gray-600 mt-1">
                                                 {option.description}
                                               </p>
                                             )}
                                             {option.priceAdd !== undefined && option.priceAdd !== 0 && (
-                                              <p className="text-xs text-cream-700 mt-1 font-medium">
+                                              <p className="text-xs text-gray-700 mt-1 font-medium">
                                                 {option.priceAdd > 0 ? '+' : ''}₹{typeof option.priceAdd === 'number' ? option.priceAdd.toFixed(2) : parseFloat(option.priceAdd).toFixed(2)} per 1000 units
                                               </p>
                                             )}
@@ -4153,7 +4182,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                 {/* Printing Option - Auto-skip if only one option */}
                                 {hasPrintingOption && selectedProduct.filters.printingOption.length > 1 && (
                                   <div className="mb-6 sm:mb-8" data-section="printingOption">
-                                    <label className="block text-xs sm:text-sm font-bold text-cream-900 mb-2 sm:mb-3 uppercase tracking-wider">
+                                    <label className="block text-xs sm:text-sm font-bold text-gray-900 mb-2 sm:mb-3 uppercase tracking-wider">
                                       {sectionNum++}. Printing Option
                                     </label>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
@@ -4173,19 +4202,19 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                             key={option}
                                             data-field="printingOption"
                                             onClick={() => setSelectedPrintingOption(option)}
-                                            className={`p-4 rounded-xl border text-left transition-all duration-200 relative ${selectedPrintingOption === option
-                                              ? "border-cream-900 bg-cream-50 text-cream-900 ring-1 ring-cream-900"
-                                              : "border-cream-200 text-cream-600 hover:border-cream-400 hover:bg-cream-50"
+                                            className={`p-4 rounded-xl border text-left transition-all duration-200 relative shadow-sm hover:shadow-md ${selectedPrintingOption === option
+                                              ? "border-blue-500 bg-blue-50/50 text-blue-900 ring-1 ring-blue-500"
+                                              : "border-slate-200 text-slate-600 hover:border-blue-300 hover:bg-blue-50/30"
                                               }`}
                                           >
                                             {selectedPrintingOption === option && (
                                               <div className="absolute top-2 right-2">
-                                                <Check size={18} className="text-cream-900" />
+                                                <Check size={18} className="text-blue-600" />
                                               </div>
                                             )}
                                             <div className="font-bold text-sm">{option}</div>
                                             {priceInfo !== null && (
-                                              <div className="text-xs text-cream-600 mt-1">
+                                              <div className="text-xs text-gray-600 mt-1">
                                                 {priceInfo > 0 ? '+' : ''}₹{Math.abs(priceInfo).toFixed(2)} per 1000 units
                                               </div>
                                             )}
@@ -4199,7 +4228,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                 {/* Texture Type (if applicable) - Auto-skip if only one option */}
                                 {hasTextureType && selectedProduct.filters.textureType.length > 1 && (
                                   <div className="mb-6 sm:mb-8">
-                                    <label className="block text-xs sm:text-sm font-bold text-cream-900 mb-2 sm:mb-3 uppercase tracking-wider">
+                                    <label className="block text-xs sm:text-sm font-bold text-gray-900 mb-2 sm:mb-3 uppercase tracking-wider">
                                       {sectionNum++}. Texture Type
                                     </label>
                                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
@@ -4218,19 +4247,19 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                           <button
                                             key={texture}
                                             onClick={() => setSelectedTextureType(texture)}
-                                            className={`p-3 rounded-xl border text-xs sm:text-sm font-medium transition-all duration-200 relative ${selectedTextureType === texture
-                                              ? "border-cream-900 bg-cream-50 text-cream-900 ring-1 ring-cream-900"
-                                              : "border-cream-200 text-cream-600 hover:border-cream-400 hover:bg-cream-50"
+                                            className={`p-3 rounded-xl border text-xs sm:text-sm font-medium transition-all duration-200 relative shadow-sm hover:shadow-md ${selectedTextureType === texture
+                                              ? "border-purple-500 bg-purple-50/50 text-purple-900 ring-1 ring-purple-500"
+                                              : "border-slate-200 text-slate-600 hover:border-purple-300 hover:bg-purple-50/30"
                                               }`}
                                           >
                                             {selectedTextureType === texture && (
                                               <div className="absolute top-1 right-1">
-                                                <Check size={16} className="text-cream-900" />
+                                                <Check size={16} className="text-purple-600" />
                                               </div>
                                             )}
                                             <div>{texture}</div>
                                             {priceInfo !== null && (
-                                              <div className="text-xs text-cream-600 mt-1">
+                                              <div className="text-xs text-gray-600 mt-1">
                                                 {priceInfo > 0 ? '+' : ''}₹{Math.abs(priceInfo).toFixed(2)}/1k
                                               </div>
                                             )}
@@ -4244,7 +4273,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                 {/* Delivery Speed - Auto-skip if only one option */}
                                 {hasDeliverySpeed && selectedProduct.filters.deliverySpeed.length > 1 && (
                                   <div className="mb-6 sm:mb-8" data-section="deliverySpeed">
-                                    <label className="block text-xs sm:text-sm font-bold text-cream-900 mb-2 sm:mb-3 uppercase tracking-wider">
+                                    <label className="block text-xs sm:text-sm font-bold text-gray-900 mb-2 sm:mb-3 uppercase tracking-wider">
                                       {sectionNum++}. Delivery Speed
                                     </label>
                                     <div className="grid grid-cols-2 gap-2 sm:gap-3">
@@ -4264,19 +4293,19 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                             key={speed}
                                             data-field="deliverySpeed"
                                             onClick={() => setSelectedDeliverySpeed(speed)}
-                                            className={`p-4 rounded-xl border text-left transition-all duration-200 relative ${selectedDeliverySpeed === speed
-                                              ? "border-cream-900 bg-cream-50 text-cream-900 ring-1 ring-cream-900"
-                                              : "border-cream-200 text-cream-600 hover:border-cream-400 hover:bg-cream-50"
+                                            className={`p-4 rounded-xl border text-left transition-all duration-200 relative shadow-sm hover:shadow-md ${selectedDeliverySpeed === speed
+                                              ? "border-emerald-500 bg-emerald-50/50 text-emerald-900 ring-1 ring-emerald-500"
+                                              : "border-slate-200 text-slate-600 hover:border-emerald-300 hover:bg-emerald-50/30"
                                               }`}
                                           >
                                             {selectedDeliverySpeed === speed && (
                                               <div className="absolute top-2 right-2">
-                                                <Check size={18} className="text-cream-900" />
+                                                <Check size={18} className="text-emerald-600" />
                                               </div>
                                             )}
                                             <div className="font-bold text-sm">{speed}</div>
                                             {priceInfo !== null && (
-                                              <div className="text-xs text-cream-600 mt-1">
+                                              <div className="text-xs text-gray-600 mt-1">
                                                 {priceInfo > 0 ? '+' : ''}₹{Math.abs(priceInfo).toFixed(2)} per 1000 units
                                               </div>
                                             )}
@@ -4289,7 +4318,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
                                 {/* Quantity Selection */}
                                 <div className="mb-6 sm:mb-8" data-section="quantity">
-                                  <label className="block text-xs sm:text-sm font-bold text-cream-900 mb-2 sm:mb-3 uppercase tracking-wider">
+                                  <label className="block text-xs sm:text-sm font-bold text-gray-900 mb-2 sm:mb-3 uppercase tracking-wider">
                                     {sectionNum++}. Select Quantity
                                   </label>
 
@@ -4303,6 +4332,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                       onValueChange={(value) => setQuantity(Number(value))}
                                       placeholder="Select quantity"
                                       className="w-full"
+                                      colorTheme="amber"
                                     />
                                   </div>
 
@@ -4311,7 +4341,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                     if (activeQuantityConstraints) {
                                       const { min, max, step } = activeQuantityConstraints;
                                       return (
-                                        <div className="text-xs sm:text-sm text-cream-600 mb-2">
+                                        <div className="text-xs sm:text-sm text-gray-600 mb-2">
                                           <span className="font-medium">Quantity Rules Applied:</span> Min: {min.toLocaleString()}, Max: {max.toLocaleString()}, Step: {step.toLocaleString()}
                                         </div>
                                       );
@@ -4394,13 +4424,13 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                           .sort((a: number, b: number) => a - b);
 
                                         return (
-                                          <div className="text-xs sm:text-sm text-cream-600 mb-2">
+                                          <div className="text-xs sm:text-sm text-gray-600 mb-2">
                                             <span className="font-medium">{attributeName}:</span> Available quantities: {stepQuantities.map(q => q.toLocaleString()).join(", ")}
                                           </div>
                                         );
                                       } else if (attributeQuantityInfo.type === 'RANGE_WISE') {
                                         return (
-                                          <div className="text-xs sm:text-sm text-cream-600 mb-2 space-y-1">
+                                          <div className="text-xs sm:text-sm text-gray-600 mb-2 space-y-1">
                                             <div className="font-medium mb-1">{attributeName}:</div>
                                             {attributeQuantityInfo.rangeQuantities.map((range: any, idx: number) => {
                                               const min = typeof range === 'object' ? parseFloat(range.min) : 0;
@@ -4429,13 +4459,13 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
                                     if (quantityType === "STEP_WISE" && orderQuantity.stepWiseQuantities && orderQuantity.stepWiseQuantities.length > 0) {
                                       return (
-                                        <div className="text-xs sm:text-sm text-cream-600 mb-2">
+                                        <div className="text-xs sm:text-sm text-gray-600 mb-2">
                                           Available quantities: {orderQuantity.stepWiseQuantities.sort((a, b) => a - b).map(q => q.toLocaleString()).join(", ")}
                                         </div>
                                       );
                                     } else if (quantityType === "RANGE_WISE" && orderQuantity.rangeWiseQuantities && orderQuantity.rangeWiseQuantities.length > 0) {
                                       return (
-                                        <div className="text-xs sm:text-sm text-cream-600 mb-2 space-y-1">
+                                        <div className="text-xs sm:text-sm text-gray-600 mb-2 space-y-1">
                                           {orderQuantity.rangeWiseQuantities.map((range, idx) => (
                                             <div key={idx}>
                                               {range.label || `${range.min.toLocaleString()}${range.max ? ` - ${range.max.toLocaleString()}` : "+"} units`}
@@ -4450,7 +4480,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                       );
                                     } else {
                                       return (
-                                        <div className="text-xs sm:text-sm text-cream-600 mb-2">
+                                        <div className="text-xs sm:text-sm text-gray-600 mb-2">
                                           Min: {orderQuantity.min.toLocaleString()}, Max: {orderQuantity.max.toLocaleString()}, Multiples of: {orderQuantity.multiples.toLocaleString()}
                                         </div>
                                       );
@@ -4566,7 +4596,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                           if (attributeValues.length < 1) {
                                             return (
                                               <div key={attrId} className="mb-6 sm:mb-8 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                                                <label className="block text-xs sm:text-sm font-bold text-cream-900 mb-2 sm:mb-3 uppercase tracking-wider">
+                                                <label className="block text-xs sm:text-sm font-bold text-gray-900 mb-2 sm:mb-3 uppercase tracking-wider">
                                                   {sectionNum++}. {attrType.attributeName}
                                                   {isRequired && <span className="text-red-500 ml-1">*</span>}
                                                 </label>
@@ -4595,7 +4625,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
                                         return (
                                           <div key={attrId} className="mb-6 sm:mb-8">
-                                            <label className="block text-xs sm:text-sm font-bold text-cream-900 mb-2 sm:mb-3 uppercase tracking-wider">
+                                            <label className="block text-xs sm:text-sm font-bold text-gray-900 mb-2 sm:mb-3 uppercase tracking-wider">
                                               {sectionNum++}. {attrType.attributeName}
                                               {isRequired && <span className="text-red-500 ml-1">*</span>}
                                             </label>
@@ -4643,16 +4673,22 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                           ...selectedDynamicAttributes,
                                                           [attrId]: value
                                                         });
-                                                        // Mark this attribute as user-selected for image updates
-                                                        setUserSelectedAttributes(prev => new Set(prev).add(attrId));
+                                                        // Mark this attribute as user-selected for image updates (preserved order)
+                                                        setUserSelectedAttributes(prev => {
+                                                          const next = new Set(prev);
+                                                          next.delete(attrId);
+                                                          next.add(attrId);
+                                                          return next;
+                                                        });
                                                       }}
                                                       placeholder={`Select ${attrType.attributeName}`}
                                                       className="w-full"
+                                                      colorTheme={['indigo', 'rose', 'cyan', 'lime', 'fuchsia'][Math.abs(attrId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)) % 5] as any}
                                                     />
                                                     {/* Sub-attributes for selected value */}
                                                     {availableSubAttributes.length > 0 && (
                                                       <div className="mt-4">
-                                                        <label className="block text-xs font-semibold text-cream-700 mb-2">
+                                                        <label className="block text-xs font-semibold text-gray-700 mb-2">
                                                           Select {selectedValueObj?.label || attrType.attributeName} Option:
                                                         </label>
                                                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -4675,10 +4711,17 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                                     ...prev,
                                                                     [subAttrKey]: subAttr.value,
                                                                   }));
+                                                                  // Mark the parent attribute as user-selected for image updates (preserved order)
+                                                                  setUserSelectedAttributes(prev => {
+                                                                    const next = new Set(prev);
+                                                                    next.delete(attrId);
+                                                                    next.add(attrId);
+                                                                    return next;
+                                                                  });
                                                                 }}
                                                                 className={`p-3 rounded-lg border text-left transition-all ${isSubAttrSelected
-                                                                  ? "border-cream-900 bg-cream-50 ring-1 ring-cream-900"
-                                                                  : "border-cream-200 hover:border-cream-400"
+                                                                  ? "border-gray-900 bg-gray-50 ring-1 ring-gray-900"
+                                                                  : "border-gray-200 hover:border-gray-400"
                                                                   }`}
                                                               >
                                                                 {subAttr.image && (
@@ -4692,7 +4735,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                                 )}
                                                                 <div className="text-sm font-medium">{subAttr.label}</div>
                                                                 {getSubAttrPriceDisplay() && (
-                                                                  <div className="text-xs text-cream-600 mt-1">
+                                                                  <div className="text-xs text-gray-600 mt-1">
                                                                     {getSubAttrPriceDisplay()}
                                                                   </div>
                                                                 )}
@@ -4723,8 +4766,8 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                         : [];
 
                                                       return (
-                                                        <div className="mt-4 p-4 bg-cream-50 rounded-lg border border-cream-200">
-                                                          <label className="block text-sm font-semibold text-cream-900 mb-3">
+                                                        <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                                                          <label className="block text-sm font-semibold text-gray-900 mb-3">
                                                             Upload Images for {selectedOption.label} ({numberOfImagesRequired} required) *
                                                           </label>
                                                           <div className="space-y-3">
@@ -4752,11 +4795,11 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                                         });
                                                                       }
                                                                     }}
-                                                                    className="flex-1 px-3 py-2 border border-cream-300 rounded-lg text-sm"
+                                                                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm"
                                                                   />
                                                                   {file && (
                                                                     <div className="flex items-center gap-2">
-                                                                      <span className="text-xs text-cream-600 max-w-[150px] truncate">
+                                                                      <span className="text-xs text-gray-600 max-w-[150px] truncate">
                                                                         {file.name}
                                                                       </span>
                                                                       <button
@@ -4822,22 +4865,22 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                         });
                                                         setRadioModalOpen(true);
                                                       }}
-                                                      className="w-full px-4 py-3 border-2 border-dashed border-cream-300 rounded-xl hover:border-cream-400 hover:bg-cream-50 transition-all duration-200 text-left flex items-center justify-between group"
+                                                      className="w-full px-4 py-3 border-2 border-dashed border-gray-300 rounded-xl hover:border-gray-400 hover:bg-gray-50 transition-all duration-200 text-left flex items-center justify-between group"
                                                     >
                                                       <div className="flex-1">
-                                                        <span className="text-sm font-medium text-cream-700 group-hover:text-cream-900">
+                                                        <span className="text-sm font-medium text-gray-700 group-hover:text-gray-900">
                                                           {selectedDynamicAttributes[attrId]
                                                             ? attributeValues.find((av: any) => av.value === selectedDynamicAttributes[attrId])?.label || 'Select option'
                                                             : `Select ${attrType.attributeName}${isRequired ? ' *' : ''}`
                                                           }
                                                         </span>
                                                         {selectedDynamicAttributes[attrId] && (
-                                                          <div className="text-xs text-cream-500 mt-1">
+                                                          <div className="text-xs text-white0 mt-1">
                                                             Click to change selection
                                                           </div>
                                                         )}
                                                       </div>
-                                                      <ArrowRight size={18} className="text-cream-400 group-hover:text-cream-600 transition-colors" />
+                                                      <ArrowRight size={18} className="text-gray-400 group-hover:text-gray-600 transition-colors" />
                                                     </button>
                                                     {/* Image upload fields if selected option requires images */}
                                                     {(() => {
@@ -4860,8 +4903,8 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                         : [];
 
                                                       return (
-                                                        <div className="mt-4 p-4 bg-cream-50 rounded-lg border border-cream-200">
-                                                          <label className="block text-sm font-semibold text-cream-900 mb-3">
+                                                        <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                                                          <label className="block text-sm font-semibold text-gray-900 mb-3">
                                                             Upload Images for {selectedOption.label} ({numberOfImagesRequired} required) *
                                                           </label>
                                                           <div className="space-y-3">
@@ -4889,11 +4932,11 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                                         });
                                                                       }
                                                                     }}
-                                                                    className="flex-1 px-3 py-2 border border-cream-300 rounded-lg text-sm"
+                                                                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm"
                                                                   />
                                                                   {file && (
                                                                     <div className="flex items-center gap-2">
-                                                                      <span className="text-xs text-cream-600 max-w-[150px] truncate">
+                                                                      <span className="text-xs text-gray-600 max-w-[150px] truncate">
                                                                         {file.name}
                                                                       </span>
                                                                       <button
@@ -4983,17 +5026,22 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                               ...selectedDynamicAttributes,
                                                               [attrId]: newValue
                                                             });
-                                                            // Mark this attribute as user-selected for image updates
-                                                            setUserSelectedAttributes(prev => new Set(prev).add(attrId));
+                                                            // Mark this attribute as user-selected for image updates (preserved order)
+                                                            setUserSelectedAttributes(prev => {
+                                                              const next = new Set(prev);
+                                                              next.delete(attrId);
+                                                              next.add(attrId);
+                                                              return next;
+                                                            });
                                                           }}
                                                           className={`p-4 rounded-xl border text-left transition-all duration-200 relative ${isSelected
-                                                            ? "border-cream-900 bg-cream-50 text-cream-900 ring-1 ring-cream-900"
-                                                            : "border-cream-200 text-cream-600 hover:border-cream-400 hover:bg-cream-50"
+                                                            ? "border-gray-900 bg-gray-50 text-gray-900 ring-1 ring-gray-900"
+                                                            : "border-gray-200 text-gray-600 hover:border-gray-400 hover:bg-gray-50"
                                                             }`}
                                                         >
                                                           {isSelected && (
                                                             <div className="absolute top-2 right-2">
-                                                              <Check size={18} className="text-cream-900" />
+                                                              <Check size={18} className="text-gray-900" />
                                                             </div>
                                                           )}
                                                           {av.image && (
@@ -5001,13 +5049,13 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                               <img
                                                                 src={av.image}
                                                                 alt={av.label}
-                                                                className="w-full h-32 object-cover rounded-lg border border-cream-200"
+                                                                className="w-full h-32 object-cover rounded-lg border border-gray-200"
                                                               />
                                                             </div>
                                                           )}
                                                           <div className="font-bold text-sm">{av.label}</div>
                                                           {getPriceDisplay() && (
-                                                            <div className="text-xs text-cream-600 mt-1">
+                                                            <div className="text-xs text-gray-600 mt-1">
                                                               {getPriceDisplay()}
                                                             </div>
                                                           )}
@@ -5028,11 +5076,16 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                       ...selectedDynamicAttributes,
                                                       [attrId]: e.target.value
                                                     });
-                                                    // Mark this attribute as user-selected for image updates
-                                                    setUserSelectedAttributes(prev => new Set(prev).add(attrId));
+                                                    // Mark this attribute as user-selected for image updates (preserved order)
+                                                    setUserSelectedAttributes(prev => {
+                                                      const next = new Set(prev);
+                                                      next.delete(attrId);
+                                                      next.add(attrId);
+                                                      return next;
+                                                    });
                                                   }}
                                                   placeholder={`Enter ${attrType.attributeName}`}
-                                                  className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
+                                                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-gray-500"
                                                 />
                                               </div>
                                             )}
@@ -5047,11 +5100,16 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                       ...selectedDynamicAttributes,
                                                       [attrId]: parseFloat(e.target.value) || 0
                                                     });
-                                                    // Mark this attribute as user-selected for image updates
-                                                    setUserSelectedAttributes(prev => new Set(prev).add(attrId));
+                                                    // Mark this attribute as user-selected for image updates (preserved order)
+                                                    setUserSelectedAttributes(prev => {
+                                                      const next = new Set(prev);
+                                                      next.delete(attrId);
+                                                      next.add(attrId);
+                                                      return next;
+                                                    });
                                                   }}
                                                   placeholder={`Enter ${attrType.attributeName}`}
-                                                  className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
+                                                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-gray-500"
                                                 />
                                               </div>
                                             )}
@@ -5066,16 +5124,19 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                       ...selectedDynamicAttributes,
                                                       [attrId]: file
                                                     });
-                                                    // Mark this attribute as user-selected for image updates
-                                                    if (file) {
-                                                      setUserSelectedAttributes(prev => new Set(prev).add(attrId));
-                                                    }
+                                                    // Mark this attribute as user-selected for image updates (preserved order)
+                                                    setUserSelectedAttributes(prev => {
+                                                      const next = new Set(prev);
+                                                      next.delete(attrId);
+                                                      next.add(attrId);
+                                                      return next;
+                                                    });
                                                   }}
-                                                  className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
+                                                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-gray-500"
                                                   accept="*/*"
                                                 />
                                                 {attrType.fileRequirements && (
-                                                  <p className="text-xs text-cream-600 mt-1">{attrType.fileRequirements}</p>
+                                                  <p className="text-xs text-gray-600 mt-1">{attrType.fileRequirements}</p>
                                                 )}
                                               </div>
                                             )}
@@ -5093,13 +5154,13 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                           {/* Delivery information removed - will be shown at checkout only */}
 
                           {/* Upload Design Section */}
-                          <div className="mb-6 sm:mb-8 bg-cream-50 p-4 sm:p-6 rounded-xl border border-cream-200" data-upload-section>
-                            <h3 className="font-bold text-sm sm:text-base text-cream-900 mb-3 sm:mb-4 flex items-center gap-2">
+                          <div className="mb-6 sm:mb-8 bg-gray-50 p-4 sm:p-6 rounded-xl border border-gray-200" data-upload-section>
+                            <h3 className="font-bold text-sm sm:text-base text-gray-900 mb-3 sm:mb-4 flex items-center gap-2">
                               <UploadIcon size={16} className="sm:w-[18px] sm:h-[18px]" /> Upload Your Design
                             </h3>
 
                             <div className="mb-4">
-                              <label className="block text-sm text-cream-700 mb-2">Upload Reference Image *</label>
+                              <label className="block text-sm text-gray-700 mb-2">Upload Reference Image *</label>
                               <label className="cursor-pointer">
                                 <input
                                   type="file"
@@ -5108,7 +5169,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                   className="hidden"
                                   data-required-field
                                 />
-                                <div className="border-2 border-dashed border-cream-300 rounded-lg p-4 text-center hover:border-cream-900 transition-colors">
+                                <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-gray-900 transition-colors">
                                   {frontDesignPreview ? (
                                     <div className="relative">
                                       <img
@@ -5129,8 +5190,8 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                     </div>
                                   ) : (
                                     <div className="flex flex-col items-center gap-2">
-                                      <FileImage size={24} className="text-cream-600" />
-                                      <span className="text-sm text-cream-600">Click to upload reference image</span>
+                                      <FileImage size={24} className="text-gray-600" />
+                                      <span className="text-sm text-gray-600">Click to upload reference image</span>
                                     </div>
                                   )}
                                 </div>
@@ -5138,7 +5199,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                             </div>
 
                             <div className="mb-4">
-                              <label className="block text-sm text-cream-700 mb-2">Back Design (Optional)</label>
+                              <label className="block text-sm text-gray-700 mb-2">Back Design (Optional)</label>
                               <label className="cursor-pointer">
                                 <input
                                   type="file"
@@ -5146,7 +5207,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                   onChange={(e) => handleDesignFileChange(e, "back")}
                                   className="hidden"
                                 />
-                                <div className="border-2 border-dashed border-cream-300 rounded-lg p-4 text-center hover:border-cream-900 transition-colors">
+                                <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-gray-900 transition-colors">
                                   {backDesignPreview ? (
                                     <div className="relative">
                                       <img
@@ -5167,8 +5228,8 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                     </div>
                                   ) : (
                                     <div className="flex flex-col items-center gap-2">
-                                      <FileImage size={24} className="text-cream-600" />
-                                      <span className="text-sm text-cream-600">Click to upload back design</span>
+                                      <FileImage size={24} className="text-gray-600" />
+                                      <span className="text-sm text-gray-600">Click to upload back design</span>
                                     </div>
                                   )}
                                 </div>
@@ -5176,12 +5237,12 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                             </div>
 
                             <div className="mb-4">
-                              <label className="block text-sm text-cream-700 mb-2">Additional Notes (Optional)</label>
+                              <label className="block text-sm text-gray-700 mb-2">Additional Notes (Optional)</label>
                               <textarea
                                 value={orderNotes}
                                 onChange={(e) => setOrderNotes(e.target.value)}
                                 placeholder="Any special instructions or notes..."
-                                className="w-full p-3 rounded-lg border border-cream-300 focus:ring-2 focus:ring-cream-900 focus:border-transparent outline-none text-sm resize-none"
+                                className="w-full p-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none text-sm resize-none"
                                 rows={3}
                               />
                             </div>
@@ -5190,13 +5251,13 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                         </div>
 
                         {/* Place Order Button - Fixed at bottom */}
-                        <div className="mt-4 pt-4 border-t border-cream-100">
+                        <div className="mt-4 pt-4 border-t border-gray-100">
                           <button
                             onClick={handlePlaceOrder}
                             disabled={isProcessingPayment}
                             className={`w-full py-4 sm:py-5 md:py-6 rounded-xl font-bold text-lg sm:text-xl md:text-2xl transition-all shadow-xl hover:shadow-2xl hover:-translate-y-1 flex items-center justify-center gap-3 min-h-[60px] sm:min-h-[70px] ${isProcessingPayment
-                              ? 'bg-cream-400 text-cream-700 cursor-not-allowed opacity-60'
-                              : 'bg-cream-900 text-cream-50 hover:bg-cream-800 active:bg-cream-700 cursor-pointer opacity-100'
+                              ? 'bg-gray-400 text-gray-700 cursor-not-allowed opacity-60'
+                              : 'bg-gray-900 text-white hover:bg-gray-800 active:bg-gray-700 cursor-pointer opacity-100'
                               }`}
                           >
                             {isProcessingPayment ? (
@@ -5212,7 +5273,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                             )}
                           </button>
 
-                          <div className="mt-4 text-center text-xs text-cream-500 flex items-center justify-center gap-2">
+                          <div className="mt-4 text-center text-xs text-white0 flex items-center justify-center gap-2">
                             <CreditCard size={14} /> Secure Payment & Data Protection
                           </div>
                         </div>
@@ -5245,14 +5306,14 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
               data-payment-modal
             >
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg sm:text-xl font-bold text-cream-900 flex items-center gap-2">
+                <h3 className="text-lg sm:text-xl font-bold text-gray-900 flex items-center gap-2">
                   <CreditCard size={20} className="sm:w-6 sm:h-6" />
                   <span className="text-base sm:text-xl">Payment Confirmation</span>
                 </h3>
                 {!isProcessingPayment && (
                   <button
                     onClick={() => setShowPaymentModal(false)}
-                    className="text-cream-600 hover:text-cream-900"
+                    className="text-gray-600 hover:text-gray-900"
                   >
                     <X size={24} />
                   </button>
@@ -5260,26 +5321,26 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
               </div>
 
               <div className="mb-6">
-                <div className="bg-cream-50 rounded-lg p-4 mb-4">
+                <div className="bg-gray-50 rounded-lg p-4 mb-4">
                   <div className="space-y-2">
                     <div className="flex justify-between items-center">
-                      <span className="text-cream-700 font-medium">Subtotal (Excluding GST):</span>
-                      <span className="text-lg font-bold text-cream-900">₹{price.toFixed(2)}</span>
+                      <span className="text-gray-700 font-medium">Subtotal (Excluding GST):</span>
+                      <span className="text-lg font-bold text-gray-900">₹{price.toFixed(2)}</span>
                     </div>
                     {gstAmount > 0 && (
                       <>
                         <div className="flex justify-between items-center text-sm">
-                          <span className="text-cream-600">GST ({selectedProduct?.gstPercentage || 18}%):</span>
-                          <span className="text-cream-700">+₹{gstAmount.toFixed(2)}</span>
+                          <span className="text-gray-600">GST ({selectedProduct?.gstPercentage || 18}%):</span>
+                          <span className="text-gray-700">+₹{gstAmount.toFixed(2)}</span>
                         </div>
-                        <div className="flex justify-between items-center pt-2 border-t border-cream-300">
-                          <span className="text-cream-700 font-medium">Total Amount (Including GST):</span>
-                          <span className="text-2xl font-bold text-cream-900">₹{(price + gstAmount).toFixed(2)}</span>
+                        <div className="flex justify-between items-center pt-2 border-t border-gray-300">
+                          <span className="text-gray-700 font-medium">Total Amount (Including GST):</span>
+                          <span className="text-2xl font-bold text-gray-900">₹{(price + gstAmount).toFixed(2)}</span>
                         </div>
                       </>
                     )}
                   </div>
-                  <p className="text-xs text-cream-600 mt-2">
+                  <p className="text-xs text-gray-600 mt-2">
                     Your order will be placed and you can pay later.
                   </p>
                 </div>
@@ -5293,13 +5354,13 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
                 {/* Delivery Information Form */}
                 <div className="mb-6 space-y-4">
-                  <h4 className="font-semibold text-cream-900 text-sm mb-3 flex items-center gap-2">
+                  <h4 className="font-semibold text-gray-900 text-sm mb-3 flex items-center gap-2">
                     <Truck size={18} />
                     Delivery Information
                   </h4>
 
                   <div>
-                    <label className="block text-sm font-medium text-cream-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
                       Full Name <span className="text-red-500">*</span>
                     </label>
                     <input
@@ -5312,13 +5373,13 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                         if (paymentError) setPaymentError(null);
                       }}
                       placeholder="Enter your full name"
-                      className="w-full px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-900 focus:border-transparent outline-none text-sm"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none text-sm"
                       required
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-cream-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
                       Email <span className="text-red-500">*</span>
                     </label>
                     <input
@@ -5331,13 +5392,13 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                         if (paymentError) setPaymentError(null);
                       }}
                       placeholder="Enter your email address"
-                      className="w-full px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-900 focus:border-transparent outline-none text-sm"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none text-sm"
                       required
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-cream-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
                       Pincode <span className="text-red-500">*</span>
                     </label>
                     <input
@@ -5351,13 +5412,13 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                         if (paymentError) setPaymentError(null);
                       }}
                       placeholder="Enter 6-digit pincode"
-                      className="w-full px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-900 focus:border-transparent outline-none text-sm"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none text-sm"
                       maxLength={6}
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-cream-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
                       Complete Address <span className="text-red-500">*</span>
                     </label>
                     <div className="flex gap-2">
@@ -5371,13 +5432,13 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                         }}
                         placeholder="Enter your complete delivery address"
                         rows={3}
-                        className="flex-1 px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-900 focus:border-transparent outline-none text-sm resize-none"
+                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none text-sm resize-none"
                       />
                       <button
                         type="button"
                         onClick={handleGetLocation}
                         disabled={isGettingLocation}
-                        className="px-3 py-2 bg-cream-200 text-cream-900 rounded-lg hover:bg-cream-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                        className="px-3 py-2 bg-purple-200 text-gray-900 rounded-lg hover:bg-indigo-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                         title="Get location automatically"
                       >
                         {isGettingLocation ? (
@@ -5387,11 +5448,11 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                         )}
                       </button>
                     </div>
-                    <p className="text-xs text-cream-500 mt-1">You can enter address manually or use location button</p>
+                    <p className="text-xs text-white0 mt-1">You can enter address manually or use location button</p>
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-cream-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
                       Mobile Number <span className="text-red-500">*</span>
                     </label>
                     <input
@@ -5405,13 +5466,13 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                         if (paymentError) setPaymentError(null);
                       }}
                       placeholder="Enter 10-digit mobile number"
-                      className="w-full px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-900 focus:border-transparent outline-none text-sm"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none text-sm"
                       maxLength={10}
                     />
                   </div>
                 </div>
 
-                <div className="space-y-2 text-sm text-cream-700">
+                <div className="space-y-2 text-sm text-gray-700">
                   <p className="font-semibold mb-2">Order Summary:</p>
                   <div className="space-y-1 ml-4">
                     <p>• Product: <strong>{selectedProduct?.name}</strong></p>
@@ -5427,7 +5488,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                 {/* Estimated Delivery Information - Show at checkout */}
                 {estimatedDeliveryDate && (
                   <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-                    <h3 className="font-bold text-sm text-cream-900 mb-2 flex items-center gap-2">
+                    <h3 className="font-bold text-sm text-gray-900 mb-2 flex items-center gap-2">
                       <Truck size={16} /> Estimated Delivery
                     </h3>
                     <div className="text-green-700 text-sm">
@@ -5446,7 +5507,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                 {!isProcessingPayment && (
                   <button
                     onClick={() => setShowPaymentModal(false)}
-                    className="flex-1 px-4 py-2 border border-cream-300 text-cream-700 rounded-lg hover:bg-cream-50 transition-colors"
+                    className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
                   >
                     Cancel
                   </button>
@@ -5454,7 +5515,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                 <button
                   onClick={handlePaymentAndOrder}
                   disabled={isProcessingPayment}
-                  className="flex-1 px-4 py-3 bg-cream-900 text-cream-50 rounded-lg font-semibold hover:bg-cream-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  className="flex-1 px-4 py-3 bg-gray-900 text-white rounded-lg font-semibold hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {isProcessingPayment ? (
                     <>
@@ -5546,9 +5607,9 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
               onClick={(e) => e.stopPropagation()}
             >
               {/* Modal Header */}
-              <div className="px-6 py-4 border-b border-cream-200 bg-gradient-to-r from-cream-50 to-cream-100 flex items-center justify-between">
+              <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100 flex items-center justify-between">
                 <div>
-                  <h2 className="text-xl font-bold text-cream-900">
+                  <h2 className="text-xl font-bold text-gray-900">
                     Select {radioModalData.attributeName}
                   </h2>
                   {radioModalData.isRequired && (
@@ -5557,10 +5618,10 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                 </div>
                 <button
                   onClick={() => setRadioModalOpen(false)}
-                  className="p-2 hover:bg-cream-200 rounded-full transition-colors"
+                  className="p-2 hover:bg-purple-200 rounded-full transition-colors"
                   aria-label="Close modal"
                 >
-                  <X size={20} className="text-cream-700" />
+                  <X size={20} className="text-gray-700" />
                 </button>
               </div>
 
@@ -5605,8 +5666,14 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                             [radioModalData.attributeId]: av.value
                           };
                           setSelectedDynamicAttributes(newSelected);
-                          // Mark this attribute as user-selected for image updates
-                          setUserSelectedAttributes(prev => new Set(prev).add(radioModalData.attributeId));
+
+                          // Mark this attribute as user-selected for image updates (preserved order)
+                          setUserSelectedAttributes(prev => {
+                            const next = new Set(prev);
+                            next.delete(radioModalData.attributeId);
+                            next.add(radioModalData.attributeId);
+                            return next;
+                          });
 
                           // If this value has sub-attributes, open sub-attribute modal
                           if (valueSubAttributes.length > 0) {
@@ -5628,22 +5695,22 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
                         className={`relative p-2 rounded-lg border-2 text-left transition-all duration-200 flex flex-col w-[140px] h-[140px] overflow-hidden ${isSelected
-                          ? "border-cream-900 bg-cream-50 text-cream-900 ring-2 ring-cream-900 ring-offset-1"
-                          : "border-cream-200 text-cream-700 hover:border-cream-400 hover:bg-cream-50 hover:shadow-md"
+                          ? "border-gray-900 bg-gray-50 text-gray-900 ring-2 ring-gray-900 ring-offset-1"
+                          : "border-gray-200 text-gray-700 hover:border-gray-400 hover:bg-gray-50 hover:shadow-md"
                           }`}
                       >
                         {isSelected && (
                           <motion.div
                             initial={{ scale: 0 }}
                             animate={{ scale: 1 }}
-                            className="absolute top-1.5 right-1.5 bg-cream-900 text-white rounded-full p-1 shadow-lg z-10"
+                            className="absolute top-1.5 right-1.5 bg-gray-900 text-white rounded-full p-1 shadow-lg z-10"
                           >
                             <Check size={12} />
                           </motion.div>
                         )}
 
                         {av.image && (
-                          <div className="mb-1.5 overflow-hidden rounded border border-cream-200 bg-cream-50 flex-shrink-0">
+                          <div className="mb-1.5 overflow-hidden rounded border border-gray-200 bg-gray-50 flex-shrink-0">
                             <img
                               src={av.image}
                               alt={av.label}
@@ -5653,18 +5720,18 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                         )}
 
                         <div className="space-y-1 flex-1 flex flex-col min-h-0">
-                          <div className="font-semibold text-xs text-cream-900 leading-tight line-clamp-2">
+                          <div className="font-semibold text-xs text-gray-900 leading-tight line-clamp-2">
                             {av.label}
                           </div>
 
                           {av.description && (
-                            <p className="text-[10px] text-cream-600 line-clamp-2 leading-tight">
+                            <p className="text-[10px] text-gray-600 line-clamp-2 leading-tight">
                               {av.description}
                             </p>
                           )}
 
                           {getPriceDisplay() && (
-                            <div className="mt-auto pt-1 border-t border-cream-200 text-[10px] font-semibold text-cream-700 leading-tight">
+                            <div className="mt-auto pt-1 border-t border-gray-200 text-[10px] font-semibold text-gray-700 leading-tight">
                               {getPriceDisplay()}
                             </div>
                           )}
@@ -5676,11 +5743,11 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
               </div>
 
               {/* Modal Footer */}
-              <div className="px-6 py-4 border-t border-cream-200 bg-cream-50 flex items-center justify-between">
-                <div className="text-sm text-cream-600">
+              <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
+                <div className="text-sm text-gray-600">
                   {radioModalData.selectedValue ? (
                     <span>
-                      Selected: <span className="font-semibold text-cream-900">
+                      Selected: <span className="font-semibold text-gray-900">
                         {radioModalData.attributeValues.find(av => av.value === radioModalData.selectedValue)?.label}
                       </span>
                     </span>
@@ -5690,7 +5757,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                 </div>
                 <button
                   onClick={() => setRadioModalOpen(false)}
-                  className="px-6 py-2 bg-cream-900 text-white rounded-lg font-semibold hover:bg-cream-800 transition-colors"
+                  className="px-6 py-2 bg-gray-900 text-white rounded-lg font-semibold hover:bg-gray-800 transition-colors"
                 >
                   {radioModalData.selectedValue ? 'Done' : 'Cancel'}
                 </button>
@@ -5719,21 +5786,21 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
               onClick={(e) => e.stopPropagation()}
             >
               {/* Header */}
-              <div className="px-6 py-4 border-b border-cream-200 bg-gradient-to-r from-cream-50 to-cream-100 flex items-center justify-between">
+              <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100 flex items-center justify-between">
                 <div>
-                  <h2 className="text-lg font-bold text-cream-900">
+                  <h2 className="text-lg font-bold text-gray-900">
                     Select {subAttrModalData.parentLabel} Option
                   </h2>
-                  <p className="text-xs text-cream-600 mt-1">
+                  <p className="text-xs text-gray-600 mt-1">
                     Additional options related to {subAttrModalData.parentLabel}
                   </p>
                 </div>
                 <button
                   onClick={() => setSubAttrModalOpen(false)}
-                  className="p-2 hover:bg-cream-200 rounded-full transition-colors"
+                  className="p-2 hover:bg-purple-200 rounded-full transition-colors"
                   aria-label="Close sub-attribute modal"
                 >
-                  <X size={18} className="text-cream-700" />
+                  <X size={18} className="text-gray-700" />
                 </button>
               </div>
 
@@ -5762,26 +5829,33 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                             ...subAttrModalData,
                             selectedValue: subAttr.value,
                           });
+                          // Mark the parent attribute as user-selected for image updates (preserved order)
+                          setUserSelectedAttributes(prev => {
+                            const next = new Set(prev);
+                            next.delete(subAttrModalData.attributeId);
+                            next.add(subAttrModalData.attributeId);
+                            return next;
+                          });
                         }}
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
                         className={`relative p-2 rounded-lg border-2 text-left transition-all duration-200 flex flex-col w-[140px] h-[140px] overflow-hidden ${isSelected
-                          ? "border-cream-900 bg-cream-50 text-cream-900 ring-2 ring-cream-900 ring-offset-1"
-                          : "border-cream-200 text-cream-700 hover:border-cream-400 hover:bg-cream-50 hover:shadow-md"
+                          ? "border-gray-900 bg-gray-50 text-gray-900 ring-2 ring-gray-900 ring-offset-1"
+                          : "border-gray-200 text-gray-700 hover:border-gray-400 hover:bg-gray-50 hover:shadow-md"
                           }`}
                       >
                         {isSelected && (
                           <motion.div
                             initial={{ scale: 0 }}
                             animate={{ scale: 1 }}
-                            className="absolute top-1.5 right-1.5 bg-cream-900 text-white rounded-full p-1 shadow-lg z-10"
+                            className="absolute top-1.5 right-1.5 bg-gray-900 text-white rounded-full p-1 shadow-lg z-10"
                           >
                             <Check size={12} />
                           </motion.div>
                         )}
 
                         {subAttr.image && (
-                          <div className="mb-1.5 overflow-hidden rounded border border-cream-200 bg-cream-50 flex-shrink-0">
+                          <div className="mb-1.5 overflow-hidden rounded border border-gray-200 bg-gray-50 flex-shrink-0">
                             <img
                               src={subAttr.image}
                               alt={subAttr.label}
@@ -5791,12 +5865,12 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                         )}
 
                         <div className="space-y-1 flex-1 flex flex-col min-h-0">
-                          <div className="font-semibold text-xs text-cream-900 leading-tight line-clamp-2">
+                          <div className="font-semibold text-xs text-gray-900 leading-tight line-clamp-2">
                             {subAttr.label}
                           </div>
 
                           {getSubAttrPriceDisplay() && (
-                            <div className="mt-auto pt-1 border-t border-cream-200 text-[10px] font-semibold text-cream-700 leading-tight">
+                            <div className="mt-auto pt-1 border-t border-gray-200 text-[10px] font-semibold text-gray-700 leading-tight">
                               {getSubAttrPriceDisplay()}
                             </div>
                           )}
@@ -5808,12 +5882,12 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
               </div>
 
               {/* Footer */}
-              <div className="px-6 py-4 border-t border-cream-200 bg-cream-50 flex items-center justify-between">
-                <div className="text-sm text-cream-600">
+              <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
+                <div className="text-sm text-gray-600">
                   {subAttrModalData.selectedValue ? (
                     <span>
                       Selected:{" "}
-                      <span className="font-semibold text-cream-900">
+                      <span className="font-semibold text-gray-900">
                         {subAttrModalData.subAttributes.find(
                           (s) => s.value === subAttrModalData.selectedValue
                         )?.label}
@@ -5825,7 +5899,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                 </div>
                 <button
                   onClick={() => setSubAttrModalOpen(false)}
-                  className="px-6 py-2 bg-cream-900 text-white rounded-lg font-semibold hover:bg-cream-800 transition-colors"
+                  className="px-6 py-2 bg-gray-900 text-white rounded-lg font-semibold hover:bg-gray-800 transition-colors"
                 >
                   Done
                 </button>
@@ -5834,7 +5908,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+    </div >
   );
 };
 

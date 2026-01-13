@@ -20,7 +20,7 @@ const ClientOnlyToaster: React.FC = () => {
   if (!Toaster) return null;
 
   return (
-    <Toaster 
+    <Toaster
       position="bottom-right"
       toastOptions={{
         duration: 4000,
@@ -49,6 +49,7 @@ const ClientOnlyToaster: React.FC = () => {
 
 const Layout: React.FC = () => {
   const location = useLocation();
+  const isAdminRoute = location.pathname.startsWith('/admin');
 
   // Scroll to top on route change (client-side only)
   React.useEffect(() => {
@@ -69,13 +70,14 @@ const Layout: React.FC = () => {
   }, []);
 
   // Always show navbar, but Navbar component will handle the minimal view for login/signup
-  const hideNavbar = false;
+  // For admin routes, we completely hide it as we have a dedicated sidebar
+  const hideNavbar = isAdminRoute;
 
   // CRITICAL: Always render the EXACT same structure on server and client
   // Both render: <div key={path}><div><Outlet /></div></div>
   // The structure must be identical - no conditional wrappers that change DOM
   return (
-    <div className="min-h-screen flex flex-col font-sans text-cream-900 bg-cream-50">
+    <div className={`min-h-screen flex flex-col font-sans transition-colors duration-300 ${isAdminRoute ? 'bg-white text-slate-900' : 'bg-cream-50 text-cream-900'}`}>
       {!hideNavbar && <Navbar />}
       <main className={`flex-grow ${hideNavbar ? '' : 'pt-16'}`}>
         {/* CRITICAL: Always render same structure - server and client must match exactly */}

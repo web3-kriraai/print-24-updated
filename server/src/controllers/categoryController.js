@@ -252,10 +252,29 @@ export const getTopLevelCategories = async (req, res) => {
 // Get categories by parent - returns subcategories from SubCategory collection
 export const getCategoriesByParent = async (req, res) => {
   try {
-    const parentId = req.params.parentId;
+    const parentIdentifier = req.params.parentId;
+
+    // Check if identifier is a MongoDB ObjectId
+    const isObjectId = /^[0-9a-fA-F]{24}$/.test(parentIdentifier);
+
+    let parentCategory;
+    if (isObjectId) {
+      parentCategory = await Category.findById(parentIdentifier);
+    } else {
+      // Try by slug
+      parentCategory = await Category.findOne({ slug: parentIdentifier });
+      // Try by name fallback
+      if (!parentCategory) {
+        parentCategory = await Category.findOne({ name: parentIdentifier });
+      }
+    }
 
     // Validate that the parent category exists
-    const parentCategory = await Category.findById(parentId);
+    if (!parentCategory) {
+      return res.status(404).json({ error: "Parent category not found" });
+    }
+
+    const parentId = parentCategory._id;
     if (!parentCategory) {
       return res.status(404).json({ error: "Parent category not found" });
     }
