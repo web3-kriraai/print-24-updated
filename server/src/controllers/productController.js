@@ -813,7 +813,7 @@ export const getProductsBySubcategory = async (req, res) => {
 
     console.log("Fetching products for subcategory ID:", subcategoryId);
 
-    // Helper function to recursively get all nested subcategory IDs
+    // Helper function to recursively get all IDs
     const getAllNestedSubcategoryIds = async (parentSubcategoryId) => {
       const allIds = [parentSubcategoryId];
       const nestedSubcategories = await SubCategory.find({ parent: parentSubcategoryId }).select('_id');
@@ -1356,6 +1356,70 @@ export const deleteProduct = async (req, res) => {
     if (err.name === 'CastError') {
       return res.status(400).json({ error: "Invalid product ID" });
     }
+    return res.status(500).json({ error: err.message });
+  }
+};
+
+// Reorder products
+export const reorderProducts = async (req, res) => {
+  try {
+    const { draggedId, targetId } = req.body;
+
+    if (!draggedId || !targetId) {
+      return res.status(400).json({ error: "Dragged ID and Target ID are required" });
+    }
+
+    const draggedProduct = await Product.findById(draggedId);
+    const targetProduct = await Product.findById(targetId);
+
+    if (!draggedProduct || !targetProduct) {
+      return res.status(404).json({ error: "One or more products not found" });
+    }
+
+    // Determine scope (Category or Subcategory)
+    let query = {};
+    if (draggedProduct.subcategory) {
+      // Scope: Same Subcategory
+      query.subcategory = draggedProduct.subcategory;
+    } else if (draggedProduct.category) {
+      // Scope: Same Category (and no subcategory)
+      query.category = draggedProduct.category;
+      query.subcategory = null;
+    }
+
+    // Get all items in this scope, sorted by sortOrder
+    const items = await Product.find(query).sort({ sortOrder: 1, createdAt: -1 });
+
+    const draggedIndex = items.findIndex(p => p._id.toString() === draggedId);
+    const targetIndex = items.findIndex(p => p._id.toString() === targetId);
+
+    if (draggedIndex === -1 || targetIndex === -1) {
+      return res.status(400).json({ error: "Products not found in the expected scope" });
+    }
+
+    // Move item in array
+    const newItems = [...items];
+    const [movedItem] = newItems.splice(draggedIndex, 1);
+    newItems.splice(targetIndex, 0, movedItem);
+
+    // Update sortOrder for all affected items
+    const updatePromises = newItems.map((item, index) => {
+      // Only update if sortOrder changed
+      if (item.sortOrder !== index + 1) {
+        return Product.findByIdAndUpdate(item._id, { sortOrder: index + 1 });
+      }
+      return Promise.resolve();
+    });
+
+    await Promise.all(updatePromises);
+
+    return res.json({
+      success: true,
+      message: "Products reordered successfully"
+    });
+
+  } catch (err) {
+    console.error("Error reordering products:", err);
     return res.status(500).json({ error: err.message });
   }
 };

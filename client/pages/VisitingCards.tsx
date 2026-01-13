@@ -50,6 +50,8 @@ const VisitingCards: React.FC = () => {
   const [subCategorySearchQuery, setSubCategorySearchQuery] = useState<string>("");
   const [selectedSubCategoryFilter, setSelectedSubCategoryFilter] = useState<string | null>(null);
   const [forcedProductId, setForcedProductId] = useState<string | null>(null);
+  const [selectedNestedSubCategory, setSelectedNestedSubCategory] = useState<SubCategory | null>(null);
+  const [nestedSubCategoryProducts, setNestedSubCategoryProducts] = useState<Product[]>([]);
 
   // Scroll to top when route params change
   useEffect(() => {
@@ -1174,6 +1176,74 @@ const VisitingCards: React.FC = () => {
     fetchData();
   }, [categoryId, subCategoryId, nestedSubCategoryId]);
 
+  // Fetch products when a nested subcategory is selected
+  useEffect(() => {
+    const fetchNestedSubCategoryProducts = async () => {
+      if (!selectedNestedSubCategory) {
+        setNestedSubCategoryProducts([]);
+        return;
+      }
+
+      try {
+        const productsUrl = `${API_BASE_URL}/products/subcategory/${selectedNestedSubCategory._id}`;
+        const response = await fetch(productsUrl, {
+          method: "GET",
+          headers: {
+            Accept: "application/json",
+          },
+        });
+
+        if (response.ok) {
+          const data = await handleApiResponse(response);
+          setNestedSubCategoryProducts(Array.isArray(data) ? data : []);
+        } else {
+          setNestedSubCategoryProducts([]);
+        }
+      } catch (err) {
+        console.error("Error fetching nested subcategory products:", err);
+        setNestedSubCategoryProducts([]);
+      }
+    };
+
+    fetchNestedSubCategoryProducts();
+  }, [selectedNestedSubCategory]);
+
+  // Auto-select first nested subcategory variant and update URL
+  useEffect(() => {
+    if (subCategories.length > 0 && !selectedNestedSubCategory) {
+      const firstNestedSubCategory = subCategories[0];
+      setSelectedNestedSubCategory(firstNestedSubCategory);
+
+      // Update URL with first variant's slug WITHOUT navigating
+      const nestedSubcategorySlug = firstNestedSubCategory.slug || firstNestedSubCategory._id;
+      if (categoryId && subCategoryId) {
+        const newUrl = `/services/${categoryId}/${subCategoryId}/${nestedSubcategorySlug}`;
+        window.history.replaceState(null, '', newUrl);
+      }
+    }
+  }, [subCategories, categoryId, subCategoryId]);
+
+  // Auto-select first nested subcategory when subCategories change
+  useEffect(() => {
+    if (subCategories.length > 0 && subCategoryId && !selectedNestedSubCategory) {
+      setSelectedNestedSubCategory(subCategories[0]);
+    }
+  }, [subCategories, subCategoryId]);
+
+  // Auto-navigate if only one product in selected nested subcategory
+  useEffect(() => {
+    if (nestedSubCategoryProducts.length === 1 && selectedNestedSubCategory && categoryId && subCategoryId) {
+      const singleProduct = nestedSubCategoryProducts[0];
+      const parentSubcategoryId = selectedSubCategory ? selectedSubCategory._id : subCategoryId;
+      const nestedSubcategoryId = selectedNestedSubCategory._id;
+
+      // Navigate directly to the product detail page
+      navigate(`/services/${categoryId}/${parentSubcategoryId}/${nestedSubcategoryId}/${singleProduct._id}`, { replace: true });
+    }
+  }, [nestedSubCategoryProducts, selectedNestedSubCategory, categoryId, subCategoryId, selectedSubCategory, navigate]);
+
+
+
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: {
@@ -1202,23 +1272,23 @@ const VisitingCards: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-cream-50 py-4 sm:py-8">
+    <div className="min-h-screen bg-gray-50 py-4 sm:py-8">
 
       {/* Header with Breadcrumb - Only show when viewing subcategories, not products */}
       {!subCategoryId && (
-        <div className="bg-white border-b border-cream-200 pb-6 sm:pb-10 pt-6 sm:pt-8 mb-6 sm:mb-8 shadow-sm">
+        <div className="bg-white border-b border-gray-200 pb-6 sm:pb-10 pt-6 sm:pt-8 mb-6 sm:mb-8 shadow-sm">
           <div className="container mx-auto px-4 sm:px-6">
             <div className="flex flex-col gap-2 text-center md:text-left">
-              <div className="flex items-center justify-center md:justify-start gap-2 text-xs sm:text-sm font-medium text-cream-500 uppercase tracking-widest">
-                <Link to="/services" className="hover:text-cream-900 transition-colors">Services</Link>
+              <div className="flex items-center justify-center md:justify-start gap-2 text-xs sm:text-sm font-medium text-white0 uppercase tracking-widest">
+                <Link to="/services" className="hover:text-gray-900 transition-colors">Services</Link>
                 <ArrowRight size={12} className="sm:w-3.5 sm:h-3.5" />
-                <span className="text-cream-900">{categoryName}</span>
+                <span className="text-gray-900">{categoryName}</span>
               </div>
-              <h1 className="font-serif text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-cream-900">
+              <h1 className="font-serif text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-gray-900">
                 {categoryName}
               </h1>
               {categoryDescription && (
-                <p className="text-sm sm:text-base text-cream-600 mt-2 max-w-xl mx-auto md:mx-0">
+                <p className="text-sm sm:text-base text-gray-600 mt-2 max-w-xl mx-auto md:mx-0">
                   Choose the perfect paper type and finish for your brand identity.
                 </p>
               )}
@@ -1234,14 +1304,14 @@ const VisitingCards: React.FC = () => {
             <BackButton
               fallbackPath="/"
               label="Back to Home"
-              className="text-cream-600 hover:text-cream-900"
+              className="text-gray-600 hover:text-gray-900"
             />
           </div>
         )}
 
         {loading ? (
           <div className="flex items-center justify-center py-20">
-            <Loader className="animate-spin text-cream-900" size={48} />
+            <Loader className="animate-spin text-gray-900" size={48} />
           </div>
         ) : error ? (
           <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
@@ -1251,22 +1321,22 @@ const VisitingCards: React.FC = () => {
           <>
             {/* Subcategory Filters - Only show when subcategories are available */}
             {subCategories.length > 0 && (
-              <div className="mb-6 bg-white rounded-xl shadow-md border border-cream-200 p-4 sm:p-6">
+              <div className="mb-6 bg-white rounded-xl shadow-md border border-gray-200 p-4 sm:p-6">
                 <div className="flex flex-col sm:flex-row items-start sm:items-end gap-4">
                   {/* Subcategory Search Bar */}
                   <div className="relative flex-1 sm:flex-initial sm:w-64">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-cream-500 w-5 h-5" />
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white0 w-5 h-5" />
                     <input
                       type="text"
                       placeholder="Search subcategories..."
                       value={subCategorySearchQuery}
                       onChange={(e) => setSubCategorySearchQuery(e.target.value)}
-                      className="w-full pl-10 pr-10 py-2.5 border-2 border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500 text-sm sm:text-base bg-white shadow-sm transition-all"
+                      className="w-full pl-10 pr-10 py-2.5 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-gray-500 text-sm sm:text-base bg-white shadow-sm transition-all"
                     />
                     {subCategorySearchQuery && (
                       <button
                         onClick={() => setSubCategorySearchQuery("")}
-                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-cream-500 hover:text-cream-700 transition-colors"
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-white0 hover:text-gray-700 transition-colors"
                       >
                         <X size={18} />
                       </button>
@@ -1275,7 +1345,7 @@ const VisitingCards: React.FC = () => {
 
                   {/* Subcategory Dropdown */}
                   <div className="flex-1 sm:flex-initial sm:w-64">
-                    <label className="block text-sm font-semibold text-cream-900 mb-2">
+                    <label className="block text-sm font-semibold text-gray-900 mb-2">
                       Filter Subcategory
                     </label>
                     <ReviewFilterDropdown
@@ -1307,7 +1377,7 @@ const VisitingCards: React.FC = () => {
                         setSubCategorySearchQuery("");
                         setSelectedSubCategoryFilter(null);
                       }}
-                      className="flex items-center gap-2 px-4 py-2.5 text-sm text-cream-700 hover:text-cream-900 bg-cream-100 hover:bg-cream-200 rounded-lg transition-colors whitespace-nowrap"
+                      className="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:text-gray-900 bg-gray-100 hover:bg-purple-200 rounded-lg transition-colors whitespace-nowrap"
                     >
                       <X size={16} />
                       Clear Filters
@@ -1356,10 +1426,10 @@ const VisitingCards: React.FC = () => {
                           window.scrollTo({ top: 0, behavior: 'smooth' });
                         }}
                       >
-                        <div className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-2xl transition-all duration-500 border border-cream-100 h-full flex flex-col hover:-translate-y-2">
+                        <div className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-2xl transition-all duration-500 border border-gray-100 h-full flex flex-col hover:-translate-y-2">
 
                           {/* Rounded Square Image Container */}
-                          <div className="relative aspect-[4/3] overflow-hidden bg-cream-100 flex items-center justify-center rounded-2xl sm:rounded-3xl m-3 sm:m-4 mx-2 sm:mx-3">
+                          <div className="relative aspect-[4/3] overflow-hidden bg-gray-100 flex items-center justify-center rounded-2xl sm:rounded-3xl m-3 sm:m-4 mx-2 sm:mx-3">
                             <img
                               src={imageUrl}
                               alt={subCategory.name}
@@ -1367,8 +1437,8 @@ const VisitingCards: React.FC = () => {
                             />
 
                             {/* Quick View Overlay */}
-                            <div className="absolute inset-0 bg-cream-900/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 backdrop-blur-[2px]">
-                              <span className="bg-white text-cream-900 px-6 py-3 rounded-full font-bold text-sm transform translate-y-4 group-hover:translate-y-0 transition-all duration-300 shadow-lg">
+                            <div className="absolute inset-0 bg-gray-900/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 backdrop-blur-[2px]">
+                              <span className="bg-white text-gray-900 px-6 py-3 rounded-full font-bold text-sm transform translate-y-4 group-hover:translate-y-0 transition-all duration-300 shadow-lg">
                                 Customize Now
                               </span>
                             </div>
@@ -1376,18 +1446,18 @@ const VisitingCards: React.FC = () => {
 
                           {/* Content */}
                           <div className="px-3 sm:px-4 py-4 sm:py-5 flex flex-col flex-grow">
-                            <h3 className="font-serif text-lg sm:text-xl md:text-2xl font-bold text-cream-900 mb-2 group-hover:text-cream-600 transition-colors">
+                            <h3 className="font-serif text-lg sm:text-xl md:text-2xl font-bold text-gray-900 mb-2 group-hover:text-gray-600 transition-colors">
                               {subCategory.name}
                             </h3>
-                            <p className="text-cream-600 text-sm sm:text-base mb-4 flex-grow leading-relaxed">
+                            <p className="text-gray-600 text-sm sm:text-base mb-4 flex-grow leading-relaxed">
                               {subCategory.description || ''}
                             </p>
 
-                            <div className="pt-3 border-t border-cream-100 flex items-center justify-between mt-auto">
-                              <span className="text-xs sm:text-sm text-cream-500">View Details</span>
+                            <div className="pt-3 border-t border-gray-100 flex items-center justify-between mt-auto">
+                              <span className="text-xs sm:text-sm text-white0">View Details</span>
                               <ArrowRight
                                 size={18}
-                                className="text-cream-900 group-hover:text-cream-600 group-hover:translate-x-1 transition-all duration-300"
+                                className="text-gray-900 group-hover:text-gray-600 group-hover:translate-x-1 transition-all duration-300"
                               />
                             </div>
                           </div>
@@ -1401,7 +1471,7 @@ const VisitingCards: React.FC = () => {
             {/* Direct Products Section - Show direct products if they exist (even when subcategories exist) */}
             {products.length > 0 && (
               <div className="mt-12">
-                <h2 className="font-serif text-2xl sm:text-3xl font-bold text-cream-900 mb-6">
+                <h2 className="font-serif text-2xl sm:text-3xl font-bold text-gray-900 mb-6">
                   Direct Products
                 </h2>
 
@@ -1411,7 +1481,7 @@ const VisitingCards: React.FC = () => {
                   <div className="lg:w-1/2">
                     <div className="lg:sticky lg:top-24">
                       <motion.div
-                        className="bg-white p-4 sm:p-6 md:p-8 lg:p-12 rounded-2xl sm:rounded-3xl shadow-sm border border-cream-100 flex items-center justify-center min-h-[400px] sm:min-h-[500px] md:min-h-[600px] bg-cream-100/50"
+                        className="bg-white p-4 sm:p-6 md:p-8 lg:p-12 rounded-2xl sm:rounded-3xl shadow-sm border border-gray-100 flex items-center justify-center min-h-[400px] sm:min-h-[500px] md:min-h-[600px] bg-gray-100/50"
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ duration: 0.5 }}
@@ -1502,9 +1572,9 @@ const VisitingCards: React.FC = () => {
                                 window.scrollTo({ top: 0, behavior: 'smooth' });
                               }}
                             >
-                              <div className="w-full p-4 sm:p-6 rounded-xl border-2 border-cream-200 hover:border-cream-900 text-left transition-all duration-200 hover:bg-cream-50 min-h-[140px] sm:min-h-[160px] flex gap-4">
+                              <div className="w-full p-4 sm:p-6 rounded-xl border-2 border-gray-200 hover:border-gray-900 text-left transition-all duration-200 hover:bg-gray-50 min-h-[140px] sm:min-h-[160px] flex gap-4">
                                 {/* Product Image */}
-                                <div className="flex-shrink-0 w-24 sm:w-32 h-24 sm:h-32 rounded-lg overflow-hidden bg-cream-100 border border-cream-200">
+                                <div className="flex-shrink-0 w-24 sm:w-32 h-24 sm:h-32 rounded-lg overflow-hidden bg-gray-100 border border-gray-200">
                                   <img
                                     src={product.image || "/Glossy.png"}
                                     alt={product.name}
@@ -1515,26 +1585,26 @@ const VisitingCards: React.FC = () => {
                                 {/* Product Content */}
                                 <div className="flex-1 flex flex-col min-w-0">
                                   <div className="flex items-start justify-between gap-3 mb-2">
-                                    <h3 className="font-serif text-base sm:text-lg font-bold text-cream-900 group-hover:text-cream-600 transition-colors flex-1">
+                                    <h3 className="font-serif text-base sm:text-lg font-bold text-gray-900 group-hover:text-gray-600 transition-colors flex-1">
                                       {product.name}
                                     </h3>
                                     <div className="text-right flex-shrink-0 flex items-center gap-2">
                                       <div>
-                                        <div className="text-lg sm:text-xl font-bold text-cream-900">
+                                        <div className="text-lg sm:text-xl font-bold text-gray-900">
                                           ₹{displayPrice}
                                         </div>
                                         {priceLabel && (
-                                          <div className="text-xs text-cream-500 mt-0.5">
+                                          <div className="text-xs text-gray-500 mt-0.5">
                                             {priceLabel}
                                           </div>
                                         )}
                                       </div>
-                                      <span className="text-cream-900 group-hover:text-cream-600 text-xl font-bold transition-colors">→</span>
+                                      <span className="text-gray-900 group-hover:text-gray-600 text-xl font-bold transition-colors">→</span>
                                     </div>
                                   </div>
 
                                   {shortDescription && (
-                                    <div className="text-cream-600 text-xs sm:text-sm leading-relaxed flex-grow">
+                                    <div className="text-gray-600 text-xs sm:text-sm leading-relaxed flex-grow">
                                       <p className="line-clamp-2">{shortDescription}</p>
                                     </div>
                                   )}
@@ -1554,7 +1624,17 @@ const VisitingCards: React.FC = () => {
           /* Products Display - From subcategory - Old UI: Left Image, Right Products */
           <div>
             {/* Back Button - Only show if viewing subcategory */}
-            {subCategoryId && (
+            {/* Back Button - Only show if viewing subcategory AND not deeply nested (user request: remove if more than 2) */}
+            {/* Interpretation: Show back button only if we are NOT in a subcategory (Wait, logic in plan was !subCategoryId) */}
+            {/* But this block is inside "else if (subCategoryId)". So we are ALREADY in a subcategory. */}
+            {/* The request "remove the back button if it more than 2" implies when depth > 2. */}
+            {/* If we are here, depth is at least 2 (Category -> SubCategory). */}
+            {/* So we should HIDE it here? */}
+            {/* If I hide it here, there is NO back button on the subcategory page. */}
+            {/* Let's follow the plan: "Interpretation: If navigation depth is > 2 (i.e., when subCategoryId is present), hide the back button." */}
+            {/* So I will remove this block or comment it out if subCategoryId is present. */}
+            {/* Since we are inside `else if (subCategoryId)`, subCategoryId IS present. So I will NOT render the back button here. */}
+            {false && subCategoryId && (
               <div className="mb-4">
                 <BackButton
                   onClick={() => {
@@ -1580,88 +1660,178 @@ const VisitingCards: React.FC = () => {
                       ? "Back to Subcategory"
                       : (categoryName ? `Back to ${categoryName}` : "Back to Category")
                   }
-                  className="inline-flex items-center gap-2 text-sm text-cream-600 hover:text-cream-900"
+                  className="inline-flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900"
                 />
               </div>
             )}
 
-            {/* Nested Subcategories - Show before products if they exist */}
+            {/* Nested Subcategories - Show as Product Variants buttons */}
             {subCategories.length > 0 && (
               <>
-                <h2 className="font-serif text-2xl sm:text-3xl font-bold text-cream-900 mb-6">
-                  Nested Subcategories
-                </h2>
-                <motion.div
-                  className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-5 mb-12"
-                  variants={containerVariants}
-                  initial="hidden"
-                  animate="visible"
-                >
-                  {subCategories.map((nestedSubCategory) => {
-                    // Always use ObjectId instead of slug
-                    const nestedSubCategoryIdForLink = nestedSubCategory._id;
-                    const imageUrl = nestedSubCategory.image || '/Glossy.png';
-                    // Get parent subcategory ID for proper navigation - always use ObjectId
-                    const parentSubcategoryId = selectedSubCategory ? selectedSubCategory._id : subCategoryId;
+                {/* Product Variants Section */}
+                <div className="mb-8">
+                  <h2 className="font-serif text-2xl sm:text-3xl font-bold text-gray-900 mb-6">
+                    Product Variants
+                  </h2>
 
-                    return (
-                      <motion.div
-                        key={nestedSubCategory._id}
-                        variants={itemVariants}
-                      >
-                        <Link
-                          to={categoryId && parentSubcategoryId
-                            ? `/services/${categoryId}/${parentSubcategoryId}/${nestedSubCategoryIdForLink}`
-                            : categoryId
-                              ? `/services/${categoryId}/${nestedSubCategoryIdForLink}`
-                              : `/services/${nestedSubCategoryIdForLink}`
-                          }
-                          className="group block h-full"
+                  {/* Variant Buttons */}
+                  <div className="flex flex-wrap gap-3">
+                    {subCategories.map((nestedSubCategory) => {
+                      const isSelected = selectedNestedSubCategory?._id === nestedSubCategory._id;
+
+                      return (
+                        <button
+                          key={nestedSubCategory._id}
                           onClick={() => {
-                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                            // Update state
+                            setSelectedNestedSubCategory(nestedSubCategory);
+
+                            // Update URL with nested subcategory slug WITHOUT navigating (no page reload)
+                            const nestedSubcategorySlug = nestedSubCategory.slug || nestedSubCategory._id;
+                            if (categoryId && subCategoryId) {
+                              const newUrl = `/services/${categoryId}/${subCategoryId}/${nestedSubcategorySlug}`;
+                              window.history.replaceState(null, '', newUrl);
+                            }
                           }}
+                          className={`px-6 py-3 rounded-xl font-semibold text-sm sm:text-base transition-all duration-300 border-2 ${isSelected
+                            ? 'bg-gray-900 text-white border-gray-900 shadow-lg transform scale-105'
+                            : 'bg-white text-gray-900 border-gray-300 hover:border-gray-900 hover:bg-gray-50'
+                            }`}
                         >
-                          <div className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-2xl transition-all duration-500 border border-cream-100 h-full flex flex-col hover:-translate-y-2">
-                            <div className="relative aspect-[4/3] overflow-hidden bg-cream-100 flex items-center justify-center rounded-2xl sm:rounded-3xl m-3 sm:m-4 mx-2 sm:mx-3">
-                              <img
-                                src={imageUrl}
-                                alt={nestedSubCategory.name}
-                                className="object-contain h-full w-full transition-transform duration-700 group-hover:scale-110 rounded-2xl sm:rounded-3xl"
-                              />
-                              <div className="absolute inset-0 bg-cream-900/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 backdrop-blur-[2px]">
-                                <span className="bg-white text-cream-900 px-6 py-3 rounded-full font-bold text-sm transform translate-y-4 group-hover:translate-y-0 transition-all duration-300 shadow-lg">
-                                  Customize Now
-                                </span>
+                          {nestedSubCategory.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Products Display for Selected Nested Subcategory */}
+                {nestedSubCategoryProducts.length > 0 ? (
+                  <>
+                    <h2 className="font-serif text-2xl sm:text-3xl font-bold text-gray-900 mb-6">
+                      {selectedNestedSubCategory?.name} Products
+                    </h2>
+
+                    {/* Product Cards Grid */}
+                    <motion.div
+                      className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4"
+                      variants={containerVariants}
+                      initial="hidden"
+                      animate="visible"
+                    >
+                      {nestedSubCategoryProducts.map((product) => {
+                        const productSubcategory = typeof product.subcategory === "object"
+                          ? product.subcategory
+                          : null;
+                        const productSubcategoryId = productSubcategory?._id;
+
+                        const hasValidSubcategory = productSubcategoryId &&
+                          productSubcategoryId !== categoryId &&
+                          productSubcategoryId !== product._id;
+
+                        const basePrice = product.basePrice || 0;
+                        const displayPrice = basePrice < 1
+                          ? (basePrice * 1000).toFixed(2)
+                          : basePrice.toFixed(2);
+                        const priceLabel = basePrice < 1 ? "per 1000 units" : "";
+
+                        const descriptionText = product.description
+                          ? product.description.replace(/<[^>]*>/g, '').trim()
+                          : "";
+                        const lines = descriptionText.split('\n').filter(line => line.trim());
+                        const firstFewLines = lines.slice(0, 2).join(' ').trim();
+                        const shortDescription = firstFewLines.length > 150
+                          ? firstFewLines.substring(0, 150) + '...'
+                          : firstFewLines || "";
+
+                        // Build the product URL with proper nested structure
+                        const parentSubcategoryId = selectedSubCategory ? selectedSubCategory._id : subCategoryId;
+                        const nestedSubcategoryId = selectedNestedSubCategory?._id;
+
+                        return (
+                          <motion.div
+                            key={product._id}
+                            variants={itemVariants}
+                          >
+                            <Link
+                              to={categoryId && parentSubcategoryId && nestedSubcategoryId
+                                ? `/services/${categoryId}/${parentSubcategoryId}/${nestedSubcategoryId}/${product._id}`
+                                : categoryId && hasValidSubcategory
+                                  ? `/services/${categoryId}/${productSubcategoryId}/${product._id}`
+                                  : categoryId
+                                    ? `/services/${categoryId}/${product._id}`
+                                    : `/services/${product._id}`
+                              }
+                              className="group block h-full"
+                              onClick={() => {
+                                window.scrollTo({ top: 0, behavior: 'smooth' });
+                              }}
+                            >
+                              <div className="bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-500 border border-gray-100 h-full flex flex-col hover:-translate-y-1">
+                                {/* Product Image - Smaller aspect ratio */}
+                                <div className="relative aspect-square overflow-hidden bg-gray-100 flex items-center justify-center rounded-xl m-2">
+                                  <img
+                                    src={product.image || "/Glossy.png"}
+                                    alt={product.name}
+                                    className="object-contain h-full w-full transition-transform duration-700 group-hover:scale-110 rounded-xl p-2"
+                                  />
+                                  <div className="absolute inset-0 bg-gray-900/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 backdrop-blur-[2px]">
+                                    <span className="bg-white text-gray-900 px-4 py-2 rounded-full font-bold text-xs transform translate-y-4 group-hover:translate-y-0 transition-all duration-300 shadow-lg">
+                                      View
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {/* Product Content - Compact */}
+                                <div className="px-2 sm:px-3 py-3 flex flex-col flex-grow">
+                                  <h3 className="font-serif text-sm sm:text-base font-bold text-gray-900 mb-1 group-hover:text-gray-600 transition-colors line-clamp-2">
+                                    {product.name}
+                                  </h3>
+
+                                  {shortDescription && (
+                                    <p className="text-gray-600 text-xs mb-2 flex-grow leading-relaxed line-clamp-2 hidden sm:block">
+                                      {shortDescription}
+                                    </p>
+                                  )}
+
+                                  <div className="pt-2 border-t border-gray-100 flex items-center justify-between mt-auto">
+                                    <div>
+                                      <div className="text-base sm:text-lg font-bold text-gray-900">
+                                        ₹{displayPrice}
+                                      </div>
+                                      {priceLabel && (
+                                        <div className="text-xs text-gray-500 mt-0.5 hidden sm:block">
+                                          {priceLabel}
+                                        </div>
+                                      )}
+                                    </div>
+                                    <ArrowRight
+                                      size={16}
+                                      className="text-gray-900 group-hover:text-gray-600 group-hover:translate-x-1 transition-all duration-300"
+                                    />
+                                  </div>
+                                </div>
                               </div>
-                            </div>
-                            <div className="px-3 sm:px-4 py-4 sm:py-5 flex flex-col flex-grow">
-                              <h3 className="font-serif text-lg sm:text-xl md:text-2xl font-bold text-cream-900 mb-2 group-hover:text-cream-600 transition-colors">
-                                {nestedSubCategory.name}
-                              </h3>
-                              <p className="text-cream-600 text-sm sm:text-base mb-4 flex-grow leading-relaxed">
-                                {nestedSubCategory.description || ''}
-                              </p>
-                              <div className="pt-3 border-t border-cream-100 flex items-center justify-between mt-auto">
-                                <span className="text-xs sm:text-sm text-cream-500">View Details</span>
-                                <ArrowRight
-                                  size={18}
-                                  className="text-cream-900 group-hover:text-cream-600 group-hover:translate-x-1 transition-all duration-300"
-                                />
-                              </div>
-                            </div>
-                          </div>
-                        </Link>
-                      </motion.div>
-                    );
-                  })}
-                </motion.div>
+                            </Link>
+                          </motion.div>
+                        );
+                      })}
+                    </motion.div>
+
+                  </>
+                ) : (
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
+                    <p className="text-gray-700">No products found for {selectedNestedSubCategory?.name}.</p>
+                  </div>
+                )}
               </>
             )}
 
-            {/* Products Display */}
-            {products.length > 0 ? (
+            {/* Products Display - Show only if no nested subcategories */}
+            {subCategories.length === 0 && products.length > 0 ? (
+
               <>
-                <h2 className="font-serif text-2xl sm:text-3xl font-bold text-cream-900 mb-6">
+                <h2 className="font-serif text-2xl sm:text-3xl font-bold text-gray-900 mb-6">
                   Select Product
                 </h2>
 
@@ -1671,7 +1841,7 @@ const VisitingCards: React.FC = () => {
                   <div className="lg:w-1/2">
                     <div className="lg:sticky lg:top-24">
                       <motion.div
-                        className="bg-white p-4 sm:p-6 md:p-8 lg:p-12 rounded-2xl sm:rounded-3xl shadow-sm border border-cream-100 flex items-center justify-center min-h-[400px] sm:min-h-[500px] md:min-h-[600px] bg-cream-100/50"
+                        className="bg-white p-4 sm:p-6 md:p-8 lg:p-12 rounded-2xl sm:rounded-3xl shadow-sm border border-gray-100 flex items-center justify-center min-h-[400px] sm:min-h-[500px] md:min-h-[600px] bg-gray-100/50"
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ duration: 0.5 }}
@@ -1750,9 +1920,9 @@ const VisitingCards: React.FC = () => {
                                 window.scrollTo({ top: 0, behavior: 'smooth' });
                               }}
                             >
-                              <div className="w-full p-4 sm:p-6 rounded-xl border-2 border-cream-200 hover:border-cream-900 text-left transition-all duration-200 hover:bg-cream-50 min-h-[140px] sm:min-h-[160px] flex gap-4">
+                              <div className="w-full p-4 sm:p-6 rounded-xl border-2 border-gray-200 hover:border-gray-900 text-left transition-all duration-200 hover:bg-gray-50 min-h-[140px] sm:min-h-[160px] flex gap-4">
                                 {/* Product Image */}
-                                <div className="flex-shrink-0 w-24 sm:w-32 h-24 sm:h-32 rounded-lg overflow-hidden bg-cream-100 border border-cream-200">
+                                <div className="flex-shrink-0 w-24 sm:w-32 h-24 sm:h-32 rounded-lg overflow-hidden bg-gray-100 border border-gray-200">
                                   <img
                                     src={product.image || "/Glossy.png"}
                                     alt={product.name}
@@ -1763,26 +1933,26 @@ const VisitingCards: React.FC = () => {
                                 {/* Product Content */}
                                 <div className="flex-1 flex flex-col min-w-0">
                                   <div className="flex items-start justify-between gap-3 mb-2">
-                                    <h3 className="font-serif text-base sm:text-lg font-bold text-cream-900 group-hover:text-cream-600 transition-colors flex-1">
+                                    <h3 className="font-serif text-base sm:text-lg font-bold text-gray-900 group-hover:text-gray-600 transition-colors flex-1">
                                       {product.name}
                                     </h3>
                                     <div className="text-right flex-shrink-0 flex items-center gap-2">
                                       <div>
-                                        <div className="text-lg sm:text-xl font-bold text-cream-900">
+                                        <div className="text-lg sm:text-xl font-bold text-gray-900">
                                           ₹{displayPrice}
                                         </div>
                                         {priceLabel && (
-                                          <div className="text-xs text-cream-500 mt-0.5">
+                                          <div className="text-xs text-gray-500 mt-0.5">
                                             {priceLabel}
                                           </div>
                                         )}
                                       </div>
-                                      <span className="text-cream-900 group-hover:text-cream-600 text-xl font-bold transition-colors">→</span>
+                                      <span className="text-gray-900 group-hover:text-gray-600 text-xl font-bold transition-colors">→</span>
                                     </div>
                                   </div>
 
                                   {shortDescription && (
-                                    <div className="text-cream-600 text-xs sm:text-sm leading-relaxed flex-grow">
+                                    <div className="text-gray-600 text-xs sm:text-sm leading-relaxed flex-grow">
                                       <p className="line-clamp-2">{shortDescription}</p>
                                     </div>
                                   )}
@@ -1797,8 +1967,8 @@ const VisitingCards: React.FC = () => {
                 </div>
               </>
             ) : subCategories.length === 0 ? (
-              <div className="bg-cream-50 border border-cream-200 rounded-lg p-6 text-center">
-                <p className="text-cream-700">No products found for this subcategory.</p>
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
+                <p className="text-gray-700">No products found for this subcategory.</p>
                 {categoryId && (
                   <BackButton
                     onClick={() => {
@@ -1811,7 +1981,7 @@ const VisitingCards: React.FC = () => {
                     }}
                     fallbackPath={categoryId ? `/services/${categoryId}` : "/services"}
                     label={categoryName ? `Back to ${categoryName}` : "Back to Category"}
-                    className="text-cream-900 hover:text-cream-600 underline mt-2 inline-block"
+                    className="text-gray-900 hover:text-gray-600 underline mt-2 inline-block"
                   />
                 )}
               </div>
@@ -1821,7 +1991,7 @@ const VisitingCards: React.FC = () => {
           /* Products Display - Direct from category (with or without subcategories) - 50/50 Layout */
           <div>
             {/* Select Product Heading */}
-            <h2 className="font-serif text-2xl sm:text-3xl font-bold text-cream-900 mb-6">
+            <h2 className="font-serif text-2xl sm:text-3xl font-bold text-gray-900 mb-6">
               Select Product
             </h2>
 
@@ -1831,7 +2001,7 @@ const VisitingCards: React.FC = () => {
               <div className="lg:w-1/2">
                 <div className="lg:sticky lg:top-24">
                   <motion.div
-                    className="bg-white p-4 sm:p-6 md:p-8 lg:p-12 rounded-2xl sm:rounded-3xl shadow-sm border border-cream-100 flex items-center justify-center min-h-[400px] sm:min-h-[500px] md:min-h-[600px] bg-cream-100/50"
+                    className="bg-white p-4 sm:p-6 md:p-8 lg:p-12 rounded-2xl sm:rounded-3xl shadow-sm border border-gray-100 flex items-center justify-center min-h-[400px] sm:min-h-[500px] md:min-h-[600px] bg-gray-100/50"
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ duration: 0.5 }}
@@ -1909,9 +2079,9 @@ const VisitingCards: React.FC = () => {
                             window.scrollTo({ top: 0, behavior: 'smooth' });
                           }}
                         >
-                          <div className="w-full p-4 sm:p-6 rounded-xl border-2 border-cream-200 hover:border-cream-900 text-left transition-all duration-200 hover:bg-cream-50 min-h-[140px] sm:min-h-[160px] flex gap-4">
+                          <div className="w-full p-4 sm:p-6 rounded-xl border-2 border-gray-200 hover:border-gray-900 text-left transition-all duration-200 hover:bg-gray-50 min-h-[140px] sm:min-h-[160px] flex gap-4">
                             {/* Product Image */}
-                            <div className="flex-shrink-0 w-24 sm:w-32 h-24 sm:h-32 rounded-lg overflow-hidden bg-cream-100 border border-cream-200">
+                            <div className="flex-shrink-0 w-24 sm:w-32 h-24 sm:h-32 rounded-lg overflow-hidden bg-gray-100 border border-gray-200">
                               <img
                                 src={product.image || "/Glossy.png"}
                                 alt={product.name}
@@ -1922,26 +2092,26 @@ const VisitingCards: React.FC = () => {
                             {/* Product Content */}
                             <div className="flex-1 flex flex-col min-w-0">
                               <div className="flex items-start justify-between gap-3 mb-2">
-                                <h3 className="font-serif text-base sm:text-lg font-bold text-cream-900 group-hover:text-cream-600 transition-colors flex-1">
+                                <h3 className="font-serif text-base sm:text-lg font-bold text-gray-900 group-hover:text-gray-600 transition-colors flex-1">
                                   {product.name}
                                 </h3>
                                 <div className="text-right flex-shrink-0 flex items-center gap-2">
                                   <div>
-                                    <div className="text-lg sm:text-xl font-bold text-cream-900">
+                                    <div className="text-lg sm:text-xl font-bold text-gray-900">
                                       ₹{displayPrice}
                                     </div>
                                     {priceLabel && (
-                                      <div className="text-xs text-cream-500 mt-0.5">
+                                      <div className="text-xs text-gray-500 mt-0.5">
                                         {priceLabel}
                                       </div>
                                     )}
                                   </div>
-                                  <span className="text-cream-900 group-hover:text-cream-600 text-xl font-bold transition-colors">→</span>
+                                  <span className="text-gray-900 group-hover:text-gray-600 text-xl font-bold transition-colors">→</span>
                                 </div>
                               </div>
 
                               {shortDescription && (
-                                <div className="text-cream-600 text-xs sm:text-sm leading-relaxed flex-grow">
+                                <div className="text-gray-600 text-xs sm:text-sm leading-relaxed flex-grow">
                                   <p className="line-clamp-2">{shortDescription}</p>
                                 </div>
                               )}
@@ -1956,8 +2126,8 @@ const VisitingCards: React.FC = () => {
             </div>
           </div>
         ) : (categoryId && subCategories.length === 0) && products.length === 0 ? (
-          <div className="bg-cream-50 border border-cream-200 rounded-lg p-6 text-center">
-            <p className="text-cream-700">
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
+            <p className="text-gray-700">
               {subCategoryId ? "No products found for this subcategory." : "No products found for this category."}
             </p>
             {categoryId && subCategoryId && (
@@ -1972,13 +2142,13 @@ const VisitingCards: React.FC = () => {
                 }}
                 fallbackPath={categoryId ? `/services/${categoryId}` : "/services"}
                 label={categoryName ? `Back to ${categoryName}` : "Back to Category"}
-                className="text-cream-900 hover:text-cream-600 underline mt-2 inline-block"
+                className="text-gray-900 hover:text-gray-600 underline mt-2 inline-block"
               />
             )}
           </div>
         ) : subCategories.length === 0 && !categoryId ? (
-          <div className="bg-cream-50 border border-cream-200 rounded-lg p-6 text-center">
-            <p className="text-cream-700">No categories found.</p>
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
+            <p className="text-gray-700">No categories found.</p>
           </div>
         ) : null
         }
@@ -1986,7 +2156,7 @@ const VisitingCards: React.FC = () => {
         {/* Category Details Footer - Only show when viewing subcategories, not products */}
         {!subCategoryId && categoryName && (
           <motion.div
-            className="mt-12 sm:mt-20 bg-white p-8 sm:p-10 rounded-3xl border border-cream-200 shadow-sm"
+            className="mt-12 sm:mt-20 bg-white p-8 sm:p-10 rounded-3xl border border-gray-200 shadow-sm"
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4, duration: 0.5 }}
@@ -2012,26 +2182,26 @@ const VisitingCards: React.FC = () => {
             </div>
             <div className="flex flex-col md:flex-row gap-10 items-start">
               <div className="flex-1">
-                <h3 className="font-serif text-2xl font-bold text-cream-900 mb-4">
+                <h3 className="font-serif text-2xl font-bold text-gray-900 mb-4">
                   Why Choose Our {categoryName}?
                 </h3>
                 {categoryDescription && (
-                  <p className="text-cream-700 leading-relaxed mb-6">
+                  <p className="text-gray-700 leading-relaxed mb-6">
                     {categoryDescription}
                   </p>
                 )}
                 <div className="flex gap-4">
-                  <div className="text-center p-4 bg-cream-50 rounded-xl border border-cream-100">
-                    <div className="font-bold text-2xl text-cream-900 mb-1">24h</div>
-                    <div className="text-xs text-cream-500 uppercase tracking-wider">Production</div>
+                  <div className="text-center p-4 bg-gray-50 rounded-xl border border-gray-100">
+                    <div className="font-bold text-2xl text-gray-900 mb-1">24h</div>
+                    <div className="text-xs text-gray-500 uppercase tracking-wider">Production</div>
                   </div>
-                  <div className="text-center p-4 bg-cream-50 rounded-xl border border-cream-100">
-                    <div className="font-bold text-2xl text-cream-900 mb-1">300+</div>
-                    <div className="text-xs text-cream-500 uppercase tracking-wider">GSM Paper</div>
+                  <div className="text-center p-4 bg-gray-50 rounded-xl border border-gray-100">
+                    <div className="font-bold text-2xl text-gray-900 mb-1">300+</div>
+                    <div className="text-xs text-gray-500 uppercase tracking-wider">GSM Paper</div>
                   </div>
-                  <div className="text-center p-4 bg-cream-50 rounded-xl border border-cream-100">
-                    <div className="font-bold text-2xl text-cream-900 mb-1">100%</div>
-                    <div className="text-xs text-cream-500 uppercase tracking-wider">Satisfaction</div>
+                  <div className="text-center p-4 bg-gray-50 rounded-xl border border-gray-100">
+                    <div className="font-bold text-2xl text-gray-900 mb-1">100%</div>
+                    <div className="text-xs text-gray-500 uppercase tracking-wider">Satisfaction</div>
                   </div>
                 </div>
               </div>

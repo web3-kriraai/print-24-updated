@@ -276,13 +276,13 @@ const DigitalPrint: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-cream-50 py-12">
+      <div className="min-h-screen bg-gray-50 py-12">
         <div className="container mx-auto px-4">
           <div className="text-center">
-            <h1 className="font-serif text-4xl md:text-5xl font-bold text-cream-900 mb-4">
+            <h1 className="font-serif text-4xl md:text-5xl font-bold text-gray-900 mb-4">
               Services
             </h1>
-            <p className="text-cream-600">Loading categories...</p>
+            <p className="text-gray-600">Loading categories...</p>
           </div>
         </div>
       </div>
@@ -291,13 +291,13 @@ const DigitalPrint: React.FC = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-cream-50 py-12">
+      <div className="min-h-screen bg-gray-50 py-12">
         <div className="container mx-auto px-4">
           <div className="text-center">
             <h1 className="font-serif text-4xl md:text-5xl font-bold text-cream-900 mb-4">
               Services
             </h1>
-            <p className="text-cream-600">Error: {error}</p>
+            <p className="text-gray-600">Error: {error}</p>
           </div>
         </div>
       </div>
@@ -363,7 +363,7 @@ const DigitalPrint: React.FC = () => {
 
 
   return (
-    <div className="min-h-screen bg-cream-50">
+    <div className="min-h-screen bg-gray-50">
       <div className="container mx-auto px-2 xs:px-3 sm:px-4 md:px-6 lg:px-8 pt-4 xs:pt-5 sm:pt-6 md:pt-8 lg:pt-10 pb-8 xs:pb-10 sm:pb-12 md:pb-16 lg:pb-20">
 
         {/* Enhanced Filters Section */}
@@ -373,7 +373,7 @@ const DigitalPrint: React.FC = () => {
             <div className="flex flex-col sm:flex-row items-start sm:items-end gap-4 flex-1">
               {/* Type Filter - Moved to Left */}
               <div className="sm:w-48">
-                <label className="block text-sm font-semibold text-cream-900 mb-2">
+                <label className="block text-sm font-semibold text-gray-900 mb-2">
                   Print Type
                 </label>
                 <ReviewFilterDropdown
@@ -394,7 +394,7 @@ const DigitalPrint: React.FC = () => {
 
               {/* Category Filter */}
               <div className="flex-1 sm:flex-initial sm:w-64">
-                <label className="block text-sm font-semibold text-cream-900 mb-2">
+                <label className="block text-sm font-semibold text-gray-900 mb-2">
                   Category
                 </label>
                 <ReviewFilterDropdown
@@ -431,7 +431,7 @@ const DigitalPrint: React.FC = () => {
               {/* Subcategory Filter - Only show when a category is selected */}
               {selectedCategory && (
                 <div className="flex-1 sm:flex-initial sm:w-64">
-                  <label className="block text-sm font-semibold text-cream-900 mb-2">
+                  <label className="block text-sm font-semibold text-gray-900 mb-2">
                     Subcategory
                   </label>
                   <ReviewFilterDropdown
@@ -467,18 +467,18 @@ const DigitalPrint: React.FC = () => {
 
               {/* Search Bar */}
               <div className="relative sm:w-64">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-cream-500 w-5 h-5" />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 w-5 h-5" />
                 <input
                   type="text"
                   placeholder="Search categories..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-10 py-2.5 border-2 border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500 text-sm sm:text-base bg-white shadow-sm transition-all"
+                  className="w-full pl-10 pr-10 py-2.5 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-gray-500 text-sm sm:text-base bg-white shadow-sm transition-all"
                 />
                 {searchQuery && (
                   <button
                     onClick={() => setSearchQuery("")}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-cream-500 hover:text-cream-700 transition-colors"
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700 transition-colors"
                   >
                     <X size={18} />
                   </button>
@@ -494,7 +494,7 @@ const DigitalPrint: React.FC = () => {
                     setSelectedSubCategory(null);
                     setSearchQuery("");
                   }}
-                  className="flex items-center gap-2 px-4 py-2.5 text-sm text-cream-700 hover:text-cream-900 bg-cream-100 hover:bg-cream-200 rounded-lg transition-colors whitespace-nowrap"
+                  className="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors whitespace-nowrap"
                 >
                   <X size={16} />
                   Clear All
@@ -506,10 +506,10 @@ const DigitalPrint: React.FC = () => {
 
           {/* Active Filters Display */}
           {(selectedType || selectedCategory || selectedSubCategory || searchQuery) && (
-            <div className="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t border-cream-200">
-              <span className="text-xs font-medium text-cream-600">Active filters:</span>
+            <div className="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t border-gray-200">
+              <span className="text-xs font-medium text-gray-600">Active filters:</span>
               {selectedType && (
-                <span className="px-3 py-1 bg-cream-200 text-cream-900 rounded-full text-xs font-medium flex items-center gap-2">
+                <span className="px-3 py-1 bg-gray-200 text-gray-900 rounded-full text-xs font-medium flex items-center gap-2">
                   Type: {selectedType}
                   <button
                     onClick={() => {
@@ -524,7 +524,7 @@ const DigitalPrint: React.FC = () => {
                 </span>
               )}
               {selectedCategory && (
-                <span className="px-3 py-1 bg-cream-200 text-cream-900 rounded-full text-xs font-medium flex items-center gap-2">
+                <span className="px-3 py-1 bg-gray-200 text-gray-900 rounded-full text-xs font-medium flex items-center gap-2">
                   Category: {allCategories.find(c => c._id === selectedCategory)?.name}
                   <button
                     onClick={() => {
@@ -539,7 +539,7 @@ const DigitalPrint: React.FC = () => {
                 </span>
               )}
               {selectedSubCategory && (
-                <span className="px-3 py-1 bg-cream-200 text-cream-900 rounded-full text-xs font-medium flex items-center gap-2">
+                <span className="px-3 py-1 bg-gray-200 text-gray-900 rounded-full text-xs font-medium flex items-center gap-2">
                   Subcategory: {subCategories.find(sc => sc._id === selectedSubCategory)?.name}
                   <button
                     onClick={() => {
@@ -563,10 +563,10 @@ const DigitalPrint: React.FC = () => {
                 <Zap className="text-white w-4 h-4 xs:w-5 xs:h-5 sm:w-5 sm:h-5 md:w-6 md:h-6" />
               </div>
               <div>
-                <h2 className="font-serif text-lg xs:text-xl sm:text-2xl md:text-3xl font-bold text-cream-900">
+                <h2 className="font-serif text-lg xs:text-xl sm:text-2xl md:text-3xl font-bold text-gray-900">
                   Digital Print
                 </h2>
-                <p className="text-cream-600 text-xs xs:text-sm sm:text-base font-medium">Fast & small batches</p>
+                <p className="text-gray-600 text-xs xs:text-sm sm:text-base font-medium">Fast & small batches</p>
               </div>
             </div>
 
@@ -596,7 +596,7 @@ const DigitalPrint: React.FC = () => {
                     (window as any).digitalUpdateFromArrow();
                   }
                 }}
-                className="absolute left-2 sm:left-3 md:left-4 z-10 w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 bg-white/95 hover:bg-white active:bg-white shadow-md sm:shadow-lg rounded-full flex items-center justify-center text-cream-900 hover:text-cream-600 active:scale-95 transition-all opacity-100 sm:opacity-0 sm:group-hover/slider:opacity-100 touch-manipulation"
+                className="absolute left-2 sm:left-3 md:left-4 z-10 w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 bg-white/95 hover:bg-white active:bg-white shadow-md sm:shadow-lg rounded-full flex items-center justify-center text-gray-900 hover:text-gray-600 active:scale-95 transition-all opacity-100 sm:opacity-0 sm:group-hover/slider:opacity-100 touch-manipulation"
                 style={{ top: 'calc(50% - 1rem)' }}
               >
                 <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6" />
@@ -631,7 +631,7 @@ const DigitalPrint: React.FC = () => {
                     (window as any).digitalUpdateFromArrow();
                   }
                 }}
-                className="absolute right-2 sm:right-3 md:right-4 z-10 w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 bg-white/95 hover:bg-white active:bg-white shadow-md sm:shadow-lg rounded-full flex items-center justify-center text-cream-900 hover:text-cream-600 active:scale-95 transition-all opacity-100 sm:opacity-0 sm:group-hover/slider:opacity-100 touch-manipulation"
+                className="absolute right-2 sm:right-3 md:right-4 z-10 w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 bg-white/95 hover:bg-white active:bg-white shadow-md sm:shadow-lg rounded-full flex items-center justify-center text-gray-900 hover:text-gray-600 active:scale-95 transition-all opacity-100 sm:opacity-0 sm:group-hover/slider:opacity-100 touch-manipulation"
                 style={{ top: 'calc(50% - 1rem)' }}
               >
                 <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6" />
@@ -647,7 +647,7 @@ const DigitalPrint: React.FC = () => {
                 }}
               >
                 {filteredDigitalCategories.length === 0 ? (
-                  <div className="w-full text-center py-8 text-cream-600">
+                  <div className="w-full text-center py-8 text-gray-600">
                     No digital print categories found matching your filters.
                   </div>
                 ) : (
@@ -660,7 +660,7 @@ const DigitalPrint: React.FC = () => {
                       className="flex-shrink-0 snap-start transition-all duration-500 ease-in-out w-1/2 sm:w-1/3 md:w-1/4 lg:w-1/5 xl:w-1/6 px-1 sm:px-1.5 md:px-2"
                     >
                       <Link to={`/services/${category._id}`} className="block">
-                        <div className="group flex flex-col items-center gap-1.5 sm:gap-2 p-2 sm:p-2.5 rounded-lg transition-all duration-300 bg-cream-50">
+                        <div className="group flex flex-col items-center gap-1.5 sm:gap-2 p-2 sm:p-2.5 rounded-lg transition-all duration-300 bg-gray-50">
                           {/* Reduced circle sizes for better mobile compatibility */}
                           <div className="w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 lg:w-32 lg:h-32 xl:w-36 xl:h-36 rounded-full overflow-hidden bg-white group-hover:bg-[#f5faf0] transition-all duration-300 shadow-sm sm:shadow-md group-hover:shadow-lg group-hover:scale-105 flex items-center justify-center">
                             <img
@@ -669,7 +669,7 @@ const DigitalPrint: React.FC = () => {
                               className="w-full h-full object-cover"
                             />
                           </div>
-                          <span className="text-xs sm:text-sm font-semibold text-cream-900 text-center max-w-[80px] sm:max-w-[100px] md:max-w-[120px] line-clamp-2 leading-tight mt-0.5">
+                          <span className="text-xs sm:text-sm font-semibold text-gray-900 text-center max-w-[80px] sm:max-w-[100px] md:max-w-[120px] line-clamp-2 leading-tight mt-0.5">
                             {category.name}
                           </span>
                         </div>
@@ -690,10 +690,10 @@ const DigitalPrint: React.FC = () => {
                 <Shield className="text-white w-4 h-4 xs:w-5 xs:h-5 sm:w-5 sm:h-5 md:w-6 md:h-6" />
               </div>
               <div>
-                <h2 className="font-serif text-lg xs:text-xl sm:text-2xl md:text-3xl font-bold text-cream-900">
+                <h2 className="font-serif text-lg xs:text-xl sm:text-2xl md:text-3xl font-bold text-gray-900">
                   Bulk & Offset Print
                 </h2>
-                <p className="text-cream-600 text-xs xs:text-sm sm:text-base font-medium">Quality & large orders</p>
+                <p className="text-gray-600 text-xs xs:text-sm sm:text-base font-medium">Quality & large orders</p>
               </div>
             </div>
 
@@ -723,7 +723,7 @@ const DigitalPrint: React.FC = () => {
                     (window as any).bulkUpdateFromArrow();
                   }
                 }}
-                className="absolute left-2 sm:left-3 md:left-4 z-10 w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 bg-white/95 hover:bg-white active:bg-white shadow-md sm:shadow-lg rounded-full flex items-center justify-center text-cream-900 hover:text-cream-600 active:scale-95 transition-all opacity-100 sm:opacity-0 sm:group-hover/slider:opacity-100 touch-manipulation"
+                className="absolute left-2 sm:left-3 md:left-4 z-10 w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 bg-white/95 hover:bg-white active:bg-white shadow-md sm:shadow-lg rounded-full flex items-center justify-center text-gray-900 hover:text-gray-600 active:scale-95 transition-all opacity-100 sm:opacity-0 sm:group-hover/slider:opacity-100 touch-manipulation"
                 style={{ top: 'calc(50% - 1rem)' }}
               >
                 <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6" />
@@ -758,7 +758,7 @@ const DigitalPrint: React.FC = () => {
                     (window as any).bulkUpdateFromArrow();
                   }
                 }}
-                className="absolute right-2 sm:right-3 md:right-4 z-10 w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 bg-white/95 hover:bg-white active:bg-white shadow-md sm:shadow-lg rounded-full flex items-center justify-center text-cream-900 hover:text-cream-600 active:scale-95 transition-all opacity-100 sm:opacity-0 sm:group-hover/slider:opacity-100 touch-manipulation"
+                className="absolute right-2 sm:right-3 md:right-4 z-10 w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 bg-white/95 hover:bg-white active:bg-white shadow-md sm:shadow-lg rounded-full flex items-center justify-center text-gray-900 hover:text-gray-600 active:scale-95 transition-all opacity-100 sm:opacity-0 sm:group-hover/slider:opacity-100 touch-manipulation"
                 style={{ top: 'calc(50% - 1rem)' }}
               >
                 <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6" />
@@ -774,7 +774,7 @@ const DigitalPrint: React.FC = () => {
                 }}
               >
                 {filteredBulkCategories.length === 0 ? (
-                  <div className="w-full text-center py-8 text-cream-600">
+                  <div className="w-full text-center py-8 text-gray-600">
                     No bulk print categories found matching your filters.
                   </div>
                 ) : (
@@ -787,7 +787,7 @@ const DigitalPrint: React.FC = () => {
                       className="flex-shrink-0 snap-start transition-all duration-500 ease-in-out w-1/2 sm:w-1/3 md:w-1/4 lg:w-1/5 xl:w-1/6 px-1 sm:px-1.5 md:px-2"
                     >
                       <Link to={`/services/${category._id}`} className="block">
-                        <div className="group flex flex-col items-center gap-1.5 sm:gap-2 p-2 sm:p-2.5 rounded-lg transition-all duration-300 bg-cream-50">
+                        <div className="group flex flex-col items-center gap-1.5 sm:gap-2 p-2 sm:p-2.5 rounded-lg transition-all duration-300 bg-gray-50">
                           {/* Reduced circle sizes for better mobile compatibility */}
                           <div className="w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 lg:w-32 lg:h-32 xl:w-36 xl:h-36 rounded-full overflow-hidden bg-white group-hover:bg-[#f5fbff] transition-all duration-300 shadow-sm sm:shadow-md group-hover:shadow-lg group-hover:scale-105 flex items-center justify-center">
                             <img
@@ -796,7 +796,7 @@ const DigitalPrint: React.FC = () => {
                               className="w-full h-full object-cover"
                             />
                           </div>
-                          <span className="text-xs sm:text-sm font-semibold text-cream-900 text-center max-w-[80px] sm:max-w-[100px] md:max-w-[120px] line-clamp-2 leading-tight mt-0.5">
+                          <span className="text-xs sm:text-sm font-semibold text-gray-900 text-center max-w-[80px] sm:max-w-[100px] md:max-w-[120px] line-clamp-2 leading-tight mt-0.5">
                             {category.name}
                           </span>
                         </div>

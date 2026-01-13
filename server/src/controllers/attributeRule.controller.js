@@ -214,7 +214,10 @@ export const getAllAttributeRules = async (req, res) => {
       .sort({ priority: -1, createdAt: -1 })
       .lean();
 
-    return res.json(rules);
+    return res.json({
+      success: true,
+      data: rules,
+    });
   } catch (err) {
     console.error("Error fetching attribute rules:", err);
     return res.status(500).json({ error: err.message || "Failed to fetch attribute rules" });
