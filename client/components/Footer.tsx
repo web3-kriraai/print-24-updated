@@ -2,8 +2,6 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { Facebook, Twitter, Instagram, Linkedin, Mail, Phone, MapPin } from 'lucide-react';
 import { motion } from 'framer-motion';
-// @ts-ignore
-import FooterImage from '../public/footer.png';
 
 const Footer: React.FC = () => {
   return (
@@ -52,7 +50,7 @@ const Footer: React.FC = () => {
         style={{ minHeight: '100%' }}
       >
         <img
-          src={FooterImage}
+          src="/footer.png"
           alt="Prints24 Creative"
           className="w-full h-auto object-contain lg:w-[250px] absolute top-20 left-12 block"
           style={{ objectPosition: 'center top' }}

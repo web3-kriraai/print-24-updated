@@ -1683,22 +1683,27 @@ const VisitingCards: React.FC = () => {
                         <button
                           key={nestedSubCategory._id}
                           onClick={() => {
-                            // Update state
+                            // Update state only - NO URL changes, NO navigation
                             setSelectedNestedSubCategory(nestedSubCategory);
-
-                            // Update URL with nested subcategory slug WITHOUT navigating (no page reload)
-                            const nestedSubcategorySlug = nestedSubCategory.slug || nestedSubCategory._id;
-                            if (categoryId && subCategoryId) {
-                              const newUrl = `/services/${categoryId}/${subCategoryId}/${nestedSubcategorySlug}`;
-                              window.history.replaceState(null, '', newUrl);
-                            }
                           }}
-                          className={`px-6 py-3 rounded-xl font-semibold text-sm sm:text-base transition-all duration-300 border-2 ${isSelected
+                          className={`flex items-center gap-3 px-4 py-3 rounded-xl font-semibold text-sm sm:text-base transition-all duration-300 border-2 ${isSelected
                             ? 'bg-gray-900 text-white border-gray-900 shadow-lg transform scale-105'
                             : 'bg-white text-gray-900 border-gray-300 hover:border-gray-900 hover:bg-gray-50'
                             }`}
                         >
-                          {nestedSubCategory.name}
+                          {/* Subcategory Image - Left Side */}
+                          <div className="flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden bg-gray-100 border border-gray-200">
+                            <img
+                              src={nestedSubCategory.image || "/Glossy.png"}
+                              alt={nestedSubCategory.name}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+
+                          {/* Subcategory Name - Right Side */}
+                          <span className="flex-1 text-left">
+                            {nestedSubCategory.name}
+                          </span>
                         </button>
                       );
                     })}
