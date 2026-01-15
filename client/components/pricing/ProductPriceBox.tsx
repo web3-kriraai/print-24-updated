@@ -9,11 +9,19 @@ import { AlertCircle, TrendingUp, Tag, Info } from 'lucide-react';
  * Purpose: Display real-time pricing on product pages
  * 
  * Features:
- * - Real-time price updates
+ * - Real-time price updates based on user location (pincode)
+ * - Displays prices in the GeoZone's currency (admin-defined)
+ * - Dynamic currency symbols (₹, $, €, £, etc.)
  * - Shows base price (strikethrough if compareAt exists)
  * - GST breakdown
  * - Applied discounts indicator
  * - Optional breakdown drawer trigger
+ * 
+ * Currency Logic:
+ * - Admin sets currency when creating GeoZone (e.g., USD, EUR, INR)
+ * - Prices are stored in that currency
+ * - User in that zone sees prices in the zone's currency
+ * - No conversion needed - direct display
  */
 
 interface ProductPriceBoxProps {
@@ -123,6 +131,40 @@ export const ProductPriceBox: React.FC<ProductPriceBoxProps> = ({
         );
     }
 
+    // Helper function to get currency symbol from code
+    const getCurrencySymbol = (currencyCode: string) => {
+        const symbols: { [key: string]: string } = {
+            'USD': '$',
+            'EUR': '€',
+            'GBP': '£',
+            'INR': '₹',
+            'JPY': '¥',
+            'CNY': '¥',
+            'AUD': 'A$',
+            'CAD': 'C$',
+            'AED': 'د.إ',
+            'SAR': '﷼',
+            'SGD': 'S$',
+            'MYR': 'RM',
+            'THB': '฿',
+            'CHF': 'CHF',
+            'NZD': 'NZ$',
+            'ZAR': 'R',
+            'MXN': '$',
+            'BRL': 'R$',
+        };
+        return symbols[currencyCode] || currencyCode;
+    };
+
+    // Helper function to format price with currency symbol
+    const formatPrice = (amount: number) => {
+        const symbol = getCurrencySymbol(pricing.currency);
+        return `${symbol}${amount.toLocaleString('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        })}`;
+    };
+
     const hasDiscount = pricing.compareAtPrice && pricing.compareAtPrice > pricing.basePrice;
     const discountPercentage = hasDiscount
         ? Math.round(((pricing.compareAtPrice - pricing.basePrice) / pricing.compareAtPrice) * 100)
@@ -132,16 +174,26 @@ export const ProductPriceBox: React.FC<ProductPriceBoxProps> = ({
 
     return (
         <div className={`bg-white rounded-lg border-2 border-gray-200 p-6 ${className}`}>
+            {/* Currency Info Badge */}
+            {pricing.currency && pricing.currency !== 'INR' && (
+                <div className="mb-3 inline-flex items-center gap-2 px-3 py-1 bg-blue-50 border border-blue-200 rounded-full text-xs">
+                    <Info className="w-3 h-3 text-blue-600" />
+                    <span className="text-blue-700 font-medium">
+                        Prices in {pricing.currency} for this region
+                    </span>
+                </div>
+            )}
+
             {/* Price Display */}
             <div className="mb-4">
                 <div className="flex items-baseline gap-3 mb-2">
                     {hasDiscount && (
                         <span className="text-xl text-gray-400 line-through">
-                            ₹{pricing.compareAtPrice.toFixed(2)}
+                            {formatPrice(pricing.compareAtPrice)}
                         </span>
                     )}
                     <span className="text-4xl font-bold text-gray-900">
-                        ₹{pricing.totalPayable.toFixed(2)}
+                        {formatPrice(pricing.totalPayable)}
                     </span>
                     {hasDiscount && (
                         <span className="bg-green-100 text-green-800 text-sm font-semibold px-2 py-1 rounded">
@@ -151,7 +203,7 @@ export const ProductPriceBox: React.FC<ProductPriceBoxProps> = ({
                 </div>
 
                 <p className="text-sm text-gray-600">
-                    (including GST ₹{pricing.gstAmount.toFixed(2)})
+                    (including GST {formatPrice(pricing.gstAmount)})
                 </p>
             </div>
 
@@ -179,15 +231,15 @@ export const ProductPriceBox: React.FC<ProductPriceBoxProps> = ({
             <div className="border-t pt-4 space-y-2 text-sm">
                 <div className="flex justify-between text-gray-700">
                     <span>Subtotal ({quantity}x)</span>
-                    <span>₹{pricing.subtotal.toFixed(2)}</span>
+                    <span>{formatPrice(pricing.subtotal)}</span>
                 </div>
                 <div className="flex justify-between text-gray-700">
                     <span>GST ({pricing.gstPercentage}%)</span>
-                    <span>₹{pricing.gstAmount.toFixed(2)}</span>
+                    <span>{formatPrice(pricing.gstAmount)}</span>
                 </div>
                 <div className="flex justify-between font-semibold text-gray-900 border-t pt-2">
                     <span>Total</span>
-                    <span>₹{pricing.totalPayable.toFixed(2)}</span>
+                    <span>{formatPrice(pricing.totalPayable)}</span>
                 </div>
             </div>
 
@@ -205,7 +257,7 @@ export const ProductPriceBox: React.FC<ProductPriceBoxProps> = ({
                     <p className="font-semibold text-gray-900 mb-2">Price Calculation:</p>
                     <div className="flex justify-between text-gray-700">
                         <span>Base Price</span>
-                        <span>₹{pricing.basePrice.toFixed(2)}</span>
+                        <span>{formatPrice(pricing.basePrice)}</span>
                     </div>
                     {hasModifiers && (
                         <div className="text-xs text-gray-600 pl-4">
@@ -214,7 +266,7 @@ export const ProductPriceBox: React.FC<ProductPriceBoxProps> = ({
                     )}
                     <div className="flex justify-between text-gray-700">
                         <span>Price per unit</span>
-                        <span>₹{(pricing.subtotal / quantity).toFixed(2)}</span>
+                        <span>{formatPrice(pricing.subtotal / quantity)}</span>
                     </div>
                     <div className="flex justify-between text-gray-700">
                         <span>Quantity</span>
@@ -222,15 +274,15 @@ export const ProductPriceBox: React.FC<ProductPriceBoxProps> = ({
                     </div>
                     <div className="flex justify-between text-gray-700 font-semibold border-t pt-2">
                         <span>Subtotal</span>
-                        <span>₹{pricing.subtotal.toFixed(2)}</span>
+                        <span>{formatPrice(pricing.subtotal)}</span>
                     </div>
                     <div className="flex justify-between text-gray-700">
                         <span>GST ({pricing.gstPercentage}%)</span>
-                        <span>₹{pricing.gstAmount.toFixed(2)}</span>
+                        <span>{formatPrice(pricing.gstAmount)}</span>
                     </div>
                     <div className="flex justify-between text-gray-900 font-bold border-t pt-2">
                         <span>Final Amount</span>
-                        <span>₹{pricing.totalPayable.toFixed(2)}</span>
+                        <span>{formatPrice(pricing.totalPayable)}</span>
                     </div>
                 </div>
             )}

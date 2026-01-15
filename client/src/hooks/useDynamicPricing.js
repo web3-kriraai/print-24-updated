@@ -16,6 +16,7 @@ export const useDynamicPricing = (productId, options = {}) => {
     quantity = 1, 
     selectedDynamicAttributes = [],
     pincode = null,
+    userPreferredCurrency = null, // NEW: For currency conversion
     skip = false 
   } = options;
 
@@ -43,7 +44,8 @@ export const useDynamicPricing = (productId, options = {}) => {
         productId,
         quantity,
         selectedDynamicAttributes,
-        pincode: customPincode || pincode || localStorage.getItem('pincode') || '560001'
+        pincode: customPincode || pincode || localStorage.getItem('pincode') || '560001',
+        userPreferredCurrency: userPreferredCurrency || localStorage.getItem('preferredCurrency') // NEW
       };
 
       const response = await fetch('/api/pricing/quote', {
@@ -72,7 +74,7 @@ export const useDynamicPricing = (productId, options = {}) => {
     } finally {
       setLoading(false);
     }
-  }, [productId, quantity, JSON.stringify(selectedDynamicAttributes), pincode, skip]);
+  }, [productId, quantity, JSON.stringify(selectedDynamicAttributes), pincode, userPreferredCurrency, skip]);
 
   const refetch = useCallback((newPincode) => {
     fetchPrice(newPincode);

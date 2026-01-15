@@ -8751,7 +8751,7 @@ const AdminDashboard: React.FC = () => {
               {showCreateAttributeModal && (
                 <div
                   data-modal="true"
-                  className="fixed inset-0 bg-black/50 flex items-center justify-center z-100 p-4"
+                  className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-100 p-4"
                   onClick={(e) => {
                     if (e.target === e.currentTarget) {
                       setShowCreateAttributeModal(false);
@@ -13957,7 +13957,7 @@ const AdminDashboard: React.FC = () => {
 
               {/* Rule Builder Modal/Drawer */}
               {showRuleBuilder && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                   <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
                     <div className="sticky top-0 bg-white border-b border-cream-200 p-6 flex justify-between items-center">
                       <h3 className="text-xl font-bold text-cream-900">
@@ -14483,7 +14483,7 @@ const AdminDashboard: React.FC = () => {
 
                 {/* Sub-Attribute Form Modal */}
                 {showSubAttributeForm && (
-                  <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+                  <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                     <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
                       <div className="sticky top-0 bg-white border-b border-cream-200 p-6 flex justify-between items-center">
                         <h3 className="text-xl font-bold text-cream-900">
@@ -15141,7 +15141,7 @@ const AdminDashboard: React.FC = () => {
       {/* Order Details Modal */}
       <AnimatePresence>
         {showOrderModal && selectedOrder && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -16010,7 +16010,7 @@ const AdminDashboard: React.FC = () => {
       {/* Upload Modal */}
       <AnimatePresence>
         {showUploadModal && selectedUpload && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -16170,7 +16170,7 @@ const AdminDashboard: React.FC = () => {
 
       {/* Delete Confirmation Modal */}
       {deleteConfirmModal.isOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
             <div className="flex items-center gap-3 mb-4">
               <AlertCircle className="text-red-600" size={24} />
@@ -16268,7 +16268,7 @@ const AdminDashboard: React.FC = () => {
 
       {/* View Description Modal */}
       {viewDescriptionModal.isOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full p-6">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
@@ -16311,7 +16311,7 @@ const AdminDashboard: React.FC = () => {
       {/* Create Employee Modal (for Department Section) */}
       <AnimatePresence>
         {showCreateEmployeeModal && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -16437,7 +16437,7 @@ const AdminDashboard: React.FC = () => {
       {/* Create Department Modal (for Sequence Section) */}
       <AnimatePresence>
         {showCreateDepartmentModal && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}

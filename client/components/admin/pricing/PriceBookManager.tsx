@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import toast from "react-hot-toast";
 import { Plus, Edit2, Trash2, Save, X, Book, Star, Eye } from 'lucide-react';
 import ConflictDetectionModal from '../../../src/components/admin/ConflictDetectionModal';
+import { SUPPORTED_CURRENCIES, getCurrencySymbol } from '../../../src/utils/currencyUtils';
 
 interface PriceBook {
     _id: string;
@@ -62,7 +64,6 @@ const PriceBookManager: React.FC = () => {
     const [formData, setFormData] = useState({
         name: '',
         currency: 'INR',
-        isDefault: false,
         zone: '',
         segment: '',
         isMaster: false,
@@ -185,17 +186,17 @@ const PriceBookManager: React.FC = () => {
             });
 
             if (response.ok) {
-                alert(editingBook ? 'Price book updated!' : 'Price book created!');
+                toast.success(editingBook ? 'Price book updated!' : 'Price book created!');
                 setShowModal(false);
                 resetForm();
                 fetchPriceBooks();
             } else {
                 const error = await response.json();
-                alert(error.message || 'Failed to save price book');
+                toast.error(error.message || 'Failed to save price book');
             }
         } catch (error) {
             console.error('Error saving price book:', error);
-            alert('Failed to save price book');
+            toast.error('Failed to save price book');
         } finally {
             setLoading(false);
         }
@@ -275,17 +276,17 @@ const PriceBookManager: React.FC = () => {
             });
 
             if (response.ok) {
-                alert(editingEntry ? 'Price updated!' : 'Product price added!');
+                toast.success(editingEntry ? 'Price updated!' : 'Product price added!');
                 setShowEntryForm(false);
                 resetEntryForm();
                 fetchPriceBookEntries(selectedPriceBook._id);
             } else {
                 const error = await response.json();
-                alert(error.message || 'Failed to save price');
+                toast.error(error.message || 'Failed to save price');
             }
         } catch (error) {
             console.error('Error saving price entry:', error);
-            alert('Failed to save price');
+            toast.error('Failed to save price');
         } finally {
             setLoadingEntries(false);
         }
@@ -331,7 +332,7 @@ const PriceBookManager: React.FC = () => {
             });
 
             if (response.ok) {
-                alert('Conflict resolved and price saved successfully!');
+                toast.success('Conflict resolved and price saved successfully!');
                 setShowConflictModal(false);
                 setShowEntryForm(false);
                 resetEntryForm();
@@ -347,11 +348,11 @@ const PriceBookManager: React.FC = () => {
                     error,
                     sentRequest: requestBody
                 });
-                alert(error.message || 'Failed to resolve conflict');
+                toast.error(error.message || 'Failed to resolve conflict');
             }
         } catch (error) {
             console.error('Error resolving conflict:', error);
-            alert('Failed to resolve conflict');
+            toast.error('Failed to resolve conflict');
         } finally {
             setResolvingConflict(false);
         }
@@ -371,15 +372,15 @@ const PriceBookManager: React.FC = () => {
             });
 
             if (response.ok) {
-                alert('Price entry deleted!');
+                toast.success('Price entry deleted!');
                 fetchPriceBookEntries(selectedPriceBook._id);
             } else {
                 const error = await response.json();
-                alert(error.message || 'Failed to delete price entry');
+                toast.error(error.message || 'Failed to delete price entry');
             }
         } catch (error) {
             console.error('Error deleting entry:', error);
-            alert('Failed to delete price entry');
+            toast.error('Failed to delete price entry');
         }
     };
 
@@ -396,15 +397,15 @@ const PriceBookManager: React.FC = () => {
             });
 
             if (response.ok) {
-                alert('Price book deleted!');
+                toast.success('Price book deleted!');
                 fetchPriceBooks();
             } else {
                 const error = await response.json();
-                alert(error.message || 'Failed to delete price book');
+                toast.error(error.message || 'Failed to delete price book');
             }
         } catch (error) {
             console.error('Error deleting price book:', error);
-            alert('Failed to delete price book');
+            toast.error('Failed to delete price book');
         }
     };
 
@@ -413,7 +414,6 @@ const PriceBookManager: React.FC = () => {
         setFormData({
             name: book.name,
             currency: book.currency,
-            isDefault: book.isDefault,
             zone: book.zone?._id || '',
             segment: book.segment?._id || '',
             isMaster: (book as any).isMaster || false,
@@ -434,7 +434,7 @@ const PriceBookManager: React.FC = () => {
 
     const handleEditEntry = (entry: PriceBookEntry) => {
         if (!entry.product) {
-            alert('Cannot edit this entry: Product data is missing. Please delete and recreate this entry.');
+            toast.success('Cannot edit this entry: Product data is missing. Please delete and recreate this entry.');
             return;
         }
         setEditingEntry(entry);
@@ -450,7 +450,6 @@ const PriceBookManager: React.FC = () => {
         setFormData({
             name: '',
             currency: 'INR',
-            isDefault: false,
             zone: '',
             segment: '',
             isMaster: false,
@@ -581,8 +580,8 @@ const PriceBookManager: React.FC = () => {
                                 <div className="flex-1">
                                     <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
                                         {book.name}
-                                        {book.isDefault && (
-                                            <Star size={16} className="text-yellow-500 fill-yellow-500" />
+                                        {(book as any).isMaster && (
+                                            <span className="text-xs bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded font-medium">Master</span>
                                         )}
                                     </h3>
                                     <p className="text-sm text-gray-600 font-mono">{book.currency}</p>
@@ -607,13 +606,9 @@ const PriceBookManager: React.FC = () => {
                                 )}
                             </div>
 
-                            {/* Badges */}
+                            {/* Badges - Removed since we don't need separate badge section anymore */}
                             <div className="flex gap-2 mb-4">
-                                {book.isDefault && (
-                                    <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded text-xs font-medium">
-                                        Default
-                                    </span>
-                                )}
+                                {/* Empty - badges now inline with title */}
                             </div>
 
                             {/* Actions */}
@@ -647,7 +642,7 @@ const PriceBookManager: React.FC = () => {
 
             {/* Create/Edit Price Book Modal */}
             {showModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
                     <div className="bg-white rounded-lg p-6 w-full max-w-md">
                         <h2 className="text-2xl font-bold mb-4">
                             {editingBook ? 'Edit Price Book' : 'Create Price Book'}
@@ -669,16 +664,38 @@ const PriceBookManager: React.FC = () => {
 
                             {/* Currency */}
                             <div className="mb-4">
-                                <label className="block text-sm font-medium mb-2">Currency *</label>
+                                <label className="block text-sm font-medium mb-2">
+                                    Currency * 
+                                    {formData.zone && (
+                                        <span className="ml-2 text-xs text-indigo-600 font-normal">
+                                            (Auto-set from GeoZone)
+                                        </span>
+                                    )}
+                                </label>
                                 <select
                                     value={formData.currency}
                                     onChange={(e) => setFormData({ ...formData, currency: e.target.value })}
-                                    className="w-full border rounded-lg px-3 py-2"
+                                    className={`w-full border rounded-lg px-3 py-2 ${
+                                        formData.zone ? 'bg-gray-100 cursor-not-allowed' : ''
+                                    }`}
+                                    disabled={!!formData.zone}
+                                    required
                                 >
-                                    <option value="INR">INR (₹)</option>
-                                    <option value="USD">USD ($)</option>
-                                    <option value="EUR">EUR (€)</option>
+                                    {SUPPORTED_CURRENCIES.map((curr) => (
+                                        <option key={curr.code} value={curr.code}>
+                                            {curr.code} ({curr.symbol}) - {curr.name}
+                                        </option>
+                                    ))}
                                 </select>
+                                {formData.zone ? (
+                                    <p className="text-xs text-indigo-600 mt-1">
+                                        ✓ Currency automatically set from selected GeoZone
+                                    </p>
+                                ) : (
+                                    <p className="text-xs text-gray-500 mt-1">
+                                        Select a GeoZone to auto-set currency, or choose manually
+                                    </p>
+                                )}
                             </div>
 
                             {/* Geo Zone Selection */}
@@ -686,18 +703,27 @@ const PriceBookManager: React.FC = () => {
                                 <label className="block text-sm font-medium mb-2">Geo Zone (Optional)</label>
                                 <select
                                     value={formData.zone}
-                                    onChange={(e) => setFormData({ ...formData, zone: e.target.value })}
+                                    onChange={(e) => {
+                                        const selectedZoneId = e.target.value;
+                                        // Find the selected zone and auto-set currency
+                                        const selectedZone = geoZones.find(z => z._id === selectedZoneId);
+                                        setFormData({
+                                            ...formData,
+                                            zone: selectedZoneId,
+                                            currency: selectedZone?.currency_code || formData.currency
+                                        });
+                                    }}
                                     className="w-full border rounded-lg px-3 py-2"
                                 >
                                     <option value="">-- No Zone (Global) --</option>
                                     {geoZones.map((zone) => (
                                         <option key={zone._id} value={zone._id}>
-                                            {zone.name}
+                                            {zone.name} ({zone.currency_code || 'INR'})
                                         </option>
                                     ))}
                                 </select>
                                 <p className="text-xs text-gray-500 mt-1">
-                                    Limit these prices to a specific geographic area
+                                    Limit these prices to a specific geographic area. Currency will be auto-set.
                                 </p>
                             </div>
 
@@ -721,8 +747,8 @@ const PriceBookManager: React.FC = () => {
                                 </p>
                             </div>
 
-                            {/* Advanced Fields Toggle? or just show them */}
-                            <div className="mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                            {/* Master Price Book - Only checkbox needed */}
+                            <div className="mb-4 p-3 bg-indigo-50 rounded-lg border border-indigo-200">
                                 <label className="flex items-center gap-2 mb-2">
                                     <input
                                         type="checkbox"
@@ -730,29 +756,13 @@ const PriceBookManager: React.FC = () => {
                                         onChange={(e) => setFormData({ ...formData, isMaster: e.target.checked })}
                                         className="rounded text-indigo-600"
                                     />
-                                    <span className="text-sm font-bold text-gray-700">Master Price Book</span>
+                                    <span className="text-sm font-bold text-indigo-900">📚 Master Price Book</span>
                                 </label>
-                                <p className="text-xs text-gray-500 mb-2">
-                                    If checked, this will be the base for all other calculations. Only one master should exist.
+                                <p className="text-xs text-indigo-700 mb-1">
+                                    ✓ Contains base prices for ALL products (foundation layer)
                                 </p>
-                            </div>
-
-                            {/* Default Status */}
-                            <div className="mb-4">
-                                <label className="flex items-center gap-2">
-                                    <input
-                                        type="checkbox"
-                                        checked={formData.isDefault}
-                                        onChange={(e) => setFormData({ ...formData, isDefault: e.target.checked })}
-                                        className="rounded"
-                                    />
-                                    <span className="text-sm font-medium flex items-center gap-1">
-                                        <Star size={16} className="text-yellow-500" />
-                                        Set as Default Price Book
-                                    </span>
-                                </label>
-                                <p className="text-xs text-gray-500 ml-6 mt-1">
-                                    This price book will be used as the default base for pricing calculations
+                                <p className="text-xs text-indigo-600">
+                                    ⚠️ Only ONE master book should exist. Zone/Segment books override these prices.
                                 </p>
                             </div>
 
@@ -784,7 +794,7 @@ const PriceBookManager: React.FC = () => {
 
             {/* Price Book Entries Modal */}
             {showEntriesModal && selectedPriceBook && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
                     <div className="bg-white rounded-lg w-full max-w-6xl max-h-[90vh] overflow-y-auto">
                         <div className="sticky top-0 bg-white border-b p-6 flex justify-between items-center">
                             <div>
@@ -900,7 +910,7 @@ const PriceBookManager: React.FC = () => {
 
             {/* Add/Edit Entry Form Modal */}
             {showEntryForm && selectedPriceBook && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999]">
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[9999]">
                     <div className="bg-white rounded-lg p-6 w-full max-w-md">
                         <h2 className="text-2xl font-bold mb-4">
                             {editingEntry ? 'Edit Product Price' : 'Add Product Price'}

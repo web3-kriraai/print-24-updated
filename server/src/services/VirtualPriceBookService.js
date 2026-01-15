@@ -265,10 +265,10 @@ class VirtualPriceBookService {
         modifiersApplied: modifiers.length,
         isVirtual: true,
         calculationTimestamp: new Date(),
-        // NEW: Zone hierarchy metadata
-        usedZoneId: zoneAdjustments?.usedZoneId || zoneId,
-        usedZoneName: zoneAdjustments?.usedZoneName || null,
-        usedZoneLevel: zoneAdjustments?.usedZoneLevel || null,
+        // NEW: Zone hierarchy metadata - ALWAYS use most specific zone from hierarchy
+        usedZoneId: geoZoneHierarchy[0]?._id || zoneAdjustments?.usedZoneId || zoneId,
+        usedZoneName: geoZoneHierarchy[0]?.name || zoneAdjustments?.usedZoneName || null,
+        usedZoneLevel: geoZoneHierarchy[0]?.level || zoneAdjustments?.usedZoneLevel || null,
         geoZoneHierarchy: geoZoneHierarchy
       };
     } catch (error) {

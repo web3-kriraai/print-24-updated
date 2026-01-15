@@ -6,6 +6,7 @@ import GlossProductSelection from './GlossProductSelection';
 import { API_BASE_URL_WITH_API as API_BASE_URL } from "../lib/apiConfig";
 import { ReviewFilterDropdown } from "../components/ReviewFilterDropdown";
 import BackButton from '../components/BackButton';
+import { formatPrice } from '../src/utils/currencyUtils';
 
 interface SubCategory {
   _id: string;
@@ -1463,7 +1464,7 @@ const VisitingCards: React.FC = () => {
                                     <div className="text-right flex-shrink-0 flex items-center gap-2">
                                       <div>
                                         <div className="text-lg sm:text-xl font-bold text-cream-900">
-                                          ₹{displayPrice}
+                                          {formatPrice(parseFloat(displayPrice) || 0, 'INR')}
                                         </div>
                                         {priceLabel && (
                                           <div className="text-xs text-cream-500 mt-0.5">
@@ -1711,7 +1712,7 @@ const VisitingCards: React.FC = () => {
                                     <div className="text-right flex-shrink-0 flex items-center gap-2">
                                       <div>
                                         <div className="text-lg sm:text-xl font-bold text-cream-900">
-                                          ₹{displayPrice}
+                                          {formatPrice(parseFloat(displayPrice) || 0, 'INR')}
                                         </div>
                                         {priceLabel && (
                                           <div className="text-xs text-cream-500 mt-0.5">
@@ -1870,7 +1871,7 @@ const VisitingCards: React.FC = () => {
                                 <div className="text-right flex-shrink-0 flex items-center gap-2">
                                   <div>
                                     <div className="text-lg sm:text-xl font-bold text-cream-900">
-                                      ₹{displayPrice}
+                                      {formatPrice(parseFloat(displayPrice) || 0, 'INR')}
                                     </div>
                                     {priceLabel && (
                                       <div className="text-xs text-cream-500 mt-0.5">

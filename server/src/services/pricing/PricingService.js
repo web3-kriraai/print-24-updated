@@ -6,6 +6,7 @@ import UserSegment from "../../models/UserSegment.js";
 import { PricingCache } from "../../config/redis.js";
 import ModifierEngine from "../ModifierEngine.js";
 import VirtualPriceBookService from "../VirtualPriceBookService.js";
+import CurrencyConversionService from "../CurrencyConversionService.js";
 
 /**
  * =========================================================================
@@ -53,6 +54,7 @@ class PricingService {
         quantity = 1,
         cacheResults = true,
         promoCodes = [],
+        userPreferredCurrency = null, // NEW: Optional currency conversion
     }) {
         try {
             // Step 1: Resolve User Segment
@@ -83,14 +85,16 @@ class PricingService {
             // Import GeoZoneHierarchyService at the top if not already imported
             const GeoZoneHierarchyService = (await import('../GeoZoneHierarchyService.js')).default;
 
-            const geoZone = await PricingResolver.getGeoZoneByPincode(pincode);
-            const geoZoneId = geoZone?._id || null;
-
-            // NEW: Resolve full zone hierarchy for hierarchical pricing
+            // NEW: Resolve full zone hierarchy for hierarchical pricing FIRST
             let geoZoneHierarchy = [];
             if (pincode) {
                 geoZoneHierarchy = await GeoZoneHierarchyService.resolveZoneHierarchy(pincode);
             }
+            
+            // Use most specific zone from hierarchy (index 0) for currency and zone info
+            // This ensures SURAT (more specific) is used instead of West Zone (broader)
+            const geoZone = geoZoneHierarchy[0] || await PricingResolver.getGeoZoneByPincode(pincode);
+            const geoZoneId = geoZone?._id || null;
 
             // Step 3: Check Redis Cache
             if (cacheResults) {
@@ -180,6 +184,75 @@ class PricingService {
                 usedZoneLevel: virtualResult.usedZoneLevel,
                 geoZoneHierarchy: virtualResult.geoZoneHierarchy || contextOverride.geoZoneHierarchy || []
             };
+
+
+            // Step 8.5: Automatic Currency Conversion (PriceBook → GeoZone)
+            console.log(`🌍 GeoZone for currency conversion:`, {
+                zoneName: geoZone?.name,
+                zoneLevel: geoZone?.level,
+                currency: geoZone?.currency,
+                currency_code: geoZone?.currency_code,
+                fullZone: geoZone
+            });
+            
+            const zoneCurrency = geoZone?.currency_code || geoZone?.currency || "INR";
+            console.log(`💱 Zone Currency extracted: ${zoneCurrency}`);
+            
+            // Fetch the used PriceBook to get its currency
+            let priceBookCurrency = "INR"; // Default to INR (base currency for most price books)
+            if (virtualResult.masterBook) {
+                try {
+                    const PriceBook = require('../models/PriceBook');
+                    const priceBook = await PriceBook.findById(virtualResult.masterBook);
+                    if (priceBook && priceBook.currency) {
+                        priceBookCurrency = priceBook.currency;
+                    }
+                    console.log(`📚 PriceBook Currency: ${priceBookCurrency} | Zone Currency: ${zoneCurrency}`);
+                } catch (err) {
+                    console.error('⚠️ Failed to fetch PriceBook currency:', err.message);
+                }
+            }
+
+
+            // Convert if PriceBook currency differs from Zone currency
+            if (priceBookCurrency !== zoneCurrency) {
+                try {
+                    console.log(`💱 Converting price: ${priceBookCurrency} → ${zoneCurrency}`);
+                    
+                    const conversion = await CurrencyConversionService.convertPrice(
+                        result.totalPayable,
+                        priceBookCurrency,
+                        zoneCurrency
+                    );
+
+                    // Convert ALL amounts to zone currency
+                    const rate = conversion.exchangeRate;
+                    result.basePrice = this.roundPrice(result.basePrice * rate);
+                    result.unitPrice = this.roundPrice(result.unitPrice * rate);
+                    result.subtotal = this.roundPrice(result.subtotal * rate);
+                    result.gstAmount = this.roundPrice(result.gstAmount * rate);
+                    result.totalPayable = this.roundPrice(result.totalPayable * rate);
+
+                    // Store conversion info for transparency
+                    result.currencyConversion = {
+                        originalCurrency: priceBookCurrency,
+                        convertedCurrency: zoneCurrency,
+                        exchangeRate: conversion.exchangeRate,
+                        timestamp: conversion.timestamp,
+                        source: conversion.source
+                    };
+
+                    console.log(`✅ Converted: ${priceBookCurrency} ${(result.totalPayable / rate).toFixed(2)} → ${zoneCurrency} ${result.totalPayable.toFixed(2)} (Rate: ${rate})  `);
+                } catch (error) {
+                    console.error('❌ Currency conversion failed:', error.message);
+                    // Continue with original currency if conversion fails
+                    result.currencyConversionError = error.message;
+                }
+            }
+
+            // Update result currency to zone currency (after conversion)
+            result.currency = zoneCurrency;
+
 
             // Step 9: Cache Result
             if (cacheResults) {

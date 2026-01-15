@@ -11,6 +11,7 @@ import {
     Calendar
 } from 'lucide-react';
 import { API_BASE_URL_WITH_API as API_BASE_URL } from '../lib/apiConfig';
+import { formatPrice } from '../src/utils/currencyUtils';
 
 interface Order {
     _id: string;
@@ -272,7 +273,7 @@ const MyOrders: React.FC = () => {
                                         {/* Price & Action */}
                                         <div className="text-right">
                                             <p className="text-2xl font-bold text-slate-900 mb-2">
-                                                ₹{order.totalPrice.toFixed(2)}
+                                                {formatPrice(order.totalPrice, 'INR')}
                                             </p>
                                             <div className="flex items-center gap-2 text-blue-600 group-hover:text-blue-700 font-medium">
                                                 <span>View Details</span>

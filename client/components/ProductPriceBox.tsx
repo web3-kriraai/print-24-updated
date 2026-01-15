@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { API_BASE_URL } from '../lib/apiConfig';
 import { useUserContext } from '../lib/useUserContext';
+import { formatPrice as formatCurrency, getCurrencySymbol } from '../src/utils/currencyUtils';
 
 /**
  * ProductPriceBox Component
@@ -121,6 +122,13 @@ export default function ProductPriceBox({
           body.pincode = userContext.location.pincode;
         }
 
+        console.log('🚀 ProductPriceBox sending request:', {
+          hasUserContext: !!userContext,
+          pincode: userContext?.location?.pincode,
+          bodyPincode: body.pincode,
+          fullBody: body
+        });
+
         const response = await fetch(`${API_BASE_URL}/api/pricing/quote`, {
           method: 'POST',
           headers,
@@ -163,10 +171,11 @@ export default function ProductPriceBox({
           }
 
           console.log('\\n💵 PRICING:');
-          console.log(`   Base Price: ₹${data.pricing.basePrice}`);
-          console.log(`   Subtotal: ₹${data.pricing.subtotal}`);
-          console.log(`   GST (${data.pricing.gstPercentage}%): ₹${data.pricing.gstAmount}`);
-          console.log(`   Total Payable: ₹${data.pricing.totalPayable}`);
+          const currSymbol = getCurrencySymbol(data.pricing.currency || 'INR');
+          console.log(`   Base Price: ${currSymbol}${data.pricing.basePrice}`);
+          console.log(`   Subtotal: ${currSymbol}${data.pricing.subtotal}`);
+          console.log(`   GST (${data.pricing.gstPercentage}%): ${currSymbol}${data.pricing.gstAmount}`);
+          console.log(`   Total Payable: ${currSymbol}${data.pricing.totalPayable}`);
           console.log(`   Modifiers Applied: ${data.meta.modifiersApplied}`);
 
           if (data.pricing.appliedModifiers?.length > 0) {
@@ -205,9 +214,11 @@ export default function ProductPriceBox({
 
   const formatPrice = (value: number | undefined | null) => {
     if (value === undefined || value === null || isNaN(value)) {
-      return '₹0.00';
+      const currency = pricing?.currency || 'INR';
+      return formatCurrency(0, currency);
     }
-    return `₹${value.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const currency = pricing?.currency || 'INR';
+    return formatCurrency(value, currency);
   };
 
   if (contextLoading || loading) {
@@ -462,8 +473,9 @@ export default function ProductPriceBox({
                     let label = mod.name || mod.source || mod.modifierName;
                     if (mod.modifierType === 'PERCENT_DEC') label += ` (${mod.value}% off)`;
                     if (mod.modifierType === 'PERCENT_INC') label += ` (+${mod.value}%)`;
-                    if (mod.modifierType === 'FLAT_DEC') label += ` (-₹${mod.value})`;
-                    if (mod.modifierType === 'FLAT_INC') label += ` (+₹${mod.value})`;
+                    const modCurrSymbol = getCurrencySymbol(pricing.currency || 'INR');
+                    if (mod.modifierType === 'FLAT_DEC') label += ` (-${modCurrSymbol}${mod.value})`;
+                    if (mod.modifierType === 'FLAT_INC') label += ` (+${modCurrSymbol}${mod.value})`;
 
                     const change = mod.change || mod.applied || 0;
 

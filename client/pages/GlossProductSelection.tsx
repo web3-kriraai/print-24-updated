@@ -8,6 +8,7 @@ import BackButton from '../components/BackButton';
 import { applyAttributeRules, type AttributeRule, type Attribute } from '../utils/attributeRuleEngine';
 import ProductPriceBox from '../components/ProductPriceBox';
 import LocationDetector from '../components/LocationDetector';
+import { formatPrice } from '../src/utils/currencyUtils';
 
 interface SubCategory {
   _id: string;
@@ -232,6 +233,22 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
     window.addEventListener("keydown", handleEscape);
     return () => window.removeEventListener("keydown", handleEscape);
   }, [isImageModalOpen]);
+
+  // Load user location (pincode) from localStorage on mount
+  useEffect(() => {
+    try {
+      const userLocation = localStorage.getItem('userLocation');
+      if (userLocation) {
+        const location = JSON.parse(userLocation);
+        if (location.pincode && !pincode) {
+          setPincode(location.pincode);
+        }
+      }
+    } catch (e) {
+      console.error('Error loading user location:', e);
+    }
+  }, []);
+
 
   // Auto-select single options when product changes
   useEffect(() => {
@@ -3348,7 +3365,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                     </h3>
                                     <div className="text-right shrink-0">
                                       <div className="text-lg sm:text-xl font-bold text-cream-900">
-                                        ₹{displayPrice}
+                                        {formatPrice(displayPrice, 'INR')}
                                       </div>
                                       {priceLabel && (
                                         <div className="text-xs text-cream-500 mt-0.5">
@@ -3545,7 +3562,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                               <p className="font-semibold text-yellow-900 mb-2">Additional Charges:</p>
                                               <div className="space-y-1 ml-4">
                                                 {selectedProduct.additionalDesignCharge && selectedProduct.additionalDesignCharge > 0 && (
-                                                  <p>• Additional Design Charge: <strong>₹{selectedProduct.additionalDesignCharge.toFixed(2)}</strong> (applied if design help is needed)</p>
+                                                  <p>• Additional Design Charge: <strong>{formatPrice(selectedProduct.additionalDesignCharge, 'INR')}</strong> (applied if design help is needed)</p>
                                                 )}
                                                 {selectedProduct.gstPercentage && selectedProduct.gstPercentage > 0 && (
                                                   <p>• GST: <strong>{selectedProduct.gstPercentage}%</strong> (applied on subtotal + design charge)</p>
@@ -3760,7 +3777,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                             )}
                                             {option.priceAdd !== undefined && option.priceAdd !== 0 && (
                                               <p className="text-xs text-cream-700 mt-1 font-medium">
-                                                {option.priceAdd > 0 ? '+' : ''}₹{typeof option.priceAdd === 'number' ? option.priceAdd.toFixed(2) : parseFloat(option.priceAdd).toFixed(2)} per 1000 units
+                                                {option.priceAdd > 0 ? '+' : ''}{formatPrice(typeof option.priceAdd === 'number' ? option.priceAdd : parseFloat(option.priceAdd), 'INR')} per 1000 units
                                               </p>
                                             )}
                                             {option.image && (
@@ -3813,7 +3830,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                             <div className="font-bold text-sm">{option}</div>
                                             {priceInfo !== null && (
                                               <div className="text-xs text-cream-600 mt-1">
-                                                {priceInfo > 0 ? '+' : ''}₹{Math.abs(priceInfo).toFixed(2)} per 1000 units
+                                                {priceInfo > 0 ? '+' : ''}{formatPrice(Math.abs(priceInfo), 'INR')} per 1000 units
                                               </div>
                                             )}
                                           </button>
@@ -3858,7 +3875,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                             <div>{texture}</div>
                                             {priceInfo !== null && (
                                               <div className="text-xs text-cream-600 mt-1">
-                                                {priceInfo > 0 ? '+' : ''}₹{Math.abs(priceInfo).toFixed(2)}/1k
+                                                {priceInfo > 0 ? '+' : ''}{formatPrice(Math.abs(priceInfo), 'INR')}/1k
                                               </div>
                                             )}
                                           </button>
@@ -3904,7 +3921,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                             <div className="font-bold text-sm">{speed}</div>
                                             {priceInfo !== null && (
                                               <div className="text-xs text-cream-600 mt-1">
-                                                {priceInfo > 0 ? '+' : ''}₹{Math.abs(priceInfo).toFixed(2)} per 1000 units
+                                                {priceInfo > 0 ? '+' : ''}{formatPrice(Math.abs(priceInfo), 'INR')} per 1000 units
                                               </div>
                                             )}
                                           </button>
@@ -4029,7 +4046,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                   {range.label || `${min.toLocaleString()}${max ? ` - ${max.toLocaleString()}` : "+"} units`}
                                                   {price > 0 && (
                                                     <span className="ml-2 text-green-600">
-                                                      (₹{price.toFixed(2)})
+                                                      ({formatPrice(price, 'INR')})
                                                     </span>
                                                   )}
                                                 </div>
@@ -4881,17 +4898,17 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                   <div className="space-y-2">
                     <div className="flex justify-between items-center">
                       <span className="text-cream-700 font-medium">Subtotal (Excluding GST):</span>
-                      <span className="text-lg font-bold text-cream-900">₹{price.toFixed(2)}</span>
+                      <span className="text-lg font-bold text-cream-900">{formatPrice(price, 'INR')}</span>
                     </div>
                     {gstAmount > 0 && (
                       <>
                         <div className="flex justify-between items-center text-sm">
                           <span className="text-cream-600">GST ({selectedProduct?.gstPercentage || 18}%):</span>
-                          <span className="text-cream-700">+₹{gstAmount.toFixed(2)}</span>
+                          <span className="text-cream-700">+{formatPrice(gstAmount, 'INR')}</span>
                         </div>
                         <div className="flex justify-between items-center pt-2 border-t border-cream-300">
                           <span className="text-cream-700 font-medium">Total Amount (Including GST):</span>
-                          <span className="text-2xl font-bold text-cream-900">₹{(price + gstAmount).toFixed(2)}</span>
+                          <span className="text-2xl font-bold text-cream-900">{formatPrice(price + gstAmount, 'INR')}</span>
                         </div>
                       </>
                     )}
@@ -5081,7 +5098,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                   ) : (
                     <>
                       <Check size={18} />
-                      Confirm Order ₹{(price + gstAmount).toFixed(2)}
+                      Confirm Order {formatPrice(price + gstAmount, 'INR')}
                     </>
                   )}
                 </button>

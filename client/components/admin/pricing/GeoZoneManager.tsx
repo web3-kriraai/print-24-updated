@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, MapPin, Save, X, Copy, Upload, FileText } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { Plus, Edit2, Trash2, MapPin, Save, X, Copy, Upload, FileText, ChevronLeft, ChevronRight } from 'lucide-react';
 import { CascadingLocationSelect } from '../../common/CascadingLocationSelect';
 import { useLocationSearch } from '../../../hooks/useLocationSearch';
 import { LocationAutocomplete } from './LocationAutocomplete';
 import { handleLocationSelection } from '../../../utils/locationUtils';
+import { SUPPORTED_CURRENCIES } from '../../../src/utils/currencyUtils';
 
 interface PincodeRange {
     start: number;
@@ -45,6 +47,13 @@ const GeoZoneManager: React.FC = () => {
         pincodeRanges: [{ start: 0, end: 0 }],
         isActive: true,
     });
+
+    // Pagination state
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 8;
+    
+    // Wizard state
+    const [currentStep, setCurrentStep] = useState(1);
 
     // Location selection state for cascading dropdowns
     const [locationValue, setLocationValue] = useState<{
@@ -121,12 +130,11 @@ const GeoZoneManager: React.FC = () => {
             });
 
             if (response.ok) {
-                alert(editingZone ? 'Geo zone updated!' : 'Geo zone created!');
+                toast.success(editingZone ? 'Geo zone updated successfully!' : 'Geo zone created successfully!');
                 setShowModal(false);
                 resetForm();
                 fetchGeoZones();
             } else {
-                // Check if response has content and is JSON before parsing
                 const contentType = response.headers.get('content-type');
                 let errorMessage = 'Failed to save geo zone';
 
@@ -135,24 +143,21 @@ const GeoZoneManager: React.FC = () => {
                         const error = await response.json();
                         errorMessage = error.message || errorMessage;
                     } catch (e) {
-                        // If JSON parsing fails, use the default error message
                         console.error('Failed to parse error response:', e);
                     }
                 } else {
-                    // Try to get text response if not JSON
                     try {
                         const text = await response.text();
                         if (text) errorMessage = text;
                     } catch (e) {
-                        console.error('Failed to parse text response:', e);
+                         console.error('Failed to parse text response:', e);
                     }
                 }
-
-                alert(errorMessage);
+                toast.error(errorMessage);
             }
         } catch (error) {
             console.error('Error saving geo zone:', error);
-            alert('Failed to save geo zone');
+            toast.error('Failed to save geo zone');
         } finally {
             setLoading(false);
         }
@@ -175,7 +180,8 @@ const GeoZoneManager: React.FC = () => {
             });
 
             if (response.ok) {
-                alert('Geo zone deleted!');
+                toast.dismiss(); // Dismiss any existing toasts
+                toast.success('Geo zone deleted successfully');
                 fetchGeoZones();
             } else {
                 const data = await response.json();
@@ -187,7 +193,7 @@ const GeoZoneManager: React.FC = () => {
                         return;
                     }
                 } else {
-                    alert(data.message || 'Failed to delete geo zone');
+                    toast.error(data.message || 'Failed to delete geo zone');
                 }
             }
         } catch (error) {
@@ -203,9 +209,13 @@ const GeoZoneManager: React.FC = () => {
             code: zone.code,
             currency_code: (zone as any).currency_code || (zone as any).currency || 'INR',
             level: (zone as any).level || 'COUNTRY',
-            pincodeRanges: zone.pincodeRanges.length > 0 ? zone.pincodeRanges : [{ start: 0, end: 0 }],
+            // Ensure deep copy of pincode ranges or fallback
+            pincodeRanges: zone.pincodeRanges && zone.pincodeRanges.length > 0 
+                ? zone.pincodeRanges.map(r => ({ ...r })) 
+                : [{ start: 0, end: 0 }],
             isActive: zone.isActive,
         });
+        setCurrentStep(3); // Jump directly to validation step for edits
         setShowModal(true);
     };
 
@@ -252,7 +262,7 @@ const GeoZoneManager: React.FC = () => {
                 });
 
                 if (zones.length === 0) {
-                    alert('No valid data found in CSV');
+                    toast.error('No valid data found in CSV');
                     return;
                 }
 
@@ -269,14 +279,14 @@ const GeoZoneManager: React.FC = () => {
 
                 const data = await response.json();
                 if (data.success) {
-                    alert(`Import successful!\nCreated: ${data.results.created}\nUpdated: ${data.results.updated}\nFailed: ${data.results.failed}`);
+                    toast.success(`Import successful! Created: ${data.results.created}, Updated: ${data.results.updated}`);
                     fetchGeoZones();
                 } else {
-                    alert('Import failed: ' + data.message);
+                    toast.error('Import failed: ' + data.message);
                 }
             } catch (err) {
                 console.error('Import error:', err);
-                alert('Error processing file');
+                toast.error('Error processing file');
             } finally {
                 setLoading(false);
                 // Reset file input
@@ -316,6 +326,7 @@ const GeoZoneManager: React.FC = () => {
         });
         setEditingZone(null);
         clearSearch();
+        setCurrentStep(1); // Reset to step 1
     };
 
     // Handle location selection from autocomplete
@@ -327,6 +338,9 @@ const GeoZoneManager: React.FC = () => {
                 ...formData,
                 ...result.data
             });
+            // If Quick Search was utilized, jump to Step 3 for verification
+            setCurrentStep(3);
+            toast.success('Location details loaded. Please verify.');
         }
 
         clearSearch();
@@ -351,6 +365,30 @@ const GeoZoneManager: React.FC = () => {
         newRanges[index][field] = value;
         setFormData({ ...formData, pincodeRanges: newRanges });
     };
+
+    // Pagination calculations
+    const indexOfLastItem = currentPage * itemsPerPage;
+    const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+    const currentItems = geoZones.slice(indexOfFirstItem, indexOfLastItem);
+    const totalPages = Math.ceil(geoZones.length / itemsPerPage);
+
+    // Wizard navigation
+    const nextStep = () => {
+        // Validation for Step 1
+        if (currentStep === 1) {
+             // Optional: Force selection? No, manual entry allowed in step 2.
+        }
+        // Validation for Step 2
+        if (currentStep === 2) {
+            if (!formData.name || !formData.code || !formData.currency_code) {
+                toast.error('Please fill in all required fields (Name, Code, Currency)');
+                return;
+            }
+        }
+        setCurrentStep(prev => prev + 1);
+    };
+
+    const prevStep = () => setCurrentStep(prev => prev - 1);
 
     return (
         <div className="p-6">
@@ -401,374 +439,450 @@ const GeoZoneManager: React.FC = () => {
             </div>
 
             {/* Geo Zones List */}
-            <div className="bg-white rounded-lg shadow">
-                <table className="w-full">
-                    <thead className="bg-gray-50 border-b">
-                        <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Code</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Currency</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Pincode Ranges</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                        {loading ? (
+            <div className="bg-white rounded-lg shadow flex flex-col ">
+                <div className="flex-1 overflow-auto">
+                    <table className="w-full relative">
+                        <thead className="bg-gray-50 border-b sticky top-0 z-10 shadow-sm">
                             <tr>
-                                <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
-                                    Loading...
-                                </td>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase bg-gray-50">Name</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase bg-gray-50">Code</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase bg-gray-50">Currency</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase bg-gray-50">Pincode Ranges</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase bg-gray-50">Status</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase bg-gray-50">Actions</th>
                             </tr>
-                        ) : geoZones.length === 0 ? (
-                            <tr>
-                                <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
-                                    No geo zones found. Create one to get started.
-                                </td>
-                            </tr>
-                        ) : (
-                            geoZones.map((zone) => (
-                                <tr key={zone._id}>
-                                    <td className="px-6 py-4 font-medium">{zone.name}</td>
-                                    <td className="px-6 py-4">{zone.code}</td>
-                                    <td className="px-6 py-4">{(zone as any).currency_code || (zone as any).currency}</td>
-                                    <td className="px-6 py-4">
-                                        {zone.pincodeRanges && zone.pincodeRanges.length > 0 ? (
-                                            zone.pincodeRanges.map((range, idx) => (
-                                                <div key={idx} className="text-sm">
-                                                    {range.start} - {range.end}
-                                                </div>
-                                            ))
-                                        ) : (
-                                            <span className="text-gray-400 text-sm">No ranges</span>
-                                        )}
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <span className={`px-2 py-1 rounded-full text-xs ${zone.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                                            }`}>
-                                            {zone.isActive ? 'Active' : 'Inactive'}
-                                        </span>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <div className="flex gap-2">
-                                            <button
-                                                onClick={() => handleEdit(zone)}
-                                                className="text-blue-600 hover:text-blue-800"
-                                            >
-                                                <Edit2 size={18} />
-                                            </button>
-                                            <button
-                                                onClick={() => handleDuplicate(zone)}
-                                                className="text-green-600 hover:text-green-800"
-                                                title="Duplicate Zone"
-                                            >
-                                                <Copy size={18} />
-                                            </button>
-                                            <button
-                                                onClick={() => handleDelete(zone._id)}
-                                                className="text-red-600 hover:text-red-800"
-                                                title="Delete Zone"
-                                            >
-                                                <Trash2 size={18} />
-                                            </button>
-                                        </div>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200">
+                            {loading ? (
+                                <tr>
+                                    <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
+                                        Loading...
                                     </td>
                                 </tr>
-                            ))
-                        )}
-                    </tbody>
-                </table>
+                            ) : geoZones.length === 0 ? (
+                                <tr>
+                                    <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
+                                        No geo zones found. Create one to get started.
+                                    </td>
+                                </tr>
+                            ) : (
+                                currentItems.map((zone) => (
+                                    <tr key={zone._id}>
+                                        <td className="px-6 py-4 font-medium">{zone.name}</td>
+                                        <td className="px-6 py-4">{zone.code}</td>
+                                        <td className="px-6 py-4">{(zone as any).currency_code || (zone as any).currency}</td>
+                                        <td className="px-6 py-4">
+                                            {zone.pincodeRanges && zone.pincodeRanges.length > 0 ? (
+                                                zone.pincodeRanges.map((range, idx) => (
+                                                    <div key={idx} className="text-sm">
+                                                        {range.start} - {range.end}
+                                                    </div>
+                                                ))
+                                            ) : (
+                                                <span className="text-gray-400 text-sm">No ranges</span>
+                                            )}
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <span className={`px-2 py-1 rounded-full text-xs ${zone.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                                                }`}>
+                                                {zone.isActive ? 'Active' : 'Inactive'}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <div className="flex gap-2">
+                                                <button
+                                                    onClick={() => handleEdit(zone)}
+                                                    className="text-blue-600 hover:text-blue-800"
+                                                >
+                                                    <Edit2 size={18} />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDuplicate(zone)}
+                                                    className="text-green-600 hover:text-green-800"
+                                                    title="Duplicate Zone"
+                                                >
+                                                    <Copy size={18} />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDelete(zone._id)}
+                                                    className="text-red-600 hover:text-red-800"
+                                                    title="Delete Zone"
+                                                >
+                                                    <Trash2 size={18} />
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+
+                {/* Pagination Footer */}
+                {geoZones.length > 0 && (
+                    <div className="px-6 py-4 border-t flex flex-col sm:flex-row gap-4 sm:gap-0 items-center justify-between bg-gray-50">
+                        <span className="text-sm text-gray-700 order-2 sm:order-1">
+                            Showing <span className="font-medium">{indexOfFirstItem + 1}</span> to <span className="font-medium">{Math.min(indexOfLastItem, geoZones.length)}</span> of <span className="font-medium">{geoZones.length}</span> results
+                        </span>
+                        <div className="flex gap-2 order-1 sm:order-2 w-full sm:w-auto justify-between sm:justify-start">
+                            <button
+                                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                disabled={currentPage === 1}
+                                className="px-3 py-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                            >
+                                <ChevronLeft size={16} />
+                                <span className="hidden sm:inline">Previous</span>
+                                <span className="sm:hidden">Prev</span>
+                            </button>
+                            <span className="px-3 py-1 border rounded bg-white text-gray-700 whitespace-nowrap">
+                                Page {currentPage} of {totalPages}
+                            </span>
+                            <button
+                                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                disabled={currentPage === totalPages}
+                                className="px-3 py-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                            >
+                                <span className="hidden sm:inline">Next</span>
+                                <span className="sm:hidden">Next</span>
+                                <ChevronRight size={16} />
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
 
-            {/* Create/Edit Modal */}
+            {/* Create/Edit Modal - Multi-Step Wizard */}
             {showModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
-                        {/* Modal Header with Close Button */}
-                        <div className="px-6 py-4 border-b flex items-center justify-between bg-gradient-to-r from-blue-50 to-indigo-50">
-                            <h2 className="text-2xl font-bold text-gray-900">
-                                {editingZone ? 'Edit Geo Zone' : 'Create Geo Zone'}
-                            </h2>
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+                    <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
+                        {/* Modal Header */}
+                        <div className="px-6 py-4 border-b flex items-center justify-between bg-white">
+                            <div>
+                                <h2 className="text-2xl font-bold text-gray-900">
+                                    {editingZone ? 'Edit Geo Zone' : 'Create Geo Zone'}
+                                </h2>
+                                <p className="text-sm text-gray-500 mt-1">Step {currentStep} of 3</p>
+                            </div>
                             <button
                                 type="button"
                                 onClick={() => {
                                     setShowModal(false);
                                     resetForm();
                                 }}
-                                className="text-gray-400 hover:text-gray-600 transition-colors"
+                                className="text-gray-400 hover:text-gray-600 transition-colors p-2 hover:bg-gray-100 rounded-full"
                             >
                                 <X size={24} />
                             </button>
                         </div>
 
-                        {/* Horizontal Step Indicator */}
-                        <div className="px-6 py-4 bg-white border-b">
-                            <div className="flex items-center justify-between max-w-3xl mx-auto">
+                        <div className="px-12 py-6 bg-gray-50 border-b">
+                            <div className="relative flex justify-between items-center">
+                                {/* Track Background */}
+                                <div className="absolute top-5 left-0 right-0 h-1 -translate-y-1/2 bg-gray-200 rounded-full"></div>
+                                {/* Track Progress */}
+                                <div 
+                                    className="absolute top-5 left-0 h-1 -translate-y-1/2 bg-blue-600 rounded-full transition-all duration-300" 
+                                    style={{ width: `${((currentStep - 1) / 2) * 100}%` }}
+                                ></div>
+
                                 {/* Step 1 */}
-                                <div className="flex items-center flex-1">
-                                    <div className="flex items-center">
-                                        <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-semibold">
-                                            1
-                                        </div>
-                                        <div className="ml-3">
-                                            <div className="text-sm font-semibold text-gray-900">Select Location</div>
-                                            <div className="text-xs text-gray-500">Choose from dropdowns</div>
-                                        </div>
+                                <div className={`relative z-10 flex flex-col items-center gap-2 ${currentStep >= 1 ? 'text-blue-600' : 'text-gray-400'}`}>
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg border-4 transition-all duration-300 bg-white ${currentStep >= 1 ? 'border-blue-600 text-blue-600 scale-110' : 'border-gray-300 text-gray-400'}`}>
+                                        1
                                     </div>
-                                    <div className="flex-1 h-0.5 bg-gray-300 mx-4"></div>
+                                    <span className="text-sm font-semibold">Location</span>
                                 </div>
 
                                 {/* Step 2 */}
-                                <div className="flex items-center flex-1">
-                                    <div className="flex items-center">
-                                        <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-semibold">
-                                            2
-                                        </div>
-                                        <div className="ml-3">
-                                            <div className="text-sm font-semibold text-gray-900">Zone Details</div>
-                                            <div className="text-xs text-gray-500">Auto-filled</div>
-                                        </div>
+                                <div className={`relative z-10 flex flex-col items-center gap-2 ${currentStep >= 2 ? 'text-blue-600' : 'text-gray-400'}`}>
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg border-4 transition-all duration-300 bg-white ${currentStep >= 2 ? 'border-blue-600 text-blue-600 scale-110' : 'border-gray-300 text-gray-400'}`}>
+                                        2
                                     </div>
-                                    <div className="flex-1 h-0.5 bg-gray-300 mx-4"></div>
+                                    <span className="text-sm font-semibold">Details</span>
                                 </div>
 
                                 {/* Step 3 */}
-                                <div className="flex items-center">
-                                    <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-semibold">
+                                <div className={`relative z-10 flex flex-col items-center gap-2 ${currentStep >= 3 ? 'text-blue-600' : 'text-gray-400'}`}>
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg border-4 transition-all duration-300 bg-white ${currentStep >= 3 ? 'border-blue-600 text-blue-600 scale-110' : 'border-gray-300 text-gray-400'}`}>
                                         3
                                     </div>
-                                    <div className="ml-3">
-                                        <div className="text-sm font-semibold text-gray-900">Pincode & Status</div>
-                                        <div className="text-xs text-gray-500">Optional</div>
-                                    </div>
+                                    <span className="text-sm font-semibold">Validation</span>
                                 </div>
                             </div>
                         </div>
 
                         {/* Scrollable Form Content */}
-                        <div className="flex-1 overflow-y-auto px-6 py-6">
-                            <form onSubmit={handleSubmit} id="geoZoneForm">
-                                {/* SECTION 1: LOCATION SELECTION */}
-                                <div className="mb-6">
-                                    <div className="bg-blue-50 border-l-4 border-blue-500 p-4 mb-4">
-                                        <h3 className="font-semibold text-gray-900 mb-1">📍 Location Selection</h3>
-                                        <p className="text-sm text-gray-600">Choose from standardized dropdowns. Fields auto-fill below.</p>
-                                    </div>
-
-                                    <CascadingLocationSelect
-                                        value={locationValue}
-                                        onChange={async (location) => {
-                                            setLocationValue(location);
-
-                                            // Auto-fill form fields
-                                            setFormData({
-                                                ...formData,
-                                                name: location.stateName || location.countryName || '',
-                                                code: location.state || location.country || '',
-                                                level: location.city ? 'CITY' : location.state ? 'STATE' : 'COUNTRY'
-                                            });
-
-                                            // Auto-fetch pincode ranges for Indian states
-                                            if (location.country === 'IN' && location.state) {
-                                                try {
-                                                    const token = localStorage.getItem('token');
-                                                    const response = await fetch(
-                                                        `/api/admin/locations/pincode-ranges?country=IN&region=${location.state}`,
-                                                        { headers: { 'Authorization': `Bearer ${token}` } }
-                                                    );
-                                                    const data = await response.json();
-
-                                                    if (data.success && data.data.available) {
-                                                        setFormData(prev => ({
-                                                            ...prev,
-                                                            pincodeRanges: [{
-                                                                start: parseInt(data.data.start),
-                                                                end: parseInt(data.data.end)
-                                                            }]
-                                                        }));
-                                                    }
-                                                } catch (err) {
-                                                    console.error('Failed to fetch pincode ranges:', err);
-                                                }
-                                            }
-                                        }}
-                                        onCurrencyChange={(currency) => {
-                                            setFormData({ ...formData, currency_code: currency });
-                                        }}
-                                        required={false}
-                                        showCurrency={false}
-                                        showZipCode={false}
-                                        showCityDropdown={true}
-                                    />
-
-                                    {/* India-Only Quick Search */}
-                                    <details className="mt-3">
-                                        <summary className="text-sm text-blue-600 hover:text-blue-800 cursor-pointer">
-                                            🔍 Or use India quick search
-                                        </summary>
-                                        <div className="mt-2 p-3 bg-gray-50 rounded">
-                                            <LocationAutocomplete
-                                                locationSearch={locationSearch}
-                                                locationSuggestions={locationSuggestions}
-                                                showSuggestions={showSuggestions}
-                                                isLoading={isSearchLoading}
-                                                onSearchChange={handleSearchChange}
-                                                onSelectLocation={handleSelectLocation}
-                                                onFocus={openSuggestions}
-                                                onClose={closeSuggestions}
-                                            />
-                                        </div>
-                                    </details>
-                                </div>
-
-                                {/* SECTION 2: ZONE DETAILS */}
-                                <div className="mb-6">
-                                    <div className="bg-green-50 border-l-4 border-green-500 p-4 mb-4">
-                                        <h3 className="font-semibold text-gray-900 mb-1">✏️ Zone Details</h3>
-                                        <p className="text-sm text-gray-600">Auto-filled from location. You can edit if needed.</p>
-                                    </div>
-
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="block text-sm font-medium mb-2">Zone Name *</label>
-                                            <input
-                                                type="text"
-                                                value={formData.name}
-                                                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                                className="w-full border rounded-lg px-3 py-2"
-                                                placeholder="e.g., Maharashtra"
-                                                required
-                                            />
+                        <div className="flex-1 overflow-y-auto px-8 py-8">
+                            <form onSubmit={handleSubmit} id="geoZoneForm" className="max-w-3xl mx-auto">
+                                
+                                {/* STEP 1: LOCATION */}
+                                {currentStep === 1 && (
+                                    <div className="animate-in fade-in slide-in-from-right-4 duration-300">
+                                        <div className="text-center mb-8">
+                                            <h3 className="text-xl font-semibold text-gray-900">Where is this zone located?</h3>
+                                            <p className="text-gray-500">Quickly search for a location in India or manually select using dropdowns.</p>
                                         </div>
 
-                                        <div>
-                                            <label className="block text-sm font-medium mb-2">Zone Code *</label>
-                                            <input
-                                                type="text"
-                                                value={formData.code}
-                                                onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
-                                                className="w-full border rounded-lg px-3 py-2"
-                                                placeholder="e.g., MH"
-                                                required
-                                            />
-                                        </div>
+                                        <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm space-y-6">
+                                            
+                                            {/* Quick Search - Primary Method for India */}
+                                            <div>
+                                                <div className="flex items-center justify-between mb-2">
+                                                    <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                                                        🇮🇳 Quick Search (India Only)
+                                                        <span className="text-xs font-normal text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">Recommended</span>
+                                                    </label>
+                                                </div>
+                                                <LocationAutocomplete
+                                                    locationSearch={locationSearch}
+                                                    locationSuggestions={locationSuggestions}
+                                                    showSuggestions={showSuggestions}
+                                                    isLoading={isSearchLoading}
+                                                    onSearchChange={handleSearchChange}
+                                                    onSelectLocation={handleSelectLocation}
+                                                    onFocus={openSuggestions}
+                                                    onClose={closeSuggestions}
+                                                />
+                                                <p className="text-xs text-gray-500 mt-1">Search by City, State, or Pincode (e.g., "Mumbai", "Maharashtra", "400001")</p>
+                                            </div>
 
-                                        <div>
-                                            <label className="block text-sm font-medium mb-2">Currency (ISO 4217) *</label>
-                                            <select
-                                                value={formData.currency_code}
-                                                onChange={(e) => setFormData({ ...formData, currency_code: e.target.value })}
-                                                className="w-full border rounded-lg px-3 py-2"
-                                            >
-                                                <option value="INR">INR (₹)</option>
-                                                <option value="USD">USD ($)</option>
-                                                <option value="EUR">EUR (€)</option>
-                                                <option value="GBP">GBP (£)</option>
-                                                <option value="DKK">DKK (kr)</option>
-                                                <option value="AUD">AUD (A$)</option>
-                                                <option value="CAD">CAD (C$)</option>
-                                            </select>
-                                        </div>
+                                            <div className="relative">
+                                                <div className="absolute inset-0 flex items-center">
+                                                    <div className="w-full border-t border-gray-200"></div>
+                                                </div>
+                                                <div className="relative flex justify-center text-sm">
+                                                    <span className="px-3 bg-white text-gray-500 font-medium">OR Select Manually</span>
+                                                </div>
+                                            </div>
 
-                                        <div>
-                                            <label className="block text-sm font-medium mb-2">Zone Level *</label>
-                                            <select
-                                                value={formData.level}
-                                                onChange={(e) => setFormData({ ...formData, level: e.target.value })}
-                                                className="w-full border rounded-lg px-3 py-2"
-                                                required
-                                            >
-                                                <option value="COUNTRY">Country</option>
-                                                <option value="STATE">State</option>
-                                                <option value="CITY">City</option>
-                                            </select>
+                                            {/* Cascading Dropdowns - Secondary Method */}
+                                            <div>
+                                                <label className="block text-sm font-semibold text-gray-700 mb-2">International / Manual Selection</label>
+                                                <CascadingLocationSelect
+                                                    value={locationValue}
+                                                    onChange={async (location) => {
+                                                        setLocationValue(location);
+                                                        setFormData({
+                                                            ...formData,
+                                                            name: location.stateName || location.countryName || '',
+                                                            code: location.state || location.country || '',
+                                                            level: location.city ? 'CITY' : location.state ? 'STATE' : 'COUNTRY'
+                                                        });
+
+                                                        if (location.country === 'IN' && location.state) {
+                                                            try {
+                                                                const token = localStorage.getItem('token');
+                                                                const response = await fetch(
+                                                                    `/api/admin/locations/pincode-ranges?country=IN&region=${location.state}`,
+                                                                    { headers: { 'Authorization': `Bearer ${token}` } }
+                                                                );
+                                                                const data = await response.json();
+                                                                if (data.success && data.data.available) {
+                                                                    setFormData(prev => ({
+                                                                        ...prev,
+                                                                        pincodeRanges: [{
+                                                                            start: parseInt(data.data.start),
+                                                                            end: parseInt(data.data.end)
+                                                                        }]
+                                                                    }));
+                                                                }
+                                                            } catch (err) {
+                                                                console.error('Failed to fetch pincode ranges:', err);
+                                                            }
+                                                        }
+                                                    }}
+                                                    onCurrencyChange={(currency) => setFormData({ ...formData, currency_code: currency })}
+                                                    required={false}
+                                                    showCurrency={false}
+                                                    showZipCode={false}
+                                                    showCityDropdown={true}
+                                                />
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
+                                )}
 
-                                {/* SECTION 3: PINCODE RANGES */}
-                                <div className="mb-6">
-                                    <div className="bg-purple-50 border-l-4 border-purple-500 p-4 mb-4">
-                                        <h3 className="font-semibold text-gray-900 mb-1">📮 Pincode Ranges</h3>
-                                        <p className="text-sm text-gray-600">
-                                            {locationValue.country === 'IN' ? 'Auto-filled for Indian states' : 'Add manually or skip'}
-                                        </p>
+                                {/* STEP 2: DETAILS */}
+                                {currentStep === 2 && (
+                                    <div className="animate-in fade-in slide-in-from-right-4 duration-300">
+                                        <div className="text-center mb-8">
+                                            <h3 className="text-xl font-semibold text-gray-900">Zone Configuration</h3>
+                                            <p className="text-gray-500">Review and customize the zone details.</p>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-6">
+                                            <div className="col-span-2 sm:col-span-1">
+                                                <label className="block text-sm font-semibold text-gray-700 mb-2">Zone Name *</label>
+                                                <input
+                                                    type="text"
+                                                    value={formData.name}
+                                                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                                    className="w-full border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow"
+                                                    placeholder="e.g., Maharashtra"
+                                                    required
+                                                />
+                                            </div>
+
+                                            <div className="col-span-2 sm:col-span-1">
+                                                <label className="block text-sm font-semibold text-gray-700 mb-2">Zone Code *</label>
+                                                <input
+                                                    type="text"
+                                                    value={formData.code}
+                                                    onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
+                                                    className="w-full border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow"
+                                                    placeholder="e.g., MH"
+                                                    required
+                                                />
+                                            </div>
+
+                                            <div className="col-span-2 sm:col-span-1">
+                                                <label className="block text-sm font-semibold text-gray-700 mb-2">Currency *</label>
+                                                <select
+                                                    value={formData.currency_code}
+                                                    onChange={(e) => setFormData({ ...formData, currency_code: e.target.value })}
+                                                    className="w-full border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow"
+                                                    required
+                                                >
+                                                    {SUPPORTED_CURRENCIES.map((currency) => (
+                                                        <option key={currency.code} value={currency.code}>
+                                                            {currency.code} ({currency.symbol}) - {currency.name}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            </div>
+
+                                            <div className="col-span-2 sm:col-span-1">
+                                                <label className="block text-sm font-semibold text-gray-700 mb-2">Level *</label>
+                                                <select
+                                                    value={formData.level}
+                                                    onChange={(e) => setFormData({ ...formData, level: e.target.value })}
+                                                    className="w-full border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow"
+                                                    required
+                                                >
+                                                    <option value="COUNTRY">Country</option>
+                                                    <option value="STATE">State</option>
+                                                    <option value="UT">Union Territory</option>
+                                                    <option value="DISTRICT">District</option>
+                                                    <option value="CITY">City</option>
+                                                </select>
+                                            </div>
+                                        </div>
                                     </div>
+                                )}
 
-                                    {formData.pincodeRanges.map((range, index) => (
-                                        <div key={index} className="flex gap-2 mb-2">
-                                            <input
-                                                type="number"
-                                                value={range.start || ''}
-                                                onChange={(e) => updatePincodeRange(index, 'start', parseInt(e.target.value))}
-                                                className="flex-1 border rounded-lg px-3 py-2"
-                                                placeholder="Start (e.g., 110000)"
-                                            />
-                                            <span className="self-center">-</span>
-                                            <input
-                                                type="number"
-                                                value={range.end || ''}
-                                                onChange={(e) => updatePincodeRange(index, 'end', parseInt(e.target.value))}
-                                                className="flex-1 border rounded-lg px-3 py-2"
-                                                placeholder="End (e.g., 119999)"
-                                            />
-                                            {formData.pincodeRanges.length > 1 && (
+                                {/* STEP 3: PINCODE & STATUS */}
+                                {currentStep === 3 && (
+                                    <div className="animate-in fade-in slide-in-from-right-4 duration-300">
+                                        <div className="text-center mb-8">
+                                            <h3 className="text-xl font-semibold text-gray-900">Final Validation</h3>
+                                            <p className="text-gray-500">Define coverage ranges and activate the zone.</p>
+                                        </div>
+
+                                        <div className="space-y-6">
+                                            <div className="bg-gray-50 p-6 rounded-xl border border-gray-200">
+                                                <h4 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                                                    📮 Pincode Ranges
+                                                    <span className="text-xs font-normal text-gray-500 px-2 py-1 bg-white rounded border">Optional</span>
+                                                </h4>
+                                                
+                                                <div className="space-y-3">
+                                                    {formData.pincodeRanges.map((range, index) => (
+                                                        <div key={index} className="flex gap-3 items-center">
+                                                            <div className="flex-1">
+                                                                <input
+                                                                    type="number"
+                                                                    value={range.start || ''}
+                                                                    onChange={(e) => updatePincodeRange(index, 'start', parseInt(e.target.value))}
+                                                                    className="w-full border-gray-300 rounded-lg px-3 py-2 text-sm"
+                                                                    placeholder="Start"
+                                                                />
+                                                            </div>
+                                                            <span className="text-gray-400 font-bold">-</span>
+                                                            <div className="flex-1">
+                                                                <input
+                                                                    type="number"
+                                                                    value={range.end || ''}
+                                                                    onChange={(e) => updatePincodeRange(index, 'end', parseInt(e.target.value))}
+                                                                    className="w-full border-gray-300 rounded-lg px-3 py-2 text-sm"
+                                                                    placeholder="End"
+                                                                />
+                                                            </div>
+                                                            {formData.pincodeRanges.length > 1 && (
+                                                                <button type="button" onClick={() => removePincodeRange(index)} className="text-red-500 hover:bg-red-50 p-2 rounded-lg">
+                                                                    <X size={18} />
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                                
                                                 <button
                                                     type="button"
-                                                    onClick={() => removePincodeRange(index)}
-                                                    className="text-red-600 hover:text-red-800 px-2"
+                                                    onClick={addPincodeRange}
+                                                    className="mt-4 text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center gap-1"
                                                 >
-                                                    <X size={20} />
+                                                    <Plus size={16} /> Add another range
                                                 </button>
-                                            )}
-                                        </div>
-                                    ))}
-                                    <button
-                                        type="button"
-                                        onClick={addPincodeRange}
-                                        className="text-blue-600 hover:text-blue-800 text-sm flex items-center gap-1 mt-2"
-                                    >
-                                        <Plus size={16} />
-                                        Add Another Range
-                                    </button>
-                                </div>
+                                            </div>
 
-                                {/* SECTION 4: STATUS */}
-                                <div className="mb-6">
-                                    <label className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
-                                        <input
-                                            type="checkbox"
-                                            checked={formData.isActive}
-                                            onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
-                                            className="rounded w-5 h-5"
-                                        />
-                                        <span className="text-sm font-medium">✅ Active (Zone is usable for pricing)</span>
-                                    </label>
-                                </div>
+                                            <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 flex items-center justify-between cursor-pointer" onClick={() => setFormData({ ...formData, isActive: !formData.isActive })}>
+                                                <div className="flex items-center gap-3">
+                                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${formData.isActive ? 'bg-green-100 text-green-600' : 'bg-gray-200 text-gray-500'}`}>
+                                                        {formData.isActive ? '✓' : '✕'}
+                                                    </div>
+                                                    <div>
+                                                        <div className="font-semibold text-gray-900">Zone Status</div>
+                                                        <div className="text-sm text-gray-600">{formData.isActive ? 'Zone will be active immediately' : 'Zone is currently inactive'}</div>
+                                                    </div>
+                                                </div>
+                                                <div className={`w-14 h-8 rounded-full p-1 transition-colors ${formData.isActive ? 'bg-green-500' : 'bg-gray-300'}`}>
+                                                    <div className={`w-6 h-6 bg-white rounded-full shadow-sm transition-transform ${formData.isActive ? 'translate-x-6' : ''}`}></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
                             </form>
                         </div>
 
-                        {/* Modal Footer with Action Buttons */}
-                        <div className="px-6 py-4 border-t bg-gray-50 flex gap-3 justify-end">
+                        {/* Modal Footer */}
+                        <div className="px-8 py-5 border-t bg-gray-50 flex items-center justify-between">
                             <button
                                 type="button"
                                 onClick={() => {
-                                    setShowModal(false);
-                                    resetForm();
+                                    if (currentStep > 1) prevStep();
+                                    else {
+                                        setShowModal(false);
+                                        resetForm();
+                                        setCurrentStep(1);
+                                    }
                                 }}
-                                className="px-6 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-100 font-medium text-gray-700 transition-colors"
+                                className="px-6 py-2.5 text-gray-600 font-medium hover:text-gray-900 transition-colors"
                             >
-                                Cancel
+                                {currentStep === 1 ? 'Cancel' : 'Back'}
                             </button>
-                            <button
-                                type="submit"
-                                form="geoZoneForm"
-                                disabled={loading}
-                                className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium flex items-center gap-2 disabled:opacity-50 transition-colors"
-                            >
-                                <Save size={18} />
-                                {loading ? 'Saving...' : editingZone ? 'Update Zone' : 'Create Zone'}
-                            </button>
+
+                            <div className="flex gap-3">
+                                {currentStep < 3 ? (
+                                    <button
+                                        type="button"
+                                        onClick={nextStep}
+                                        className="px-8 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium shadow-sm hover:shadow transition-all flex items-center gap-2"
+                                    >
+                                        Next Step <ChevronRight size={18} />
+                                    </button>
+                                ) : (
+                                    <button
+                                        type="submit"
+                                        form="geoZoneForm"
+                                        disabled={loading}
+                                        className="px-8 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium shadow-sm hover:shadow transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        {loading ? 'Saving...' : <><Save size={18} /> Complete Setup</>}
+                                    </button>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>

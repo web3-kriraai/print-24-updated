@@ -84,12 +84,26 @@ class GeoZoneHierarchyService {
                 .populate('geoZone')
                 .lean();
 
-            // Extract and filter valid zones
+            // Extract zones and attach range size for sorting
             const zones = mappings
-                .map(mapping => mapping.geoZone)
+                .map(mapping => {
+                    if (!mapping.geoZone) return null;
+                    
+                    // Attach range size (smaller = more specific)
+                    const rangeSize = mapping.pincodeEnd - mapping.pincodeStart + 1;
+                    return {
+                        ...mapping.geoZone,
+                        _rangeSize: rangeSize,
+                        _pincodeStart: mapping.pincodeStart,
+                        _pincodeEnd: mapping.pincodeEnd
+                    };
+                })
                 .filter(zone => zone != null);
 
             console.log(`   Found ${zones.length} matching zones for pincode ${pincodeNum}`);
+            zones.forEach(zone => {
+                console.log(`      - ${zone.name} (${zone.level}): ${zone._pincodeStart}-${zone._pincodeEnd} (size: ${zone._rangeSize})`);
+            });
 
             return zones;
         } catch (error) {
@@ -104,7 +118,8 @@ class GeoZoneHierarchyService {
      * Sorting criteria:
      * 1. Level priority (ZIP > CITY > DISTRICT > STATE > REGION > COUNTRY)
      * 2. Zone priority field (higher = more specific)
-     * 3. Alphabetical by name (tie-breaker)
+     * 3. Range size (smaller = more specific) - NEW!
+     * 4. Alphabetical by name (tie-breaker)
      * 
      * @param {Array} zones - Array of GeoZone objects
      * @returns {Array} Sorted array
@@ -127,7 +142,15 @@ class GeoZoneHierarchyService {
                 return bPriority - aPriority; // Descending order
             }
 
-            // 3. Tie-breaker: alphabetical
+            // 3. If same priority, sort by range size (smaller = more specific)
+            const aRangeSize = a._rangeSize || Infinity;
+            const bRangeSize = b._rangeSize || Infinity;
+
+            if (aRangeSize !== bRangeSize) {
+                return aRangeSize - bRangeSize; // Ascending order (smaller first)
+            }
+
+            // 4. Tie-breaker: alphabetical
             return a.name.localeCompare(b.name);
         });
     }

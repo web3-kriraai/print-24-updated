@@ -57,7 +57,17 @@ export const createPriceBook = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Price book name is required' });
         }
 
-        // If setting as default, unset others
+        // ⚠️ IMPORTANT: Only ONE Master book can exist
+        // If setting as master, unset all other master books
+        if (isMaster) {
+            const existingMaster = await PriceBook.findOne({ isMaster: true });
+            if (existingMaster) {
+                console.log(`⚠️ Unmarking previous master: ${existingMaster.name}`);
+                await PriceBook.updateMany({}, { isMaster: false });
+            }
+        }
+
+        // If setting as default, unset others (legacy - no longer used in UI)
         if (isDefault) {
             await PriceBook.updateMany({}, { isDefault: false });
         }
@@ -78,6 +88,9 @@ export const createPriceBook = async (req, res) => {
         };
 
         const priceBook = await PriceBook.create(priceBookData);
+        
+        console.log(`✅ Created price book: ${priceBook.name} (Master: ${priceBook.isMaster})`);
+        
         res.json({ success: true, priceBook });
     } catch (error) {
         console.error('Create price book error:', error);
@@ -104,6 +117,13 @@ export const updatePriceBook = async (req, res) => {
             isActive
         } = req.body;
 
+        // ⚠️ IMPORTANT: Only ONE Master book can exist
+        // If setting as master, unset all OTHER master books
+        if (isMaster) {
+            await PriceBook.updateMany({ _id: { $ne: id } }, { isMaster: false });
+        }
+
+        // If setting as default, unset others (legacy)
         if (isDefault) {
             await PriceBook.updateMany({ _id: { $ne: id } }, { isDefault: false });
         }
@@ -137,6 +157,8 @@ export const updatePriceBook = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Price book not found' });
         }
 
+        console.log(`✅ Updated price book: ${priceBook.name} (Master: ${priceBook.isMaster})`);
+
         res.json({ success: true, priceBook });
     } catch (error) {
         console.error('Update price book error:', error);
@@ -153,6 +175,15 @@ export const deletePriceBook = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Price book not found' });
         }
 
+        // ⚠️ Prevent deletion of Master book
+        if (priceBook.isMaster) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Cannot delete Master price book. Create a new Master first, then delete this one.' 
+            });
+        }
+
+        // Legacy: Prevent deletion of default book
         if (priceBook.isDefault) {
             return res.status(400).json({ success: false, message: 'Cannot delete default price book' });
         }
@@ -160,6 +191,8 @@ export const deletePriceBook = async (req, res) => {
         // Delete all entries associated with this price book
         await PriceBookEntry.deleteMany({ priceBook: id });
         await PriceBook.findByIdAndDelete(id);
+
+        console.log(`🗑️ Deleted price book: ${priceBook.name}`);
 
         res.json({ success: true, message: 'Price book deleted' });
     } catch (error) {

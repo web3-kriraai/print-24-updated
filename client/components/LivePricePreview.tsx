@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Loader, AlertCircle, CheckCircle } from 'lucide-react';
+import { formatPrice } from '../src/utils/currencyUtils';
 
 interface PriceBreakdown {
     basePrice: number;
@@ -30,14 +31,16 @@ interface LivePricePreviewProps {
  * 
  * Displays real-time pricing breakdown from backend
  * Shows: subtotal, discounts, GST, total
+ * Now supports dynamic currency display
  */
 export const LivePricePreview: React.FC<LivePricePreviewProps> = ({
     priceData,
     isLoading,
     error
 }) => {
+    // Helper to format prices with zone's currency
     const formatCurrency = (amount: number) => {
-        return `₹${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        return formatPrice(amount, priceData?.currency || 'INR');
     };
 
     if (error) {
