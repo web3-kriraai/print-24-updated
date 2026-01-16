@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Users, Save, X, Star } from 'lucide-react';
+import { Plus, Edit2, Trash2, Users, Save, X, Star, ShieldCheck, Lock } from 'lucide-react';
 
 interface UserSegment {
     _id: string;
@@ -8,6 +8,7 @@ interface UserSegment {
     description?: string;
     isDefault: boolean;
     isActive: boolean;
+    isSystem?: boolean;
 }
 
 /**
@@ -212,8 +213,13 @@ const UserSegmentManager: React.FC = () => {
                             {/* Badges */}
                             <div className="flex gap-2 mb-4">
                                 {segment.isDefault && (
-                                    <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded text-xs font-medium">
-                                        Default
+                                    <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded text-xs font-medium flex items-center gap-1">
+                                        <Star size={12} /> Default
+                                    </span>
+                                )}
+                                {segment.isSystem && (
+                                    <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-medium flex items-center gap-1">
+                                        <ShieldCheck size={12} /> System Protected
                                     </span>
                                 )}
                             </div>
@@ -227,13 +233,24 @@ const UserSegmentManager: React.FC = () => {
                                     <Edit2 size={16} />
                                     Edit
                                 </button>
-                                <button
-                                    onClick={() => handleDelete(segment._id)}
-                                    className="flex-1 bg-red-50 text-red-600 px-3 py-2 rounded hover:bg-red-100 flex items-center justify-center gap-2"
-                                >
-                                    <Trash2 size={16} />
-                                    Delete
-                                </button>
+                                {segment.isSystem ? (
+                                    <button
+                                        disabled
+                                        className="flex-1 bg-gray-100 text-gray-400 px-3 py-2 rounded cursor-not-allowed flex items-center justify-center gap-2"
+                                        title="System segments cannot be deleted"
+                                    >
+                                        <Lock size={16} />
+                                        Locked
+                                    </button>
+                                ) : (
+                                    <button
+                                        onClick={() => handleDelete(segment._id)}
+                                        className="flex-1 bg-red-50 text-red-600 px-3 py-2 rounded hover:bg-red-100 flex items-center justify-center gap-2"
+                                    >
+                                        <Trash2 size={16} />
+                                        Delete
+                                    </button>
+                                )}
                             </div>
                         </div>
                     ))

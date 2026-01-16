@@ -56,6 +56,12 @@ const UserSegmentSchema = new mongoose.Schema({
     default: true,
     index: true,
   },
+  // Is this a system segment (protected from deletion)?
+  isSystem: {
+    type: Boolean,
+    default: false,
+    index: true,
+  },
 }, { timestamps: true });
 
 /* =========================
