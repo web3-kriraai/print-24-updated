@@ -90,7 +90,7 @@ class PricingService {
             if (pincode) {
                 geoZoneHierarchy = await GeoZoneHierarchyService.resolveZoneHierarchy(pincode);
             }
-            
+
             // Use most specific zone from hierarchy (index 0) for currency and zone info
             // This ensures SURAT (more specific) is used instead of West Zone (broader)
             const geoZone = geoZoneHierarchy[0] || await PricingResolver.getGeoZoneByPincode(pincode);
@@ -194,15 +194,15 @@ class PricingService {
                 currency_code: geoZone?.currency_code,
                 fullZone: geoZone
             });
-            
+
             const zoneCurrency = geoZone?.currency_code || geoZone?.currency || "INR";
             console.log(`💱 Zone Currency extracted: ${zoneCurrency}`);
-            
+
             // Fetch the used PriceBook to get its currency
             let priceBookCurrency = "INR"; // Default to INR (base currency for most price books)
             if (virtualResult.masterBook) {
                 try {
-                    const PriceBook = require('../models/PriceBook');
+                    const { default: PriceBook } = await import('../../models/PriceBook.js');
                     const priceBook = await PriceBook.findById(virtualResult.masterBook);
                     if (priceBook && priceBook.currency) {
                         priceBookCurrency = priceBook.currency;
@@ -218,7 +218,7 @@ class PricingService {
             if (priceBookCurrency !== zoneCurrency) {
                 try {
                     console.log(`💱 Converting price: ${priceBookCurrency} → ${zoneCurrency}`);
-                    
+
                     const conversion = await CurrencyConversionService.convertPrice(
                         result.totalPayable,
                         priceBookCurrency,
