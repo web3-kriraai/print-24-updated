@@ -127,6 +127,8 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
   // Product variant filter states (for nested subcategories displayed as filters)
   const [availableNestedSubcategories, setAvailableNestedSubcategories] = useState<SubCategory[]>([]);
   const [selectedNestedSubcategoryId, setSelectedNestedSubcategoryId] = useState<string | null>(null);
+  // Category products for thumbnail display at top
+  const [categoryProducts, setCategoryProducts] = useState<GlossProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -986,6 +988,82 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
               }));
 
               setProducts(mappedProducts);
+
+              // Fetch all products from the same category/subcategory for thumbnail display
+              // Only fetch if we have a productId (viewing product details)
+              if (productId && mappedProducts.length > 0) {
+                try {
+                  // Determine which endpoint to use based on the current context
+                  let categoryProductsUrl = '';
+                  if (subcategoryData && subcategoryData._id) {
+                    // Fetch products from the same subcategory
+                    categoryProductsUrl = `${API_BASE_URL}/products/subcategory/${subcategoryData._id}`;
+                  } else if (categoryId && /^[0-9a-fA-F]{24}$/.test(categoryId)) {
+                    // Fetch products from the same category
+                    categoryProductsUrl = `${API_BASE_URL}/products/category/${categoryId}`;
+                  }
+
+                  if (categoryProductsUrl) {
+                    const categoryProductsResponse = await fetch(categoryProductsUrl, {
+                      method: "GET",
+                      headers: {
+                        Accept: "application/json",
+                      },
+                    });
+
+                    if (categoryProductsResponse.ok) {
+                      const categoryProductsText = await categoryProductsResponse.text();
+                      if (!categoryProductsText.startsWith("<!DOCTYPE") && !categoryProductsText.startsWith("<html")) {
+                        const categoryProductsData = JSON.parse(categoryProductsText);
+                        if (Array.isArray(categoryProductsData)) {
+                          // Map to GlossProduct format
+                          const mappedCategoryProducts: GlossProduct[] = categoryProductsData.map((product: any) => ({
+                            _id: product._id,
+                            id: product._id,
+                            name: product.name || '',
+                            description: product.description || '',
+                            descriptionArray: product.descriptionArray || [],
+                            filters: {
+                              printingOption: product.filters?.printingOption || [],
+                              orderQuantity: product.filters?.orderQuantity || { min: 1000, max: 72000, multiples: 1000 },
+                              deliverySpeed: product.filters?.deliverySpeed || [],
+                              textureType: product.filters?.textureType || undefined,
+                              filterPricesEnabled: product.filters?.filterPricesEnabled || false,
+                              printingOptionPrices: product.filters?.printingOptionPrices || [],
+                              deliverySpeedPrices: product.filters?.deliverySpeedPrices || [],
+                              textureTypePrices: product.filters?.textureTypePrices || [],
+                            },
+                            basePrice: product.basePrice || 0,
+                            image: product.image,
+                            subcategory: product.subcategory,
+                            options: product.options || [],
+                            dynamicAttributes: product.dynamicAttributes || [],
+                            quantityDiscounts: product.quantityDiscounts || [],
+                            maxFileSizeMB: product.maxFileSizeMB,
+                            minFileWidth: product.minFileWidth,
+                            maxFileWidth: product.maxFileWidth,
+                            minFileHeight: product.minFileHeight,
+                            maxFileHeight: product.maxFileHeight,
+                            blockCDRandJPG: product.blockCDRandJPG || false,
+                            additionalDesignCharge: product.additionalDesignCharge || 0,
+                            gstPercentage: product.gstPercentage || 0,
+                            showPriceIncludingGst: product.showPriceIncludingGst || false,
+                            instructions: product.instructions || "",
+                          }));
+                          setCategoryProducts(mappedCategoryProducts);
+                        }
+                      }
+                    }
+                  }
+                } catch (categoryProductsErr) {
+                  console.error("Error fetching category products for thumbnails:", categoryProductsErr);
+                  // Don't fail the whole page if category products fetch fails
+                  setCategoryProducts([]);
+                }
+              } else {
+                // Clear category products if not viewing a product
+                setCategoryProducts([]);
+              }
 
               // AUTO-SKIP: If only one product, navigate directly to its detail page
               if (mappedProducts.length === 1 && !productId) {
@@ -3233,6 +3311,25 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
           max-width: 100%;
           max-height: 90vh;
         }
+        
+        /* Custom scrollbar for product thumbnails */
+        .scrollbar-thin::-webkit-scrollbar {
+          height: 6px;
+        }
+        
+        .scrollbar-thin::-webkit-scrollbar-track {
+          background: #f3f4f6;
+          border-radius: 3px;
+        }
+        
+        .scrollbar-thin::-webkit-scrollbar-thumb {
+          background: #d1d5db;
+          border-radius: 3px;
+        }
+        
+        .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+          background: #9ca3af;
+        }
       `}</style>
 
       <div className="container mx-auto px-4 sm:px-6">
@@ -3298,6 +3395,75 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
             className="text-sm sm:text-base text-gray-600 hover:text-gray-900"
           />
         </div>
+
+        {/* Category Products Thumbnails - Show when viewing a product detail */}
+        {selectedProduct && categoryProducts.length > 1 && !loading && !error && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+            className="mb-6"
+          >
+            <div className="bg-transparent">
+              <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 px-1 justify-end">
+                {categoryProducts.map((product) => {
+                  const isCurrentProduct = product._id === selectedProduct._id;
+                  const productImage = product.image || selectedSubCategory?.image || '/Glossy.png';
+
+                  return (
+                    <button
+                      key={product._id}
+                      onClick={() => {
+                        if (!isCurrentProduct) {
+                          // Navigate to the selected product
+                          const newUrl = categoryId && subCategoryId && nestedSubCategoryId
+                            ? `/services/${categoryId}/${subCategoryId}/${nestedSubCategoryId}/${product._id}`
+                            : categoryId && subCategoryId
+                              ? `/services/${categoryId}/${subCategoryId}/${product._id}`
+                              : categoryId
+                                ? `/services/${categoryId}/${product._id}`
+                                : `/services/${product._id}`;
+                          navigate(newUrl);
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                        }
+                      }}
+                      className="flex-shrink-0 group transition-all duration-200 focus:outline-none"
+                    >
+                      <div
+                        className={`w-32 h-32 sm:w-36 sm:h-36 rounded-[20px] overflow-hidden flex flex-col transition-all duration-200 box-border bg-[#c7c7c7] ${isCurrentProduct
+                          ? 'border-[3px] border-[#2563eb] shadow-md' // Brighter blue border
+                          : 'border border-gray-200 hover:border-gray-300'
+                          }`}
+                      >
+                        {/* Image Section */}
+                        <div className="flex-grow bg-white flex items-center justify-center relative overflow-hidden rounded-b-[20px]">
+                          <img
+                            src={productImage}
+                            alt={product.name}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              if (target.src !== '/Glossy.png') {
+                                target.src = selectedSubCategory?.image || '/Glossy.png';
+                              }
+                            }}
+                          />
+                        </div>
+
+                        {/* Label Section */}
+                        <div className="h-10 bg-[#c7c7c7] flex items-center justify-center px-2 relative z-10">
+                          <p className="text-[11px] font-black text-black uppercase text-center leading-tight line-clamp-2 tracking-tighter">
+                            {product.name}
+                          </p>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </motion.div>
+        )}
 
         {/* Product Variants Filter - Show when nested subcategories are available */}
         {availableNestedSubcategories.length > 0 && !loading && !error && (
