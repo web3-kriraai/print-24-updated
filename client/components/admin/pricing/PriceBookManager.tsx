@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import toast from "react-hot-toast";
-import { Plus, Edit2, Trash2, Save, X, Book, Star, Eye } from 'lucide-react';
+import { Plus, Edit2, Trash2, Save, X, Book, Star, Eye, Copy } from 'lucide-react';
 import ConflictDetectionModal from '../../../src/components/admin/ConflictDetectionModal';
 import { SUPPORTED_CURRENCIES, getCurrencySymbol } from '../../../src/utils/currencyUtils';
 
@@ -81,6 +81,31 @@ const PriceBookManager: React.FC = () => {
     // Lookup data
     const [geoZones, setGeoZones] = useState<any[]>([]);
     const [userSegments, setUserSegments] = useState<any[]>([]);
+
+    // Search & Filter state
+    const [searchQuery, setSearchQuery] = useState('');
+    const [filterZone, setFilterZone] = useState('');
+    const [filterSegment, setFilterSegment] = useState('');
+
+    // Computed filtered price books
+    const filteredBooks = React.useMemo(() => {
+        return priceBooks.filter(book => {
+            // Search filter
+            const matchesSearch = searchQuery === '' || 
+                book.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                (book as any).description?.toLowerCase().includes(searchQuery.toLowerCase());
+            
+            // Zone filter
+            const matchesZone = filterZone === '' || 
+                book.zone?._id === filterZone;
+            
+            // Segment filter
+            const matchesSegment = filterSegment === '' || 
+                book.segment?._id === filterSegment;
+            
+            return matchesSearch && matchesZone && matchesSegment;
+        });
+    }, [priceBooks, searchQuery, filterZone, filterSegment]);
 
     // Fetch price books and lookup data
     useEffect(() => {
@@ -470,6 +495,52 @@ const PriceBookManager: React.FC = () => {
         setEditingEntry(null);
     };
 
+    // Copy Price Book with all entries
+    const handleCopyPriceBook = async (book: PriceBook) => {
+        const newName = prompt(
+            'Enter name for the copied price book:',
+            `${book.name} (Copy)`
+        );
+        
+        if (!newName || newName.trim() === '') {
+            return; // User cancelled or empty name
+        }
+
+        setLoading(true);
+        const loadingToast = toast.loading('Copying price book...');
+
+        try {
+            const token = localStorage.getItem('token');
+            
+            // Call the copy API endpoint
+            const response = await fetch(`/api/admin/price-books/${book._id}/copy`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                },
+                body: JSON.stringify({ name: newName.trim() }),
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                toast.dismiss(loadingToast);
+                toast.success(`Price book copied! ${result.entriesCopied || 0} product prices duplicated.`);
+                fetchPriceBooks();
+            } else {
+                const error = await response.json();
+                toast.dismiss(loadingToast);
+                toast.error(error.message || 'Failed to copy price book');
+            }
+        } catch (error) {
+            console.error('Error copying price book:', error);
+            toast.dismiss(loadingToast);
+            toast.error('Failed to copy price book');
+        } finally {
+            setLoading(false);
+        }
+    };
+
     return (
         <div className="p-6">
             {/* Header */}
@@ -483,160 +554,251 @@ const PriceBookManager: React.FC = () => {
                 </p>
             </div>
 
-            {/* Create Button */}
-            <div className="mb-6 flex gap-4">
-                <button
-                    onClick={() => {
-                        resetForm();
-                        setShowModal(true);
-                    }}
-                    className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 flex items-center gap-2"
-                >
-                    <Plus size={20} />
-                    Create Price Book
-                </button>
+            {/* Toolbar: Search, Filters, Create Button */}
+            <div className="mb-6 bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+                <div className="flex flex-wrap gap-4 items-center">
+                    {/* Search */}
+                    <div className="flex-1 min-w-[200px]">
+                        <div className="relative">
+                            <input
+                                type="text"
+                                placeholder="Search price books..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                            />
+                            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                        </div>
+                    </div>
+
+                    {/* Zone Filter */}
+                    <select
+                        value={filterZone}
+                        onChange={(e) => setFilterZone(e.target.value)}
+                        className="px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 min-w-[150px]"
+                    >
+                        <option value="">All Zones</option>
+                        {geoZones.map((zone) => (
+                            <option key={zone._id} value={zone._id}>{zone.name}</option>
+                        ))}
+                    </select>
+
+                    {/* Segment Filter */}
+                    <select
+                        value={filterSegment}
+                        onChange={(e) => setFilterSegment(e.target.value)}
+                        className="px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 min-w-[150px]"
+                    >
+                        <option value="">All Segments</option>
+                        {userSegments.map((segment) => (
+                            <option key={segment._id} value={segment._id}>{segment.name}</option>
+                        ))}
+                    </select>
+
+                    {/* Create Button */}
+                    <button
+                        onClick={() => {
+                            resetForm();
+                            setShowModal(true);
+                        }}
+                        className="bg-indigo-600 text-white px-5 py-2.5 rounded-lg hover:bg-indigo-700 flex items-center gap-2 font-medium shadow-sm"
+                    >
+                        <Plus size={20} />
+                        New Price Book
+                    </button>
+                </div>
                 
-                {/* TEST BUTTON - Remove after testing */}
-                <button
-                    onClick={() => {
-                        console.log('🧪 TEST: Manually triggering conflict modal');
-                        setConflictData({
-                            hasConflict: true,
-                            affectedCount: 2,
-                            affectedItems: [
-                                {
-                                    segment: { _id: '1', name: 'CORPORATE', code: 'CORP' },
-                                    pricing: {
-                                       masterPrice: 1000,
-                                        currentPrice: 1050,
-                                        newZonePrice: 1200,
-                                        priceDifference: 150,
-                                        percentageDifference: '14.29%',
-                                        direction: 'increase'
-                                    }
-                                },
-                                {
-                                    segment: { _id: '2', name: 'RETAIL', code: 'RET' },
-                                    pricing: {
-                                        masterPrice: 1000,
-                                        currentEffectivePrice: 900,
-                                        newZonePrice: 1200,
-                                        priceDifference: 300,
-                                        percentageDifference: '33.33%',
-                                        direction: 'increase'
-                                    }
-                                }
-                            ],
-                            impactSummary: {
-                                product: { _id: 'test123', name: 'Test Product', sku: 'TEST-001' },
-                                updateLevel: 'ZONE',
-                                currentMasterPrice: 1000,
-                                newPrice: 1200,
-                                totalAffectedItems: 2,
-                                affectedSegments: ['CORPORATE', 'RETAIL']
-                            },
-                            resolutionOptions: [
-                                {
-                                    id: 'OVERWRITE',
-                                    label: 'Force Overwrite',
-                                    description: 'Delete all overrides',
-                                    impact: { warning: 'Will delete 2 items', itemsDeleted: 2 }
-                                },
-                                {
-                                    id: 'PRESERVE',
-                                    label: 'Preserve Overrides',
-                                    description: 'Keep existing prices',
-                                    impact: { warning: 'Will preserve 2 items', itemsPreserved: 2 }
-                                }
-                            ],
-                            payload: { productId: 'test123', newPrice: 1200 }
-                        });
-                        setShowConflictModal(true);
-                    }}
-                    className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700"
-                >
-                    🧪 TEST MODAL
-                </button>
+                {/* Stats Bar */}
+                <div className="flex gap-6 mt-4 pt-4 border-t border-gray-100 text-sm text-gray-600">
+                    <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 bg-indigo-500 rounded-full"></span>
+                        <span>{priceBooks.filter(b => (b as any).isMaster).length} Master</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
+                        <span>{priceBooks.filter(b => b.zone).length} Zone-Specific</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                        <span>{priceBooks.filter(b => b.segment).length} Segment-Specific</span>
+                    </div>
+                    <div className="ml-auto font-medium text-gray-800">
+                        {filteredBooks.length} of {priceBooks.length} price books
+                    </div>
+                </div>
             </div>
 
-            {/* Price Books Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {/* Price Books Table */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                 {loading && priceBooks.length === 0 ? (
-                    <div className="col-span-full text-center text-gray-500 py-8">
-                        Loading...
+                    <div className="text-center text-gray-500 py-16">
+                        <div className="animate-spin w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+                        Loading price books...
                     </div>
-                ) : priceBooks.length === 0 ? (
-                    <div className="col-span-full text-center text-gray-500 py-8">
-                        No price books found. Create one to get started.
+                ) : filteredBooks.length === 0 ? (
+                    <div className="text-center py-16">
+                        <Book className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                        <p className="text-gray-500 text-lg">
+                            {priceBooks.length === 0 
+                                ? "No price books found. Create one to get started."
+                                : "No price books match your search criteria."
+                            }
+                        </p>
+                        {priceBooks.length > 0 && (
+                            <button 
+                                onClick={() => { setSearchQuery(''); setFilterZone(''); setFilterSegment(''); }}
+                                className="mt-4 text-indigo-600 hover:underline"
+                            >
+                                Clear filters
+                            </button>
+                        )}
                     </div>
                 ) : (
-                    priceBooks.map((book) => (
-                        <div
-                            key={book._id}
-                            className="bg-white rounded-lg shadow-md p-6 border-2 border-gray-200 hover:border-indigo-300 transition-colors"
-                        >
-                            {/* Header */}
-                            <div className="flex justify-between items-start mb-4">
-                                <div className="flex-1">
-                                    <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                                        {book.name}
-                                        {(book as any).isMaster && (
-                                            <span className="text-xs bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded font-medium">Master</span>
-                                        )}
-                                    </h3>
-                                    <p className="text-sm text-gray-600 font-mono">{book.currency}</p>
-                                    {/* Zone/Segment Badges */}
-                                    <div className="flex gap-2 mt-1 flex-wrap">
-                                        {book.zone && (
-                                            <span className="text-xs bg-purple-100 text-purple-800 px-2 py-0.5 rounded">
-                                                Zone: {book.zone.name}
-                                            </span>
-                                        )}
-                                        {book.segment && (
-                                            <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">
-                                                Segment: {book.segment.name}
-                                            </span>
-                                        )}
-                                    </div>
-                                </div>
-                                {book.createdAt && (
-                                    <div className="bg-indigo-50 text-indigo-700 px-2 py-1 rounded text-xs font-medium">
-                                        {new Date(book.createdAt).toLocaleDateString()}
-                                    </div>
-                                )}
-                            </div>
+                    <div className="overflow-x-auto">
+                        <table className="w-full">
+                            <thead className="bg-gray-50 border-b border-gray-200">
+                                <tr>
+                                    <th className="text-left px-6 py-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                                        Price Book
+                                    </th>
+                                    <th className="text-left px-6 py-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                                        Scope
+                                    </th>
+                                    <th className="text-left px-6 py-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                                        Currency
+                                    </th>
+                                    <th className="text-left px-6 py-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                                        Created
+                                    </th>
+                                    <th className="text-center px-6 py-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                                        Actions
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                                {filteredBooks.map((book) => (
+                                    <tr 
+                                        key={book._id} 
+                                        className={`hover:bg-gray-50 transition-colors ${(book as any).isMaster ? 'bg-indigo-50/30' : ''}`}
+                                    >
+                                        {/* Name & Type */}
+                                        <td className="px-6 py-4">
+                                            <div className="flex items-center gap-3">
+                                                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                                                    (book as any).isMaster 
+                                                        ? 'bg-indigo-100 text-indigo-600' 
+                                                        : book.zone && book.segment 
+                                                            ? 'bg-emerald-100 text-emerald-600'
+                                                            : book.zone 
+                                                                ? 'bg-purple-100 text-purple-600'
+                                                                : book.segment
+                                                                    ? 'bg-blue-100 text-blue-600'
+                                                                    : 'bg-gray-100 text-gray-600'
+                                                }`}>
+                                                    <Book size={20} />
+                                                </div>
+                                                <div>
+                                                    <div className="font-semibold text-gray-900 flex items-center gap-2">
+                                                        {book.name}
+                                                        {(book as any).isMaster && (
+                                                            <Star size={14} className="text-amber-500 fill-amber-500" />
+                                                        )}
+                                                    </div>
+                                                    <div className="text-sm text-gray-500">
+                                                        {(book as any).description || 
+                                                            ((book as any).isMaster ? 'Base prices for all products' : 'Custom pricing rules')}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </td>
 
-                            {/* Badges - Removed since we don't need separate badge section anymore */}
-                            <div className="flex gap-2 mb-4">
-                                {/* Empty - badges now inline with title */}
-                            </div>
+                                        {/* Scope (Zone/Segment) */}
+                                        <td className="px-6 py-4">
+                                            <div className="flex flex-wrap gap-1.5">
+                                                {(book as any).isMaster && (
+                                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                                                        Master
+                                                    </span>
+                                                )}
+                                                {book.zone && (
+                                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                                                        📍 {book.zone.name}
+                                                    </span>
+                                                )}
+                                                {book.segment && (
+                                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                                        👥 {book.segment.name}
+                                                    </span>
+                                                )}
+                                                {!book.zone && !book.segment && !(book as any).isMaster && (
+                                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                                                        Global
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </td>
 
-                            {/* Actions */}
-                            <div className="flex gap-2 pt-4 border-t">
-                                <button
-                                    onClick={() => handleViewEntries(book)}
-                                    className="flex-1 bg-green-50 text-green-600 px-3 py-2 rounded hover:bg-green-100 flex items-center justify-center gap-2"
-                                >
-                                    <Eye size={16} />
-                                    Prices
-                                </button>
-                                <button
-                                    onClick={() => handleEdit(book)}
-                                    className="flex-1 bg-blue-50 text-blue-600 px-3 py-2 rounded hover:bg-blue-100 flex items-center justify-center gap-2"
-                                >
-                                    <Edit2 size={16} />
-                                    Edit
-                                </button>
-                                <button
-                                    onClick={() => handleDelete(book._id)}
-                                    className="flex-1 bg-red-50 text-red-600 px-3 py-2 rounded hover:bg-red-100 flex items-center justify-center gap-2"
-                                >
-                                    <Trash2 size={16} />
-                                    Delete
-                                </button>
-                            </div>
-                        </div>
-                    ))
+                                        {/* Currency */}
+                                        <td className="px-6 py-4">
+                                            <span className="inline-flex items-center px-3 py-1 rounded-lg bg-gray-100 text-gray-800 font-mono text-sm font-medium">
+                                                {book.currency}
+                                            </span>
+                                        </td>
+
+                                        {/* Created Date */}
+                                        <td className="px-6 py-4 text-sm text-gray-600">
+                                            {book.createdAt ? new Date(book.createdAt).toLocaleDateString('en-IN', {
+                                                day: 'numeric',
+                                                month: 'short',
+                                                year: 'numeric'
+                                            }) : '-'}
+                                        </td>
+
+                                        {/* Actions */}
+                                        <td className="px-6 py-4">
+                                            <div className="flex items-center justify-center gap-2">
+                                                <button
+                                                    onClick={() => handleViewEntries(book)}
+                                                    className="p-2 rounded-lg bg-green-50 text-green-600 hover:bg-green-100 transition-colors"
+                                                    title="View Prices"
+                                                >
+                                                    <Eye size={18} />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleCopyPriceBook(book)}
+                                                    className="p-2 rounded-lg bg-purple-50 text-purple-600 hover:bg-purple-100 transition-colors"
+                                                    title="Copy Price Book"
+                                                >
+                                                    <Copy size={18} />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleEdit(book)}
+                                                    className="p-2 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
+                                                    title="Edit"
+                                                >
+                                                    <Edit2 size={18} />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDelete(book._id)}
+                                                    className={`p-2 rounded-lg transition-colors ${
+                                                        (book as any).isMaster 
+                                                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                                            : 'bg-red-50 text-red-600 hover:bg-red-100'
+                                                    }`}
+                                                    title={(book as any).isMaster ? "Cannot delete Master" : "Delete"}
+                                                    disabled={(book as any).isMaster}
+                                                >
+                                                    <Trash2 size={18} />
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
                 )}
             </div>
 

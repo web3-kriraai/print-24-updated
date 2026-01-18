@@ -44,6 +44,7 @@ router.get('/price-books', controller.getPriceBooks);
 router.post('/price-books', controller.createPriceBook);
 router.put('/price-books/:id', controller.updatePriceBook);
 router.delete('/price-books/:id', controller.deletePriceBook);
+router.post('/price-books/:id/copy', controller.copyPriceBook); // Copy price book with all entries
 
 //================================
 // PRICE BOOK ENTRY ROUTES

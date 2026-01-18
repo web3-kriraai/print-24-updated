@@ -201,6 +201,80 @@ export const deletePriceBook = async (req, res) => {
     }
 };
 
+/**
+ * Copy a price book with all its entries
+ * POST /api/admin/price-books/:id/copy
+ */
+export const copyPriceBook = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { name } = req.body;
+
+        if (!name || name.trim() === '') {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Name for the copied price book is required' 
+            });
+        }
+
+        // Find the source price book
+        const sourcePriceBook = await PriceBook.findById(id);
+        if (!sourcePriceBook) {
+            return res.status(404).json({ success: false, message: 'Source price book not found' });
+        }
+
+        // Create the new price book (copy all fields except _id, isMaster, isDefault)
+        const newPriceBookData = {
+            name: name.trim(),
+            currency: sourcePriceBook.currency,
+            zone: sourcePriceBook.zone,
+            segment: sourcePriceBook.segment,
+            parentBook: sourcePriceBook.parentBook,
+            isOverride: sourcePriceBook.isOverride,
+            overridePriority: sourcePriceBook.overridePriority,
+            description: `Copied from: ${sourcePriceBook.name}`,
+            isVirtual: sourcePriceBook.isVirtual,
+            calculationLogic: sourcePriceBook.calculationLogic,
+            isActive: true,
+            isMaster: false, // Never copy as master
+            isDefault: false // Never copy as default
+        };
+
+        const newPriceBook = await PriceBook.create(newPriceBookData);
+
+        // Copy all entries from the source price book
+        const sourceEntries = await PriceBookEntry.find({ priceBook: id });
+        let entriesCopied = 0;
+
+        for (const entry of sourceEntries) {
+            await PriceBookEntry.create({
+                priceBook: newPriceBook._id,
+                product: entry.product,
+                basePrice: entry.basePrice,
+                compareAtPrice: entry.compareAtPrice,
+                isActive: entry.isActive
+            });
+            entriesCopied++;
+        }
+
+        console.log(`📋 Copied price book: ${sourcePriceBook.name} → ${newPriceBook.name} (${entriesCopied} entries)`);
+
+        // Populate and return the new price book
+        await newPriceBook.populate('zone', 'name');
+        await newPriceBook.populate('segment', 'name');
+
+        res.json({ 
+            success: true, 
+            priceBook: newPriceBook,
+            entriesCopied,
+            message: `Successfully copied ${entriesCopied} product prices`
+        });
+    } catch (error) {
+        console.error('Copy price book error:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
 //================================
 // PRICE BOOK ENTRY ROUTES
 //================================
