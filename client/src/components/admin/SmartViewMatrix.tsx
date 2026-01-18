@@ -501,54 +501,70 @@ const SmartViewMatrix: React.FC = () => {
       case 'MASTER':
         return (
           <div>
-            <div className="bg-gray-50 p-4 rounded-lg mb-4">
-              <p><strong>Master Book:</strong> {viewData.masterBookName || 'Master Price Book'}</p>
-              <p><strong>Total Products:</strong> {viewData.entries?.length || 0}</p>
+            <div className="bg-gradient-to-r from-indigo-50 to-purple-50 p-5 rounded-xl mb-6 border border-indigo-100">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-indigo-500 rounded-lg flex items-center justify-center text-white text-xl">📦</div>
+                <div>
+                  <p className="font-bold text-gray-900">{viewData.masterBookName || 'Master Price Book'}</p>
+                  <p className="text-sm text-gray-500">{viewData.entries?.length || 0} products</p>
+                </div>
+              </div>
             </div>
-            <table className="w-full border-collapse text-sm">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="p-3 text-left font-semibold text-gray-600 uppercase text-xs border-b-2">Product</th>
-                  <th className="p-3 text-left font-semibold text-gray-600 uppercase text-xs border-b-2">Base Price</th>
-                  <th className="p-3 text-left font-semibold text-gray-600 uppercase text-xs border-b-2">Compare At</th>
-                </tr>
-              </thead>
-              <tbody>
-                {viewData.entries?.map((entry: any) => (
-                  <tr key={entry.productId} className="border-b hover:bg-gray-50">
-                    <td className="p-3">{entry.productName}</td>
-                    {renderEditableCell(entry.productId, entry.productName, entry.basePrice, undefined, `master-${entry.productId}`)}
-                    <td className="p-3 font-mono">₹{entry.compareAtPrice || '-'}</td>
+            <div className="overflow-hidden rounded-xl border border-gray-200">
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-5 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Product</th>
+                    <th className="px-5 py-4 text-right text-xs font-bold text-gray-600 uppercase tracking-wider">Base Price</th>
+                    <th className="px-5 py-4 text-right text-xs font-bold text-gray-600 uppercase tracking-wider">Compare At</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {viewData.entries?.map((entry: any, idx: number) => (
+                    <tr key={entry.productId} className={`${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'} hover:bg-indigo-50/50 transition-colors`}>
+                      <td className="px-5 py-4 font-medium text-gray-800">{entry.productName}</td>
+                      {renderEditableCell(entry.productId, entry.productName, entry.basePrice, undefined, `master-${entry.productId}`)}
+                      <td className="px-5 py-4 text-right font-mono text-gray-600">
+                        {entry.compareAtPrice ? `₹${entry.compareAtPrice}` : <span className="text-gray-300">—</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         );
 
       case 'ZONE':
         return (
           <div>
-            <div className="bg-gray-50 p-4 rounded-lg mb-4">
-              <p><strong>Zone:</strong> {viewData.zoneName}</p>
-              <p><strong>Products:</strong> {viewData.matrix?.length || 0}</p>
+            <div className="bg-gradient-to-r from-purple-50 to-indigo-50 p-5 rounded-xl mb-6 border border-purple-100">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-purple-500 rounded-lg flex items-center justify-center text-white text-xl">🌍</div>
+                <div>
+                  <p className="font-bold text-gray-900">{viewData.zoneName}</p>
+                  <p className="text-sm text-gray-500">{viewData.matrix?.length || 0} products × {Object.keys(viewData.matrix?.[0]?.segments || {}).length || 0} segments</p>
+                </div>
+              </div>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-sm min-w-[800px]">
+            <div className="overflow-x-auto rounded-xl border border-gray-200">
+              <table className="w-full min-w-[800px]">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="p-3 text-left font-semibold text-gray-600 uppercase text-xs border-b-2 sticky left-0 bg-gray-50">Product</th>
+                    <th className="px-5 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider sticky left-0 bg-gray-50 border-r border-gray-200">Product</th>
                     {Object.keys(viewData.matrix?.[0]?.segments || {}).map((segmentCode: string) => (
-                      <th key={segmentCode} className="p-3 text-center font-semibold text-gray-600 uppercase text-xs border-b-2">{segmentCode}</th>
+                      <th key={segmentCode} className="px-5 py-4 text-center text-xs font-bold text-gray-600 uppercase tracking-wider">{segmentCode}</th>
                     ))}
                   </tr>
                 </thead>
-                <tbody>
-                  {viewData.matrix?.map((row: any) => (
-                    <tr key={row.productId} className={`border-b ${row.isAvailable === false ? 'bg-red-50 opacity-70' : 'hover:bg-gray-50'}`}>
-                      <td className="p-3 font-semibold sticky left-0 bg-white">
-                        {row.productName}
-                        {row.isAvailable === false && <span className="ml-2">🚫</span>}
+                <tbody className="divide-y divide-gray-100">
+                  {viewData.matrix?.map((row: any, idx: number) => (
+                    <tr key={row.productId} className={`${row.isAvailable === false ? 'bg-red-50 opacity-70' : idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'} hover:bg-indigo-50/50 transition-colors`}>
+                      <td className="px-5 py-4 font-medium text-gray-800 sticky left-0 bg-white border-r border-gray-100">
+                        <div className="flex items-center gap-2">
+                          {row.productName}
+                          {row.isAvailable === false && <span className="text-red-500">🚫</span>}
+                        </div>
                       </td>
                       {Object.entries(row.segments).map(([code, segData]: [string, any]) => {
                         const priceValue = typeof segData === 'object' ? segData?.finalPrice : segData;
@@ -556,8 +572,8 @@ const SmartViewMatrix: React.FC = () => {
 
                         if (!isAvailable || priceValue == null) {
                           return (
-                            <td key={code} className="p-3 text-center text-gray-400" title={row.availabilityReason || 'Not available'}>
-                              N/A
+                            <td key={code} className="px-5 py-4 text-center text-gray-300" title={row.availabilityReason || 'Not available'}>
+                              —
                             </td>
                           );
                         }
@@ -693,25 +709,45 @@ const SmartViewMatrix: React.FC = () => {
   };
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
-      {/* Header */}
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold text-gray-900">📊 Smart View Matrix</h2>
-        <p className="text-gray-500 text-sm">Manage virtual price books with hierarchical pricing</p>
+    <div className="p-6 bg-gradient-to-br from-gray-50 to-gray-100 min-h-screen">
+      {/* Enhanced Header */}
+      <div className="mb-8">
+        <div className="flex items-center gap-4 mb-2">
+          <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center text-white text-2xl shadow-lg">
+            📊
+          </div>
+          <div>
+            <h2 className="text-3xl font-bold text-gray-900">Smart View Matrix</h2>
+            <p className="text-gray-500">Manage virtual price books with hierarchical pricing</p>
+          </div>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-6">
-        {/* Filter Panel */}
-        <div className="bg-white rounded-xl p-5 shadow-sm h-fit lg:sticky lg:top-6">
-          <h3 className="text-lg font-semibold mb-5">🔍 Filters</h3>
+      <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-6">
+        {/* Enhanced Filter Panel */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden h-fit lg:sticky lg:top-6">
+          {/* Filter Panel Header */}
+          <div className="bg-gradient-to-r from-indigo-50 to-purple-50 px-5 py-4 border-b border-gray-100">
+            <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+              <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+              </svg>
+              Filters
+            </h3>
+            <p className="text-xs text-gray-500 mt-1">Select filters to load pricing data</p>
+          </div>
 
-          <div className="space-y-4">
+          <div className="p-5 space-y-5">
+            {/* Zone Filter */}
             <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Geo Zone</label>
+              <label className="flex items-center gap-2 text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">
+                <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
+                Geo Zone
+              </label>
               <select
                 value={filters.zone || ''}
                 onChange={(e) => handleFilterChange('zone', e.target.value)}
-                className="w-full p-2.5 border-2 border-gray-200 rounded-lg focus:border-indigo-500 focus:outline-none transition-colors"
+                className="w-full p-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:bg-white focus:outline-none transition-all text-gray-700"
               >
                 <option value="">All Zones</option>
                 {zones.map((zone: any) => (
@@ -722,12 +758,16 @@ const SmartViewMatrix: React.FC = () => {
               </select>
             </div>
 
+            {/* Segment Filter */}
             <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">User Segment</label>
+              <label className="flex items-center gap-2 text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">
+                <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                User Segment
+              </label>
               <select
                 value={filters.segment || ''}
                 onChange={(e) => handleFilterChange('segment', e.target.value)}
-                className="w-full p-2.5 border-2 border-gray-200 rounded-lg focus:border-indigo-500 focus:outline-none transition-colors"
+                className="w-full p-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:bg-white focus:outline-none transition-all text-gray-700"
               >
                 <option value="">All Segments</option>
                 {segments.map((segment: any) => (
@@ -738,12 +778,16 @@ const SmartViewMatrix: React.FC = () => {
               </select>
             </div>
 
+            {/* Product Filter */}
             <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Product</label>
+              <label className="flex items-center gap-2 text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">
+                <span className="w-2 h-2 bg-emerald-500 rounded-full"></span>
+                Product
+              </label>
               <select
                 value={filters.product || ''}
                 onChange={(e) => handleFilterChange('product', e.target.value)}
-                className="w-full p-2.5 border-2 border-gray-200 rounded-lg focus:border-indigo-500 focus:outline-none transition-colors"
+                className="w-full p-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:bg-white focus:outline-none transition-all text-gray-700"
               >
                 <option value="">All Products</option>
                 {products.map((product: any) => (
@@ -754,65 +798,100 @@ const SmartViewMatrix: React.FC = () => {
               </select>
             </div>
 
+            {/* Clear Filters Button */}
             <button 
               onClick={clearFilters}
-              className="w-full py-2.5 bg-gray-100 text-gray-600 rounded-lg font-semibold hover:bg-gray-200 transition-colors"
+              className="w-full py-3 bg-gray-100 text-gray-600 rounded-xl font-semibold hover:bg-gray-200 transition-colors flex items-center justify-center gap-2"
             >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
               Clear Filters
             </button>
           </div>
 
           {/* Unsaved Changes Panel */}
           {hasUnsavedChanges && (
-            <div className="mt-6 pt-5 border-t-2 border-gray-100">
-              <p className="text-amber-600 font-semibold text-sm mb-3">
-                ⚠️ {editedCells.length} unsaved change(s)
-              </p>
+            <div className="border-t-2 border-amber-200 bg-amber-50/50 p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-8 h-8 bg-amber-500 text-white rounded-lg flex items-center justify-center text-lg">
+                  ⚠️
+                </div>
+                <div>
+                  <p className="font-bold text-amber-800">{editedCells.length} Unsaved Change{editedCells.length > 1 ? 's' : ''}</p>
+                  <p className="text-xs text-amber-600">Click save to apply</p>
+                </div>
+              </div>
               
               {/* List edited items */}
-              <div className="max-h-40 overflow-y-auto mb-3 space-y-2">
+              <div className="max-h-48 overflow-y-auto mb-4 space-y-2">
                 {editedCells.map((cell, idx) => (
-                  <div key={idx} className="flex items-center justify-between text-xs bg-amber-50 p-2 rounded">
-                    <span className="truncate flex-1">{cell.productName || cell.productId}</span>
-                    <span className="font-mono text-amber-700 mx-2">₹{cell.newPrice.toFixed(2)}</span>
-                    <button 
-                      onClick={() => removeEditedCell(cell.productId, cell.segmentId)}
-                      className="text-red-500 hover:text-red-700"
-                    >
-                      ✕
-                    </button>
+                  <div key={idx} className="flex items-center justify-between bg-white p-3 rounded-lg border border-amber-200 shadow-sm">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-gray-800 text-sm truncate">{cell.productName || cell.productId}</p>
+                      {cell.applyToAllSegments && (
+                        <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">All Segments</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-amber-700 font-semibold">₹{cell.newPrice.toFixed(2)}</span>
+                      <button 
+                        onClick={() => removeEditedCell(cell.productId, cell.segmentId)}
+                        className="w-6 h-6 rounded-full bg-red-100 text-red-600 hover:bg-red-200 flex items-center justify-center text-sm"
+                      >
+                        ✕
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
 
-              <button 
-                onClick={saveAllChanges}
-                disabled={isSaving}
-                className="w-full py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg font-semibold hover:from-green-600 hover:to-emerald-700 disabled:opacity-60 transition-all mb-2"
-              >
-                {isSaving ? 'Saving...' : '💾 Save All Changes'}
-              </button>
-              <button 
-                onClick={discardChanges}
-                disabled={isSaving}
-                className="w-full py-2.5 border-2 border-red-500 text-red-500 rounded-lg font-semibold hover:bg-red-50 disabled:opacity-60 transition-colors"
-              >
-                ✖ Discard All
-              </button>
+              <div className="space-y-2">
+                <button 
+                  onClick={saveAllChanges}
+                  disabled={isSaving}
+                  className="w-full py-3.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-bold hover:from-green-600 hover:to-emerald-700 disabled:opacity-60 transition-all flex items-center justify-center gap-2 shadow-lg shadow-green-500/20"
+                >
+                  {isSaving ? (
+                    <>
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Saving...
+                    </>
+                  ) : (
+                    <>💾 Save All Changes</>
+                  )}
+                </button>
+                <button 
+                  onClick={discardChanges}
+                  disabled={isSaving}
+                  className="w-full py-3 border-2 border-red-400 text-red-600 rounded-xl font-semibold hover:bg-red-50 disabled:opacity-60 transition-colors"
+                >
+                  ✖ Discard All
+                </button>
+              </div>
             </div>
           )}
         </div>
 
         {/* Matrix Content */}
-        <div className="bg-white rounded-xl p-6 shadow-sm">
-          <div className="flex items-center justify-between mb-6 pb-4 border-b-2 border-gray-100">
-            <h3 className="text-xl font-semibold">{getViewTitle(viewType)}</h3>
-            <span className="px-3 py-1.5 bg-indigo-500 text-white rounded-md text-xs font-semibold uppercase tracking-wide">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          {/* Matrix Header */}
+          <div className="px-6 py-5 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white flex items-center justify-between">
+            <div>
+              <h3 className="text-xl font-bold text-gray-800">{getViewTitle(viewType)}</h3>
+              <p className="text-sm text-gray-500 mt-1">
+                {viewData?.matrix?.length || viewData?.entries?.length || viewData?.prices?.length || 0} items
+              </p>
+            </div>
+            <span className="px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg text-xs font-bold uppercase tracking-wider shadow-sm">
               {viewType}
             </span>
           </div>
 
-          {renderView()}
+          {/* Matrix Body */}
+          <div className="p-6">
+            {renderView()}
+          </div>
         </div>
       </div>
 

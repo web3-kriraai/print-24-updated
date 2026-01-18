@@ -87,6 +87,10 @@ const PriceBookManager: React.FC = () => {
     const [filterZone, setFilterZone] = useState('');
     const [filterSegment, setFilterSegment] = useState('');
 
+    // Pagination state
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage, setItemsPerPage] = useState(5);
+
     // Computed filtered price books
     const filteredBooks = React.useMemo(() => {
         return priceBooks.filter(book => {
@@ -106,6 +110,18 @@ const PriceBookManager: React.FC = () => {
             return matchesSearch && matchesZone && matchesSegment;
         });
     }, [priceBooks, searchQuery, filterZone, filterSegment]);
+
+    // Pagination computed values
+    const totalPages = Math.ceil(filteredBooks.length / itemsPerPage);
+    const paginatedBooks = React.useMemo(() => {
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        return filteredBooks.slice(startIndex, startIndex + itemsPerPage);
+    }, [filteredBooks, currentPage, itemsPerPage]);
+
+    // Reset to page 1 when filters change
+    React.useEffect(() => {
+        setCurrentPage(1);
+    }, [searchQuery, filterZone, filterSegment]);
 
     // Fetch price books and lookup data
     useEffect(() => {
@@ -678,7 +694,7 @@ const PriceBookManager: React.FC = () => {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
-                                {filteredBooks.map((book) => (
+                                {paginatedBooks.map((book) => (
                                     <tr 
                                         key={book._id} 
                                         className={`hover:bg-gray-50 transition-colors ${(book as any).isMaster ? 'bg-indigo-50/30' : ''}`}
@@ -798,6 +814,82 @@ const PriceBookManager: React.FC = () => {
                                 ))}
                             </tbody>
                         </table>
+                    </div>
+                )}
+
+                {/* Pagination Controls */}
+                {filteredBooks.length > 0 && (
+                    <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                            <span className="text-sm text-gray-600">
+                                Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, filteredBooks.length)} of {filteredBooks.length}
+                            </span>
+                            <select
+                                value={itemsPerPage}
+                                onChange={(e) => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1); }}
+                                className="px-2 py-1 border border-gray-300 rounded text-sm"
+                            >
+                                <option value={5}>5 per page</option>
+                                <option value={10}>10 per page</option>
+                                <option value={20}>20 per page</option>
+                                <option value={50}>50 per page</option>
+                            </select>
+                        </div>
+                        <div className="flex items-center gap-1">
+                            <button
+                                onClick={() => setCurrentPage(1)}
+                                disabled={currentPage === 1}
+                                className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                ⏮
+                            </button>
+                            <button
+                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                disabled={currentPage === 1}
+                                className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                ◀
+                            </button>
+                            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                                let pageNum;
+                                if (totalPages <= 5) {
+                                    pageNum = i + 1;
+                                } else if (currentPage <= 3) {
+                                    pageNum = i + 1;
+                                } else if (currentPage >= totalPages - 2) {
+                                    pageNum = totalPages - 4 + i;
+                                } else {
+                                    pageNum = currentPage - 2 + i;
+                                }
+                                return (
+                                    <button
+                                        key={pageNum}
+                                        onClick={() => setCurrentPage(pageNum)}
+                                        className={`px-3 py-1.5 text-sm rounded-lg ${
+                                            currentPage === pageNum 
+                                                ? 'bg-indigo-600 text-white' 
+                                                : 'border border-gray-300 hover:bg-gray-100'
+                                        }`}
+                                    >
+                                        {pageNum}
+                                    </button>
+                                );
+                            })}
+                            <button
+                                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                disabled={currentPage === totalPages}
+                                className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                ▶
+                            </button>
+                            <button
+                                onClick={() => setCurrentPage(totalPages)}
+                                disabled={currentPage === totalPages}
+                                className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                ⏭
+                            </button>
+                        </div>
                     </div>
                 )}
             </div>

@@ -729,23 +729,97 @@ class VirtualPriceBookService {
 
   /**
    * Zone View: All products and segments in a zone
-   * Shows only products that are available in the zone and have a master price
+   * OPTIMIZED: Uses batch loading to reduce database queries
    */
   async getZoneView(zoneId) {
-    const products = await Product.find({}).limit(50).lean();
-    console.log(`[getZoneView] Found ${products.length} products to check`);
-    const segments = await UserSegment.find().lean();
+    const startTime = Date.now();
+    console.log(`[getZoneView] Starting optimized zone view for zone: ${zoneId}`);
+
+    // 1. BATCH LOAD: Get all required data upfront (3 queries instead of O(n*m))
+    const [products, segments, masterBook] = await Promise.all([
+      Product.find({}).limit(50).lean(),
+      UserSegment.find().lean(),
+      PriceBook.getMasterBook()
+    ]);
+
+    console.log(`[getZoneView] Loaded ${products.length} products, ${segments.length} segments`);
+
+    // 2. BATCH LOAD: Get all master price entries at once
+    const masterEntries = await PriceBookEntry.find({ 
+      priceBook: masterBook._id,
+      product: { $in: products.map(p => p._id) }
+    }).lean();
+
+    // Create a map for O(1) lookup
+    const masterPriceMap = new Map();
+    masterEntries.forEach(entry => {
+      masterPriceMap.set(entry.product.toString(), entry.basePrice);
+    });
+
+    // 3. BATCH LOAD: Get all product availability for this zone at once
+    const availabilityRecords = await (async () => {
+      try {
+        const records = await ProductAvailability.find({
+          $or: [
+            { geoZone: zoneId },
+            { geoZone: null } // Global rules
+          ]
+        }).lean();
+        return records;
+      } catch (e) {
+        return [];
+      }
+    })();
+
+    // Create availability map (product -> isAvailable)
+    const availabilityMap = new Map();
+    // Default: all products available unless explicitly blocked
+    products.forEach(p => availabilityMap.set(p._id.toString(), true));
+    
+    // Apply availability rules
+    availabilityRecords.forEach(record => {
+      if (!record.isAvailable) {
+        availabilityMap.set(record.product.toString(), false);
+      }
+    });
+
+    // 4. BATCH LOAD: Get zone-specific price books
+    const zonePriceBooks = await PriceBook.find({
+      zone: zoneId,
+      isActive: true
+    }).lean();
+
+    // Get all entries from zone price books
+    const zonePriceBookIds = zonePriceBooks.map(b => b._id);
+    const zoneEntries = await PriceBookEntry.find({
+      priceBook: { $in: zonePriceBookIds }
+    }).lean();
+
+    // Create zone price map: {productId-segmentId: price}
+    const zonePriceMap = new Map();
+    for (const book of zonePriceBooks) {
+      const bookEntries = zoneEntries.filter(e => e.priceBook.toString() === book._id.toString());
+      for (const entry of bookEntries) {
+        const key = `${entry.product.toString()}-${book.segment?.toString() || 'all'}`;
+        zonePriceMap.set(key, entry.basePrice);
+      }
+    }
+
+    console.log(`[getZoneView] Batch loading complete in ${Date.now() - startTime}ms`);
+
+    // 5. BUILD MATRIX: Process products in parallel
     const matrix = [];
 
     for (const product of products) {
-      // 1. Check availability first - Skip if not available in this zone
-      const availability = await this.checkProductAvailability(product._id, zoneId);
-      if (!availability.isAvailable) {
+      const productIdStr = product._id.toString();
+
+      // Check availability (O(1) lookup)
+      if (!availabilityMap.get(productIdStr)) {
         continue;
       }
 
-      // 2. Check if product has a master price - Skip if no price set
-      const masterPrice = await this.getMasterPrice(product._id);
+      // Check master price exists (O(1) lookup)
+      const masterPrice = masterPriceMap.get(productIdStr);
       if (!masterPrice) {
         continue;
       }
@@ -755,33 +829,42 @@ class VirtualPriceBookService {
         productName: product.name,
         isAvailable: true,
         segments: {},
-        segmentIds: {}  // Map segment code to segment _id
+        segmentIds: {}
       };
 
+      // Process all segments for this product
       for (const segment of segments) {
-        try {
-          const price = await this.calculateVirtualPrice(product._id, zoneId, segment._id, { product });
-          row.segments[segment.code] = {
-            finalPrice: price.finalPrice,
-            isAvailable: price.isAvailable !== false
-          };
-          // Store segment ID mapped to segment code
-          row.segmentIds[segment.code] = segment._id.toString();
-        } catch (error) {
-          row.segments[segment.code] = {
-            finalPrice: null,
-            isAvailable: false
-          };
-          row.segmentIds[segment.code] = segment._id.toString();
-        }
+        const segmentIdStr = segment._id.toString();
+        
+        // Check for zone+segment specific price
+        const specificKey = `${productIdStr}-${segmentIdStr}`;
+        const zoneOnlyKey = `${productIdStr}-all`;
+        
+        // Priority: zone+segment > zone-only > master
+        let finalPrice = zonePriceMap.get(specificKey) 
+                        || zonePriceMap.get(zoneOnlyKey) 
+                        || masterPrice;
+
+        row.segments[segment.code] = {
+          finalPrice: finalPrice,
+          isAvailable: true
+        };
+        row.segmentIds[segment.code] = segmentIdStr;
       }
 
       matrix.push(row);
     }
 
+    const totalTime = Date.now() - startTime;
+    console.log(`[getZoneView] OPTIMIZED: Built matrix with ${matrix.length} products in ${totalTime}ms`);
+
+    // Get zone name for response
+    const zone = await GeoZone.findById(zoneId).lean();
+
     return {
       viewType: 'ZONE',
       zoneId,
+      zoneName: zone?.name,
       matrix
     };
   }
