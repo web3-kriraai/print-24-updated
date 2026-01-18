@@ -1,8 +1,10 @@
 import VirtualPriceBookService from '../../services/VirtualPriceBookService.js';
+import SmartViewPriceUpdater from '../../services/SmartViewPriceUpdater.js';
 import PriceBook from '../../models/PriceBook.js';
 import PriceBookEntry from '../../models/PriceBookEntry.js';
 
 const virtualPriceBookService = new VirtualPriceBookService();
+const smartViewPriceUpdater = new SmartViewPriceUpdater();
 
 /**
  * Get Smart View Matrix data
@@ -315,6 +317,174 @@ export const getPriceBookHierarchy = async (req, res) => {
     });
   } catch (error) {
     console.error('Error getting price book hierarchy:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+};
+
+//================================
+// SMART VIEW PRICE UPDATE ROUTES
+//================================
+
+/**
+ * Update prices from Smart View Matrix
+ * POST /api/admin/pricing/smart-view/update
+ * 
+ * Handles all 3 cases:
+ * 1. Zone + All Segments → Update zone prices
+ * 2. All Zones + Segment → Update segment prices
+ * 3. Zone + Segment + Product → Update single price
+ */
+export const updatePricesFromSmartView = async (req, res) => {
+  try {
+    let { filters, priceUpdates, resolutionStrategy } = req.body;
+
+    // Validate required fields
+    if (!priceUpdates || !Array.isArray(priceUpdates) || priceUpdates.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'priceUpdates array is required and must not be empty'
+      });
+    }
+
+    // Clean up filter IDs
+    if (filters) {
+      if (filters.zoneId === "") filters.zoneId = null;
+      if (filters.segmentId === "") filters.segmentId = null;
+      if (filters.productId === "") filters.productId = null;
+    } else {
+      filters = { zoneId: null, segmentId: null, productId: null };
+    }
+
+    // Default resolution strategy
+    resolutionStrategy = resolutionStrategy || 'ASK';
+
+    const result = await smartViewPriceUpdater.updateFromSmartView(
+      filters,
+      priceUpdates,
+      resolutionStrategy
+    );
+
+    // If conflicts need resolution, return them without applying changes
+    if (result.requiresResolution) {
+      return res.json({
+        success: true,
+        requiresResolution: true,
+        data: {
+          conflictsDetected: result.conflictsDetected,
+          conflicts: result.conflicts,
+          resolutionOptions: result.resolutionOptions || [
+            { id: 'OVERWRITE', label: 'Force Overwrite', description: 'Delete all child overrides' },
+            { id: 'PRESERVE', label: 'Preserve Child Overrides', description: 'Keep existing child prices' },
+            { id: 'RELATIVE', label: 'Apply Relative Adjustment', description: 'Update child prices proportionally' }
+          ]
+        },
+        message: 'Conflicts detected. Please choose a resolution strategy.'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: result,
+      message: `Successfully updated ${result.updatedCount} price(s)`
+    });
+  } catch (error) {
+    console.error('Error updating prices from Smart View:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Bulk update multiple prices at once
+ * POST /api/admin/pricing/smart-view/bulk-update
+ */
+export const bulkUpdatePrices = async (req, res) => {
+  try {
+    let { filters, priceUpdates, resolutionStrategy } = req.body;
+
+    if (!priceUpdates || !Array.isArray(priceUpdates)) {
+      return res.status(400).json({
+        success: false,
+        error: 'priceUpdates array is required'
+      });
+    }
+
+    // Validate each update has productId and newPrice
+    for (const update of priceUpdates) {
+      if (!update.productId || update.newPrice === undefined) {
+        return res.status(400).json({
+          success: false,
+          error: 'Each update must have productId and newPrice'
+        });
+      }
+    }
+
+    // Clean up filter IDs
+    if (filters) {
+      if (filters.zoneId === "") filters.zoneId = null;
+      if (filters.segmentId === "") filters.segmentId = null;
+    } else {
+      filters = { zoneId: null, segmentId: null };
+    }
+
+    resolutionStrategy = resolutionStrategy || 'PRESERVE';
+
+    const result = await smartViewPriceUpdater.updateFromSmartView(
+      filters,
+      priceUpdates,
+      resolutionStrategy
+    );
+
+    res.json({
+      success: true,
+      data: result,
+      message: `Bulk update complete: ${result.updatedCount} updated, ${result.skippedCount || 0} skipped`
+    });
+  } catch (error) {
+    console.error('Error in bulk update:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Preview conflicts before applying bulk updates
+ * POST /api/admin/pricing/smart-view/preview-conflicts
+ */
+export const previewBulkConflicts = async (req, res) => {
+  try {
+    let { filters, priceUpdates } = req.body;
+
+    if (!priceUpdates || !Array.isArray(priceUpdates)) {
+      return res.status(400).json({
+        success: false,
+        error: 'priceUpdates array is required'
+      });
+    }
+
+    // Clean up filter IDs
+    if (filters) {
+      if (filters.zoneId === "") filters.zoneId = null;
+      if (filters.segmentId === "") filters.segmentId = null;
+    } else {
+      filters = { zoneId: null, segmentId: null };
+    }
+
+    const conflicts = await smartViewPriceUpdater.previewConflicts(filters, priceUpdates);
+
+    res.json({
+      success: true,
+      data: conflicts
+    });
+  } catch (error) {
+    console.error('Error previewing conflicts:', error);
     res.status(500).json({
       success: false,
       error: error.message

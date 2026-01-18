@@ -27,6 +27,51 @@ class VirtualPriceBookService {
   }
 
   /**
+   * Get or CREATE a price book for the exact zone+segment combination
+   * Unlike getBookForContext, this does NOT fall back to less specific books
+   * It creates a new specific book if one doesn't exist
+   */
+  async getOrCreateBookForContext(zoneId, segmentId) {
+    // Try to find exact match first
+    let book = await PriceBook.findOne({
+      zone: zoneId || null,
+      segment: segmentId || null,
+      isActive: true
+    });
+
+    if (book) {
+      console.log(`[getOrCreateBookForContext] Found existing book: ${book.name}`);
+      return book;
+    }
+
+    // No exact match - CREATE a new price book for this specific combination
+    console.log(`[getOrCreateBookForContext] No exact match for zone=${zoneId}, segment=${segmentId}. Creating new book...`);
+    
+    const masterBook = await PriceBook.getMasterBook();
+    const zone = zoneId ? await GeoZone.findById(zoneId) : null;
+    const segment = segmentId ? await UserSegment.findById(segmentId) : null;
+
+    const bookName = [
+      zone?.name || 'All Zones',
+      segment?.name || 'All Segments'
+    ].join(' + ') + ' Price Book';
+
+    book = await PriceBook.create({
+      name: bookName,
+      description: `Auto-created for ${zone?.name || 'All Zones'} + ${segment?.name || 'All Segments'}`,
+      zone: zoneId || null,
+      segment: segmentId || null,
+      parentBook: masterBook._id,
+      isMaster: false,
+      isOverride: true,
+      isActive: true
+    });
+
+    console.log(`[getOrCreateBookForContext] Created NEW price book: ${book.name} (ID: ${book._id})`);
+    return book;
+  }
+
+  /**
    * Calculate virtual price using hierarchy
    * Master + Zone + Segment + Modifiers = Final Price
    * 
@@ -709,7 +754,8 @@ class VirtualPriceBookService {
         productId: product._id,
         productName: product.name,
         isAvailable: true,
-        segments: {}
+        segments: {},
+        segmentIds: {}  // Map segment code to segment _id
       };
 
       for (const segment of segments) {
@@ -719,11 +765,14 @@ class VirtualPriceBookService {
             finalPrice: price.finalPrice,
             isAvailable: price.isAvailable !== false
           };
+          // Store segment ID mapped to segment code
+          row.segmentIds[segment.code] = segment._id.toString();
         } catch (error) {
           row.segments[segment.code] = {
             finalPrice: null,
             isAvailable: false
           };
+          row.segmentIds[segment.code] = segment._id.toString();
         }
       }
 
@@ -936,13 +985,13 @@ class VirtualPriceBookService {
       deletedIds.push(conflict.priceBookId);
     }
 
-    // Create new override
-    const book = await PriceBook.getBookForContext(zoneId, segmentId);
-    await PriceBookEntry.create({
-      priceBook: book._id,
-      product: productId,
-      basePrice: newPrice
-    });
+    // Create new override - use getOrCreateBookForContext to ensure we get/create the EXACT zone+segment book
+    const book = await this.getOrCreateBookForContext(zoneId, segmentId);
+    await PriceBookEntry.findOneAndUpdate(
+      { priceBook: book._id, product: productId },
+      { basePrice: newPrice },
+      { upsert: true, new: true }
+    );
 
     return {
       action: 'OVERWRITE',
@@ -955,12 +1004,13 @@ class VirtualPriceBookService {
    * Preserve: Keep existing overrides, create new one
    */
   async applyPreserve(conflicts, newPrice, zoneId, segmentId, productId) {
-    const book = await PriceBook.getBookForContext(zoneId, segmentId);
+    // Use getOrCreateBookForContext to ensure we get/create the EXACT zone+segment book
+    const book = await this.getOrCreateBookForContext(zoneId, segmentId);
 
     await PriceBookEntry.findOneAndUpdate(
       { priceBook: book._id, product: productId },
       { basePrice: newPrice },
-      { upsert: true }
+      { upsert: true, new: true }
     );
 
     return {
@@ -996,12 +1046,12 @@ class VirtualPriceBookService {
       });
     }
 
-    // Update the target price
-    const book = await PriceBook.getBookForContext(zoneId, segmentId);
+    // Update the target price - use getOrCreateBookForContext for EXACT zone+segment book
+    const book = await this.getOrCreateBookForContext(zoneId, segmentId);
     await PriceBookEntry.findOneAndUpdate(
       { priceBook: book._id, product: productId },
       { basePrice: newPrice },
-      { upsert: true }
+      { upsert: true, new: true }
     );
 
     return {

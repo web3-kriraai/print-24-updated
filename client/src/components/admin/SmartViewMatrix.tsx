@@ -1,80 +1,38 @@
 import React, { useState, useEffect } from 'react';
-import './SmartViewMatrix.css';
+import toast from 'react-hot-toast';
 import ConflictDetectionModal from './ConflictDetectionModal';
 
 /**
- * SmartViewMatrix Component - Enhanced with Editing & Conflict Resolution
+ * SmartViewMatrix Component - Refactored with Tailwind & react-hot-toast
  * 
  * Features:
  * - 3-filter panel (Zone, Segment, Product)
  * - 5 dynamic view types
  * - Editable price grid with inline editing
- * - Conflict detection & resolution modal
- * - Save/Cancel with batch updates
+ * - Batch save with conflict detection & resolution
+ * - Uses react-hot-toast for notifications
  */
 
 interface EditedCell {
   productId: string;
+  productName?: string;
   segmentId?: string;
   zoneId?: string;
   originalPrice: number;
   newPrice: number;
-}
-
-interface AffectedItem {
-  segment: {
-    _id: string;
-    name: string;
-    code: string;
-  };
-  pricing: {
-    masterPrice: number;
-    currentPrice?: number;
-    currentEffectivePrice?: number;
-    newZonePrice: number;
-    priceDifference: number;
-    percentageDifference: string;
-    direction: 'increase' | 'decrease';
-  };
-}
-
-interface ResolutionOption {
-  id: string;
-  label: string;
-  description: string;
-  impact: {
-    itemsDeleted?: number;
-    itemsPreserved?: number;
-    itemsAdjusted?: number;
-    newUniformPrice?: number;
-    basePrice?: number;
-    warning: string;
-    preview?: Array<{
-      segment: string;
-      currentPrice: number;
-      newPrice: number;
-      difference: number;
-    }>;
-  };
+  applyToAllSegments?: boolean; // If true, update zone book (all segments); if false, update zone+segment book
 }
 
 interface ConflictData {
   hasConflict: boolean;
   affectedCount: number;
-  affectedItems: AffectedItem[];
-  impactSummary: {
-    product: {
-      _id: string;
-      name: string;
-      sku: string;
-    };
-    updateLevel: string;
-    currentMasterPrice: number;
-    newPrice: number;
-    totalAffectedItems: number;
-    affectedSegments: string[];
-  };
-  resolutionOptions: ResolutionOption[];
+  conflicts: any[];
+  resolutionOptions: Array<{
+    id: string;
+    label: string;
+    description: string;
+    impact: any;
+  }>;
 }
 
 const SmartViewMatrix: React.FC = () => {
@@ -96,17 +54,16 @@ const SmartViewMatrix: React.FC = () => {
   const [segments, setSegments] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
 
-  // Editing state
+  // Editing state - now supports multiple edited cells
   const [editedCells, setEditedCells] = useState<EditedCell[]>([]);
   const [editingCell, setEditingCell] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
+  const [applyToAllSegments, setApplyToAllSegments] = useState(false); // Checkbox state for "apply to all segments"
   const [isSaving, setIsSaving] = useState(false);
-  const [saveSuccess, setSaveSuccess] = useState(false);
 
   // Conflict Modal state
   const [showConflictModal, setShowConflictModal] = useState(false);
   const [conflictData, setConflictData] = useState<ConflictData | null>(null);
-  const [pendingSave, setPendingSave] = useState<EditedCell | null>(null);
 
   useEffect(() => {
     loadDropdownOptions();
@@ -128,10 +85,8 @@ const SmartViewMatrix: React.FC = () => {
 
   const loadDropdownOptions = async () => {
     try {
-      // Check if user is authenticated
       const token = localStorage.getItem('token');
       if (!token) {
-        console.warn('⚠️ No authentication token found. Please login to access admin pricing.');
         setError('Please login to access pricing administration');
         return;
       }
@@ -142,15 +97,13 @@ const SmartViewMatrix: React.FC = () => {
         fetch('/api/admin/pricing/products', { headers: getAuthHeaders() })
       ]);
 
-      // Check for authentication errors
       if (zonesRes.status === 401 || zonesRes.status === 403) {
         setError('Authentication failed. Please login as an admin.');
         return;
       }
 
-      // Check for server errors
       if (!zonesRes.ok || !segmentsRes.ok || !productsRes.ok) {
-        setError(`Server error: ${zonesRes.status}. Please check your connection or contact support.`);
+        setError(`Server error. Please check your connection.`);
         return;
       }
 
@@ -160,20 +113,12 @@ const SmartViewMatrix: React.FC = () => {
         productsRes.json()
       ]);
 
-      // API returns: { zones: [...] }, { segments: [...] }, { products: [...] }
-      // Also handle: { data: [...] } format for backward compatibility
       setZones(zonesData.zones || zonesData.data || []);
       setSegments(segmentsData.segments || segmentsData.data || []);
       setProducts(productsData.products || productsData.data || []);
-
-      console.log('📋 Loaded dropdown options:', {
-        zones: (zonesData.zones || zonesData.data || []).length,
-        segments: (segmentsData.segments || segmentsData.data || []).length,
-        products: (productsData.products || productsData.data || []).length
-      });
     } catch (err) {
       console.error('Error loading dropdown options:', err);
-      setError('Failed to load pricing data. Please check your connection and try again.');
+      setError('Failed to load pricing data.');
     }
   };
 
@@ -224,17 +169,32 @@ const SmartViewMatrix: React.FC = () => {
   const cancelEditing = () => {
     setEditingCell(null);
     setEditValue('');
+    setApplyToAllSegments(false); // Reset checkbox on cancel
   };
 
-  const confirmEdit = async (productId: string, segmentId?: string) => {
+  // Add edited cell to batch (no immediate save, just queue up for batch save)
+  const confirmEdit = (productId: string, productName: string, segmentId?: string) => {
     const newPrice = parseFloat(editValue);
     if (isNaN(newPrice) || newPrice < 0) {
       cancelEditing();
       return;
     }
 
-    const originalEntry = viewData?.entries?.find((e: any) => e.productId === productId);
-    const originalPrice = originalEntry?.basePrice || 0;
+    // Find original price from view data
+    let originalPrice = 0;
+    if (viewData?.entries) {
+      const entry = viewData.entries.find((e: any) => e.productId === productId);
+      originalPrice = entry?.basePrice || 0;
+    } else if (viewData?.matrix) {
+      const row = viewData.matrix.find((r: any) => r.productId === productId);
+      if (row && segmentId && row.segments) {
+        const segData = Object.values(row.segments)[0] as any;
+        originalPrice = typeof segData === 'object' ? segData.finalPrice : segData;
+      }
+    } else if (viewData?.prices) {
+      const price = viewData.prices.find((p: any) => p.productId === productId || p.segmentId === segmentId);
+      originalPrice = price?.finalPrice || price?.masterPrice || 0;
+    }
 
     if (newPrice === originalPrice) {
       cancelEditing();
@@ -243,50 +203,22 @@ const SmartViewMatrix: React.FC = () => {
 
     const editedCell: EditedCell = {
       productId,
-      segmentId: segmentId || filters.segment || undefined,
+      productName,
+      segmentId: applyToAllSegments ? undefined : (segmentId || filters.segment || undefined), // If apply to all, don't set segmentId
       zoneId: filters.zone || undefined,
       originalPrice,
-      newPrice
+      newPrice,
+      applyToAllSegments // Store the flag
     };
 
-    await checkConflictsAndSave(editedCell);
-    cancelEditing();
-  };
-
-  const checkConflictsAndSave = async (editedCell: EditedCell) => {
-    try {
-      const response = await fetch('/api/admin/pricing/detect-conflicts', {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({
-          zoneId: editedCell.zoneId,
-          segmentId: editedCell.segmentId,
-          productId: editedCell.productId,
-          newPrice: editedCell.newPrice
-        })
-      });
-
-      const result = await response.json();
-
-      if (result.success && result.data?.hasConflict) {
-        setConflictData(result.data);
-        setPendingSave(editedCell);
-        setShowConflictModal(true);
-      } else {
-        addEditedCell(editedCell);
-      }
-    } catch (err) {
-      console.error('Error checking conflicts:', err);
-      addEditedCell(editedCell);
-    }
-  };
-
-  const addEditedCell = (editedCell: EditedCell) => {
+    // Add or update in editedCells array
     setEditedCells(prev => {
+      // When applyToAllSegments changes, we need different matching logic
       const existing = prev.findIndex(c =>
         c.productId === editedCell.productId &&
-        c.segmentId === editedCell.segmentId &&
-        c.zoneId === editedCell.zoneId
+        c.zoneId === editedCell.zoneId &&
+        c.applyToAllSegments === editedCell.applyToAllSegments &&
+        (editedCell.applyToAllSegments || c.segmentId === editedCell.segmentId)
       );
 
       if (existing >= 0) {
@@ -296,84 +228,144 @@ const SmartViewMatrix: React.FC = () => {
       }
       return [...prev, editedCell];
     });
+
+    cancelEditing();
+    const applyText = applyToAllSegments ? ' (all segments)' : '';
+    toast.success(`Price updated to ₹${newPrice.toFixed(2)}${applyText} (pending save)`);
   };
 
-  const handleConflictResolution = async (resolutionId: string) => {
-    if (!pendingSave || !conflictData) return;
+  // Batch save all edited cells with conflict detection
+  const saveAllChanges = async () => {
+    if (editedCells.length === 0) {
+      toast('No changes to save', { icon: 'ℹ️' });
+      return;
+    }
 
     setIsSaving(true);
+    const loadingToast = toast.loading(`Saving ${editedCells.length} price changes...`);
+
     try {
-      const response = await fetch('/api/admin/pricing/resolve-conflict', {
+      // Convert edited cells to price updates - include segmentId/zoneId and applyToAllSegments for each cell
+      const priceUpdates = editedCells.map(cell => ({
+        productId: cell.productId,
+        newPrice: cell.newPrice,
+        segmentId: cell.applyToAllSegments ? undefined : cell.segmentId, // If apply to all, don't specify segment
+        zoneId: cell.zoneId,
+        applyToAllSegments: cell.applyToAllSegments || false // Flag to update zone book instead of zone+segment
+      }));
+
+      // Call the Smart View update API with ASK strategy to check for conflicts
+      const response = await fetch('/api/admin/pricing/smart-view/update', {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({
-          resolutionId,
-          newPrice: pendingSave.newPrice,
-          oldPrice: pendingSave.originalPrice,
-          zoneId: pendingSave.zoneId,
-          segmentId: pendingSave.segmentId,
-          productId: pendingSave.productId,
-          updateLevel: 'ZONE'
+          filters: {
+            zoneId: filters.zone,
+            segmentId: filters.segment,
+            productId: filters.product
+          },
+          priceUpdates,
+          resolutionStrategy: 'ASK' // First check for conflicts
         })
       });
 
       const result = await response.json();
+      toast.dismiss(loadingToast);
 
       if (result.success) {
-        setSaveSuccess(true);
-        fetchMatrixData();
-        setTimeout(() => setSaveSuccess(false), 2000);
+        if (result.requiresResolution) {
+          // Show conflict modal for batch resolution
+          setConflictData({
+            hasConflict: true,
+            affectedCount: result.data.conflictsDetected || 0,
+            conflicts: result.data.conflicts || [],
+            resolutionOptions: result.data.resolutionOptions || [
+              { id: 'OVERWRITE', label: 'Force Overwrite', description: 'Delete all child overrides', impact: { warning: 'All child prices will be deleted' } },
+              { id: 'PRESERVE', label: 'Preserve Children', description: 'Keep existing child prices', impact: { warning: 'Child prices remain unchanged' } },
+              { id: 'RELATIVE', label: 'Relative Adjust', description: 'Apply proportional adjustment', impact: { warning: 'Child prices will be scaled' } }
+            ]
+          });
+          setShowConflictModal(true);
+        } else {
+          toast.success(`✅ Successfully updated ${result.data.updatedCount} price(s)!`);
+          setEditedCells([]);
+          fetchMatrixData();
+        }
       } else {
-        setError(result.error || 'Failed to resolve conflict');
+        toast.error(result.error || 'Failed to save changes');
       }
     } catch (err: any) {
-      setError(err.message);
+      toast.dismiss(loadingToast);
+      toast.error(err.message || 'Failed to save changes');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Handle conflict resolution for batch save
+  const handleConflictResolution = async (resolutionId: string) => {
+    setIsSaving(true);
+    const loadingToast = toast.loading(`Applying ${resolutionId} resolution...`);
+
+    try {
+      const priceUpdates = editedCells.map(cell => ({
+        productId: cell.productId,
+        newPrice: cell.newPrice,
+        segmentId: cell.segmentId,
+        zoneId: cell.zoneId
+      }));
+
+      const response = await fetch('/api/admin/pricing/smart-view/update', {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          filters: {
+            zoneId: filters.zone,
+            segmentId: filters.segment,
+            productId: filters.product
+          },
+          priceUpdates,
+          resolutionStrategy: resolutionId
+        })
+      });
+
+      const result = await response.json();
+      toast.dismiss(loadingToast);
+
+      if (result.success) {
+        toast.success(`✅ ${result.data.updatedCount} prices updated with ${resolutionId} strategy!`);
+        setEditedCells([]);
+        fetchMatrixData();
+      } else {
+        toast.error(result.error || 'Failed to apply resolution');
+      }
+    } catch (err: any) {
+      toast.dismiss(loadingToast);
+      toast.error(err.message || 'Failed to apply resolution');
     } finally {
       setIsSaving(false);
       setShowConflictModal(false);
       setConflictData(null);
-      setPendingSave(null);
-    }
-  };
-
-  const saveAllChanges = async () => {
-    if (editedCells.length === 0) return;
-
-    setIsSaving(true);
-    try {
-      for (const cell of editedCells) {
-        await fetch('/api/admin/pricing/virtual-price', {
-          method: 'POST',
-          headers: getAuthHeaders(),
-          body: JSON.stringify({
-            productId: cell.productId,
-            zoneId: cell.zoneId,
-            segmentId: cell.segmentId,
-            newPrice: cell.newPrice
-          })
-        });
-      }
-
-      setSaveSuccess(true);
-      setEditedCells([]);
-      fetchMatrixData();
-      setTimeout(() => setSaveSuccess(false), 2000);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setIsSaving(false);
     }
   };
 
   const discardChanges = () => {
     setEditedCells([]);
-    fetchMatrixData();
+    toast('Changes discarded', { icon: '🗑️' });
+  };
+
+  const removeEditedCell = (productId: string, segmentId?: string) => {
+    setEditedCells(prev => prev.filter(c => 
+      !(c.productId === productId && c.segmentId === segmentId)
+    ));
+    toast('Change removed', { icon: '↩️' });
   };
 
   const hasUnsavedChanges = editedCells.length > 0;
 
   const renderEditableCell = (
     productId: string,
+    productName: string,
     price: number,
     segmentId?: string,
     cellKey?: string
@@ -381,40 +373,67 @@ const SmartViewMatrix: React.FC = () => {
     const key = cellKey || `${productId}-${segmentId || 'default'}`;
     const isEditing = editingCell === key;
 
+    // Strictly match by productId AND segmentId (use strict equality)
+    // If segmentId is undefined vs a string, they should NOT match
     const editedCell = editedCells.find(c =>
-      c.productId === productId &&
-      (c.segmentId === segmentId || (!c.segmentId && !segmentId))
+      c.productId === productId && c.segmentId === segmentId
     );
     const displayPrice = editedCell ? editedCell.newPrice : price;
     const isModified = !!editedCell;
 
     if (isEditing) {
       return (
-        <td key={key} className="price-cell editing">
-          <input
-            type="number"
-            value={editValue}
-            onChange={(e) => setEditValue(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') confirmEdit(productId, segmentId);
-              if (e.key === 'Escape') cancelEditing();
-            }}
-            autoFocus
-            min="0"
-            step="0.01"
-          />
-          <div className="edit-actions">
-            <button onClick={() => confirmEdit(productId, segmentId)}>✓</button>
-            <button onClick={cancelEditing}>✕</button>
+        <td key={key} className="p-2 bg-blue-50" colSpan={applyToAllSegments && segmentId ? 5 : 1}>
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                value={editValue}
+                onChange={(e) => setEditValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') confirmEdit(productId, productName, segmentId);
+                  if (e.key === 'Escape') cancelEditing();
+                }}
+                autoFocus
+                min="0"
+                step="0.01"
+                className="w-20 px-2 py-1 border-2 border-indigo-500 rounded text-right font-mono text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+              />
+              <button 
+                onClick={() => confirmEdit(productId, productName, segmentId)}
+                className="w-7 h-7 bg-green-500 text-white rounded flex items-center justify-center hover:bg-green-600"
+              >
+                ✓
+              </button>
+              <button 
+                onClick={cancelEditing}
+                className="w-7 h-7 bg-red-500 text-white rounded flex items-center justify-center hover:bg-red-600"
+              >
+                ✕
+              </button>
+            </div>
+            {/* Only show "Apply to all segments" checkbox when editing a segment cell in Zone View */}
+            {segmentId && filters.zone && (
+              <label className="flex items-center gap-1 text-xs text-gray-600 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={applyToAllSegments}
+                  onChange={(e) => setApplyToAllSegments(e.target.checked)}
+                  className="w-3 h-3 text-indigo-600 rounded cursor-pointer"
+                />
+                <span className={applyToAllSegments ? 'text-indigo-600 font-medium' : ''}>
+                  Apply to all segments
+                </span>
+              </label>
+            )}
           </div>
         </td>
       );
     }
 
-    // Handle null or undefined prices
     if (displayPrice == null) {
       return (
-        <td key={key} className="price-cell unavailable" title="Price not available">
+        <td key={key} className="p-3 text-center text-gray-400" title="Price not available">
           N/A
         </td>
       );
@@ -423,12 +442,14 @@ const SmartViewMatrix: React.FC = () => {
     return (
       <td
         key={key}
-        className={`price-cell editable ${isModified ? 'modified' : ''}`}
+        className={`p-3 text-center font-mono cursor-pointer transition-colors hover:bg-indigo-50 ${
+          isModified ? 'bg-amber-100 border-l-4 border-amber-500' : ''
+        }`}
         onClick={() => startEditing(key, displayPrice)}
         title="Click to edit"
       >
         ₹{displayPrice.toFixed(2)}
-        {isModified && <span className="modified-indicator">*</span>}
+        {isModified && <span className="text-amber-500 font-bold ml-1">*</span>}
       </td>
     );
   };
@@ -447,8 +468,8 @@ const SmartViewMatrix: React.FC = () => {
   const renderView = () => {
     if (loading) {
       return (
-        <div className="loading-state">
-          <div className="spinner"></div>
+        <div className="flex flex-col items-center justify-center min-h-[400px] text-gray-500">
+          <div className="w-12 h-12 border-4 border-gray-200 border-t-indigo-500 rounded-full animate-spin mb-4"></div>
           <p>Loading price data...</p>
         </div>
       );
@@ -456,16 +477,21 @@ const SmartViewMatrix: React.FC = () => {
 
     if (error) {
       return (
-        <div className="error-state">
-          <p>❌ Error: {error}</p>
-          <button onClick={fetchMatrixData}>Retry</button>
+        <div className="flex flex-col items-center justify-center min-h-[400px]">
+          <p className="text-red-500 mb-4">❌ Error: {error}</p>
+          <button 
+            onClick={fetchMatrixData}
+            className="px-4 py-2 bg-indigo-500 text-white rounded-lg font-semibold hover:bg-indigo-600"
+          >
+            Retry
+          </button>
         </div>
       );
     }
 
     if (!viewData) {
       return (
-        <div className="empty-state">
+        <div className="flex flex-col items-center justify-center min-h-[400px] text-gray-500">
           <p>Select filters to view pricing data</p>
         </div>
       );
@@ -474,68 +500,68 @@ const SmartViewMatrix: React.FC = () => {
     switch (viewType) {
       case 'MASTER':
         return (
-          <div className="master-view">
-            <div className="view-info">
+          <div>
+            <div className="bg-gray-50 p-4 rounded-lg mb-4">
               <p><strong>Master Book:</strong> {viewData.masterBookName || 'Master Price Book'}</p>
               <p><strong>Total Products:</strong> {viewData.entries?.length || 0}</p>
             </div>
-            <table className="price-table">
-              <thead>
+            <table className="w-full border-collapse text-sm">
+              <thead className="bg-gray-50">
                 <tr>
-                  <th>Product</th>
-                  <th>Base Price</th>
-                  <th>Compare At</th>
+                  <th className="p-3 text-left font-semibold text-gray-600 uppercase text-xs border-b-2">Product</th>
+                  <th className="p-3 text-left font-semibold text-gray-600 uppercase text-xs border-b-2">Base Price</th>
+                  <th className="p-3 text-left font-semibold text-gray-600 uppercase text-xs border-b-2">Compare At</th>
                 </tr>
               </thead>
               <tbody>
                 {viewData.entries?.map((entry: any) => (
-                  <tr key={entry.productId}>
-                    <td>{entry.productName}</td>
-                    {renderEditableCell(entry.productId, entry.basePrice, undefined, `master-${entry.productId}`)}
-                    <td className="price">₹{entry.compareAtPrice || '-'}</td>
+                  <tr key={entry.productId} className="border-b hover:bg-gray-50">
+                    <td className="p-3">{entry.productName}</td>
+                    {renderEditableCell(entry.productId, entry.productName, entry.basePrice, undefined, `master-${entry.productId}`)}
+                    <td className="p-3 font-mono">₹{entry.compareAtPrice || '-'}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         );
+
       case 'ZONE':
         return (
-          <div className="zone-view">
-            <div className="view-info">
+          <div>
+            <div className="bg-gray-50 p-4 rounded-lg mb-4">
               <p><strong>Zone:</strong> {viewData.zoneName}</p>
               <p><strong>Products:</strong> {viewData.matrix?.length || 0}</p>
             </div>
-            <div className="matrix-grid">
-              <table className="price-table matrix-table">
-                <thead>
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse text-sm min-w-[800px]">
+                <thead className="bg-gray-50">
                   <tr>
-                    <th>Product</th>
+                    <th className="p-3 text-left font-semibold text-gray-600 uppercase text-xs border-b-2 sticky left-0 bg-gray-50">Product</th>
                     {Object.keys(viewData.matrix?.[0]?.segments || {}).map((segmentCode: string) => (
-                      <th key={segmentCode}>{segmentCode}</th>
+                      <th key={segmentCode} className="p-3 text-center font-semibold text-gray-600 uppercase text-xs border-b-2">{segmentCode}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {viewData.matrix?.map((row: any) => (
-                    <tr key={row.productId} className={row.isAvailable === false ? 'unavailable-row' : ''}>
-                      <td className="product-name">
+                    <tr key={row.productId} className={`border-b ${row.isAvailable === false ? 'bg-red-50 opacity-70' : 'hover:bg-gray-50'}`}>
+                      <td className="p-3 font-semibold sticky left-0 bg-white">
                         {row.productName}
-                        {row.isAvailable === false && <span className="unavailable-badge">🚫</span>}
+                        {row.isAvailable === false && <span className="ml-2">🚫</span>}
                       </td>
                       {Object.entries(row.segments).map(([code, segData]: [string, any]) => {
-                        // Handle both old format (number) and new format (object)
                         const priceValue = typeof segData === 'object' ? segData?.finalPrice : segData;
                         const isAvailable = typeof segData === 'object' ? segData?.isAvailable !== false : true;
 
                         if (!isAvailable || priceValue == null) {
                           return (
-                            <td key={code} className="price-cell unavailable" title={row.availabilityReason || 'Not available'}>
+                            <td key={code} className="p-3 text-center text-gray-400" title={row.availabilityReason || 'Not available'}>
                               N/A
                             </td>
                           );
                         }
-                        return renderEditableCell(row.productId, priceValue, row.segmentIds?.[code], `zone-${row.productId}-${code}`);
+                        return renderEditableCell(row.productId, row.productName, priceValue, row.segmentIds?.[code], `zone-${row.productId}-${code}`);
                       })}
                     </tr>
                   ))}
@@ -544,60 +570,62 @@ const SmartViewMatrix: React.FC = () => {
             </div>
           </div>
         );
+
       case 'GROUP_ZONE':
         return (
-          <div className="group-zone-view">
-            <div className="view-info">
+          <div>
+            <div className="bg-gray-50 p-4 rounded-lg mb-4">
               <p><strong>Zone:</strong> {viewData.zoneName}</p>
               <p><strong>Segment:</strong> {viewData.segmentName}</p>
               <p><strong>Products:</strong> {viewData.prices?.length || 0}</p>
             </div>
-            <table className="price-table">
-              <thead>
+            <table className="w-full border-collapse text-sm">
+              <thead className="bg-gray-50">
                 <tr>
-                  <th>Product</th>
-                  <th>Master Price</th>
-                  <th>Final Price</th>
-                  <th>Adjustments</th>
+                  <th className="p-3 text-left font-semibold text-gray-600 uppercase text-xs border-b-2">Product</th>
+                  <th className="p-3 text-left font-semibold text-gray-600 uppercase text-xs border-b-2">Master Price</th>
+                  <th className="p-3 text-left font-semibold text-gray-600 uppercase text-xs border-b-2">Final Price</th>
+                  <th className="p-3 text-left font-semibold text-gray-600 uppercase text-xs border-b-2">Adjustments</th>
                 </tr>
               </thead>
               <tbody>
                 {viewData.prices?.map((price: any) => (
-                  <tr key={price.productId}>
-                    <td>{price.productName}</td>
-                    <td className="price">₹{price.masterPrice}</td>
-                    {renderEditableCell(price.productId, price.finalPrice, viewData.segmentId, `group-${price.productId}`)}
-                    <td className="adjustments">{price.adjustments?.length || 0} adjustment(s)</td>
+                  <tr key={price.productId} className="border-b hover:bg-gray-50">
+                    <td className="p-3">{price.productName}</td>
+                    <td className="p-3 font-mono">₹{price.masterPrice}</td>
+                    {renderEditableCell(price.productId, price.productName, price.finalPrice, viewData.segmentId, `group-${price.productId}`)}
+                    <td className="p-3 text-gray-500 text-xs">{price.adjustments?.length || 0} adjustment(s)</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         );
+
       case 'PRODUCT_ZONE':
         return (
-          <div className="product-zone-view">
-            <div className="view-info">
+          <div>
+            <div className="bg-gray-50 p-4 rounded-lg mb-4">
               <p><strong>Product:</strong> {viewData.productName}</p>
               <p><strong>Zone:</strong> {viewData.zoneName}</p>
               <p><strong>Segments:</strong> {viewData.prices?.length || 0}</p>
             </div>
-            <table className="price-table">
-              <thead>
+            <table className="w-full border-collapse text-sm">
+              <thead className="bg-gray-50">
                 <tr>
-                  <th>Segment</th>
-                  <th>Master Price</th>
-                  <th>Final Price</th>
-                  <th>Discount</th>
+                  <th className="p-3 text-left font-semibold text-gray-600 uppercase text-xs border-b-2">Segment</th>
+                  <th className="p-3 text-left font-semibold text-gray-600 uppercase text-xs border-b-2">Master Price</th>
+                  <th className="p-3 text-left font-semibold text-gray-600 uppercase text-xs border-b-2">Final Price</th>
+                  <th className="p-3 text-left font-semibold text-gray-600 uppercase text-xs border-b-2">Discount</th>
                 </tr>
               </thead>
               <tbody>
                 {viewData.prices?.map((price: any) => (
-                  <tr key={price.segmentId}>
-                    <td>{price.segmentName}</td>
-                    <td className="price">₹{price.masterPrice}</td>
-                    {renderEditableCell(viewData.productId, price.finalPrice, price.segmentId, `prod-${price.segmentId}`)}
-                    <td className="discount">
+                  <tr key={price.segmentId} className="border-b hover:bg-gray-50">
+                    <td className="p-3">{price.segmentName}</td>
+                    <td className="p-3 font-mono">₹{price.masterPrice}</td>
+                    {renderEditableCell(viewData.productId, viewData.productName, price.finalPrice, price.segmentId, `prod-${price.segmentId}`)}
+                    <td className="p-3 text-green-600 font-semibold">
                       {price.masterPrice > price.finalPrice
                         ? `${((1 - price.finalPrice / price.masterPrice) * 100).toFixed(1)}%`
                         : '-'}
@@ -608,168 +636,180 @@ const SmartViewMatrix: React.FC = () => {
             </table>
           </div>
         );
+
       case 'SINGLE_CELL':
-        // Check availability first
         if (viewData.price?.isAvailable === false) {
           return (
-            <div className="single-cell-view">
-              <div className="view-info">
-                <p><strong>Product:</strong> {viewData.productName}</p>
-                <p><strong>Zone:</strong> {viewData.zoneName}</p>
-                <p><strong>Segment:</strong> {viewData.segmentName}</p>
-              </div>
-              <div className="not-available-banner">
-                <div className="not-available-icon">🚫</div>
-                <h3>Product Not Available</h3>
-                <p className="not-available-reason">{viewData.price?.availabilityReason || 'This product is not available in the selected zone'}</p>
-              </div>
+            <div className="text-center py-16">
+              <div className="text-6xl mb-4">🚫</div>
+              <h3 className="text-xl font-semibold text-gray-700 mb-2">Product Not Available</h3>
+              <p className="text-gray-500">{viewData.price?.availabilityReason || 'This product is not available in the selected zone'}</p>
             </div>
           );
         }
 
         return (
-          <div className="single-cell-view">
-            <div className="view-info">
+          <div className="max-w-xl mx-auto">
+            <div className="bg-gray-50 p-4 rounded-lg mb-4">
               <p><strong>Product:</strong> {viewData.productName}</p>
               <p><strong>Zone:</strong> {viewData.zoneName}</p>
               <p><strong>Segment:</strong> {viewData.segmentName}</p>
             </div>
 
-            <div className="breakdown-card">
-              <h4>💰 Price Breakdown</h4>
+            <div className="bg-white rounded-xl shadow-sm p-6 border">
+              <h4 className="text-lg font-semibold mb-4 pb-3 border-b">💰 Price Breakdown</h4>
 
-              <div className="breakdown-item base-price">
-                <span>Master Price:</span>
-                <strong>₹{viewData.price?.masterPrice?.toFixed(2)}</strong>
+              <div className="flex justify-between items-center py-3 border-b">
+                <span className="text-gray-600">Master Price:</span>
+                <strong className="font-mono">₹{viewData.price?.masterPrice?.toFixed(2)}</strong>
               </div>
 
-              {/* Show each modifier with clear labels */}
               {viewData.price?.adjustments?.map((adj: any, idx: number) => {
-                // Format modifier display
                 const isModifier = adj.type === 'MODIFIER';
-                const modifierLabel = isModifier
-                  ? adj.modifierName
-                  : `${adj.type} (${adj.bookName || 'Adjustment'})`;
-
-                // Determine if increase or decrease
                 const isIncrease = adj.modifierType === 'PERCENT_INC' || adj.modifierType === 'FLAT_INC' || adj.change > 0;
                 const changeAmount = isModifier ? Math.abs(adj.change) : Math.abs(adj.value);
-                const percentValue = isModifier ? adj.value : null;
 
                 return (
-                  <div key={idx} className={`breakdown-item modifier-item ${isIncrease ? 'increase' : 'decrease'}`}>
-                    <span className="modifier-label">
-                      {isModifier && adj.appliesTo === 'ZONE' && '🌍 '}
-                      {isModifier && adj.appliesTo === 'SEGMENT' && '👥 '}
-                      {isModifier && adj.appliesTo === 'PRODUCT' && '🏷️ '}
-                      {isModifier && adj.appliesTo === 'GLOBAL' && '🌐 '}
-                      {modifierLabel}
-                      {percentValue !== null && ` (${isIncrease ? '+' : '-'}${percentValue}%)`}
-                    </span>
-                    <strong className={isIncrease ? 'positive' : 'negative'}>
+                  <div key={idx} className={`flex justify-between items-center py-3 border-b ${isIncrease ? 'text-green-600' : 'text-red-600'}`}>
+                    <span>{adj.modifierName || adj.type}</span>
+                    <strong className="font-mono">
                       {isIncrease ? '+' : '-'}₹{changeAmount?.toFixed(2)}
                     </strong>
                   </div>
                 );
               })}
 
-              <div className="breakdown-item total">
-                <span>Final Price:</span>
-                <strong className="final-price">₹{viewData.price?.finalPrice?.toFixed(2)}</strong>
+              <div className="flex justify-between items-center py-4 mt-2 border-t-2 border-indigo-500">
+                <span className="text-lg font-semibold">Final Price:</span>
+                <strong className="text-xl font-mono text-indigo-600">₹{viewData.price?.finalPrice?.toFixed(2)}</strong>
               </div>
-
-              {viewData.price?.modifiersApplied > 0 && (
-                <div className="modifiers-summary">
-                  <small>📊 {viewData.price.modifiersApplied} modifier(s) applied</small>
-                </div>
-              )}
             </div>
           </div>
         );
+
       default:
         return <div>Unknown view type: {viewType}</div>;
     }
   };
 
   return (
-    <div className="smart-view-matrix">
-      <div className="matrix-header">
-        <h2>📊 Smart View Matrix</h2>
-        <p>Manage virtual price books with hierarchical pricing</p>
+    <div className="p-6 bg-gray-50 min-h-screen">
+      {/* Header */}
+      <div className="mb-6">
+        <h2 className="text-2xl font-bold text-gray-900">📊 Smart View Matrix</h2>
+        <p className="text-gray-500 text-sm">Manage virtual price books with hierarchical pricing</p>
       </div>
 
-      <div className="matrix-container">
-        <div className="filter-panel">
-          <h3>🔍 Filters</h3>
+      <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-6">
+        {/* Filter Panel */}
+        <div className="bg-white rounded-xl p-5 shadow-sm h-fit lg:sticky lg:top-6">
+          <h3 className="text-lg font-semibold mb-5">🔍 Filters</h3>
 
-          <div className="filter-group">
-            <label>Geo Zone</label>
-            <select
-              value={filters.zone || ''}
-              onChange={(e) => handleFilterChange('zone', e.target.value)}
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Geo Zone</label>
+              <select
+                value={filters.zone || ''}
+                onChange={(e) => handleFilterChange('zone', e.target.value)}
+                className="w-full p-2.5 border-2 border-gray-200 rounded-lg focus:border-indigo-500 focus:outline-none transition-colors"
+              >
+                <option value="">All Zones</option>
+                {zones.map((zone: any) => (
+                  <option key={zone._id} value={zone._id}>
+                    {zone.name} ({zone.level})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">User Segment</label>
+              <select
+                value={filters.segment || ''}
+                onChange={(e) => handleFilterChange('segment', e.target.value)}
+                className="w-full p-2.5 border-2 border-gray-200 rounded-lg focus:border-indigo-500 focus:outline-none transition-colors"
+              >
+                <option value="">All Segments</option>
+                {segments.map((segment: any) => (
+                  <option key={segment._id} value={segment._id}>
+                    {segment.name || segment.code}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Product</label>
+              <select
+                value={filters.product || ''}
+                onChange={(e) => handleFilterChange('product', e.target.value)}
+                className="w-full p-2.5 border-2 border-gray-200 rounded-lg focus:border-indigo-500 focus:outline-none transition-colors"
+              >
+                <option value="">All Products</option>
+                {products.map((product: any) => (
+                  <option key={product._id} value={product._id}>
+                    {product.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <button 
+              onClick={clearFilters}
+              className="w-full py-2.5 bg-gray-100 text-gray-600 rounded-lg font-semibold hover:bg-gray-200 transition-colors"
             >
-              <option value="">All Zones</option>
-              {zones.map((zone: any) => (
-                <option key={zone._id} value={zone._id}>
-                  {zone.name} ({zone.level})
-                </option>
-              ))}
-            </select>
+              Clear Filters
+            </button>
           </div>
 
-          <div className="filter-group">
-            <label>User Segment</label>
-            <select
-              value={filters.segment || ''}
-              onChange={(e) => handleFilterChange('segment', e.target.value)}
-            >
-              <option value="">All Segments</option>
-              {segments.map((segment: any) => (
-                <option key={segment._id} value={segment._id}>
-                  {segment.name || segment.code}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="filter-group">
-            <label>Product</label>
-            <select
-              value={filters.product || ''}
-              onChange={(e) => handleFilterChange('product', e.target.value)}
-            >
-              <option value="">All Products</option>
-              {products.map((product: any) => (
-                <option key={product._id} value={product._id}>
-                  {product.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <button className="btn-clear" onClick={clearFilters}>
-            Clear Filters
-          </button>
-
+          {/* Unsaved Changes Panel */}
           {hasUnsavedChanges && (
-            <div className="unsaved-actions">
-              <p className="unsaved-count">⚠️ {editedCells.length} unsaved change(s)</p>
-              <button className="btn-save" onClick={saveAllChanges} disabled={isSaving}>
-                {isSaving ? 'Saving...' : '💾 Save All'}
+            <div className="mt-6 pt-5 border-t-2 border-gray-100">
+              <p className="text-amber-600 font-semibold text-sm mb-3">
+                ⚠️ {editedCells.length} unsaved change(s)
+              </p>
+              
+              {/* List edited items */}
+              <div className="max-h-40 overflow-y-auto mb-3 space-y-2">
+                {editedCells.map((cell, idx) => (
+                  <div key={idx} className="flex items-center justify-between text-xs bg-amber-50 p-2 rounded">
+                    <span className="truncate flex-1">{cell.productName || cell.productId}</span>
+                    <span className="font-mono text-amber-700 mx-2">₹{cell.newPrice.toFixed(2)}</span>
+                    <button 
+                      onClick={() => removeEditedCell(cell.productId, cell.segmentId)}
+                      className="text-red-500 hover:text-red-700"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              <button 
+                onClick={saveAllChanges}
+                disabled={isSaving}
+                className="w-full py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg font-semibold hover:from-green-600 hover:to-emerald-700 disabled:opacity-60 transition-all mb-2"
+              >
+                {isSaving ? 'Saving...' : '💾 Save All Changes'}
               </button>
-              <button className="btn-discard" onClick={discardChanges} disabled={isSaving}>
-                ✖ Discard
+              <button 
+                onClick={discardChanges}
+                disabled={isSaving}
+                className="w-full py-2.5 border-2 border-red-500 text-red-500 rounded-lg font-semibold hover:bg-red-50 disabled:opacity-60 transition-colors"
+              >
+                ✖ Discard All
               </button>
             </div>
           )}
-
-          {saveSuccess && <div className="save-success">✅ Changes saved!</div>}
         </div>
 
-        <div className="matrix-content">
-          <div className="view-header">
-            <h3>{getViewTitle(viewType)}</h3>
-            <span className="view-badge">{viewType}</span>
+        {/* Matrix Content */}
+        <div className="bg-white rounded-xl p-6 shadow-sm">
+          <div className="flex items-center justify-between mb-6 pb-4 border-b-2 border-gray-100">
+            <h3 className="text-xl font-semibold">{getViewTitle(viewType)}</h3>
+            <span className="px-3 py-1.5 bg-indigo-500 text-white rounded-md text-xs font-semibold uppercase tracking-wide">
+              {viewType}
+            </span>
           </div>
 
           {renderView()}
@@ -784,7 +824,6 @@ const SmartViewMatrix: React.FC = () => {
           onCancel={() => {
             setShowConflictModal(false);
             setConflictData(null);
-            setPendingSave(null);
           }}
         />
       )}

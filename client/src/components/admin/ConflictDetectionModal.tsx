@@ -358,7 +358,7 @@ const ConflictDetectionModal: React.FC<ConflictModalProps> = ({
                   
                   
                   {/* Show preview for RELATIVE option */}
-                  {option.id === 'RELATIVE' && option.impact.preview && option.impact.preview.length > 0 && (
+                  {option.id === 'RELATIVE' && option.impact?.preview && option.impact.preview.length > 0 && (
                     <div className="option-preview">
                       <strong>Preview:</strong>
                       <ul>

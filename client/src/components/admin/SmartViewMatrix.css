@@ -912,3 +912,39 @@
     margin-left: 8px;
     font-size: 12px;
 }
+
+/* ========================================
+   TOAST NOTIFICATION
+======================================== */
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateX(100px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.toast-notification {
+    animation: slideIn 0.3s ease;
+}
+
+/* ========================================
+   BULK UPDATE BUTTON
+======================================== */
+
+.btn-bulk-update {
+    transition: all 0.2s;
+}
+
+.btn-bulk-update:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+}
+
+.btn-bulk-update:active {
+    transform: translateY(0);
+}

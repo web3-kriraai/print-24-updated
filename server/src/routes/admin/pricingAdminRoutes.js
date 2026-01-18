@@ -116,6 +116,19 @@ router.post('/pricing/virtual-price', virtualController.calculateVirtualPrice);
 router.post('/pricing/detect-conflicts', virtualController.detectConflicts);
 router.post('/pricing/resolve-conflict', virtualController.resolveConflict);
 
+//================================
+// SMART VIEW PRICE UPDATE ROUTES
+//================================
+
+// Update prices from Smart View (handles all 3 cases)
+router.post('/pricing/smart-view/update', virtualController.updatePricesFromSmartView);
+
+// Bulk update multiple prices at once
+router.post('/pricing/smart-view/bulk-update', virtualController.bulkUpdatePrices);
+
+// Preview conflicts before applying bulk updates
+router.post('/pricing/smart-view/preview-conflicts', virtualController.previewBulkConflicts);
+
 // Price Book Management
 router.post('/pricing/master-book', virtualController.createMasterBook);
 router.post('/pricing/zone-book', virtualController.createZoneBook);
