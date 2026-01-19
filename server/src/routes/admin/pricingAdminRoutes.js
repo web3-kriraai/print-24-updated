@@ -27,10 +27,23 @@ const router = express.Router();
 // Auth middleware - all routes require admin access
 router.use(authMiddleware);
 router.use((req, res, next) => {
-    if (req.user?.role !== 'admin') {
+    // Normalize role check - handle both 'role' and 'userType' fields
+    const role = req.user?.role || req.user?.userType;
+    
+    // Log for debugging
+    console.log('[Pricing Admin Routes] Auth check:', {
+        userId: req.user?._id,
+        role: req.user?.role,
+        userType: req.user?.userType,
+        email: req.user?.email
+    });
+    
+    if (role !== 'admin') {
+        console.log('[Pricing Admin Routes] Access denied - role:', role);
         return res.status(403).json({
             success: false,
-            message: 'Admin access required'
+            message: 'Admin access required',
+            userRole: role
         });
     }
     next();

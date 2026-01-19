@@ -30,10 +30,10 @@ if (Test-Path "dist") {
 }
 npm run build
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "❌ Client build failed!" -ForegroundColor Red
+    Write-Host "ERROR: Client build failed!" -ForegroundColor Red
     exit 1
 }
-Write-Host "✅ Client built successfully" -ForegroundColor Green
+Write-Host "SUCCESS: Client built successfully" -ForegroundColor Green
 Write-Host ""
 
 # Step 2: Prepare server with client build
@@ -43,29 +43,29 @@ if (Test-Path $ServerClientDist) {
     Remove-Item -Recurse -Force $ServerClientDist
 }
 Copy-Item -Recurse -Path (Join-Path $ClientDir "dist") -Destination $ServerClientDist
-Write-Host "✅ Client build copied to server" -ForegroundColor Green
+Write-Host "SUCCESS: Client build copied to server" -ForegroundColor Green
 Write-Host ""
 
 # Step 3: Build Docker Image
-Write-Host "[3/7] Building Docker image..." -ForegroundColor Yellow
+Write-Host "[3/7] Building Docker image with --no-cache..." -ForegroundColor Yellow
 Set-Location $RootDir
-docker build -f server/Dockerfile -t $ImageTag .
+docker build --no-cache -f server/Dockerfile -t $ImageTag .
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "❌ Docker build failed!" -ForegroundColor Red
+    Write-Host "ERROR: Docker build failed!" -ForegroundColor Red
     exit 1
 }
-Write-Host "✅ Docker image built: $ImageTag" -ForegroundColor Green
+Write-Host "SUCCESS: Docker image built: $ImageTag" -ForegroundColor Green
 Write-Host ""
 
 # Step 4: Push to GCP Container Registry
 Write-Host "[4/7] Pushing image to GCP Artifact Registry..." -ForegroundColor Yellow
 docker push $ImageTag
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "❌ Docker push failed!" -ForegroundColor Red
+    Write-Host "ERROR: Docker push failed!" -ForegroundColor Red
     Write-Host "Make sure you're authenticated with: gcloud auth configure-docker $Region-docker.pkg.dev" -ForegroundColor Yellow
     exit 1
 }
-Write-Host "✅ Image pushed to GCP" -ForegroundColor Green
+Write-Host "SUCCESS: Image pushed to GCP" -ForegroundColor Green
 Write-Host ""
 
 # Step 5: List Cloud Run Services
@@ -77,12 +77,12 @@ Write-Host ""
 Write-Host "[6/7] Deploying to Cloud Run with GCP Secrets..." -ForegroundColor Yellow
 Write-Host ""
 Write-Host "Using secrets from GCP Secret Manager:" -ForegroundColor Cyan
-Write-Host "  • MONGO_URI_PRICING" -ForegroundColor Gray
-Write-Host "  • REDIS_URL" -ForegroundColor Gray
-Write-Host "  • JWT_SECRET" -ForegroundColor Gray
-Write-Host "  • CLOUDINARY_* credentials" -ForegroundColor Gray
-Write-Host "  • EMAIL_* credentials" -ForegroundColor Gray
-Write-Host "  • GCP_GEOLOCATION_API_KEY" -ForegroundColor Gray
+Write-Host "  - MONGO_URI_PRICING" -ForegroundColor Gray
+Write-Host "  - REDIS_URL" -ForegroundColor Gray
+Write-Host "  - JWT_SECRET" -ForegroundColor Gray
+Write-Host "  - CLOUDINARY_* credentials" -ForegroundColor Gray
+Write-Host "  - EMAIL_* credentials" -ForegroundColor Gray
+Write-Host "  - GCP_GEOLOCATION_API_KEY" -ForegroundColor Gray
 Write-Host ""
 
 gcloud run deploy $ServiceName `
@@ -101,10 +101,10 @@ gcloud run deploy $ServiceName `
     --project=$ProjectId
 
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "❌ Cloud Run deployment failed!" -ForegroundColor Red
+    Write-Host "ERROR: Cloud Run deployment failed!" -ForegroundColor Red
     exit 1
 }
-Write-Host "✅ Deployed to Cloud Run" -ForegroundColor Green
+Write-Host "SUCCESS: Deployed to Cloud Run" -ForegroundColor Green
 Write-Host ""
 
 # Step 7: Get Service URL and Verify
@@ -112,11 +112,11 @@ Write-Host "[7/7] Getting service URL and verification info..." -ForegroundColor
 $ServiceUrl = gcloud run services describe $ServiceName --region=$Region --format="value(status.url)" --project=$ProjectId
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Green
-Write-Host "✅ DEPLOYMENT SUCCESSFUL!" -ForegroundColor Green
+Write-Host "DEPLOYMENT SUCCESSFUL!" -ForegroundColor Green
 Write-Host "========================================" -ForegroundColor Green
 Write-Host "Service URL: $ServiceUrl" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "📋 Next Steps:" -ForegroundColor Yellow
+Write-Host "Next Steps:" -ForegroundColor Yellow
 Write-Host ""
 Write-Host "1. Test the deployment:" -ForegroundColor White
 Write-Host "   curl $ServiceUrl/api/health" -ForegroundColor Gray
@@ -131,6 +131,6 @@ Write-Host ""
 # Cleanup
 Write-Host "Cleaning up local build artifacts..." -ForegroundColor Yellow
 Remove-Item -Recurse -Force $ServerClientDist -ErrorAction SilentlyContinue
-Write-Host "✅ Cleanup complete" -ForegroundColor Green
+Write-Host "SUCCESS: Cleanup complete" -ForegroundColor Green
 
 Set-Location $RootDir

@@ -148,8 +148,6 @@ import { requireAdmin } from "../middlewares/authMiddleware.js";
 
 /* PRICING ROUTES */
 import pricingRoutes from "./pricingRoutes.js";
-import pricingAdminRoutes from "./admin/pricingAdminRoutes.js";
-import pricingAdvancedRoutes from "./admin/pricingAdvancedRoutes.js";
 
 const router = express.Router();
 
@@ -426,15 +424,6 @@ router.get("/geocoding/search", searchGeocode);
 router.use("/modifiers", authMiddleware, requireAdmin, modifierRoutes);
 
 /* =====================================
-   ADMIN PRICING ROUTES
-===================================== */
-
-// Admin pricing routes (geo-zones, user-segments, product-availability, etc.)
-router.use("/admin", pricingAdminRoutes);
-router.use("/admin", pricingAdvancedRoutes); // Advanced features: virtual views, conflicts, hierarchical zones
-router.use("/", pricingAdvancedRoutes); // For /api/v1/pricing/resolve endpoint
-
-/* =====================================
    PRICING ROUTES (PUBLIC)
 ===================================== */
 
@@ -442,5 +431,4 @@ router.use("/", pricingAdvancedRoutes); // For /api/v1/pricing/resolve endpoint
 router.use("/pricing", pricingRoutes);
 
 export default router;
-
 

@@ -9,6 +9,9 @@ RUN npm ci --only=production
 # Copy server source code
 COPY server/src ./src
 
+# Copy server data directory (location data, etc.)
+COPY server/data ./data
+
 # Copy pre-built client from client-dist directory
 # The deploy script ensures client-dist exists before building Docker image
 COPY server/client-dist ./client-dist
