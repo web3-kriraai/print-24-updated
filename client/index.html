@@ -1,61 +1,73 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Prints24 - Premium Digital Printing</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
-    <script>
-      tailwind.config = {
-        theme: {
-          extend: {
-            fontFamily: {
-              sans: ['Inter', 'sans-serif'],
-              serif: ['Playfair Display', 'serif'],
-            },
-            colors: {
-              cream: {
-                50: '#fcfaf8',
-                100: '#f8f5f2',
-                200: '#f0e9e1',
-                300: '#e6d8c9',
-                400: '#d6bc9f',
-                500: '#c49d79',
-                600: '#b68761',
-                700: '#976b4d',
-                800: '#7d5843',
-                900: '#654838',
-              }
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Prints24 - Premium Digital Printing</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap"
+    rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            serif: ['Playfair Display', 'serif'],
+          },
+          colors: {
+            cream: {
+              50: '#fcfaf8',
+              100: '#f8f5f2',
+              200: '#f0e9e1',
+              300: '#e6d8c9',
+              400: '#d6bc9f',
+              500: '#c49d79',
+              600: '#b68761',
+              700: '#976b4d',
+              800: '#7d5843',
+              900: '#654838',
             }
           }
         }
       }
-    </script>
-    <style>
-      body {
-        background-color: #f9fafb; /* gray-50 */
-        color: #111827; /* gray-900 */
+    }
+  </script>
+  <style>
+    body {
+      background-color: #f9fafb;
+      /* gray-50 */
+      color: #111827;
+      /* gray-900 */
+    }
+
+    /* Validation error highlight animation */
+    .validation-error-highlight {
+      animation: validationPulse 0.5s ease-in-out;
+      border-color: #ef4444 !important;
+      background-color: #fef2f2 !important;
+      box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1) !important;
+    }
+
+    @keyframes validationPulse {
+
+      0%,
+      100% {
+        transform: scale(1);
       }
-      /* Validation error highlight animation */
-      .validation-error-highlight {
-        animation: validationPulse 0.5s ease-in-out;
-        border-color: #ef4444 !important;
-        background-color: #fef2f2 !important;
-        box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1) !important;
+
+      50% {
+        transform: scale(1.02);
       }
-      @keyframes validationPulse {
-        0%, 100% {
-          transform: scale(1);
-        }
-        50% {
-          transform: scale(1.02);
-        }
-      }
-    </style>
-  </head>
-  <body>
-    <div id="root"><!--app-html--></div>
-    <script type="module" src="/client.js"></script>
-  </body>
+    }
+  </style>
+</head>
+
+<body>
+  <div id="root"></div>
+  <script type="module" src="/client.tsx"></script>
+</body>
+
 </html>

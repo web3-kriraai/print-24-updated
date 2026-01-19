@@ -1,0 +1,27 @@
+# Backend-only Dockerfile for Print24
+# Use when frontend is hosted separately on Cloud Storage
+
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install production dependencies for server
+COPY server/package*.json ./
+RUN npm ci --production
+
+# Copy server source code
+COPY server/ ./
+
+# Expose port (Cloud Run uses PORT env variable)
+EXPOSE 8080
+
+# Set environment to production
+ENV NODE_ENV=production
+ENV PORT=8080
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:8080/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
+
+# Start the server (API only)
+CMD ["node", "src/server.js"]
