@@ -45,11 +45,30 @@ export const getProductDetail = async (req, res) => {
         })
         .lean();
     } else {
-      // Not a valid ObjectId format
-      return res.status(400).json({
-        error: "Invalid product ID format. Expected MongoDB ObjectId (24 hex characters).",
-        received: productId,
-      });
+      // Try to find by slug
+      product = await Product.findOne({ slug: productId })
+        .populate({
+          path: "category",
+          select: "_id name description image type parent slug",
+          populate: {
+            path: "parent",
+            select: "_id name type",
+          },
+        })
+        .populate({
+          path: "subcategory",
+          select: "_id name description image slug category",
+          populate: {
+            path: "category",
+            model: "Category",
+            select: "_id name description type image",
+          },
+        })
+        .populate({
+          path: "dynamicAttributes.attributeType",
+          model: "AttributeType",
+        })
+        .lean();
     }
 
     if (!product) {

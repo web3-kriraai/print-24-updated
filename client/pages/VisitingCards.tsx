@@ -28,6 +28,7 @@ interface Product {
   basePrice: number;
   image?: string;
   subcategory?: SubCategory | string;
+  slug?: string;
   category?: {
     _id: string;
     name: string;
@@ -1560,12 +1561,12 @@ const VisitingCards: React.FC = () => {
                           >
                             <Link
                               to={categoryId && useNestedPath && currentParentSubcategoryId && currentNestedSubcategoryId
-                                ? `/services/${categoryId}/${currentParentSubcategoryId}/${currentNestedSubcategoryId}/${product._id}`
+                                ? `/services/${categoryId}/${currentParentSubcategoryId}/${currentNestedSubcategoryId}/${product.slug || product._id}`
                                 : categoryId && hasValidSubcategory
-                                  ? `/services/${categoryId}/${productSubcategoryId}/${product._id}`
+                                  ? `/services/${categoryId}/${productSubcategoryId}/${product.slug || product._id}`
                                   : categoryId
-                                    ? `/services/${categoryId}/${product._id}`
-                                    : `/services/${product._id}`
+                                    ? `/services/${categoryId}/${product.slug || product._id}`
+                                    : `/services/${product.slug || product._id}`
                               }
                               className="group block w-full"
                               onClick={() => {
@@ -1760,12 +1761,12 @@ const VisitingCards: React.FC = () => {
                           >
                             <Link
                               to={categoryId && parentSubcategoryId && nestedSubcategoryId
-                                ? `/services/${categoryId}/${parentSubcategoryId}/${nestedSubcategoryId}/${product._id}`
+                                ? `/services/${categoryId}/${parentSubcategoryId}/${nestedSubcategoryId}/${product.slug || product._id}`
                                 : categoryId && hasValidSubcategory
-                                  ? `/services/${categoryId}/${productSubcategoryId}/${product._id}`
+                                  ? `/services/${categoryId}/${productSubcategoryId}/${product.slug || product._id}`
                                   : categoryId
-                                    ? `/services/${categoryId}/${product._id}`
-                                    : `/services/${product._id}`
+                                    ? `/services/${categoryId}/${product.slug || product._id}`
+                                    : `/services/${product.slug || product._id}`
                               }
                               className="group block h-full"
                               onClick={() => {
@@ -1915,10 +1916,10 @@ const VisitingCards: React.FC = () => {
                           >
                             <Link
                               to={categoryId && hasValidSubcategory
-                                ? `/services/${categoryId}/${productSubcategoryId}/${product._id}`
+                                ? `/services/${categoryId}/${productSubcategoryId}/${product.slug || product._id}`
                                 : categoryId
-                                  ? `/services/${categoryId}/${product._id}`
-                                  : `/services/${product._id}`
+                                  ? `/services/${categoryId}/${product.slug || product._id}`
+                                  : `/services/${product.slug || product._id}`
                               }
                               className="group block w-full"
                               onClick={() => {
@@ -2074,10 +2075,10 @@ const VisitingCards: React.FC = () => {
                       >
                         <Link
                           to={categoryId && hasValidSubcategory
-                            ? `/services/${categoryId}/${productSubcategoryId}/${product._id}`
+                            ? `/services/${categoryId}/${productSubcategoryId}/${product.slug || product._id}`
                             : categoryId
-                              ? `/services/${categoryId}/${product._id}`
-                              : `/services/${product._id}`
+                              ? `/services/${categoryId}/${product.slug || product._id}`
+                              : `/services/${product.slug || product._id}`
                           }
                           className="group block w-full"
                           onClick={() => {

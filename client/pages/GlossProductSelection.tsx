@@ -29,6 +29,7 @@ interface GlossProduct {
   _id: string;
   id: string;
   name: string;
+  slug?: string;
   description?: string;
   descriptionArray?: string[];
   filters: {
@@ -444,140 +445,13 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
         // If productId is provided, fetch PDP data instead of regular product
         if (productId) {
-          // Validate productId format (MongoDB ObjectId: 24 hex characters)
-          const isValidObjectId = /^[0-9a-fA-F]{24}$/.test(productId);
-
-          if (!isValidObjectId) {
-            console.warn("Invalid productId format:", productId);
-            setPdpError("Invalid product ID format. Please select a product from the list.");
+          // Validate productId format (MongoDB ObjectId or slug)
+          // Allow both ObjectId (24 hex) and slugs (string)
+          if (!productId) {
             setPdpLoading(false);
-            // Don't return here - continue to fetch products list so user can select a valid product
           } else {
-            try {
-              setPdpLoading(true);
-              setPdpError(null);
-              const pdpResponse = await fetch(`${API_BASE_URL}/products/${productId}/detail`, {
-                method: "GET",
-                headers: {
-                  Accept: "application/json",
-                },
-              });
-
-              if (pdpResponse.ok) {
-                const pdpText = await pdpResponse.text();
-                if (!pdpText.startsWith("<!DOCTYPE") && !pdpText.startsWith("<html")) {
-                  const pdpData = JSON.parse(pdpText);
-
-                  // Extract PDP data
-                  const productData = pdpData.product;
-                  const attributes = pdpData.attributes || [];
-                  const subAttributes = pdpData.subAttributes || {};
-                  const rules = pdpData.rules || [];
-                  const quantityConfig = pdpData.quantityConfig;
-
-                  // Get subcategory from product
-                  if (productData.subcategory) {
-                    if (typeof productData.subcategory === 'object' && productData.subcategory._id) {
-                      subcategoryId = productData.subcategory._id;
-                      subcategoryData = productData.subcategory;
-                      setSelectedSubCategory(productData.subcategory);
-                    } else if (typeof productData.subcategory === 'string') {
-                      subcategoryId = productData.subcategory;
-                    }
-                  }
-
-                  // Map product data
-                  const mappedProduct: GlossProduct = {
-                    _id: productData._id,
-                    id: productData._id,
-                    name: productData.name || '',
-                    description: productData.description || '',
-                    descriptionArray: productData.descriptionArray || (productData.description ? [productData.description] : []),
-                    filters: {
-                      printingOption: productData.filters?.printingOption || [],
-                      orderQuantity: quantityConfig || productData.filters?.orderQuantity || { min: 1000, max: 72000, multiples: 1000 },
-                      deliverySpeed: productData.filters?.deliverySpeed || [],
-                      textureType: productData.filters?.textureType || undefined,
-                      filterPricesEnabled: productData.filters?.filterPricesEnabled || false,
-                      printingOptionPrices: productData.filters?.printingOptionPrices || [],
-                      deliverySpeedPrices: productData.filters?.deliverySpeedPrices || [],
-                      textureTypePrices: productData.filters?.textureTypePrices || [],
-                    },
-                    basePrice: productData.basePrice || 0,
-                    image: productData.image,
-                    subcategory: productData.subcategory,
-                    options: productData.options || [],
-                    dynamicAttributes: attributes.map((attr: any) => ({
-                      attributeType: {
-                        _id: attr._id,
-                        attributeName: attr.attributeName,
-                        inputStyle: attr.inputStyle,
-                        attributeValues: attr.attributeValues || [],
-                        defaultValue: attr.defaultValue,
-                      },
-                      isEnabled: true,
-                      isRequired: attr.isRequired || false,
-                      displayOrder: attr.displayOrder || 0,
-                      customValues: attr.customValues || [],
-                    })),
-                    quantityDiscounts: productData.quantityDiscounts || [],
-                    maxFileSizeMB: productData.maxFileSizeMB,
-                    minFileWidth: productData.minFileWidth,
-                    maxFileWidth: productData.maxFileWidth,
-                    minFileHeight: productData.minFileHeight,
-                    maxFileHeight: productData.maxFileHeight,
-                    blockCDRandJPG: productData.blockCDRandJPG || false,
-                    additionalDesignCharge: productData.additionalDesignCharge || 0,
-                    gstPercentage: productData.gstPercentage || 0,
-                    showPriceIncludingGst: productData.showPriceIncludingGst || false,
-                    instructions: productData.instructions || "",
-                  };
-
-                  setSelectedProduct(mappedProduct);
-
-                  // Initialize quantity to minimum from product configuration
-                  const orderQuantity = mappedProduct.filters?.orderQuantity;
-                  let minQuantity = 100; // Default fallback
-
-                  if (orderQuantity) {
-                    if (orderQuantity.quantityType === "STEP_WISE" && orderQuantity.stepWiseQuantities && orderQuantity.stepWiseQuantities.length > 0) {
-                      // Use smallest value from step-wise quantities
-                      minQuantity = Math.min(...orderQuantity.stepWiseQuantities);
-                    } else if (orderQuantity.quantityType === "RANGE_WISE" && orderQuantity.rangeWiseQuantities && orderQuantity.rangeWiseQuantities.length > 0) {
-                      // Use smallest min value from ranges
-                      minQuantity = Math.min(...orderQuantity.rangeWiseQuantities.map((r: any) => r.min || 100));
-                    } else {
-                      // Use min from simple quantity config
-                      minQuantity = orderQuantity.min || 100;
-                    }
-                  }
-
-                  setQuantity(minQuantity);
-
-                  // Store PDP data
-                  setPdpAttributes(attributes);
-                  setPdpSubAttributes(subAttributes);
-                  setPdpRules(rules);
-                  setPdpQuantityConfig(quantityConfig);
-                  setIsInitialized(true);
-                }
-              } else {
-                const errorText = await pdpResponse.text();
-                let errorMessage = "Failed to fetch product details";
-                try {
-                  const errorData = JSON.parse(errorText);
-                  errorMessage = errorData.error || errorMessage;
-                } catch (e) {
-                  // If not JSON, use default message
-                }
-                setPdpError(errorMessage);
-              }
-            } catch (err) {
-              console.error("Error fetching product details:", err);
-              setPdpError("Error loading product details");
-            } finally {
-              setPdpLoading(false);
-            }
+            // Use helper function to fetch details
+            await fetchProductDetails(productId, true);
           }
         }
 
@@ -957,6 +831,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                 _id: product._id,
                 id: product._id,
                 name: product.name || '',
+                slug: product.slug,
                 description: product.description || '',
                 descriptionArray: product.descriptionArray || (product.description ? [product.description] : []),
                 filters: {
@@ -1105,7 +980,130 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
     fetchData();
   }, [categoryId, subCategoryId, nestedSubCategoryId, productId]);
 
+  // Helper to fetch full product details (PDP)
+  const fetchProductDetails = async (id: string, shouldSetSelectedProduct = true) => {
+    if (!id) return;
+
+    try {
+      setPdpLoading(true);
+      setPdpError(null);
+      const pdpResponse = await fetch(`${API_BASE_URL}/products/${id}/detail`, {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+        },
+      });
+
+      if (pdpResponse.ok) {
+        const pdpText = await pdpResponse.text();
+        if (!pdpText.startsWith("<!DOCTYPE") && !pdpText.startsWith("<html")) {
+          const pdpData = JSON.parse(pdpText);
+
+          // Extract PDP data
+          const productData = pdpData.product;
+          const attributes = pdpData.attributes || [];
+          const subAttributes = pdpData.subAttributes || {};
+          const rules = pdpData.rules || [];
+          const quantityConfig = pdpData.quantityConfig;
+
+          // Set subcategory if available
+          if (productData.subcategory) {
+            setSelectedSubCategory(productData.subcategory);
+          }
+
+          // Map product data
+          const mappedProduct: GlossProduct = {
+            _id: productData._id,
+            id: productData._id,
+            name: productData.name || '',
+            slug: productData.slug,
+            description: productData.description || '',
+            descriptionArray: productData.descriptionArray || (productData.description ? [productData.description] : []),
+            filters: {
+              printingOption: productData.filters?.printingOption || [],
+              orderQuantity: quantityConfig || productData.filters?.orderQuantity || { min: 1000, max: 72000, multiples: 1000 },
+              deliverySpeed: productData.filters?.deliverySpeed || [],
+              textureType: productData.filters?.textureType || undefined,
+              filterPricesEnabled: productData.filters?.filterPricesEnabled || false,
+              printingOptionPrices: productData.filters?.printingOptionPrices || [],
+              deliverySpeedPrices: productData.filters?.deliverySpeedPrices || [],
+              textureTypePrices: productData.filters?.textureTypePrices || [],
+            },
+            basePrice: productData.basePrice || 0,
+            image: productData.image,
+            subcategory: productData.subcategory,
+            options: productData.options || [],
+            dynamicAttributes: attributes.map((attr: any) => ({
+              attributeType: {
+                _id: attr._id,
+                attributeName: attr.attributeName,
+                inputStyle: attr.inputStyle,
+                attributeValues: attr.attributeValues || [],
+                defaultValue: attr.defaultValue,
+              },
+              isEnabled: true,
+              isRequired: attr.isRequired || false,
+              displayOrder: attr.displayOrder || 0,
+              customValues: attr.customValues || [],
+            })),
+            quantityDiscounts: productData.quantityDiscounts || [],
+            maxFileSizeMB: productData.maxFileSizeMB,
+            minFileWidth: productData.minFileWidth,
+            maxFileWidth: productData.maxFileWidth,
+            minFileHeight: productData.minFileHeight,
+            maxFileHeight: productData.maxFileHeight,
+            blockCDRandJPG: productData.blockCDRandJPG || false,
+            additionalDesignCharge: productData.additionalDesignCharge || 0,
+            gstPercentage: productData.gstPercentage || 0,
+            showPriceIncludingGst: productData.showPriceIncludingGst || false,
+            instructions: productData.instructions || "",
+          };
+
+          if (shouldSetSelectedProduct) {
+            setSelectedProduct(mappedProduct);
+
+            // Initialize quantity to minimum
+            const orderQuantity = mappedProduct.filters?.orderQuantity;
+            let minQuantity = 100;
+            if (orderQuantity) {
+              if (orderQuantity.quantityType === "STEP_WISE" && orderQuantity.stepWiseQuantities && orderQuantity.stepWiseQuantities.length > 0) {
+                minQuantity = Math.min(...orderQuantity.stepWiseQuantities);
+              } else if (orderQuantity.quantityType === "RANGE_WISE" && orderQuantity.rangeWiseQuantities && orderQuantity.rangeWiseQuantities.length > 0) {
+                minQuantity = Math.min(...orderQuantity.rangeWiseQuantities.map((r: any) => r.min || 100));
+              } else {
+                minQuantity = orderQuantity.min || 100;
+              }
+            }
+            setQuantity(minQuantity);
+          }
+
+          // Store PDP data
+          setPdpAttributes(attributes);
+          setPdpSubAttributes(subAttributes);
+          setPdpRules(rules);
+          setPdpQuantityConfig(quantityConfig);
+          setIsInitialized(true);
+        }
+      } else {
+        const errorText = await pdpResponse.text();
+        let errorMessage = "Failed to fetch product details";
+        try {
+          const errorData = JSON.parse(errorText);
+          errorMessage = errorData.error || errorMessage;
+        } catch (e) { }
+        setPdpError(errorMessage);
+        console.error("PDP Fetch Error:", errorMessage);
+      }
+    } catch (err) {
+      console.error("Error fetching product details:", err);
+      setPdpError("Error loading product details");
+    } finally {
+      setPdpLoading(false);
+    }
+  };
+
   // Handle product selection
+  // MODIFIED: Accepts generic product object, sets it immediately for UI, then fetches full details
   const handleProductSelect = (product: GlossProduct) => {
     setSelectedProduct(product);
     // Reset filters
@@ -1113,19 +1111,16 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
     setSelectedDeliverySpeed("");
     setSelectedTextureType("");
 
-    // Auto-select smallest quantity value
+    // Auto-select smallest quantity value (initial/fallback)
     const orderQuantity = product.filters?.orderQuantity;
-    let smallestQuantity = 1000; // Default fallback
+    let smallestQuantity = 1000;
 
     if (orderQuantity) {
       if (orderQuantity.quantityType === "STEP_WISE" && orderQuantity.stepWiseQuantities && orderQuantity.stepWiseQuantities.length > 0) {
-        // Use smallest value from step-wise quantities
         smallestQuantity = Math.min(...orderQuantity.stepWiseQuantities);
       } else if (orderQuantity.quantityType === "RANGE_WISE" && orderQuantity.rangeWiseQuantities && orderQuantity.rangeWiseQuantities.length > 0) {
-        // Use smallest min value from ranges
         smallestQuantity = Math.min(...orderQuantity.rangeWiseQuantities.map((r: any) => r.min || 1000));
       } else {
-        // Use min from simple quantity config
         smallestQuantity = orderQuantity.min || 1000;
       }
     }
@@ -1133,37 +1128,9 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
     setQuantity(smallestQuantity);
     setAppliedDiscount(null);
 
-    // Initialize dynamic attributes with default values
-    const initialAttributes: { [key: string]: string | number | boolean | File | null | any[] } = {};
-    if (product.dynamicAttributes && Array.isArray(product.dynamicAttributes)) {
-      product.dynamicAttributes.forEach((attr) => {
-        if (attr.isEnabled) {
-          const attrType = typeof attr.attributeType === 'object' ? attr.attributeType : null;
-          if (attrType) {
-            const attributeValues = attr.customValues && attr.customValues.length > 0
-              ? attr.customValues
-              : attrType.attributeValues || [];
-
-            // Set default value if available
-            if (attrType.defaultValue && attributeValues.find((av: any) => av.value === attrType.defaultValue)) {
-              initialAttributes[attrType._id] = attrType.defaultValue;
-            } else if (attributeValues.length > 0) {
-              // For checkbox, initialize as empty array, for others use first value
-              if (attrType.inputStyle === 'CHECKBOX') {
-                initialAttributes[attrType._id] = [];
-              } else {
-                initialAttributes[attrType._id] = attributeValues[0].value;
-              }
-            }
-          }
-        }
-      });
-    }
-    setSelectedDynamicAttributes(initialAttributes);
-    // Reset user-selected attributes so main product image is shown initially
+    // Initial attribute reset
+    setSelectedDynamicAttributes({});
     setUserSelectedAttributes(new Set());
-
-    // Reset selected product options
     setSelectedProductOptions([]);
 
     // Initialize with first options if available
@@ -1176,6 +1143,9 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
     if (product.filters?.textureType && product.filters.textureType.length > 0) {
       setSelectedTextureType(product.filters.textureType[0]);
     }
+
+    // CRITICAL: Fetch full PDP details to get attributes, rules, etc.
+    fetchProductDetails(product._id, true);
   };
 
   // Handle nested subcategory filter switch (product variant selection)
@@ -1185,8 +1155,8 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
       setSelectedNestedSubcategoryId(nestedSubcategoryId);
 
       // Find the selected nested subcategory to get its slug
-      const selectedNestedSubcat = availableNestedSubcategories.find(ns => ns._id === nestedSubcategoryId);
-      const nestedSubcategorySlug = selectedNestedSubcat?.slug || nestedSubcategoryId;
+      // const selectedNestedSubcat = availableNestedSubcategories.find(ns => ns._id === nestedSubcategoryId);
+      // const nestedSubcategorySlug = selectedNestedSubcat?.slug || nestedSubcategoryId;
 
       // Fetch products for the selected nested subcategory
       const productsUrl = `${API_BASE_URL}/products/subcategory/${nestedSubcategoryId}`;
@@ -1208,6 +1178,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
               _id: product._id,
               id: product._id,
               name: product.name || '',
+              slug: product.slug,
               description: product.description || '',
               descriptionArray: product.descriptionArray || (product.description ? [product.description] : []),
               filters: {
@@ -1239,18 +1210,29 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
             }));
 
             setProducts(mappedProducts);
+            setCategoryProducts(mappedProducts); // Update thumbnails list
 
             // Auto-select first product
             const firstProduct = mappedProducts[0];
-            setSelectedProduct(firstProduct);
+
+            // Only update selected product if it's different to avoid unnecessary re-renders
+            if (!selectedProduct || selectedProduct._id !== firstProduct._id) {
+              setSelectedProduct(firstProduct);
+              // CRITICAL: Fetch details for the auto-selected product
+              fetchProductDetails(firstProduct._id, true);
+            }
 
             // Create product slug from product name (convert to lowercase and replace spaces with hyphens)
-            const productSlug = firstProduct.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+            // Use existing slug if available, otherwise generate one
+            // const productSlug = firstProduct.slug || firstProduct.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
 
             // Update URL to reflect the new selection using slugs
+            // DISABLED: User requested to prevent URL changes for smoother experience
+            /*
             if (categoryId && subCategoryId) {
               navigate(`/services/${categoryId}/${subCategoryId}/${nestedSubcategorySlug}/${productSlug}`, { replace: true });
             }
+            */
 
             // Reset filters for new product
             setSelectedPrintingOption("");
@@ -1286,7 +1268,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
   // Auto-select product if productId is provided in URL
   useEffect(() => {
     if (productId && products.length > 0 && !selectedProduct) {
-      const productToSelect = products.find(p => p._id === productId || p.id === productId);
+      const productToSelect = products.find(p => p._id === productId || p.id === productId || p.slug === productId);
       if (productToSelect) {
         handleProductSelect(productToSelect);
       }
@@ -3060,38 +3042,13 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
   };
 
   // Handler for switching between nested subcategory products (variant filters)
+  // DEPRECATED: Use handleNestedSubcategorySwitch instead which properly updates state without navigation
+  /*
   const handleNestedSubcategoryChange = async (nestedSubcategoryId: string) => {
-    try {
-      // Fetch products for the selected nested subcategory
-      const response = await fetch(`${API_BASE_URL}/products/subcategory/${nestedSubcategoryId}`, {
-        method: "GET",
-        headers: {
-          Accept: "application/json",
-        },
-      });
-
-      if (response.ok) {
-        const productsText = await response.text();
-        if (!productsText.startsWith("<!DOCTYPE") && !productsText.startsWith("<html")) {
-          const productsData = JSON.parse(productsText);
-
-          if (Array.isArray(productsData) && productsData.length > 0) {
-            const firstProduct = productsData[0];
-
-            // Build new URL with the selected nested subcategory and first product
-            const newUrl = categoryId && subCategoryId
-              ? `/services/${categoryId}/${subCategoryId}/${nestedSubcategoryId}/${firstProduct._id}`
-              : `/services/${categoryId}/${nestedSubcategoryId}/${firstProduct._id}`;
-
-            // Navigate to new product (creates history entry for back button)
-            navigate(newUrl, { replace: false });
-          }
-        }
-      }
-    } catch (error) {
-      console.error('Error switching product variant:', error);
-    }
+     // ... logic replaced by handleNestedSubcategorySwitch
+     handleNestedSubcategorySwitch(nestedSubcategoryId);
   };
+  */
 
   return (
 
@@ -3415,15 +3372,8 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                       key={product._id}
                       onClick={() => {
                         if (!isCurrentProduct) {
-                          // Navigate to the selected product
-                          const newUrl = categoryId && subCategoryId && nestedSubCategoryId
-                            ? `/services/${categoryId}/${subCategoryId}/${nestedSubCategoryId}/${product._id}`
-                            : categoryId && subCategoryId
-                              ? `/services/${categoryId}/${subCategoryId}/${product._id}`
-                              : categoryId
-                                ? `/services/${categoryId}/${product._id}`
-                                : `/services/${product._id}`;
-                          navigate(newUrl);
+                          // Update state instead of navigating
+                          handleProductSelect(product);
                           window.scrollTo({ top: 0, behavior: 'smooth' });
                         }
                       }}
@@ -3480,7 +3430,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
               {availableNestedSubcategories.map((nestedSubcat) => (
                 <button
                   key={nestedSubcat._id}
-                  onClick={() => handleNestedSubcategoryChange(nestedSubcat._id)}
+                  onClick={() => handleNestedSubcategorySwitch(nestedSubcat._id)}
                   className={`px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg border-2 font-medium transition-all text-sm sm:text-base ${selectedNestedSubcategoryId === nestedSubcat._id
                     ? 'border-gray-800 bg-gray-800 text-white shadow-md'
                     : 'border-gray-300 bg-white text-gray-700 hover:border-gray-600 hover:bg-gray-50'
@@ -3745,7 +3695,13 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                 <div className="bg-white p-4 sm:p-6 md:p-8 rounded-2xl sm:rounded-3xl shadow-lg border border-gray-100 min-h-[600px] lg:min-h-[700px] flex flex-col">
                   {!selectedProduct ? (
                     /* Product Selection List or Nested Subcategories */
-                    <div>
+                    <motion.div
+                      key="product-list"
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -20 }}
+                      transition={{ duration: 0.3 }}
+                    >
                       <div className="mb-6 sm:mb-8 border-b border-gray-100 pb-4 sm:pb-6">
                         <h1 className="font-serif text-xl sm:text-2xl md:text-3xl font-bold text-gray-900 mb-2">
                           {selectedSubCategory?.name || "Products"}
@@ -3774,9 +3730,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                     : `/services/${nestedSubCategoryIdForLink}`
                                 }
                                 className="block w-full"
-                                onClick={() => {
-                                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                                }}
+
                               >
                                 <div className="w-full p-4 sm:p-5 rounded-xl border-2 border-gray-200 hover:border-gray-900 text-left transition-all duration-200 hover:bg-gray-50 group">
                                   <div className="flex items-start gap-4">
@@ -3900,87 +3854,77 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                           )}
                         </div>
                       )}
-                    </div>
+                    </motion.div>
                   ) : (
                     /* Product Filters and Order Form */
-                    <AnimatePresence mode="wait">
+                    <AnimatePresence mode="popLayout">
                       <motion.div
                         key={selectedProduct._id || selectedProduct.id}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -20 }}
-                        transition={{ duration: 0.3 }}
+                        initial={{ opacity: 0, y: 10, scale: 0.98 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -10, scale: 0.98 }}
+                        transition={{ duration: 0.25, ease: "easeOut" }}
                         className="flex flex-col h-full"
                       >
-                        <div className="flex-1 overflow-y-auto pr-2">
+                        <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
                           {/* Product Header */}
-                          <div className="mb-6 sm:mb-8 border-b border-gray-100 pb-4 sm:pb-6 relative">
-                            <div className="flex items-start justify-between mb-2">
-                              <BackButton
+                          <div className="mb-6 pb-6 border-b border-gray-100">
+                            {/* Back Button */}
+                            <div className="mb-4">
+                              <button
                                 onClick={() => {
-                                  // Navigate back by removing the product from the URL
-                                  // IMPORTANT: Check for most specific case first (4-level URL with productId)
-
                                   if (forcedProductId) {
-                                    // forcedProductId means VisitingCards is rendering us
-                                    // This happens when a single product is directly under a category
-                                    // Navigate to main digital-print page to avoid auto-redirect loop
                                     navigate("/services");
                                   } else if (params.productId && nestedSubCategoryId && subCategoryId && categoryId) {
-                                    // 4-level URL: Product in nested subcategory → go back to nested subcategory products list
-                                    // This must be checked BEFORE availableNestedSubcategories to handle the correct case
                                     navigate(`/services/${categoryId}/${subCategoryId}/${nestedSubCategoryId}`);
                                   } else if (availableNestedSubcategories.length > 0 && subCategoryId && categoryId) {
-                                    // Product with nested subcategory filters (not in a nested subcategory) → go back to parent subcategory
                                     navigate(`/services/${categoryId}/${subCategoryId}`);
                                   } else if (subCategoryId && categoryId) {
-                                    // Product in subcategory → go back to subcategory products list
                                     navigate(`/services/${categoryId}/${subCategoryId}`);
                                   } else if (categoryId) {
-                                    // Product directly under category → go back to category
                                     navigate(`/services/${categoryId}`);
                                   } else {
-                                    // Fallback
                                     navigate("/services");
                                   }
-                                  window.scrollTo(0, 0);
-                                }}
-                                fallbackPath={
-                                  forcedProductId
-                                    ? "/services"
-                                    : params.productId && nestedSubCategoryId && subCategoryId && categoryId
-                                      ? `/services/${categoryId}/${subCategoryId}/${nestedSubCategoryId}`
-                                      : availableNestedSubcategories.length > 0 && subCategoryId && categoryId
-                                        ? `/services/${categoryId}/${subCategoryId}`
-                                        : subCategoryId && categoryId
-                                          ? `/services/${categoryId}/${subCategoryId}`
-                                          : categoryId
-                                            ? `/services/${categoryId}`
-                                            : "/services"
-                                }
-                                label={
-                                  params.productId && nestedSubCategoryId
-                                    ? "Back to Products"
-                                    : nestedSubCategoryId
-                                      ? "Back to Subcategory"
-                                      : subCategoryId
-                                        ? "Back to Subcategory"
-                                        : "Back to Category"
-                                }
-                                className="text-sm text-gray-600 hover:text-gray-900 mb-2"
-                              />
-                            </div>
-                            <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
-                              <div className="flex-1">
-                                <h1 className="font-serif text-xl sm:text-2xl md:text-3xl font-bold text-gray-900 mb-2">
-                                  {selectedProduct.name}
-                                </h1>
 
-                                {/* Product Variants Filter - Only shown when nested subcategories exist */}
-                                {availableNestedSubcategories.length > 0 && (
-                                  <div className="mb-4 bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-                                    <h3 className="text-xs font-bold text-gray-900 mb-3 tracking-wide uppercase">PRODUCT VARIANTS</h3>
-                                    <div className="flex flex-wrap gap-2">
+                                }}
+                                className="inline-flex items-center text-sm font-medium text-blue-600 hover:text-blue-800 transition-colors"
+                              >
+                                <ArrowRight className="rotate-180 mr-1.5" size={14} />
+                                {nestedSubCategoryId
+                                  ? "Back to Subcategory"
+                                  : subCategoryId
+                                    ? "Back to Subcategory"
+                                    : "Back to Products"
+                                }
+                              </button>
+                            </div>
+
+                            {/* Product Variants and Details - Top Aligned Layout */}
+                            {availableNestedSubcategories.length > 0 ? (
+                              <div className="mb-6">
+                                {/* Top Row: Product Image Area (left) + Variant Selector (right) */}
+                                <div className="flex flex-col lg:flex-row gap-4 lg:gap-6 mb-4 lg:items-start">
+                                  {/* Left: Product Image Placeholder/Area */}
+                                  <div className="flex-shrink-0 w-full lg:w-96 h-[576px] bg-gray-100 rounded-lg flex items-center justify-center">
+                                    {selectedProduct.image ? (
+                                      <img
+                                        src={selectedProduct.image}
+                                        alt={selectedProduct.name}
+                                        className="w-full h-full object-cover rounded-lg"
+                                      />
+                                    ) : (
+                                      <div className="text-gray-400 text-center">
+                                        <FileImage size={48} className="mx-auto mb-2" />
+                                        <p className="text-sm">Product Image</p>
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* Right: Variant Selector - Aligned at Top */}
+                                  <div className="flex-1">
+                                    <h3 className="text-xs font-bold text-gray-400 mb-3 uppercase tracking-wider">Select Variant</h3>
+                                    <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 snap-x">
                                       {availableNestedSubcategories.map((nestedSub) => {
                                         const isSelected = selectedNestedSubcategoryId === nestedSub._id;
                                         return (
@@ -3988,140 +3932,247 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                             key={nestedSub._id}
                                             onClick={() => handleNestedSubcategorySwitch(nestedSub._id)}
                                             disabled={loading}
-                                            className={`px-4 py-2 rounded-lg border-2 transition-all text-sm font-medium ${isSelected
-                                              ? 'border-gray-900 bg-gray-900 text-white font-bold shadow-md'
-                                              : 'border-gray-300 bg-white text-gray-900 hover:border-gray-600 hover:bg-gray-50'
+                                            className={`flex-shrink-0 relative w-20 h-20 sm:w-24 sm:h-24 rounded-lg overflow-hidden transition-all duration-200 group snap-start ${isSelected
+                                              ? 'ring-2 ring-blue-600 ring-offset-2'
+                                              : 'hover:ring-2 hover:ring-gray-200 hover:ring-offset-1'
                                               } ${loading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
                                           >
-                                            {nestedSub.name}
+                                            <div className="h-full w-full flex flex-col">
+                                              {/* Image Area */}
+                                              <div className="flex-1 relative bg-gray-100">
+                                                <img
+                                                  src={nestedSub.image || '/Glossy.png'}
+                                                  alt={nestedSub.name}
+                                                  className="w-full h-full object-cover"
+                                                />
+                                              </div>
+                                              {/* Label Bar */}
+                                              <div className="h-6 bg-gray-900 flex items-center justify-center px-1">
+                                                <p className="text-[7px] sm:text-[8px] font-bold text-white text-center leading-tight uppercase tracking-wider line-clamp-2">
+                                                  {nestedSub.name}
+                                                </p>
+                                              </div>
+                                            </div>
                                           </button>
                                         );
                                       })}
                                     </div>
                                   </div>
-                                )}
+                                </div>
 
-                                {/* Instructions Button */}
-                                <button
-                                  onClick={() => setIsInstructionsOpen(!isInstructionsOpen)}
-                                  className="mt-2 mb-4 px-4 py-2 bg-gray-100 hover:bg-purple-200 text-gray-900 rounded-lg border border-gray-300 text-sm font-medium transition-all flex items-center gap-2"
-                                >
-                                  <Info size={16} />
-                                  Instructions
-                                </button>
+                                {/* Bottom Row: Product Details */}
+                                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                                  <div className="flex-1">
+                                    <h1 className="font-serif text-2xl sm:text-3xl text-gray-900 mb-3 leading-tight">
+                                      {(() => {
+                                        const name = selectedProduct.name;
+                                        const parts = name.split('+');
+                                        if (parts.length > 1) {
+                                          return (
+                                            <>
+                                              <span className="font-bold">{parts[0].trim()}</span>
+                                              <span className="font-light text-gray-400 mx-2">+</span>
+                                              <span className="italic font-light">{parts[1].trim()}</span>
+                                              {parts.slice(2).map((part, i) => (
+                                                <span key={i}> {part}</span>
+                                              ))}
+                                            </>
+                                          );
+                                        }
+                                        return <span className="font-bold">{name}</span>;
+                                      })()}
+                                    </h1>
 
-                                {/* Instructions Modal/Expanded Section with Smooth Transition */}
-                                <AnimatePresence>
-                                  {isInstructionsOpen && (
-                                    <motion.div
-                                      initial={{ opacity: 0, height: 0 }}
-                                      animate={{ opacity: 1, height: "auto" }}
-                                      exit={{ opacity: 0, height: 0 }}
-                                      transition={{ duration: 0.3, ease: "easeInOut" }}
-                                      className="overflow-hidden"
+                                    {/* Instructions Button */}
+                                    <button
+                                      onClick={() => setIsInstructionsOpen(!isInstructionsOpen)}
+                                      className="inline-flex items-center px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-medium transition-colors"
                                     >
-                                      <div className="mt-4 mb-6 p-4 sm:p-6 bg-yellow-50 border border-yellow-200 rounded-lg">
-                                        <h4 className="text-sm font-bold text-yellow-900 mb-3 flex items-center gap-2">
-                                          <Info size={16} />
-                                          Important Instructions - Please Read Carefully
-                                        </h4>
+                                      <Info size={14} className="mr-1.5" />
+                                      Instructions
+                                    </button>
+                                  </div>
 
-                                        {/* Custom Instructions from Admin */}
-                                        {selectedProduct.instructions && (
-                                          <div className="mb-4 p-3 bg-red-50 border-2 border-red-300 rounded-lg">
-                                            <p className="text-xs font-bold text-red-900 mb-2 flex items-center gap-2">
-                                              <X size={14} className="text-red-600" />
-                                              CRITICAL: Company Not Responsible If Instructions Not Followed
-                                            </p>
-                                            <div className="text-xs sm:text-sm text-red-800 whitespace-pre-line">
-                                              {selectedProduct.instructions}
-                                            </div>
-                                          </div>
-                                        )}
+                                  {/* Price Box */}
+                                  <div className="flex-shrink-0 bg-orange-50 border border-orange-100 rounded-xl p-3 sm:p-4 text-center min-w-[120px] sm:min-w-[140px]">
+                                    <div className="text-[10px] font-bold text-orange-800 uppercase tracking-wide mb-1">
+                                      Price Per Unit
+                                    </div>
+                                    <div className="text-xl sm:text-2xl font-bold text-gray-900 mb-0.5">
+                                      ₹{selectedProduct.basePrice < 1
+                                        ? (selectedProduct.basePrice * 1000).toFixed(2)
+                                        : selectedProduct.basePrice.toFixed(2)}
+                                    </div>
+                                    <div className="text-[9px] text-gray-500 font-medium">
+                                      {selectedProduct.basePrice < 1 ? "per 1000 units" : "excluding GST"}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            ) : (
+                              /* No Variants - Show Product Details Only */
+                              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-6">
+                                <div className="flex-1">
+                                  <h1 className="font-serif text-2xl sm:text-3xl text-gray-900 mb-3 leading-tight">
+                                    {(() => {
+                                      const name = selectedProduct.name;
+                                      const parts = name.split('+');
+                                      if (parts.length > 1) {
+                                        return (
+                                          <>
+                                            <span className="font-bold">{parts[0].trim()}</span>
+                                            <span className="font-light text-gray-400 mx-2">+</span>
+                                            <span className="italic font-light">{parts[1].trim()}</span>
+                                            {parts.slice(2).map((part, i) => (
+                                              <span key={i}> {part}</span>
+                                            ))}
+                                          </>
+                                        );
+                                      }
+                                      return <span className="font-bold">{name}</span>;
+                                    })()}
+                                  </h1>
 
-                                        <div className="space-y-3 text-xs sm:text-sm text-yellow-800">
-                                          {/* File Upload Constraints */}
-                                          {(selectedProduct.maxFileSizeMB || selectedProduct.minFileWidth || selectedProduct.maxFileWidth || selectedProduct.minFileHeight || selectedProduct.maxFileHeight || selectedProduct.blockCDRandJPG) && (
+                                  {/* Instructions Button */}
+                                  <button
+                                    onClick={() => setIsInstructionsOpen(!isInstructionsOpen)}
+                                    className="inline-flex items-center px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-medium transition-colors"
+                                  >
+                                    <Info size={14} className="mr-1.5" />
+                                    Instructions
+                                  </button>
+                                </div>
+
+                                {/* Price Box */}
+                                <div className="flex-shrink-0 bg-orange-50 border border-orange-100 rounded-xl p-3 sm:p-4 text-center min-w-[120px] sm:min-w-[140px]">
+                                  <div className="text-[10px] font-bold text-orange-800 uppercase tracking-wide mb-1">
+                                    Price Per Unit
+                                  </div>
+                                  <div className="text-xl sm:text-2xl font-bold text-gray-900 mb-0.5">
+                                    ₹{selectedProduct.basePrice < 1
+                                      ? (selectedProduct.basePrice * 1000).toFixed(2)
+                                      : selectedProduct.basePrice.toFixed(2)}
+                                  </div>
+                                  <div className="text-[9px] text-gray-500 font-medium">
+                                    {selectedProduct.basePrice < 1 ? "per 1000 units" : "excluding GST"}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Instructions Modal/Expanded Section with Smooth Transition */}
+                          <AnimatePresence>
+                            {isInstructionsOpen && (
+                              <motion.div
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: "auto" }}
+                                exit={{ opacity: 0, height: 0 }}
+                                transition={{ duration: 0.3, ease: "easeInOut" }}
+                                className="overflow-hidden"
+                              >
+                                <div className="mt-4 mb-6 p-4 sm:p-6 bg-yellow-50 border border-yellow-200 rounded-lg">
+                                  <h4 className="text-sm font-bold text-yellow-900 mb-3 flex items-center gap-2">
+                                    <Info size={16} />
+                                    Important Instructions - Please Read Carefully
+                                  </h4>
+
+                                  {/* Custom Instructions from Admin */}
+                                  {selectedProduct.instructions && (
+                                    <div className="mb-4 p-3 bg-red-50 border-2 border-red-300 rounded-lg">
+                                      <p className="text-xs font-bold text-red-900 mb-2 flex items-center gap-2">
+                                        <X size={14} className="text-red-600" />
+                                        CRITICAL: Company Not Responsible If Instructions Not Followed
+                                      </p>
+                                      <div className="text-xs sm:text-sm text-red-800 whitespace-pre-line">
+                                        {selectedProduct.instructions}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  <div className="space-y-3 text-xs sm:text-sm text-yellow-800">
+                                    {/* File Upload Constraints */}
+                                    {(selectedProduct.maxFileSizeMB || selectedProduct.minFileWidth || selectedProduct.maxFileWidth || selectedProduct.minFileHeight || selectedProduct.maxFileHeight || selectedProduct.blockCDRandJPG) && (
+                                      <div>
+                                        <p className="font-semibold text-yellow-900 mb-2">File Upload Requirements:</p>
+                                        <div className="space-y-1 ml-4">
+                                          {selectedProduct.maxFileSizeMB && (
+                                            <p>• Maximum file size: <strong>{selectedProduct.maxFileSizeMB} MB</strong></p>
+                                          )}
+                                          {(selectedProduct.minFileWidth || selectedProduct.maxFileWidth || selectedProduct.minFileHeight || selectedProduct.maxFileHeight) && (
                                             <div>
-                                              <p className="font-semibold text-yellow-900 mb-2">File Upload Requirements:</p>
-                                              <div className="space-y-1 ml-4">
-                                                {selectedProduct.maxFileSizeMB && (
-                                                  <p>• Maximum file size: <strong>{selectedProduct.maxFileSizeMB} MB</strong></p>
+                                              <p>• File dimensions:</p>
+                                              <div className="ml-4 space-y-1">
+                                                {(selectedProduct.minFileWidth || selectedProduct.maxFileWidth) && (
+                                                  <p>
+                                                    - Width: <strong>
+                                                      {selectedProduct.minFileWidth && selectedProduct.maxFileWidth
+                                                        ? `${selectedProduct.minFileWidth} - ${selectedProduct.maxFileWidth} pixels`
+                                                        : selectedProduct.minFileWidth
+                                                          ? `Minimum ${selectedProduct.minFileWidth} pixels`
+                                                          : selectedProduct.maxFileWidth
+                                                            ? `Maximum ${selectedProduct.maxFileWidth} pixels`
+                                                            : "Any"}
+                                                    </strong>
+                                                  </p>
                                                 )}
-                                                {(selectedProduct.minFileWidth || selectedProduct.maxFileWidth || selectedProduct.minFileHeight || selectedProduct.maxFileHeight) && (
-                                                  <div>
-                                                    <p>• File dimensions:</p>
-                                                    <div className="ml-4 space-y-1">
-                                                      {(selectedProduct.minFileWidth || selectedProduct.maxFileWidth) && (
-                                                        <p>
-                                                          - Width: <strong>
-                                                            {selectedProduct.minFileWidth && selectedProduct.maxFileWidth
-                                                              ? `${selectedProduct.minFileWidth} - ${selectedProduct.maxFileWidth} pixels`
-                                                              : selectedProduct.minFileWidth
-                                                                ? `Minimum ${selectedProduct.minFileWidth} pixels`
-                                                                : selectedProduct.maxFileWidth
-                                                                  ? `Maximum ${selectedProduct.maxFileWidth} pixels`
-                                                                  : "Any"}
-                                                          </strong>
-                                                        </p>
-                                                      )}
-                                                      {(selectedProduct.minFileHeight || selectedProduct.maxFileHeight) && (
-                                                        <p>
-                                                          - Height: <strong>
-                                                            {selectedProduct.minFileHeight && selectedProduct.maxFileHeight
-                                                              ? `${selectedProduct.minFileHeight} - ${selectedProduct.maxFileHeight} pixels`
-                                                              : selectedProduct.minFileHeight
-                                                                ? `Minimum ${selectedProduct.minFileHeight} pixels`
-                                                                : selectedProduct.maxFileHeight
-                                                                  ? `Maximum ${selectedProduct.maxFileHeight} pixels`
-                                                                  : "Any"}
-                                                          </strong>
-                                                        </p>
-                                                      )}
-                                                    </div>
-                                                  </div>
-                                                )}
-                                                {selectedProduct.blockCDRandJPG && (
-                                                  <p>• <strong>CDR and JPG files are not accepted</strong> for this product</p>
+                                                {(selectedProduct.minFileHeight || selectedProduct.maxFileHeight) && (
+                                                  <p>
+                                                    - Height: <strong>
+                                                      {selectedProduct.minFileHeight && selectedProduct.maxFileHeight
+                                                        ? `${selectedProduct.minFileHeight} - ${selectedProduct.maxFileHeight} pixels`
+                                                        : selectedProduct.minFileHeight
+                                                          ? `Minimum ${selectedProduct.minFileHeight} pixels`
+                                                          : selectedProduct.maxFileHeight
+                                                            ? `Maximum ${selectedProduct.maxFileHeight} pixels`
+                                                            : "Any"}
+                                                    </strong>
+                                                  </p>
                                                 )}
                                               </div>
                                             </div>
                                           )}
-
-                                          {/* Additional Settings */}
-                                          {(selectedProduct.additionalDesignCharge || selectedProduct.gstPercentage) && (
-                                            <div>
-                                              <p className="font-semibold text-yellow-900 mb-2">Additional Charges:</p>
-                                              <div className="space-y-1 ml-4">
-                                                {selectedProduct.additionalDesignCharge && selectedProduct.additionalDesignCharge > 0 && (
-                                                  <p>• Additional Design Charge: <strong>₹{selectedProduct.additionalDesignCharge.toFixed(2)}</strong> (applied if design help is needed)</p>
-                                                )}
-                                                {selectedProduct.gstPercentage && selectedProduct.gstPercentage > 0 && (
-                                                  <p>• GST: <strong>{selectedProduct.gstPercentage}%</strong> (applied on subtotal + design charge)</p>
-                                                )}
-                                              </div>
-                                            </div>
-                                          )}
-
-                                          {!selectedProduct.instructions && !selectedProduct.maxFileSizeMB && !selectedProduct.minFileWidth && !selectedProduct.maxFileWidth && !selectedProduct.minFileHeight && !selectedProduct.maxFileHeight && !selectedProduct.blockCDRandJPG && !selectedProduct.additionalDesignCharge && !selectedProduct.gstPercentage && (
-                                            <p className="text-yellow-700 italic">No special instructions for this product.</p>
+                                          {selectedProduct.blockCDRandJPG && (
+                                            <p>• <strong>CDR and JPG files are not accepted</strong> for this product</p>
                                           )}
                                         </div>
                                       </div>
-                                    </motion.div>
-                                  )}
-                                </AnimatePresence>
+                                    )}
 
-                                <div className="text-sm sm:text-base text-gray-600 space-y-2">
-                                  {(() => {
-                                    // First check if description contains HTML (prioritize description field)
-                                    if (selectedProduct.description) {
-                                      const hasHTML = /<[a-z][\s\S]*>/i.test(selectedProduct.description);
-                                      if (hasHTML) {
-                                        // Render HTML description exactly as provided by admin
-                                        return (
-                                          <>
-                                            <style>{`
+                                    {/* Additional Settings */}
+                                    {(selectedProduct.additionalDesignCharge || selectedProduct.gstPercentage) && (
+                                      <div>
+                                        <p className="font-semibold text-yellow-900 mb-2">Additional Charges:</p>
+                                        <div className="space-y-1 ml-4">
+                                          {selectedProduct.additionalDesignCharge && selectedProduct.additionalDesignCharge > 0 && (
+                                            <p>• Additional Design Charge: <strong>₹{selectedProduct.additionalDesignCharge.toFixed(2)}</strong> (applied if design help is needed)</p>
+                                          )}
+                                          {selectedProduct.gstPercentage && selectedProduct.gstPercentage > 0 && (
+                                            <p>• GST: <strong>{selectedProduct.gstPercentage}%</strong> (applied on subtotal + design charge)</p>
+                                          )}
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {!selectedProduct.instructions && !selectedProduct.maxFileSizeMB && !selectedProduct.minFileWidth && !selectedProduct.maxFileWidth && !selectedProduct.minFileHeight && !selectedProduct.maxFileHeight && !selectedProduct.blockCDRandJPG && !selectedProduct.additionalDesignCharge && !selectedProduct.gstPercentage && (
+                                      <p className="text-yellow-700 italic">No special instructions for this product.</p>
+                                    )}
+                                  </div>
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+
+                          <div className="text-sm sm:text-base text-gray-600 space-y-2">
+                            {(() => {
+                              // First check if description contains HTML (prioritize description field)
+                              if (selectedProduct.description) {
+                                const hasHTML = /<[a-z][\s\S]*>/i.test(selectedProduct.description);
+                                if (hasHTML) {
+                                  // Render HTML description exactly as provided by admin
+                                  return (
+                                    <>
+                                      <style>{`
                                         .product-description-html {
                                           color: #92400e;
                                           line-height: 1.6;
@@ -4161,106 +4212,103 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                           margin-bottom: 0.25rem;
                                         }
                                       `}</style>
-                                            <div
-                                              className="product-description-html text-gray-600"
-                                              dangerouslySetInnerHTML={{ __html: selectedProduct.description }}
-                                            />
-                                          </>
-                                        );
-                                      }
+                                      <div
+                                        className="product-description-html text-gray-600"
+                                        dangerouslySetInnerHTML={{ __html: selectedProduct.description }}
+                                      />
+                                    </>
+                                  );
+                                }
+                              }
+
+                              // Use descriptionArray if available, otherwise use description
+                              if (selectedProduct.descriptionArray && Array.isArray(selectedProduct.descriptionArray) && selectedProduct.descriptionArray.length > 0) {
+                                // Render descriptionArray with formatting
+                                const renderTextWithBold = (text: string) => {
+                                  const parts = text.split(/(\*\*.*?\*\*)/g);
+                                  return parts.map((part, idx) => {
+                                    if (part.startsWith('**') && part.endsWith('**')) {
+                                      const boldText = part.slice(2, -2);
+                                      return <strong key={idx} className="font-bold text-gray-800">{boldText}</strong>;
                                     }
+                                    return <span key={idx}>{part}</span>;
+                                  });
+                                };
 
-                                    // Use descriptionArray if available, otherwise use description
-                                    if (selectedProduct.descriptionArray && Array.isArray(selectedProduct.descriptionArray) && selectedProduct.descriptionArray.length > 0) {
-                                      // Render descriptionArray with formatting
-                                      const renderTextWithBold = (text: string) => {
-                                        const parts = text.split(/(\*\*.*?\*\*)/g);
-                                        return parts.map((part, idx) => {
-                                          if (part.startsWith('**') && part.endsWith('**')) {
-                                            const boldText = part.slice(2, -2);
-                                            return <strong key={idx} className="font-bold text-gray-800">{boldText}</strong>;
-                                          }
-                                          return <span key={idx}>{part}</span>;
-                                        });
-                                      };
-
-                                      // Ensure descriptionArray is displayed left to right (correct order)
-                                      // Reverse the array if it's stored in reverse order
-                                      const descriptionLines = [...selectedProduct.descriptionArray].reverse();
-                                      return descriptionLines.map((desc, i) => {
-                                        if (desc.includes(':')) {
-                                          return (
-                                            <div key={i} className="mt-3 first:mt-0">
-                                              <p className="font-semibold text-gray-700 mb-1.5">
-                                                {renderTextWithBold(desc)}
-                                              </p>
-                                            </div>
-                                          );
-                                        } else if (desc.startsWith('→') || desc.startsWith('->') || desc.startsWith('•')) {
-                                          const cleanDesc = desc.replace(/^[→•\-]+\s*/, '').trim();
-                                          return (
-                                            <p key={i} className="flex items-start">
-                                              <span className="mr-2 text-gray-500 mt-1">→</span>
-                                              <span>{renderTextWithBold(cleanDesc)}</span>
-                                            </p>
-                                          );
-                                        } else {
-                                          return (
-                                            <p key={i} className="flex items-start">
-                                              <span className="mr-2 text-gray-500 mt-1">→</span>
-                                              <span>{renderTextWithBold(desc)}</span>
-                                            </p>
-                                          );
-                                        }
-                                      });
-                                    } else if (selectedProduct.description) {
-                                      // Render plain text description with formatting (HTML already handled above)
-                                      const descriptionLines = selectedProduct.description.split('\n').map(line => line.trim()).filter(line => line.length > 0);
-                                      const renderTextWithBold = (text: string) => {
-                                        const parts = text.split(/(\*\*.*?\*\*)/g);
-                                        return parts.map((part, idx) => {
-                                          if (part.startsWith('**') && part.endsWith('**')) {
-                                            const boldText = part.slice(2, -2);
-                                            return <strong key={idx} className="font-bold text-gray-800">{boldText}</strong>;
-                                          }
-                                          return <span key={idx}>{part}</span>;
-                                        });
-                                      };
-                                      return descriptionLines.map((desc, i) => {
-                                        if (desc.includes(':')) {
-                                          return (
-                                            <div key={i} className="mt-3 first:mt-0">
-                                              <p className="font-semibold text-gray-700 mb-1.5">
-                                                {renderTextWithBold(desc)}
-                                              </p>
-                                            </div>
-                                          );
-                                        } else if (desc.startsWith('→') || desc.startsWith('->') || desc.startsWith('•')) {
-                                          const cleanDesc = desc.replace(/^[→•\-]+\s*/, '').trim();
-                                          return (
-                                            <p key={i} className="flex items-start">
-                                              <span className="mr-2 text-gray-500 mt-1">→</span>
-                                              <span>{renderTextWithBold(cleanDesc)}</span>
-                                            </p>
-                                          );
-                                        } else {
-                                          return (
-                                            <p key={i} className="flex items-start">
-                                              <span className="mr-2 text-gray-500 mt-1">→</span>
-                                              <span>{renderTextWithBold(desc)}</span>
-                                            </p>
-                                          );
-                                        }
-                                      });
-                                    } else {
-                                      return <p className="text-gray-500 italic">No description available</p>;
+                                // Ensure descriptionArray is displayed left to right (correct order)
+                                // Reverse the array if it's stored in reverse order
+                                const descriptionLines = [...selectedProduct.descriptionArray].reverse();
+                                return descriptionLines.map((desc, i) => {
+                                  if (desc.includes(':')) {
+                                    return (
+                                      <div key={i} className="mt-3 first:mt-0">
+                                        <p className="font-semibold text-gray-700 mb-1.5">
+                                          {renderTextWithBold(desc)}
+                                        </p>
+                                      </div>
+                                    );
+                                  } else if (desc.startsWith('→') || desc.startsWith('->') || desc.startsWith('•')) {
+                                    const cleanDesc = desc.replace(/^[→•\-]+\s*/, '').trim();
+                                    return (
+                                      <p key={i} className="flex items-start">
+                                        <span className="mr-2 text-gray-500 mt-1">→</span>
+                                        <span>{renderTextWithBold(cleanDesc)}</span>
+                                      </p>
+                                    );
+                                  } else {
+                                    return (
+                                      <p key={i} className="flex items-start">
+                                        <span className="mr-2 text-gray-500 mt-1">→</span>
+                                        <span>{renderTextWithBold(desc)}</span>
+                                      </p>
+                                    );
+                                  }
+                                });
+                              } else if (selectedProduct.description) {
+                                // Render plain text description with formatting (HTML already handled above)
+                                const descriptionLines = selectedProduct.description.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+                                const renderTextWithBold = (text: string) => {
+                                  const parts = text.split(/(\*\*.*?\*\*)/g);
+                                  return parts.map((part, idx) => {
+                                    if (part.startsWith('**') && part.endsWith('**')) {
+                                      const boldText = part.slice(2, -2);
+                                      return <strong key={idx} className="font-bold text-gray-800">{boldText}</strong>;
                                     }
-                                  })()}
-                                </div>
-                              </div>
-
-                            </div>
+                                    return <span key={idx}>{part}</span>;
+                                  });
+                                };
+                                return descriptionLines.map((desc, i) => {
+                                  if (desc.includes(':')) {
+                                    return (
+                                      <div key={i} className="mt-3 first:mt-0">
+                                        <p className="font-semibold text-gray-700 mb-1.5">
+                                          {renderTextWithBold(desc)}
+                                        </p>
+                                      </div>
+                                    );
+                                  } else if (desc.startsWith('→') || desc.startsWith('->') || desc.startsWith('•')) {
+                                    const cleanDesc = desc.replace(/^[→•\-]+\s*/, '').trim();
+                                    return (
+                                      <p key={i} className="flex items-start">
+                                        <span className="mr-2 text-gray-500 mt-1">→</span>
+                                        <span>{renderTextWithBold(cleanDesc)}</span>
+                                      </p>
+                                    );
+                                  } else {
+                                    return (
+                                      <p key={i} className="flex items-start">
+                                        <span className="mr-2 text-gray-500 mt-1">→</span>
+                                        <span>{renderTextWithBold(desc)}</span>
+                                      </p>
+                                    );
+                                  }
+                                });
+                              } else {
+                                return <p className="text-gray-500 italic">No description available</p>;
+                              }
+                            })()}
                           </div>
+
 
                           {(() => {
                             // Calculate section numbers dynamically based on visible sections
@@ -4629,7 +4677,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                     } else {
                                       return (
                                         <div className="text-xs sm:text-sm text-gray-600 mb-2">
-                                          Min: {orderQuantity.min.toLocaleString()}, Max: {orderQuantity.max.toLocaleString()}, Multiples of: {orderQuantity.multiples.toLocaleString()}
+                                          Min: {(orderQuantity?.min || 100).toLocaleString()}, Max: {(orderQuantity?.max || 72000).toLocaleString()}, Multiples of: {(orderQuantity?.multiples || 1000).toLocaleString()}
                                         </div>
                                       );
                                     }
@@ -5433,629 +5481,637 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
             </div>
           </>
         )}
-      </div>
+      </div >
 
       {/* Payment Confirmation Modal */}
       <AnimatePresence>
-        {showPaymentModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
-            onClick={() => !isProcessingPayment && setShowPaymentModal(false)}
-          >
+        {
+          showPaymentModal && (
             <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-xl shadow-2xl max-w-md w-full p-4 sm:p-6 max-h-[90vh] overflow-y-auto"
-              data-payment-modal
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
+              onClick={() => !isProcessingPayment && setShowPaymentModal(false)}
             >
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg sm:text-xl font-bold text-gray-900 flex items-center gap-2">
-                  <CreditCard size={20} className="sm:w-6 sm:h-6" />
-                  <span className="text-base sm:text-xl">Payment Confirmation</span>
-                </h3>
-                {!isProcessingPayment && (
-                  <button
-                    onClick={() => setShowPaymentModal(false)}
-                    className="text-gray-600 hover:text-gray-900"
-                  >
-                    <X size={24} />
-                  </button>
-                )}
-              </div>
-
-              <div className="mb-6">
-                <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-700 font-medium">Subtotal (Excluding GST):</span>
-                      <span className="text-lg font-bold text-gray-900">₹{price.toFixed(2)}</span>
-                    </div>
-                    {gstAmount > 0 && (
-                      <>
-                        <div className="flex justify-between items-center text-sm">
-                          <span className="text-gray-600">GST ({selectedProduct?.gstPercentage || 18}%):</span>
-                          <span className="text-gray-700">+₹{gstAmount.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between items-center pt-2 border-t border-gray-300">
-                          <span className="text-gray-700 font-medium">Total Amount (Including GST):</span>
-                          <span className="text-2xl font-bold text-gray-900">₹{(price + gstAmount).toFixed(2)}</span>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                  <p className="text-xs text-gray-600 mt-2">
-                    Your order will be placed and you can pay later.
-                  </p>
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                onClick={(e) => e.stopPropagation()}
+                className="bg-white rounded-xl shadow-2xl max-w-md w-full p-4 sm:p-6 max-h-[90vh] overflow-y-auto"
+                data-payment-modal
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg sm:text-xl font-bold text-gray-900 flex items-center gap-2">
+                    <CreditCard size={20} className="sm:w-6 sm:h-6" />
+                    <span className="text-base sm:text-xl">Payment Confirmation</span>
+                  </h3>
+                  {!isProcessingPayment && (
+                    <button
+                      onClick={() => setShowPaymentModal(false)}
+                      className="text-gray-600 hover:text-gray-900"
+                    >
+                      <X size={24} />
+                    </button>
+                  )}
                 </div>
 
-                {paymentError && (
-                  <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 flex items-start gap-2">
-                    <AlertCircle size={20} className="text-red-600 flex-shrink-0 mt-0.5" />
-                    <p className="text-sm text-red-800">{paymentError}</p>
-                  </div>
-                )}
-
-                {/* Delivery Information Form */}
-                <div className="mb-6 space-y-4">
-                  <h4 className="font-semibold text-gray-900 text-sm mb-3 flex items-center gap-2">
-                    <Truck size={18} />
-                    Delivery Information
-                  </h4>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Full Name <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      name="customerName"
-                      id="customerName"
-                      value={customerName}
-                      onChange={(e) => {
-                        setCustomerName(e.target.value);
-                        if (paymentError) setPaymentError(null);
-                      }}
-                      placeholder="Enter your full name"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none text-sm"
-                      required
-                    />
+                <div className="mb-6">
+                  <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-700 font-medium">Subtotal (Excluding GST):</span>
+                        <span className="text-lg font-bold text-gray-900">₹{price.toFixed(2)}</span>
+                      </div>
+                      {gstAmount > 0 && (
+                        <>
+                          <div className="flex justify-between items-center text-sm">
+                            <span className="text-gray-600">GST ({selectedProduct?.gstPercentage || 18}%):</span>
+                            <span className="text-gray-700">+₹{gstAmount.toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between items-center pt-2 border-t border-gray-300">
+                            <span className="text-gray-700 font-medium">Total Amount (Including GST):</span>
+                            <span className="text-2xl font-bold text-gray-900">₹{(price + gstAmount).toFixed(2)}</span>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-600 mt-2">
+                      Your order will be placed and you can pay later.
+                    </p>
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Email <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="email"
-                      name="customerEmail"
-                      id="customerEmail"
-                      value={customerEmail}
-                      onChange={(e) => {
-                        setCustomerEmail(e.target.value);
-                        if (paymentError) setPaymentError(null);
-                      }}
-                      placeholder="Enter your email address"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none text-sm"
-                      required
-                    />
-                  </div>
+                  {paymentError && (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 flex items-start gap-2">
+                      <AlertCircle size={20} className="text-red-600 flex-shrink-0 mt-0.5" />
+                      <p className="text-sm text-red-800">{paymentError}</p>
+                    </div>
+                  )}
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Pincode <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      name="pincode"
-                      id="pincode"
-                      value={pincode}
-                      onChange={(e) => {
-                        const value = e.target.value.replace(/\D/g, '').slice(0, 6);
-                        setPincode(value);
-                        if (paymentError) setPaymentError(null);
-                      }}
-                      placeholder="Enter 6-digit pincode"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none text-sm"
-                      maxLength={6}
-                    />
-                  </div>
+                  {/* Delivery Information Form */}
+                  <div className="mb-6 space-y-4">
+                    <h4 className="font-semibold text-gray-900 text-sm mb-3 flex items-center gap-2">
+                      <Truck size={18} />
+                      Delivery Information
+                    </h4>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Complete Address <span className="text-red-500">*</span>
-                    </label>
-                    <div className="flex gap-2">
-                      <textarea
-                        name="address"
-                        id="address"
-                        value={address}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Full Name <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        name="customerName"
+                        id="customerName"
+                        value={customerName}
                         onChange={(e) => {
-                          setAddress(e.target.value);
+                          setCustomerName(e.target.value);
                           if (paymentError) setPaymentError(null);
                         }}
-                        placeholder="Enter your complete delivery address"
-                        rows={3}
-                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none text-sm resize-none"
+                        placeholder="Enter your full name"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none text-sm"
+                        required
                       />
-                      <button
-                        type="button"
-                        onClick={handleGetLocation}
-                        disabled={isGettingLocation}
-                        className="px-3 py-2 bg-purple-200 text-gray-900 rounded-lg hover:bg-indigo-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-                        title="Get location automatically"
-                      >
-                        {isGettingLocation ? (
-                          <Loader className="animate-spin" size={18} />
-                        ) : (
-                          <MapPin size={18} />
-                        )}
-                      </button>
                     </div>
-                    <p className="text-xs text-white0 mt-1">You can enter address manually or use location button</p>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Email <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="email"
+                        name="customerEmail"
+                        id="customerEmail"
+                        value={customerEmail}
+                        onChange={(e) => {
+                          setCustomerEmail(e.target.value);
+                          if (paymentError) setPaymentError(null);
+                        }}
+                        placeholder="Enter your email address"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none text-sm"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Pincode <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        name="pincode"
+                        id="pincode"
+                        value={pincode}
+                        onChange={(e) => {
+                          const value = e.target.value.replace(/\D/g, '').slice(0, 6);
+                          setPincode(value);
+                          if (paymentError) setPaymentError(null);
+                        }}
+                        placeholder="Enter 6-digit pincode"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none text-sm"
+                        maxLength={6}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Complete Address <span className="text-red-500">*</span>
+                      </label>
+                      <div className="flex gap-2">
+                        <textarea
+                          name="address"
+                          id="address"
+                          value={address}
+                          onChange={(e) => {
+                            setAddress(e.target.value);
+                            if (paymentError) setPaymentError(null);
+                          }}
+                          placeholder="Enter your complete delivery address"
+                          rows={3}
+                          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none text-sm resize-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleGetLocation}
+                          disabled={isGettingLocation}
+                          className="px-3 py-2 bg-purple-200 text-gray-900 rounded-lg hover:bg-indigo-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                          title="Get location automatically"
+                        >
+                          {isGettingLocation ? (
+                            <Loader className="animate-spin" size={18} />
+                          ) : (
+                            <MapPin size={18} />
+                          )}
+                        </button>
+                      </div>
+                      <p className="text-xs text-white0 mt-1">You can enter address manually or use location button</p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Mobile Number <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        name="mobileNumber"
+                        id="mobileNumber"
+                        value={mobileNumber}
+                        onChange={(e) => {
+                          const value = e.target.value.replace(/\D/g, '').slice(0, 10);
+                          setMobileNumber(value);
+                          if (paymentError) setPaymentError(null);
+                        }}
+                        placeholder="Enter 10-digit mobile number"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none text-sm"
+                        maxLength={10}
+                      />
+                    </div>
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Mobile Number <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      name="mobileNumber"
-                      id="mobileNumber"
-                      value={mobileNumber}
-                      onChange={(e) => {
-                        const value = e.target.value.replace(/\D/g, '').slice(0, 10);
-                        setMobileNumber(value);
-                        if (paymentError) setPaymentError(null);
-                      }}
-                      placeholder="Enter 10-digit mobile number"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none text-sm"
-                      maxLength={10}
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2 text-sm text-gray-700">
-                  <p className="font-semibold mb-2">Order Summary:</p>
-                  <div className="space-y-1 ml-4">
-                    <p>• Product: <strong>{selectedProduct?.name}</strong></p>
-                    <p>• Quantity: <strong>{quantity.toLocaleString()}</strong></p>
-                    <p>• Printing Option: <strong>{selectedPrintingOption}</strong></p>
-                    <p>• Delivery Speed: <strong>{selectedDeliverySpeed}</strong></p>
-                    {selectedTextureType && (
-                      <p>• Texture Type: <strong>{selectedTextureType}</strong></p>
-                    )}
-                  </div>
-                </div>
-
-                {/* Estimated Delivery Information - Show at checkout */}
-                {estimatedDeliveryDate && (
-                  <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-                    <h3 className="font-bold text-sm text-gray-900 mb-2 flex items-center gap-2">
-                      <Truck size={16} /> Estimated Delivery
-                    </h3>
-                    <div className="text-green-700 text-sm">
-                      <div className="font-semibold mb-1">Estimated Delivery by <strong>{estimatedDeliveryDate}</strong></div>
-                      {deliveryLocationSource && (
-                        <div className="text-xs text-green-600 mt-1">
-                          {deliveryLocationSource}
-                        </div>
+                  <div className="space-y-2 text-sm text-gray-700">
+                    <p className="font-semibold mb-2">Order Summary:</p>
+                    <div className="space-y-1 ml-4">
+                      <p>• Product: <strong>{selectedProduct?.name}</strong></p>
+                      <p>• Quantity: <strong>{quantity.toLocaleString()}</strong></p>
+                      <p>• Printing Option: <strong>{selectedPrintingOption}</strong></p>
+                      <p>• Delivery Speed: <strong>{selectedDeliverySpeed}</strong></p>
+                      {selectedTextureType && (
+                        <p>• Texture Type: <strong>{selectedTextureType}</strong></p>
                       )}
                     </div>
                   </div>
-                )}
-              </div>
 
-              <div className="flex gap-3">
-                {!isProcessingPayment && (
-                  <button
-                    onClick={() => setShowPaymentModal(false)}
-                    className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                )}
-                <button
-                  onClick={handlePaymentAndOrder}
-                  disabled={isProcessingPayment}
-                  className="flex-1 px-4 py-3 bg-gray-900 text-white rounded-lg font-semibold hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                >
-                  {isProcessingPayment ? (
-                    <>
-                      <Loader className="animate-spin" size={18} />
-                      Processing...
-                    </>
-                  ) : (
-                    <>
-                      <Check size={18} />
-                      Confirm Order ₹{(price + gstAmount).toFixed(2)}
-                    </>
+                  {/* Estimated Delivery Information - Show at checkout */}
+                  {estimatedDeliveryDate && (
+                    <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                      <h3 className="font-bold text-sm text-gray-900 mb-2 flex items-center gap-2">
+                        <Truck size={16} /> Estimated Delivery
+                      </h3>
+                      <div className="text-green-700 text-sm">
+                        <div className="font-semibold mb-1">Estimated Delivery by <strong>{estimatedDeliveryDate}</strong></div>
+                        {deliveryLocationSource && (
+                          <div className="text-xs text-green-600 mt-1">
+                            {deliveryLocationSource}
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   )}
-                </button>
-              </div>
+                </div>
+
+                <div className="flex gap-3">
+                  {!isProcessingPayment && (
+                    <button
+                      onClick={() => setShowPaymentModal(false)}
+                      className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  )}
+                  <button
+                    onClick={handlePaymentAndOrder}
+                    disabled={isProcessingPayment}
+                    className="flex-1 px-4 py-3 bg-gray-900 text-white rounded-lg font-semibold hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {isProcessingPayment ? (
+                      <>
+                        <Loader className="animate-spin" size={18} />
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        <Check size={18} />
+                        Confirm Order ₹{(price + gstAmount).toFixed(2)}
+                      </>
+                    )}
+                  </button>
+                </div>
+              </motion.div>
             </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          )
+        }
+      </AnimatePresence >
 
       {/* Full Size Image Modal */}
       <AnimatePresence>
-        {isImageModalOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
-            onClick={() => setIsImageModalOpen(false)}
-          >
+        {
+          isImageModalOpen && (
             <motion.div
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.8, opacity: 0 }}
-              className="relative max-w-7xl max-h-[90vh] w-full h-full flex items-center justify-center p-4"
-              onClick={(e) => e.stopPropagation()}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
+              onClick={() => setIsImageModalOpen(false)}
             >
-              <div
-                style={{
-                  maxWidth: '90%',
-                  maxHeight: '90%',
-                  width: 'auto',
-                  height: 'auto',
-                  position: 'relative',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}
+              <motion.div
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.8, opacity: 0 }}
+                className="relative max-w-7xl max-h-[90vh] w-full h-full flex items-center justify-center p-4"
+                onClick={(e) => e.stopPropagation()}
               >
-                <img
-                  src={selectedSubCategory?.image || "/Glossy.png"}
-                  alt={selectedSubCategory?.name || "Product Preview"}
-                  className="w-full h-full object-contain"
+                <div
                   style={{
-                    maxWidth: '100%',
-                    maxHeight: '90vh',
+                    maxWidth: '90%',
+                    maxHeight: '90%',
                     width: 'auto',
                     height: 'auto',
+                    position: 'relative',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
                   }}
-                />
-              </div>
-              <button
-                onClick={() => setIsImageModalOpen(false)}
-                className="absolute top-4 right-4 bg-white/10 hover:bg-white/20 text-white rounded-full p-2 backdrop-blur-sm transition-colors z-50"
-                aria-label="Close image"
-              >
-                <X size={24} />
-              </button>
+                >
+                  <img
+                    src={selectedSubCategory?.image || "/Glossy.png"}
+                    alt={selectedSubCategory?.name || "Product Preview"}
+                    className="w-full h-full object-contain"
+                    style={{
+                      maxWidth: '100%',
+                      maxHeight: '90vh',
+                      width: 'auto',
+                      height: 'auto',
+                    }}
+                  />
+                </div>
+                <button
+                  onClick={() => setIsImageModalOpen(false)}
+                  className="absolute top-4 right-4 bg-white/10 hover:bg-white/20 text-white rounded-full p-2 backdrop-blur-sm transition-colors z-50"
+                  aria-label="Close image"
+                >
+                  <X size={24} />
+                </button>
+              </motion.div>
             </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          )
+        }
+      </AnimatePresence >
 
       {/* RADIO Attribute Selection Modal */}
       <AnimatePresence>
-        {radioModalOpen && radioModalData && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
-            onClick={() => setRadioModalOpen(false)}
-          >
+        {
+          radioModalOpen && radioModalData && (
             <motion.div
-              initial={{ scale: 0.95, opacity: 0, y: 20 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.95, opacity: 0, y: 20 }}
-              transition={{ type: "spring", duration: 0.3 }}
-              className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col"
-              onClick={(e) => e.stopPropagation()}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+              onClick={() => setRadioModalOpen(false)}
             >
-              {/* Modal Header */}
-              <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100 flex items-center justify-between">
-                <div>
-                  <h2 className="text-xl font-bold text-gray-900">
-                    Select {radioModalData.attributeName}
-                  </h2>
-                  {radioModalData.isRequired && (
-                    <p className="text-xs text-red-500 mt-1">Required field</p>
-                  )}
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0, y: 20 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.95, opacity: 0, y: 20 }}
+                transition={{ type: "spring", duration: 0.3 }}
+                className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Modal Header */}
+                <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100 flex items-center justify-between">
+                  <div>
+                    <h2 className="text-xl font-bold text-gray-900">
+                      Select {radioModalData.attributeName}
+                    </h2>
+                    {radioModalData.isRequired && (
+                      <p className="text-xs text-red-500 mt-1">Required field</p>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => setRadioModalOpen(false)}
+                    className="p-2 hover:bg-purple-200 rounded-full transition-colors"
+                    aria-label="Close modal"
+                  >
+                    <X size={20} className="text-gray-700" />
+                  </button>
                 </div>
-                <button
-                  onClick={() => setRadioModalOpen(false)}
-                  className="p-2 hover:bg-purple-200 rounded-full transition-colors"
-                  aria-label="Close modal"
-                >
-                  <X size={20} className="text-gray-700" />
-                </button>
-              </div>
 
-              {/* Modal Content - Scrollable */}
-              <div className="flex-1 overflow-y-auto p-4">
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 justify-items-center">
-                  {radioModalData.attributeValues.map((av) => {
-                    // Format price display as per unit price
-                    const getPriceDisplay = () => {
-                      // Check for priceImpact first (new format with option usage)
-                      if (av.description) {
-                        const priceImpactMatch = av.description.match(/Price Impact: ₹([\d.]+)/);
-                        if (priceImpactMatch) {
-                          const priceImpact = parseFloat(priceImpactMatch[1]) || 0;
-                          if (priceImpact > 0) {
-                            return `+₹${priceImpact.toFixed(2)}/unit`;
+                {/* Modal Content - Scrollable */}
+                <div className="flex-1 overflow-y-auto p-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 justify-items-center">
+                    {radioModalData.attributeValues.map((av) => {
+                      // Format price display as per unit price
+                      const getPriceDisplay = () => {
+                        // Check for priceImpact first (new format with option usage)
+                        if (av.description) {
+                          const priceImpactMatch = av.description.match(/Price Impact: ₹([\d.]+)/);
+                          if (priceImpactMatch) {
+                            const priceImpact = parseFloat(priceImpactMatch[1]) || 0;
+                            if (priceImpact > 0) {
+                              return `+₹${priceImpact.toFixed(2)}/unit`;
+                            }
                           }
                         }
-                      }
-                      // Fall back to priceMultiplier calculation
-                      if (!av.priceMultiplier || av.priceMultiplier === 1 || !selectedProduct) return null;
-                      const basePrice = selectedProduct.basePrice || 0;
-                      const pricePerUnit = basePrice * (av.priceMultiplier - 1);
-                      if (Math.abs(pricePerUnit) < 0.01) return null;
-                      return `+₹${pricePerUnit.toFixed(2)}/unit`;
-                    };
+                        // Fall back to priceMultiplier calculation
+                        if (!av.priceMultiplier || av.priceMultiplier === 1 || !selectedProduct) return null;
+                        const basePrice = selectedProduct.basePrice || 0;
+                        const pricePerUnit = basePrice * (av.priceMultiplier - 1);
+                        if (Math.abs(pricePerUnit) < 0.01) return null;
+                        return `+₹${pricePerUnit.toFixed(2)}/unit`;
+                      };
 
-                    const isSelected = radioModalData.selectedValue === av.value;
+                      const isSelected = radioModalData.selectedValue === av.value;
 
-                    // Check if this value has sub-attributes available in PDP data
-                    const valueSubAttributesKey = `${radioModalData.attributeId}:${av.value}`;
-                    const valueSubAttributes = pdpSubAttributes[valueSubAttributesKey] || [];
+                      // Check if this value has sub-attributes available in PDP data
+                      const valueSubAttributesKey = `${radioModalData.attributeId}:${av.value}`;
+                      const valueSubAttributes = pdpSubAttributes[valueSubAttributesKey] || [];
 
-                    return (
-                      <motion.button
-                        key={av.value}
-                        type="button"
-                        onClick={() => {
-                          // Select main attribute value
-                          const newSelected = {
-                            ...selectedDynamicAttributes,
-                            [radioModalData.attributeId]: av.value
-                          };
-                          setSelectedDynamicAttributes(newSelected);
+                      return (
+                        <motion.button
+                          key={av.value}
+                          type="button"
+                          onClick={() => {
+                            // Select main attribute value
+                            const newSelected = {
+                              ...selectedDynamicAttributes,
+                              [radioModalData.attributeId]: av.value
+                            };
+                            setSelectedDynamicAttributes(newSelected);
 
-                          // Mark this attribute as user-selected for image updates (preserved order)
-                          setUserSelectedAttributes(prev => {
-                            const next = new Set(prev);
-                            next.delete(radioModalData.attributeId);
-                            next.add(radioModalData.attributeId);
-                            return next;
-                          });
-
-                          // If this value has sub-attributes, open sub-attribute modal
-                          if (valueSubAttributes.length > 0) {
-                            const subAttrKey = `${radioModalData.attributeId}__${av.value}`;
-                            const existingSubValue = (newSelected[subAttrKey] as string) || null;
-                            setSubAttrModalData({
-                              attributeId: radioModalData.attributeId,
-                              parentValue: av.value,
-                              parentLabel: av.label,
-                              subAttributes: valueSubAttributes,
-                              selectedValue: existingSubValue,
+                            // Mark this attribute as user-selected for image updates (preserved order)
+                            setUserSelectedAttributes(prev => {
+                              const next = new Set(prev);
+                              next.delete(radioModalData.attributeId);
+                              next.add(radioModalData.attributeId);
+                              return next;
                             });
-                            setSubAttrModalOpen(true);
-                          }
 
-                          // Close main radio modal
-                          setRadioModalOpen(false);
-                        }}
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        className={`relative p-2 rounded-lg border-2 text-left transition-all duration-200 flex flex-col w-[140px] h-[140px] overflow-hidden ${isSelected
-                          ? "border-gray-900 bg-gray-50 text-gray-900 ring-2 ring-gray-900 ring-offset-1"
-                          : "border-gray-200 text-gray-700 hover:border-gray-400 hover:bg-gray-50 hover:shadow-md"
-                          }`}
-                      >
-                        {isSelected && (
-                          <motion.div
-                            initial={{ scale: 0 }}
-                            animate={{ scale: 1 }}
-                            className="absolute top-1.5 right-1.5 bg-gray-900 text-white rounded-full p-1 shadow-lg z-10"
-                          >
-                            <Check size={12} />
-                          </motion.div>
-                        )}
+                            // If this value has sub-attributes, open sub-attribute modal
+                            if (valueSubAttributes.length > 0) {
+                              const subAttrKey = `${radioModalData.attributeId}__${av.value}`;
+                              const existingSubValue = (newSelected[subAttrKey] as string) || null;
+                              setSubAttrModalData({
+                                attributeId: radioModalData.attributeId,
+                                parentValue: av.value,
+                                parentLabel: av.label,
+                                subAttributes: valueSubAttributes,
+                                selectedValue: existingSubValue,
+                              });
+                              setSubAttrModalOpen(true);
+                            }
 
-                        {av.image && (
-                          <div className="mb-1.5 overflow-hidden rounded border border-gray-200 bg-gray-50 flex-shrink-0">
-                            <img
-                              src={av.image}
-                              alt={av.label}
-                              className="w-full h-[70px] object-cover transition-transform duration-200 hover:scale-105"
-                            />
-                          </div>
-                        )}
-
-                        <div className="space-y-1 flex-1 flex flex-col min-h-0">
-                          <div className="font-semibold text-xs text-gray-900 leading-tight line-clamp-2">
-                            {av.label}
-                          </div>
-
-                          {av.description && (
-                            <p className="text-[10px] text-gray-600 line-clamp-2 leading-tight">
-                              {av.description}
-                            </p>
+                            // Close main radio modal
+                            setRadioModalOpen(false);
+                          }}
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                          className={`relative p-2 rounded-lg border-2 text-left transition-all duration-200 flex flex-col w-[140px] h-[140px] overflow-hidden ${isSelected
+                            ? "border-gray-900 bg-gray-50 text-gray-900 ring-2 ring-gray-900 ring-offset-1"
+                            : "border-gray-200 text-gray-700 hover:border-gray-400 hover:bg-gray-50 hover:shadow-md"
+                            }`}
+                        >
+                          {isSelected && (
+                            <motion.div
+                              initial={{ scale: 0 }}
+                              animate={{ scale: 1 }}
+                              className="absolute top-1.5 right-1.5 bg-gray-900 text-white rounded-full p-1 shadow-lg z-10"
+                            >
+                              <Check size={12} />
+                            </motion.div>
                           )}
 
-                          {getPriceDisplay() && (
-                            <div className="mt-auto pt-1 border-t border-gray-200 text-[10px] font-semibold text-gray-700 leading-tight">
-                              {getPriceDisplay()}
+                          {av.image && (
+                            <div className="mb-1.5 overflow-hidden rounded border border-gray-200 bg-gray-50 flex-shrink-0">
+                              <img
+                                src={av.image}
+                                alt={av.label}
+                                className="w-full h-[70px] object-cover transition-transform duration-200 hover:scale-105"
+                              />
                             </div>
                           )}
-                        </div>
-                      </motion.button>
-                    );
-                  })}
-                </div>
-              </div>
 
-              {/* Modal Footer */}
-              <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
-                <div className="text-sm text-gray-600">
-                  {radioModalData.selectedValue ? (
-                    <span>
-                      Selected: <span className="font-semibold text-gray-900">
-                        {radioModalData.attributeValues.find(av => av.value === radioModalData.selectedValue)?.label}
-                      </span>
-                    </span>
-                  ) : (
-                    <span>Please select an option</span>
-                  )}
+                          <div className="space-y-1 flex-1 flex flex-col min-h-0">
+                            <div className="font-semibold text-xs text-gray-900 leading-tight line-clamp-2">
+                              {av.label}
+                            </div>
+
+                            {av.description && (
+                              <p className="text-[10px] text-gray-600 line-clamp-2 leading-tight">
+                                {av.description}
+                              </p>
+                            )}
+
+                            {getPriceDisplay() && (
+                              <div className="mt-auto pt-1 border-t border-gray-200 text-[10px] font-semibold text-gray-700 leading-tight">
+                                {getPriceDisplay()}
+                              </div>
+                            )}
+                          </div>
+                        </motion.button>
+                      );
+                    })}
+                  </div>
                 </div>
-                <button
-                  onClick={() => setRadioModalOpen(false)}
-                  className="px-6 py-2 bg-gray-900 text-white rounded-lg font-semibold hover:bg-gray-800 transition-colors"
-                >
-                  {radioModalData.selectedValue ? 'Done' : 'Cancel'}
-                </button>
-              </div>
+
+                {/* Modal Footer */}
+                <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
+                  <div className="text-sm text-gray-600">
+                    {radioModalData.selectedValue ? (
+                      <span>
+                        Selected: <span className="font-semibold text-gray-900">
+                          {radioModalData.attributeValues.find(av => av.value === radioModalData.selectedValue)?.label}
+                        </span>
+                      </span>
+                    ) : (
+                      <span>Please select an option</span>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => setRadioModalOpen(false)}
+                    className="px-6 py-2 bg-gray-900 text-white rounded-lg font-semibold hover:bg-gray-800 transition-colors"
+                  >
+                    {radioModalData.selectedValue ? 'Done' : 'Cancel'}
+                  </button>
+                </div>
+              </motion.div>
             </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          )
+        }
+      </AnimatePresence >
 
       {/* Sub-Attribute Selection Modal (for RADIO values with sub-attributes) */}
       <AnimatePresence>
-        {subAttrModalOpen && subAttrModalData && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
-            onClick={() => setSubAttrModalOpen(false)}
-          >
+        {
+          subAttrModalOpen && subAttrModalData && (
             <motion.div
-              initial={{ scale: 0.95, opacity: 0, y: 20 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.95, opacity: 0, y: 20 }}
-              transition={{ type: "spring", duration: 0.3 }}
-              className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[80vh] overflow-hidden flex flex-col"
-              onClick={(e) => e.stopPropagation()}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+              onClick={() => setSubAttrModalOpen(false)}
             >
-              {/* Header */}
-              <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100 flex items-center justify-between">
-                <div>
-                  <h2 className="text-lg font-bold text-gray-900">
-                    Select {subAttrModalData.parentLabel} Option
-                  </h2>
-                  <p className="text-xs text-gray-600 mt-1">
-                    Additional options related to {subAttrModalData.parentLabel}
-                  </p>
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0, y: 20 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.95, opacity: 0, y: 20 }}
+                transition={{ type: "spring", duration: 0.3 }}
+                className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[80vh] overflow-hidden flex flex-col"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Header */}
+                <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100 flex items-center justify-between">
+                  <div>
+                    <h2 className="text-lg font-bold text-gray-900">
+                      Select {subAttrModalData.parentLabel} Option
+                    </h2>
+                    <p className="text-xs text-gray-600 mt-1">
+                      Additional options related to {subAttrModalData.parentLabel}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setSubAttrModalOpen(false)}
+                    className="p-2 hover:bg-purple-200 rounded-full transition-colors"
+                    aria-label="Close sub-attribute modal"
+                  >
+                    <X size={18} className="text-gray-700" />
+                  </button>
                 </div>
-                <button
-                  onClick={() => setSubAttrModalOpen(false)}
-                  className="p-2 hover:bg-purple-200 rounded-full transition-colors"
-                  aria-label="Close sub-attribute modal"
-                >
-                  <X size={18} className="text-gray-700" />
-                </button>
-              </div>
 
-              {/* Content */}
-              <div className="flex-1 overflow-y-auto p-4">
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 justify-items-center">
-                  {subAttrModalData.subAttributes.map((subAttr) => {
-                    const getSubAttrPriceDisplay = () => {
-                      if (!subAttr.priceAdd || subAttr.priceAdd === 0) return null;
-                      return `+₹${subAttr.priceAdd.toFixed(2)}/piece`;
-                    };
+                {/* Content */}
+                <div className="flex-1 overflow-y-auto p-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 justify-items-center">
+                    {subAttrModalData.subAttributes.map((subAttr) => {
+                      const getSubAttrPriceDisplay = () => {
+                        if (!subAttr.priceAdd || subAttr.priceAdd === 0) return null;
+                        return `+₹${subAttr.priceAdd.toFixed(2)}/piece`;
+                      };
 
-                    const subAttrKey = `${subAttrModalData.attributeId}__${subAttrModalData.parentValue}`;
-                    const isSelected = selectedDynamicAttributes[subAttrKey] === subAttr.value;
+                      const subAttrKey = `${subAttrModalData.attributeId}__${subAttrModalData.parentValue}`;
+                      const isSelected = selectedDynamicAttributes[subAttrKey] === subAttr.value;
 
-                    return (
-                      <motion.button
-                        key={subAttr._id}
-                        type="button"
-                        onClick={() => {
-                          setSelectedDynamicAttributes((prev) => ({
-                            ...prev,
-                            [subAttrKey]: subAttr.value,
-                          }));
-                          setSubAttrModalData({
-                            ...subAttrModalData,
-                            selectedValue: subAttr.value,
-                          });
-                          // Mark the parent attribute as user-selected for image updates (preserved order)
-                          setUserSelectedAttributes(prev => {
-                            const next = new Set(prev);
-                            next.delete(subAttrModalData.attributeId);
-                            next.add(subAttrModalData.attributeId);
-                            return next;
-                          });
-                        }}
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        className={`relative p-2 rounded-lg border-2 text-left transition-all duration-200 flex flex-col w-[140px] h-[140px] overflow-hidden ${isSelected
-                          ? "border-gray-900 bg-gray-50 text-gray-900 ring-2 ring-gray-900 ring-offset-1"
-                          : "border-gray-200 text-gray-700 hover:border-gray-400 hover:bg-gray-50 hover:shadow-md"
-                          }`}
-                      >
-                        {isSelected && (
-                          <motion.div
-                            initial={{ scale: 0 }}
-                            animate={{ scale: 1 }}
-                            className="absolute top-1.5 right-1.5 bg-gray-900 text-white rounded-full p-1 shadow-lg z-10"
-                          >
-                            <Check size={12} />
-                          </motion.div>
-                        )}
+                      return (
+                        <motion.button
+                          key={subAttr._id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedDynamicAttributes((prev) => ({
+                              ...prev,
+                              [subAttrKey]: subAttr.value,
+                            }));
+                            setSubAttrModalData({
+                              ...subAttrModalData,
+                              selectedValue: subAttr.value,
+                            });
+                            // Mark the parent attribute as user-selected for image updates (preserved order)
+                            setUserSelectedAttributes(prev => {
+                              const next = new Set(prev);
+                              next.delete(subAttrModalData.attributeId);
+                              next.add(subAttrModalData.attributeId);
+                              return next;
+                            });
+                          }}
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                          className={`relative p-2 rounded-lg border-2 text-left transition-all duration-200 flex flex-col w-[140px] h-[140px] overflow-hidden ${isSelected
+                            ? "border-gray-900 bg-gray-50 text-gray-900 ring-2 ring-gray-900 ring-offset-1"
+                            : "border-gray-200 text-gray-700 hover:border-gray-400 hover:bg-gray-50 hover:shadow-md"
+                            }`}
+                        >
+                          {isSelected && (
+                            <motion.div
+                              initial={{ scale: 0 }}
+                              animate={{ scale: 1 }}
+                              className="absolute top-1.5 right-1.5 bg-gray-900 text-white rounded-full p-1 shadow-lg z-10"
+                            >
+                              <Check size={12} />
+                            </motion.div>
+                          )}
 
-                        {subAttr.image && (
-                          <div className="mb-1.5 overflow-hidden rounded border border-gray-200 bg-gray-50 flex-shrink-0">
-                            <img
-                              src={subAttr.image}
-                              alt={subAttr.label}
-                              className="w-full h-[70px] object-cover transition-transform duration-200 hover:scale-105"
-                            />
-                          </div>
-                        )}
-
-                        <div className="space-y-1 flex-1 flex flex-col min-h-0">
-                          <div className="font-semibold text-xs text-gray-900 leading-tight line-clamp-2">
-                            {subAttr.label}
-                          </div>
-
-                          {getSubAttrPriceDisplay() && (
-                            <div className="mt-auto pt-1 border-t border-gray-200 text-[10px] font-semibold text-gray-700 leading-tight">
-                              {getSubAttrPriceDisplay()}
+                          {subAttr.image && (
+                            <div className="mb-1.5 overflow-hidden rounded border border-gray-200 bg-gray-50 flex-shrink-0">
+                              <img
+                                src={subAttr.image}
+                                alt={subAttr.label}
+                                className="w-full h-[70px] object-cover transition-transform duration-200 hover:scale-105"
+                              />
                             </div>
                           )}
-                        </div>
-                      </motion.button>
-                    );
-                  })}
-                </div>
-              </div>
 
-              {/* Footer */}
-              <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
-                <div className="text-sm text-gray-600">
-                  {subAttrModalData.selectedValue ? (
-                    <span>
-                      Selected:{" "}
-                      <span className="font-semibold text-gray-900">
-                        {subAttrModalData.subAttributes.find(
-                          (s) => s.value === subAttrModalData.selectedValue
-                        )?.label}
-                      </span>
-                    </span>
-                  ) : (
-                    <span>Sub-option is optional</span>
-                  )}
+                          <div className="space-y-1 flex-1 flex flex-col min-h-0">
+                            <div className="font-semibold text-xs text-gray-900 leading-tight line-clamp-2">
+                              {subAttr.label}
+                            </div>
+
+                            {getSubAttrPriceDisplay() && (
+                              <div className="mt-auto pt-1 border-t border-gray-200 text-[10px] font-semibold text-gray-700 leading-tight">
+                                {getSubAttrPriceDisplay()}
+                              </div>
+                            )}
+                          </div>
+                        </motion.button>
+                      );
+                    })}
+                  </div>
                 </div>
-                <button
-                  onClick={() => setSubAttrModalOpen(false)}
-                  className="px-6 py-2 bg-gray-900 text-white rounded-lg font-semibold hover:bg-gray-800 transition-colors"
-                >
-                  Done
-                </button>
-              </div>
+
+                {/* Footer */}
+                <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
+                  <div className="text-sm text-gray-600">
+                    {subAttrModalData.selectedValue ? (
+                      <span>
+                        Selected:{" "}
+                        <span className="font-semibold text-gray-900">
+                          {subAttrModalData.subAttributes.find(
+                            (s) => s.value === subAttrModalData.selectedValue
+                          )?.label}
+                        </span>
+                      </span>
+                    ) : (
+                      <span>Sub-option is optional</span>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => setSubAttrModalOpen(false)}
+                    className="px-6 py-2 bg-gray-900 text-white rounded-lg font-semibold hover:bg-gray-800 transition-colors"
+                  >
+                    Done
+                  </button>
+                </div>
+              </motion.div>
             </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          )
+        }
+      </AnimatePresence >
     </div >
   );
 };

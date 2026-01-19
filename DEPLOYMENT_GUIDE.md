@@ -41,14 +41,14 @@ Store sensitive environment variables as secrets:
 
 ```bash
 # Create secrets for sensitive data
-echo -n "your-mongo-uri" | gcloud secrets create MONGO_URI --data-file=-
+echo -n "your-mongo-uri" | gcloud secrets create MONGO_TEST_URI --data-file=-
 echo -n "your-jwt-secret" | gcloud secrets create JWT_SECRET --data-file=-
 echo -n "your-cloudinary-cloud-name" | gcloud secrets create CLOUDINARY_CLOUD_NAME --data-file=-
 echo -n "your-cloudinary-api-key" | gcloud secrets create CLOUDINARY_API_KEY --data-file=-
 echo -n "your-cloudinary-api-secret" | gcloud secrets create CLOUDINARY_API_SECRET --data-file=-
 
 # Grant Cloud Run access to secrets
-gcloud secrets add-iam-policy-binding MONGO_URI \
+gcloud secrets add-iam-policy-binding MONGO_TEST_URI \
   --member="serviceAccount:PROJECT_NUMBER-compute@developer.gserviceaccount.com" \
   --role="roles/secretmanager.secretAccessor"
 
@@ -73,7 +73,7 @@ Create `server/.env` for local development:
 ```env
 PORT=5000
 NODE_ENV=development
-MONGO_URI=your-mongodb-connection-string
+MONGO_TEST_URI=your-mongodb-connection-string
 JWT_SECRET=your-strong-jwt-secret
 CLOUDINARY_CLOUD_NAME=your-cloud-name
 CLOUDINARY_API_KEY=your-api-key
@@ -115,7 +115,7 @@ docker build -t print24-app:test .
 
 # Run locally
 docker run -p 8080:8080 \
-  -e MONGO_URI=your-mongo-uri \
+  -e MONGO_TEST_URI=your-mongo-uri \
   -e JWT_SECRET=your-jwt-secret \
   print24-app:test
 
@@ -174,7 +174,7 @@ gcloud run deploy ${SERVICE_NAME} \
   --min-instances 0 \
   --max-instances 10 \
   --set-env-vars="NODE_ENV=production,PORT=8080" \
-  --set-secrets="MONGO_URI=MONGO_URI:latest,JWT_SECRET=JWT_SECRET:latest,CLOUDINARY_CLOUD_NAME=CLOUDINARY_CLOUD_NAME:latest,CLOUDINARY_API_KEY=CLOUDINARY_API_KEY:latest,CLOUDINARY_API_SECRET=CLOUDINARY_API_SECRET:latest"
+  --set-secrets="MONGO_TEST_URI=MONGO_TEST_URI:latest,JWT_SECRET=JWT_SECRET:latest,CLOUDINARY_CLOUD_NAME=CLOUDINARY_CLOUD_NAME:latest,CLOUDINARY_API_KEY=CLOUDINARY_API_KEY:latest,CLOUDINARY_API_SECRET=CLOUDINARY_API_SECRET:latest"
 ```
 
 ## Step 7: Access Your Application
