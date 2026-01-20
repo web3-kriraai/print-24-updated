@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import './ServicesMorph.css';
 import * as Icons from 'lucide-react';
-import { useLogo } from '../hooks/useSiteSettings';
+import { useLogo, useScrollSettings, useFontSettings } from '../hooks/useSiteSettings';
 
 import type { Service } from '../types/serviceTypes';
 
@@ -15,7 +15,25 @@ const ServicesMorph: React.FC<ServicesMorphProps> = ({ onServiceSelect, services
     const [hasMorphed, setHasMorphed] = useState(false);
     const stickyBarRef = useRef<HTMLDivElement>(null);
     const gridContainerRef = useRef<HTMLDivElement>(null);
+    const navLinksRef = useRef<HTMLDivElement>(null);
     const { logo } = useLogo();
+    const { scrollSettings } = useScrollSettings();
+    const { fontSettings } = useFontSettings();
+
+    // Auto-scroll nav links to show selected service
+    useEffect(() => {
+        if (selectedServiceId && navLinksRef.current) {
+            const activeButton = navLinksRef.current.querySelector(`[data-target="${selectedServiceId}"]`) as HTMLElement;
+            if (activeButton) {
+                // Scroll the button into view with smooth animation
+                activeButton.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'nearest',
+                    inline: 'center'
+                });
+            }
+        }
+    }, [selectedServiceId]);
 
     // Icon mapping based on service name or explicit icon field
     const getServiceIcon = (service: Service): any => {
@@ -54,76 +72,70 @@ const ServicesMorph: React.FC<ServicesMorphProps> = ({ onServiceSelect, services
         return Icons.Printer; // Default
     };
 
-    // Track user interaction for auto-scroll behavior
+    // Track user interaction for page load scroll
     const userInteractedRef = useRef(false);
-    const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
-
-    // Reset inactivity timer
-    const resetInactivityTimer = () => {
-        if (inactivityTimerRef.current) {
-            clearTimeout(inactivityTimerRef.current);
-        }
-
-        // Set new 2-minute inactivity timer
-        inactivityTimerRef.current = setTimeout(() => {
-            // After 2 minutes of inactivity, scroll to banner
-            if (hasMorphed) {
-                scrollToBanner();
-            }
-        }, 120000); // 2 minutes = 120000ms
-    };
 
     useEffect(() => {
         const handleScroll = () => {
             userInteractedRef.current = true; // Mark as interacted on scroll
-            resetInactivityTimer(); // Reset the 2-minute timer
+
+            // Only trigger morph if sticky nav is enabled
+            if (!scrollSettings.stickyNavEnabled) return;
 
             const triggerPoint = 200; // Fixed scroll amount to trigger animation
 
             if (window.scrollY > triggerPoint && !hasMorphed) {
                 triggerMorph();
                 setHasMorphed(true);
-                // Auto-scroll to banner when morph triggers
-                scrollToBanner();
+                // Auto-scroll to banner when morph triggers (if enabled)
+                if (scrollSettings.scrollToTopOnNavClick) {
+                    scrollToBanner();
+                }
             } else if (window.scrollY < triggerPoint && hasMorphed) {
                 resetMorph();
                 setHasMorphed(false);
             }
         };
 
-        const handleClick = () => {
-            resetInactivityTimer(); // Reset the 2-minute timer on any click
-        };
-
         window.addEventListener('scroll', handleScroll);
-        window.addEventListener('click', handleClick);
-
-        // Start the initial inactivity timer
-        resetInactivityTimer();
 
         return () => {
             window.removeEventListener('scroll', handleScroll);
-            window.removeEventListener('click', handleClick);
-            if (inactivityTimerRef.current) {
-                clearTimeout(inactivityTimerRef.current);
-            }
         };
     }, [hasMorphed]);
 
     // Initial auto-scroll timer effect
     useEffect(() => {
+        // Skip if page auto-scroll is disabled OR if settings haven't loaded yet
+        if (scrollSettings.pageAutoScrollEnabled === false) {
+            console.log('[Auto-Scroll] Disabled by user');
+            return;
+        }
+        
+        // Only proceed if explicitly enabled (true) or using default (undefined = true)
+        if (scrollSettings.pageAutoScrollEnabled !== true && scrollSettings.pageAutoScrollEnabled !== undefined) {
+            console.log('[Auto-Scroll] Not enabled, skipping');
+            return;
+        }
+
+        console.log('[Auto-Scroll] Enabled, setting timer with delay:', scrollSettings.pageAutoScrollDelay || 2000);
+        
         const timer = setTimeout(() => {
             // Only auto-scroll if user hasn't scrolled manually yet and we are at the top
             if (!userInteractedRef.current && window.scrollY < 50) {
+                const scrollAmount = scrollSettings.pageAutoScrollAmount || 250;
+                console.log('[Auto-Scroll] Executing scroll to:', scrollAmount);
                 window.scrollTo({
-                    top: 250, // Enough to trigger the 200px threshold
+                    top: scrollAmount,
                     behavior: 'smooth'
                 });
+            } else {
+                console.log('[Auto-Scroll] Skipped - user already interacted or page not at top');
             }
-        }, 2000);
+        }, scrollSettings.pageAutoScrollDelay || 2000);
 
         return () => clearTimeout(timer);
-    }, []);
+    }, [scrollSettings.pageAutoScrollEnabled, scrollSettings.pageAutoScrollDelay, scrollSettings.pageAutoScrollAmount]);
 
     const triggerMorph = () => {
         if (!stickyBarRef.current || !gridContainerRef.current) return;
@@ -236,7 +248,7 @@ const ServicesMorph: React.FC<ServicesMorphProps> = ({ onServiceSelect, services
 
                 window.scrollTo({
                     top: targetScroll,
-                    behavior: 'smooth'
+                    behavior: scrollSettings.smoothScrollEnabled ? 'smooth' : 'auto'
                 });
             }
         }, 100);
@@ -244,7 +256,8 @@ const ServicesMorph: React.FC<ServicesMorphProps> = ({ onServiceSelect, services
 
     return (
         <div className="services-morph-container">
-            {/* Sticky Sub Nav */}
+            {/* Sticky Sub Nav - Only render if enabled in admin settings */}
+            {scrollSettings.stickyNavEnabled && (
             <div className="sticky-sub-nav" id="stickyBar" ref={stickyBarRef}>
                 {/* Logo on the left */}
                 <div className="sticky-nav-logo-container">
@@ -252,7 +265,7 @@ const ServicesMorph: React.FC<ServicesMorphProps> = ({ onServiceSelect, services
                 </div>
 
                 {/* Service Links */}
-                <div className="sticky-nav-links" style={{ gap: '12px', padding: '8px 16px' }}>
+                <div className="sticky-nav-links" ref={navLinksRef} style={{ gap: '8px', padding: '8px 12px' }}>
                     {services.map(service => {
                         const Icon = getServiceIcon(service);
                         const isActive = selectedServiceId === service._id;
@@ -264,28 +277,29 @@ const ServicesMorph: React.FC<ServicesMorphProps> = ({ onServiceSelect, services
                                 style={{ 
                                     backgroundColor: isActive ? '#ffffff' : service.color,
                                     color: isActive ? service.color : '#ffffff',
-                                    borderRadius: '50px',
-                                    padding: '10px 24px',
-                                    margin: '0 4px',
+                                    borderRadius: '6px',
+                                    padding: '8px 12px',
+                                    margin: '0 2px',
                                     boxShadow: isActive 
                                         ? `0 4px 15px ${service.color}40, inset 0 0 0 2px ${service.color}` 
                                         : `0 2px 8px ${service.color}30`,
                                     transform: isActive ? 'scale(1.05)' : 'scale(1)',
                                     transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                                    fontWeight: isActive ? '700' : '600',
-                                    letterSpacing: '0.5px',
-                                    textTransform: 'uppercase' as const,
-                                    fontSize: '0.75rem',
+                                    fontWeight: fontSettings.navbarNameFontWeight || '600',
+                                    letterSpacing: '0.3px',
+                                    fontSize: fontSettings.navbarNameFontSize || '0.85rem',
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
-                                    flex: 'none',
-                                    whiteSpace: 'nowrap' as const,
+                                    gap: '6px',
+                                    textWrap: 'nowrap',
+                                    minWidth: '140px',
+                                    maxWidth: '160px',
+                                    flex: '0 0 auto'
                                 }}
                                 data-target={service._id}
                                 onClick={(e) => {
                                     e.preventDefault();
-                                    resetInactivityTimer(); // Reset timer on service selection
                                     if (onServiceSelect) {
                                         onServiceSelect(service._id);
                                         scrollToBanner();
@@ -304,13 +318,14 @@ const ServicesMorph: React.FC<ServicesMorphProps> = ({ onServiceSelect, services
                                     }
                                 }}
                             >
-                                <Icon size={18} style={{ marginRight: '10px' }} />
-                                {service.name}
+                                <Icon size={16} style={{ marginRight: '6px' }} />
+                                {service.navbarName || service.name}
                             </a>
                         );
                     })}
                 </div>
             </div>
+            )}
 
             <div className="hero-wrapper">
                 <h1 className="hero-title py-5">OUR SERVICES</h1>
@@ -323,7 +338,6 @@ const ServicesMorph: React.FC<ServicesMorphProps> = ({ onServiceSelect, services
                             style={{ backgroundColor: service.color }}
                             data-target={service._id}
                             onClick={() => {
-                                resetInactivityTimer(); // Reset timer on card click
                                 // Update the selected service first
                                 if (onServiceSelect) {
                                     onServiceSelect(service._id);
@@ -331,9 +345,33 @@ const ServicesMorph: React.FC<ServicesMorphProps> = ({ onServiceSelect, services
                                 }
                             }}
                         >
-                            <span className="card-intro">We Offer...</span>
-                            <h3 className="card-title text-white">{service.name}</h3>
-                            <p className="card-desc text-white/90">{service.description}</p>
+                            <span 
+                                className="card-intro"
+                                style={{
+                                    fontSize: fontSettings.cardIntroFontSize,
+                                    fontWeight: fontSettings.cardIntroFontWeight
+                                }}
+                            >
+                                We Offer...
+                            </span>
+                            <h3 
+                                className="card-title text-white"
+                                style={{
+                                    fontSize: fontSettings.cardTitleFontSize,
+                                    fontWeight: fontSettings.cardTitleFontWeight
+                                }}
+                            >
+                                {service.name}
+                            </h3>
+                            <p 
+                                className="card-desc text-white/90"
+                                style={{
+                                    fontSize: fontSettings.cardDescFontSize,
+                                    fontWeight: fontSettings.cardDescFontWeight
+                                }}
+                            >
+                                {service.description}
+                            </p>
                         </div>
                     ))}
                 </div>

@@ -42,6 +42,12 @@ const serviceSchema = new mongoose.Schema({
         trim: true,
         unique: true
     },
+    // Custom name for navbar (optional)
+    navbarName: {
+        type: String,
+        default: '',
+        trim: true
+    },
     description: {
         type: String,
         required: true,

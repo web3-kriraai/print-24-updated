@@ -1,23 +1,68 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Upload, Save, Loader, Image as ImageIcon, RefreshCw } from "lucide-react";
+import { Upload, Save, Loader, Image as ImageIcon, RefreshCw, Settings, ToggleLeft, ToggleRight } from "lucide-react";
 import toast from "react-hot-toast";
 import { API_BASE_URL_WITH_API } from "../../../lib/apiConfig";
+
+interface ScrollSettings {
+    autoScrollEnabled: boolean;
+    autoScrollInterval: number;
+    inactivityTimeout: number;
+    smoothScrollEnabled: boolean;
+    stickyNavEnabled: boolean;
+    scrollToTopOnNavClick: boolean;
+    pageAutoScrollEnabled?: boolean;
+    pageAutoScrollDelay?: number;
+    pageAutoScrollAmount?: number;
+}
+
+interface FontSettings {
+    navbarNameFontSize: string;
+    navbarNameFontWeight: string;
+    cardIntroFontSize: string;
+    cardIntroFontWeight: string;
+    cardTitleFontSize: string;
+    cardTitleFontWeight: string;
+    cardDescFontSize: string;
+    cardDescFontWeight: string;
+}
 
 interface SiteSettings {
     _id?: string;
     logo: string;
     siteName: string;
     tagline: string;
+    scrollSettings?: ScrollSettings;
+    fontSettings?: FontSettings;
 }
 
 const SiteSettingsManagement: React.FC = () => {
     const [settings, setSettings] = useState<SiteSettings>({
         logo: '/logo.svg',
         siteName: 'Prints24',
-        tagline: 'Premium Gifting, Printing & Packaging Solutions'
+        tagline: 'Premium Gifting, Printing & Packaging Solutions',
+        scrollSettings: {
+            autoScrollEnabled: true,
+            autoScrollInterval: 3000,
+            inactivityTimeout: 6000,
+            smoothScrollEnabled: true,
+            stickyNavEnabled: true,
+            scrollToTopOnNavClick: true
+        },
+        fontSettings: {
+            navbarNameFontSize: '14px',
+            navbarNameFontWeight: '600',
+            cardIntroFontSize: '12px',
+            cardIntroFontWeight: '400',
+            cardTitleFontSize: '24px',
+            cardTitleFontWeight: '700',
+            cardDescFontSize: '14px',
+            cardDescFontWeight: '400'
+        }
     });
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [savingScroll, setSavingScroll] = useState(false);
+    const [savingFonts, setSavingFonts] = useState(false);
     const [uploading, setUploading] = useState(false);
     const [previewLogo, setPreviewLogo] = useState<string>('');
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -318,6 +363,478 @@ const SiteSettingsManagement: React.FC = () => {
                                 <>
                                     <Save className="w-4 h-4" />
                                     Save Changes
+                                </>
+                            )}
+                        </button>
+                    </div>
+                </div>
+
+                {/* Scroll Behavior Settings Section */}
+                <div className="p-6 border-t border-gray-200">
+                    <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                        <Settings className="w-5 h-5" />
+                        Homepage Scroll Behavior
+                    </h2>
+                    <p className="text-sm text-gray-500 mb-6">
+                        Control how the homepage scrolls and behaves for visitors
+                    </p>
+                    
+                    
+                    <div className="space-y-6">
+                        {/* Page Auto-Scroll on Load Toggle */}
+                        <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                            <div>
+                                <label className="font-medium text-gray-900">Page Auto-Scroll on Load</label>
+                                <p className="text-sm text-gray-500">Automatically scroll down when homepage loads</p>
+                            </div>
+                            <button
+                                onClick={() => setSettings(prev => ({
+                                    ...prev,
+                                    scrollSettings: {
+                                        ...prev.scrollSettings!,
+                                        pageAutoScrollEnabled: !prev.scrollSettings?.pageAutoScrollEnabled
+                                    }
+                                }))}
+                                className={`p-2 rounded-full transition-colors ${
+                                    settings.scrollSettings?.pageAutoScrollEnabled !== false
+                                        ? 'bg-purple-600 text-white' 
+                                        : 'bg-gray-300 text-gray-600'
+                                }`}
+                            >
+                                {settings.scrollSettings?.pageAutoScrollEnabled !== false ? (
+                                    <ToggleRight className="w-6 h-6" />
+                                ) : (
+                                    <ToggleLeft className="w-6 h-6" />
+                                )}
+                            </button>
+                        </div>
+
+                        {/* Page Auto-Scroll Timing Settings */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="p-4 bg-gray-50 rounded-lg">
+                                <label className="block font-medium text-gray-900 mb-2">
+                                    Page Scroll Delay (ms)
+                                </label>
+                                <p className="text-sm text-gray-500 mb-2">Time before page scrolls</p>
+                                <input
+                                    type="number"
+                                    value={settings.scrollSettings?.pageAutoScrollDelay || 2000}
+                                    onChange={(e) => setSettings(prev => ({
+                                        ...prev,
+                                        scrollSettings: {
+                                            ...prev.scrollSettings!,
+                                            pageAutoScrollDelay: parseInt(e.target.value) || 2000
+                                        }
+                                    }))}
+                                    className="w-full px-3 py-2 border rounded-lg"
+                                    min="0"
+                                    step="500"
+                                />
+                            </div>
+
+                            <div className="p-4 bg-gray-50 rounded-lg">
+                                <label className="block font-medium text-gray-900 mb-2">
+                                    Page Scroll Amount (px)
+                                </label>
+                                <p className="text-sm text-gray-500 mb-2">How far to scroll down</p>
+                                <input
+                                    type="number"
+                                    value={settings.scrollSettings?.pageAutoScrollAmount || 250}
+                                    onChange={(e) => setSettings(prev => ({
+                                        ...prev,
+                                        scrollSettings: {
+                                            ...prev.scrollSettings!,
+                                            pageAutoScrollAmount: parseInt(e.target.value) || 250
+                                        }
+                                    }))}
+                                    className="w-full px-3 py-2 border rounded-lg"
+                                    min="0"
+                                    step="50"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Smooth Scroll Toggle */}
+                        <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                            <div>
+                                <label className="font-medium text-gray-900">Smooth Scroll</label>
+                                <p className="text-sm text-gray-500">Enable smooth scrolling animations</p>
+                            </div>
+                            <button
+                                onClick={() => setSettings(prev => ({
+                                    ...prev,
+                                    scrollSettings: {
+                                        ...prev.scrollSettings!,
+                                        smoothScrollEnabled: !prev.scrollSettings?.smoothScrollEnabled
+                                    }
+                                }))}
+                                className={`p-2 rounded-full transition-colors ${
+                                    settings.scrollSettings?.smoothScrollEnabled 
+                                        ? 'bg-purple-600 text-white' 
+                                        : 'bg-gray-300 text-gray-600'
+                                }`}
+                            >
+                                {settings.scrollSettings?.smoothScrollEnabled ? (
+                                    <ToggleRight className="w-6 h-6" />
+                                ) : (
+                                    <ToggleLeft className="w-6 h-6" />
+                                )}
+                            </button>
+                        </div>
+
+                        {/* Sticky Navigation Toggle */}
+                        <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                            <div>
+                                <label className="font-medium text-gray-900">Sticky Navigation</label>
+                                <p className="text-sm text-gray-500">Keep the navigation bar fixed when scrolling</p>
+                            </div>
+                            <button
+                                onClick={() => setSettings(prev => ({
+                                    ...prev,
+                                    scrollSettings: {
+                                        ...prev.scrollSettings!,
+                                        stickyNavEnabled: !prev.scrollSettings?.stickyNavEnabled
+                                    }
+                                }))}
+                                className={`p-2 rounded-full transition-colors ${
+                                    settings.scrollSettings?.stickyNavEnabled 
+                                        ? 'bg-purple-600 text-white' 
+                                        : 'bg-gray-300 text-gray-600'
+                                }`}
+                            >
+                                {settings.scrollSettings?.stickyNavEnabled ? (
+                                    <ToggleRight className="w-6 h-6" />
+                                ) : (
+                                    <ToggleLeft className="w-6 h-6" />
+                                )}
+                            </button>
+                        </div>
+
+                        {/* Scroll to Top on Nav Click Toggle */}
+                        <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                            <div>
+                                <label className="font-medium text-gray-900">Scroll to Top on Service Click</label>
+                                <p className="text-sm text-gray-500">Scroll to banner when a service is selected</p>
+                            </div>
+                            <button
+                                onClick={() => setSettings(prev => ({
+                                    ...prev,
+                                    scrollSettings: {
+                                        ...prev.scrollSettings!,
+                                        scrollToTopOnNavClick: !prev.scrollSettings?.scrollToTopOnNavClick
+                                    }
+                                }))}
+                                className={`p-2 rounded-full transition-colors ${
+                                    settings.scrollSettings?.scrollToTopOnNavClick 
+                                        ? 'bg-purple-600 text-white' 
+                                        : 'bg-gray-300 text-gray-600'
+                                }`}
+                            >
+                                {settings.scrollSettings?.scrollToTopOnNavClick ? (
+                                    <ToggleRight className="w-6 h-6" />
+                                ) : (
+                                    <ToggleLeft className="w-6 h-6" />
+                                )}
+                            </button>
+                        </div>
+
+                        {/* Save Scroll Settings Button */}
+                        <button
+                            onClick={async () => {
+                                try {
+                                    setSavingScroll(true);
+                                    const response = await fetch(`${API_BASE_URL_WITH_API}/site-settings`, {
+                                        method: 'PUT',
+                                        headers: {
+                                            'Content-Type': 'application/json',
+                                            'Authorization': `Bearer ${getToken()}`
+                                        },
+                                        body: JSON.stringify({
+                                            scrollSettings: settings.scrollSettings
+                                        })
+                                    });
+
+                                    if (response.ok) {
+                                        toast.success('Scroll settings saved successfully!');
+                                    } else {
+                                        throw new Error('Failed to save scroll settings');
+                                    }
+                                } catch (error) {
+                                    console.error('Error saving scroll settings:', error);
+                                    toast.error('Failed to save scroll settings');
+                                } finally {
+                                    setSavingScroll(false);
+                                }
+                            }}
+                            disabled={savingScroll}
+                            className={`flex items-center gap-2 px-6 py-2 rounded-lg font-medium transition-all ${
+                                savingScroll 
+                                    ? 'bg-gray-200 text-gray-500 cursor-not-allowed' 
+                                    : 'bg-green-600 text-white hover:bg-green-700'
+                            }`}
+                        >
+                            {savingScroll ? (
+                                <>
+                                    <Loader className="w-4 h-4 animate-spin" />
+                                    Saving...
+                                </>
+                            ) : (
+                                <>
+                                    <Save className="w-4 h-4" />
+                                    Save Scroll Settings
+                                </>
+                            )}
+                        </button>
+                    </div>
+                </div>
+
+                {/* Font Customization Section */}
+                <div className="p-6 border-t border-gray-200">
+                    <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                        <Settings className="w-5 h-5" />
+                        Font Customization
+                    </h2>
+                    <p className="text-sm text-gray-500 mb-6">
+                        Control font sizes and weights for all services (navbar and cards)
+                    </p>
+                    
+                    <div className="space-y-6">
+                        {/* Navbar Name Font Controls */}
+                        <div className="p-4 bg-gray-50 rounded-lg">
+                            <h3 className="font-medium text-gray-900 mb-3">Navbar Name</h3>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Font Size
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={settings.fontSettings?.navbarNameFontSize || '14px'}
+                                        onChange={(e) => setSettings(prev => ({
+                                            ...prev,
+                                            fontSettings: {
+                                                ...prev.fontSettings!,
+                                                navbarNameFontSize: e.target.value
+                                            }
+                                        }))}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                                        placeholder="14px"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Font Weight
+                                    </label>
+                                    <select
+                                        value={settings.fontSettings?.navbarNameFontWeight || '600'}
+                                        onChange={(e) => setSettings(prev => ({
+                                            ...prev,
+                                            fontSettings: {
+                                                ...prev.fontSettings!,
+                                                navbarNameFontWeight: e.target.value
+                                            }
+                                        }))}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                                    >
+                                        <option value="300">Light (300)</option>
+                                        <option value="400">Normal (400)</option>
+                                        <option value="500">Medium (500)</option>
+                                        <option value="600">Semibold (600)</option>
+                                        <option value="700">Bold (700)</option>
+                                        <option value="800">Extra Bold (800)</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Card Intro Font Controls */}
+                        <div className="p-4 bg-gray-50 rounded-lg">
+                            <h3 className="font-medium text-gray-900 mb-3">Card Intro ("We Offer...")</h3>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Font Size
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={settings.fontSettings?.cardIntroFontSize || '12px'}
+                                        onChange={(e) => setSettings(prev => ({
+                                            ...prev,
+                                            fontSettings: {
+                                                ...prev.fontSettings!,
+                                                cardIntroFontSize: e.target.value
+                                            }
+                                        }))}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                                        placeholder="12px"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Font Weight
+                                    </label>
+                                    <select
+                                        value={settings.fontSettings?.cardIntroFontWeight || '400'}
+                                        onChange={(e) => setSettings(prev => ({
+                                            ...prev,
+                                            fontSettings: {
+                                                ...prev.fontSettings!,
+                                                cardIntroFontWeight: e.target.value
+                                            }
+                                        }))}
+                                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                                    >
+                                        <option value="300">Light (300)</option>
+                                        <option value="400">Normal (400)</option>
+                                        <option value="500">Medium (500)</option>
+                                        <option value="600">Semibold (600)</option>
+                                        <option value="700">Bold (700)</option>
+                                        <option value="800">Extra Bold (800)</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Card Title Font Controls */}
+                        <div className="p-4 bg-gray-50 rounded-lg">
+                            <h3 className="font-medium text-gray-900 mb-3">Card Title (Service Name)</h3>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Font Size
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={settings.fontSettings?.cardTitleFontSize || '24px'}
+                                        onChange={(e) => setSettings(prev => ({
+                                            ...prev,
+                                            fontSettings: {
+                                                ...prev.fontSettings!,
+                                                cardTitleFontSize: e.target.value
+                                            }
+                                        }))}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                                        placeholder="24px"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Font Weight
+                                    </label>
+                                    <select
+                                        value={settings.fontSettings?.cardTitleFontWeight || '700'}
+                                        onChange={(e) => setSettings(prev => ({
+                                            ...prev,
+                                            fontSettings: {
+                                                ...prev.fontSettings!,
+                                                cardTitleFontWeight: e.target.value
+                                            }
+                                        }))}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                                    >
+                                        <option value="300">Light (300)</option>
+                                        <option value="400">Normal (400)</option>
+                                        <option value="500">Medium (500)</option>
+                                        <option value="600">Semibold (600)</option>
+                                        <option value="700">Bold (700)</option>
+                                        <option value="800">Extra Bold (800)</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Card Description Font Controls */}
+                        <div className="p-4 bg-gray-50 rounded-lg">
+                            <h3 className="font-medium text-gray-900 mb-3">Card Description</h3>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Font Size
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={settings.fontSettings?.cardDescFontSize || '14px'}
+                                        onChange={(e) => setSettings(prev => ({
+                                            ...prev,
+                                            fontSettings: {
+                                                ...prev.fontSettings!,
+                                                cardDescFontSize: e.target.value
+                                            }
+                                        }))}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                                        placeholder="14px"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Font Weight
+                                    </label>
+                                    <select
+                                        value={settings.fontSettings?.cardDescFontWeight || '400'}
+                                        onChange={(e) => setSettings(prev => ({
+                                            ...prev,
+                                            fontSettings: {
+                                                ...prev.fontSettings!,
+                                                cardDescFontWeight: e.target.value
+                                            }
+                                        }))}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                                    >
+                                        <option value="300">Light (300)</option>
+                                        <option value="400">Normal (400)</option>
+                                        <option value="500">Medium (500)</option>
+                                        <option value="600">Semibold (600)</option>
+                                        <option value="700">Bold (700)</option>
+                                        <option value="800">Extra Bold (800)</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Save Font Settings Button */}
+                        <button
+                            onClick={async () => {
+                                try {
+                                    setSavingFonts(true);
+                                    const response = await fetch(`${API_BASE_URL_WITH_API}/site-settings`, {
+                                        method: 'PUT',
+                                        headers: {
+                                            'Content-Type': 'application/json',
+                                            'Authorization': `Bearer ${getToken()}`
+                                        },
+                                        body: JSON.stringify({
+                                            fontSettings: settings.fontSettings
+                                        })
+                                    });
+
+                                    if (response.ok) {
+                                        toast.success('Font settings saved successfully!');
+                                    } else {
+                                        throw new Error('Failed to save font settings');
+                                    }
+                                } catch (error) {
+                                    console.error('Error saving font settings:', error);
+                                    toast.error('Failed to save font settings');
+                                } finally {
+                                    setSavingFonts(false);
+                                }
+                            }}
+                            disabled={savingFonts}
+                            className={`flex items-center gap-2 px-6 py-2 rounded-lg font-medium transition-all ${
+                                savingFonts 
+                                    ? 'bg-gray-200 text-gray-500 cursor-not-allowed' 
+                                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                            }`}
+                        >
+                            {savingFonts ? (
+                                <>
+                                    <Loader className="w-4 h-4 animate-spin" />
+                                    Saving...
+                                </>
+                            ) : (
+                                <>
+                                    <Save className="w-4 h-4" />
+                                    Save Font Settings
                                 </>
                             )}
                         </button>

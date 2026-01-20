@@ -80,6 +80,7 @@ export interface BannerConfig {
 export interface Service {
     _id: string;
     name: string;
+    navbarName?: string;
     description: string;
     color: string;
     sortOrder: number;
@@ -97,6 +98,7 @@ export interface Service {
 
 export interface CreateServiceData {
     name: string;
+    navbarName?: string;
     description: string;
     color?: string;
     sortOrder?: number;

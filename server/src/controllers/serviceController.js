@@ -103,7 +103,20 @@ export const getServiceById = async (req, res) => {
 // Create new service
 export const createService = async (req, res) => {
     try {
-        const { name, description, color, sortOrder, bannerImage, titles } = req.body;
+        const { 
+            name, 
+            navbarName, 
+            description, 
+            color, 
+            sortOrder, 
+            bannerImage, 
+            icon, 
+            navbarIcon, 
+            serviceHeading, 
+            serviceDescription,
+            bannerConfig, 
+            titles 
+        } = req.body;
 
         // Check if service with same name exists
         const existingService = await Service.findOne({ name });
@@ -113,10 +126,16 @@ export const createService = async (req, res) => {
 
         const service = new Service({
             name,
+            navbarName: navbarName || '',
             description,
             color: color || '#93357c',
             sortOrder: sortOrder || 0,
             bannerImage: bannerImage || '',
+            icon: icon || 'Printer',
+            navbarIcon: navbarIcon || '',
+            serviceHeading: serviceHeading || '',
+            serviceDescription: serviceDescription || '',
+            bannerConfig: bannerConfig || {},
             titles: titles || []
         });
 

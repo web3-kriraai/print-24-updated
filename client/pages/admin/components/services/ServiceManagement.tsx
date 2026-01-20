@@ -44,6 +44,7 @@ import FeatureManagement from './FeatureManagement';
 
 interface ServiceFormData {
     name: string;
+    navbarName?: string;
     description: string;
     color: string;
     sortOrder: number;
@@ -70,6 +71,7 @@ const ServiceManagement: React.FC = () => {
         bannerImage: '',
         icon: 'Printer',
         navbarIcon: '',
+        navbarName: '',
         serviceHeading: '',
         serviceDescription: '',
         bannerConfig: {
@@ -128,6 +130,7 @@ const ServiceManagement: React.FC = () => {
             bannerImage: '',
             icon: 'Printer',
             navbarIcon: '',
+            navbarName: '',
             serviceHeading: '',
             serviceDescription: '',
             bannerConfig: {
@@ -167,6 +170,7 @@ const ServiceManagement: React.FC = () => {
             bannerImage: service.bannerImage,
             icon: service.icon || 'Printer',
             navbarIcon: service.navbarIcon || '',
+            navbarName: service.navbarName || '',
             serviceHeading: service.serviceHeading || '',
             serviceDescription: service.serviceDescription || '',
             bannerConfig: service.bannerConfig || {
@@ -443,6 +447,24 @@ const ServiceManagement: React.FC = () => {
                                                     required
                                                     disabled={saving}
                                                 />
+                                            </div>
+
+                                            {/* Navbar Name */}
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                    Navbar Name (Optional)
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    value={formData.navbarName || ''}
+                                                    onChange={(e) => setFormData({ ...formData, navbarName: e.target.value })}
+                                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                    placeholder="e.g., Gifting"
+                                                    disabled={saving}
+                                                />
+                                                <p className="text-xs text-gray-500 mt-1">
+                                                    Short name text displayed in the sticky navigation bar. Leave empty to use Service Name.
+                                                </p>
                                             </div>
 
                                             {/* Description */}

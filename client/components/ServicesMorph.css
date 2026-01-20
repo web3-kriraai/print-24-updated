@@ -112,23 +112,23 @@
     color: var(--c-dark-text);
 }
 
-/* Typography inside cards */
+/* Typography inside cards - font-size and font-weight now controlled via inline styles */
 .card-intro {
-    font-size: 10px;
+    /* font-size: controlled dynamically */
     margin: 0;
-    font-weight: 500;
+    /* font-weight: controlled dynamically */
     opacity: 0.9;
 }
 
 .card-title {
-    font-size: 14px;
-    font-weight: 700;
+    /* font-size: controlled dynamically */
+    /* font-weight: controlled dynamically */
     margin: 5px 0;
     text-transform: uppercase;
 }
 
 .card-desc {
-    font-size: 9px;
+    /* font-size: controlled dynamically */
     line-height: 1.4;
     opacity: 0.9;
     margin: 0;
@@ -188,8 +188,22 @@
 .sticky-nav-links {
     display: flex;
     flex: 1;
-    justify-content: center;
+    justify-content: flex-start;
     align-items: center;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+    /* Hide scrollbar for cleaner look */
+    scrollbar-width: none;
+    /* Firefox */
+    -ms-overflow-style: none;
+    /* IE and Edge */
+}
+
+.sticky-nav-links::-webkit-scrollbar {
+    display: none;
+    /* Chrome, Safari, Opera */
 }
 
 .sub-nav-link {
@@ -197,17 +211,14 @@
     justify-content: center;
     align-items: center;
     text-decoration: none;
-    font-weight: 600;
-    font-size: 0.75rem;
+    /* font-weight: controlled dynamically */
+    /* font-size: controlled dynamically */
     text-transform: uppercase;
     position: relative;
     cursor: pointer;
     border: none;
 }
 
-.sticky-sub-nav.visible .sub-nav-link {
-    /* Colors controlled by inline styles */
-}
 
 /* Hover Effects */
 .sub-nav-link:hover {
@@ -215,10 +226,6 @@
     filter: brightness(1.1);
 }
 
-/* Active/Selected State - handled by inline styles */
-.sub-nav-link.active {
-    /* Styling controlled by inline styles for dynamic colors */
-}
 
 /* Specific Text Colors for Nav Links */
 .sub-nav-link.text-pink {

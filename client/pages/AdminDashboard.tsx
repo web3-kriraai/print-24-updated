@@ -5782,7 +5782,7 @@ const AdminDashboard: React.FC = () => {
 
           {/* Tab Content */}
           <div className="bg-white rounded-2xl shadow-lg p-6">
-            {/* Add/Edit Product */}
+        
             {activeTab === "products" && (
               <AddProductForm
                 productForm={productForm}

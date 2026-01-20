@@ -43,7 +43,7 @@ export const getSiteSettings = async (req, res) => {
 // Update site settings (admin only)
 export const updateSiteSettings = async (req, res) => {
     try {
-        const { siteName, tagline, logo } = req.body;
+        const { siteName, tagline, logo, scrollSettings, fontSettings } = req.body;
         
         let settings = await SiteSettings.findOne();
         if (!settings) {
@@ -53,6 +53,81 @@ export const updateSiteSettings = async (req, res) => {
         if (siteName !== undefined) settings.siteName = siteName;
         if (tagline !== undefined) settings.tagline = tagline;
         if (logo !== undefined) settings.logo = logo;
+        
+        // Handle scroll settings
+        if (scrollSettings !== undefined) {
+            console.log('[DEBUG] Received scrollSettings:', JSON.stringify(scrollSettings, null, 2));
+            if (!settings.scrollSettings) {
+                settings.scrollSettings = {};
+            }
+            if (scrollSettings.autoScrollEnabled !== undefined) {
+                settings.scrollSettings.autoScrollEnabled = scrollSettings.autoScrollEnabled;
+            }
+            if (scrollSettings.autoScrollInterval !== undefined) {
+                settings.scrollSettings.autoScrollInterval = scrollSettings.autoScrollInterval;
+            }
+            if (scrollSettings.inactivityTimeout !== undefined) {
+                settings.scrollSettings.inactivityTimeout = scrollSettings.inactivityTimeout;
+            }
+            if (scrollSettings.smoothScrollEnabled !== undefined) {
+                settings.scrollSettings.smoothScrollEnabled = scrollSettings.smoothScrollEnabled;
+            }
+            if (scrollSettings.stickyNavEnabled !== undefined) {
+                settings.scrollSettings.stickyNavEnabled = scrollSettings.stickyNavEnabled;
+            }
+            if (scrollSettings.scrollToTopOnNavClick !== undefined) {
+                settings.scrollSettings.scrollToTopOnNavClick = scrollSettings.scrollToTopOnNavClick;
+            }
+            // Page auto-scroll settings
+            if (scrollSettings.pageAutoScrollEnabled !== undefined) {
+                console.log('[DEBUG] Setting pageAutoScrollEnabled to:', scrollSettings.pageAutoScrollEnabled);
+                settings.scrollSettings.pageAutoScrollEnabled = scrollSettings.pageAutoScrollEnabled;
+            }
+            if (scrollSettings.pageAutoScrollDelay !== undefined) {
+                console.log('[DEBUG] Setting pageAutoScrollDelay to:', scrollSettings.pageAutoScrollDelay);
+                settings.scrollSettings.pageAutoScrollDelay = scrollSettings.pageAutoScrollDelay;
+            }
+            if (scrollSettings.pageAutoScrollAmount !== undefined) {
+                console.log('[DEBUG] Setting pageAutoScrollAmount to:', scrollSettings.pageAutoScrollAmount);
+                settings.scrollSettings.pageAutoScrollAmount = scrollSettings.pageAutoScrollAmount;
+            }
+            console.log('[DEBUG] scrollSettings BEFORE markModified:', JSON.stringify(settings.scrollSettings, null, 2));
+            // Mark the nested object as modified so Mongoose saves it
+            settings.markModified('scrollSettings');
+        }
+        
+        // Handle font settings
+        if (fontSettings !== undefined) {
+            if (!settings.fontSettings) {
+                settings.fontSettings = {};
+            }
+            if (fontSettings.navbarNameFontSize !== undefined) {
+                settings.fontSettings.navbarNameFontSize = fontSettings.navbarNameFontSize;
+            }
+            if (fontSettings.navbarNameFontWeight !== undefined) {
+                settings.fontSettings.navbarNameFontWeight = fontSettings.navbarNameFontWeight;
+            }
+            if (fontSettings.cardIntroFontSize !== undefined) {
+                settings.fontSettings.cardIntroFontSize = fontSettings.cardIntroFontSize;
+            }
+            if (fontSettings.cardIntroFontWeight !== undefined) {
+                settings.fontSettings.cardIntroFontWeight = fontSettings.cardIntroFontWeight;
+            }
+            if (fontSettings.cardTitleFontSize !== undefined) {
+                settings.fontSettings.cardTitleFontSize = fontSettings.cardTitleFontSize;
+            }
+            if (fontSettings.cardTitleFontWeight !== undefined) {
+                settings.fontSettings.cardTitleFontWeight = fontSettings.cardTitleFontWeight;
+            }
+            if (fontSettings.cardDescFontSize !== undefined) {
+                settings.fontSettings.cardDescFontSize = fontSettings.cardDescFontSize;
+            }
+            if (fontSettings.cardDescFontWeight !== undefined) {
+                settings.fontSettings.cardDescFontWeight = fontSettings.cardDescFontWeight;
+            }
+            // Mark the nested object as modified so Mongoose saves it
+            settings.markModified('fontSettings');
+        }
         
         await settings.save();
         

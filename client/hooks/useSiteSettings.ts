@@ -1,16 +1,63 @@
 import { useState, useEffect } from 'react';
 import { API_BASE_URL_WITH_API } from '../lib/apiConfig';
 
+interface ScrollSettings {
+    autoScrollEnabled: boolean;
+    autoScrollInterval: number;
+    inactivityTimeout: number;
+    smoothScrollEnabled: boolean;
+    stickyNavEnabled: boolean;
+    scrollToTopOnNavClick: boolean;
+    pageAutoScrollEnabled?: boolean;
+    pageAutoScrollDelay?: number;
+    pageAutoScrollAmount?: number;
+}
+
+interface FontSettings {
+    navbarNameFontSize: string;
+    navbarNameFontWeight: string;
+    cardIntroFontSize: string;
+    cardIntroFontWeight: string;
+    cardTitleFontSize: string;
+    cardTitleFontWeight: string;
+    cardDescFontSize: string;
+    cardDescFontWeight: string;
+}
+
 interface SiteSettings {
     logo: string;
     siteName: string;
     tagline: string;
+    scrollSettings?: ScrollSettings;
+    fontSettings?: FontSettings;
 }
+
+const DEFAULT_SCROLL_SETTINGS: ScrollSettings = {
+    autoScrollEnabled: true,
+    autoScrollInterval: 3000,
+    inactivityTimeout: 6000,
+    smoothScrollEnabled: true,
+    stickyNavEnabled: true,
+    scrollToTopOnNavClick: true
+};
+
+const DEFAULT_FONT_SETTINGS: FontSettings = {
+    navbarNameFontSize: '14px',
+    navbarNameFontWeight: '600',
+    cardIntroFontSize: '12px',
+    cardIntroFontWeight: '400',
+    cardTitleFontSize: '24px',
+    cardTitleFontWeight: '700',
+    cardDescFontSize: '14px',
+    cardDescFontWeight: '400'
+};
 
 const DEFAULT_SETTINGS: SiteSettings = {
     logo: '/logo.svg',
     siteName: 'Prints24',
-    tagline: 'Premium Gifting, Printing & Packaging Solutions'
+    tagline: 'Premium Gifting, Printing & Packaging Solutions',
+    scrollSettings: DEFAULT_SCROLL_SETTINGS,
+    fontSettings: DEFAULT_FONT_SETTINGS
 };
 
 export const useSiteSettings = () => {
@@ -27,7 +74,15 @@ export const useSiteSettings = () => {
                 setSettings({
                     logo: data.logo || DEFAULT_SETTINGS.logo,
                     siteName: data.siteName || DEFAULT_SETTINGS.siteName,
-                    tagline: data.tagline || DEFAULT_SETTINGS.tagline
+                    tagline: data.tagline || DEFAULT_SETTINGS.tagline,
+                    scrollSettings: {
+                        ...DEFAULT_SCROLL_SETTINGS,
+                        ...data.scrollSettings
+                    },
+                    fontSettings: {
+                        ...DEFAULT_FONT_SETTINGS,
+                        ...data.fontSettings
+                    }
                 });
             }
         } catch (err) {
@@ -56,6 +111,24 @@ export const useLogo = () => {
     const { settings, loading } = useSiteSettings();
     return {
         logo: settings.logo || '/logo.svg',
+        loading
+    };
+};
+
+// Hook to get scroll settings
+export const useScrollSettings = () => {
+    const { settings, loading } = useSiteSettings();
+    return {
+        scrollSettings: settings.scrollSettings || DEFAULT_SCROLL_SETTINGS,
+        loading
+    };
+};
+
+// Hook to get font settings
+export const useFontSettings = () => {
+    const { settings, loading } = useSiteSettings();
+    return {
+        fontSettings: settings.fontSettings || DEFAULT_FONT_SETTINGS,
         loading
     };
 };

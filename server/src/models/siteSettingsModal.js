@@ -13,6 +13,85 @@ const SiteSettingsSchema = new mongoose.Schema(
         tagline: {
             type: String,
             default: 'Premium Gifting, Printing & Packaging Solutions'
+        },
+        // Scroll Behavior Settings
+        scrollSettings: {
+            autoScrollEnabled: {
+                type: Boolean,
+                default: true
+            },
+            autoScrollInterval: {
+                type: Number,
+                default: 3000 // milliseconds
+            },
+            inactivityTimeout: {
+                type: Number,
+                default: 6000 // milliseconds before auto-scroll starts
+            },
+            smoothScrollEnabled: {
+                type: Boolean,
+                default: true
+            },
+            stickyNavEnabled: {
+                type: Boolean,
+                default: true
+            },
+            scrollToTopOnNavClick: {
+                type: Boolean,
+                default: true
+            },
+            // Page Auto-Scroll Settings (scroll down when homepage loads)
+            pageAutoScrollEnabled: {
+                type: Boolean,
+                default: true
+            },
+            pageAutoScrollDelay: {
+                type: Number,
+                default: 2000 // milliseconds before auto-scroll triggers
+            },
+            pageAutoScrollAmount: {
+                type: Number,
+                default: 250 // pixels to scroll down
+            }
+        },
+        // Global Font Settings for all services
+        fontSettings: {
+            // Navbar font controls
+            navbarNameFontSize: {
+                type: String,
+                default: '14px'
+            },
+            navbarNameFontWeight: {
+                type: String,
+                default: '600'
+            },
+            // Card intro font controls
+            cardIntroFontSize: {
+                type: String,
+                default: '12px'
+            },
+            cardIntroFontWeight: {
+                type: String,
+                default: '400'
+            },
+            // Card title font controls
+            cardTitleFontSize: {
+                type: String,
+                default: '24px'
+            },
+            cardTitleFontWeight: {
+                type: String,
+                default: '700'
+            },
+            // Card description font controls
+            cardDescFontSize: {
+                type: String,
+                default: '14px'
+            },
+            cardDescFontWeight: {
+                type: String,
+                default: '400'
+            }
         }
     },
     { timestamps: true }
