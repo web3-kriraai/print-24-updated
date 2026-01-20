@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useParams, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowRight, Check, Truck, Upload as UploadIcon, FileImage, CreditCard, X, Loader, Info, Lock, AlertCircle, MapPin } from 'lucide-react';
+import { ArrowRight, Check, Truck, Upload as UploadIcon, FileImage, CreditCard, X, Loader, Info, Lock, AlertCircle, MapPin, Zap, Square, Circle } from 'lucide-react';
 import { Select, SelectOption } from '@/components/ui/select';
 import { API_BASE_URL_WITH_API as API_BASE_URL } from '../lib/apiConfig';
 import BackButton from '../components/BackButton';
@@ -374,13 +374,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
       console.log(`Quantity set to minimum value ${adjustedQuantity} based on constraints:`, activeQuantityConstraints);
       setQuantity(adjustedQuantity);
 
-      // Auto-scroll to quantity section
-      setTimeout(() => {
-        const quantitySection = document.querySelector('[data-section="quantity"]');
-        if (quantitySection) {
-          quantitySection.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-      }, 100);
+      // Note: Auto-scroll to quantity removed to prevent page scrolling on load
 
       // Show notification about quantity update
       setValidationError(`Quantity set to ${adjustedQuantity.toLocaleString()} (Min: ${min?.toLocaleString()}, Max: ${max?.toLocaleString()}, Step: ${step?.toLocaleString()})`);
@@ -388,17 +382,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
     }
   }, [activeQuantityConstraints]);
 
-  // Auto-scroll to quantity section whenever quantity changes
-  useEffect(() => {
-    if (quantity > 0) {
-      setTimeout(() => {
-        const quantitySection = document.querySelector('[data-section="quantity"]');
-        if (quantitySection) {
-          quantitySection.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-      }, 100);
-    }
-  }, [quantity]);
+  // Note: Auto-scroll to quantity section removed to prevent page from scrolling down on load
 
   // Reset quantity to product minimum when constraints are removed
   useEffect(() => {
@@ -1497,6 +1481,21 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
   };
 
 
+  // Scroll page to top on component mount/navigation
+  React.useEffect(() => {
+    // Disable browser scroll restoration
+    if ('scrollRestoration' in history) {
+      history.scrollRestoration = 'manual';
+    }
+    // Immediate scroll to top
+    window.scrollTo(0, 0);
+    // Also scroll after a short delay to override any other effects
+    const timer = setTimeout(() => {
+      window.scrollTo(0, 0);
+    }, 50);
+    return () => clearTimeout(timer);
+  }, []);
+
   // Calculate price with all factors
   React.useEffect(() => {
     if (selectedProduct) {
@@ -1806,6 +1805,31 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
     }
   }, [selectedDynamicAttributes, selectedProduct]);
 
+  // Auto-scroll deck slider to center the active card (horizontal only)
+  React.useEffect(() => {
+    if (!selectedProduct?._id) return;
+    
+    // Small delay to ensure DOM is ready
+    const timer = setTimeout(() => {
+      const deckContainer = document.getElementById('deck-scroll-container');
+      const activeCard = document.getElementById(`deck-card-${selectedProduct._id}`);
+      
+      if (deckContainer && activeCard) {
+        // Calculate scroll position to center the active card horizontally
+        const containerWidth = deckContainer.offsetWidth;
+        const cardLeft = activeCard.offsetLeft;
+        const cardWidth = activeCard.offsetWidth;
+        const scrollPosition = cardLeft - (containerWidth / 2) + (cardWidth / 2);
+        
+        deckContainer.scrollTo({
+          left: Math.max(0, scrollPosition),
+          behavior: 'smooth'
+        });
+      }
+    }, 150);
+    
+    return () => clearTimeout(timer);
+  }, [selectedProduct?._id]);
 
   // Get preview classes based on selected product
   const getPreviewClasses = (excludeSize: boolean = false) => {
@@ -3330,6 +3354,64 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
         .scrollbar-thin::-webkit-scrollbar-thumb:hover {
           background: #9ca3af;
         }
+        
+        /* Hide Scrollbar */
+        .hide-scroll::-webkit-scrollbar { display: none; }
+        .hide-scroll { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        /* Pop-out Deck Animation */
+        .deck-card {
+          transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+          position: relative;
+          transform: scale(0.9);
+          opacity: 0.7;
+          z-index: 0;
+          filter: grayscale(20%);
+        }
+        
+        .deck-card:not(.active):hover {
+          transform: scale(0.95) translateY(-5px);
+          opacity: 1;
+          filter: grayscale(0%);
+          z-index: 20;
+        }
+        
+        .deck-card.active {
+          transform: scale(1.15) translateY(-8px);
+          opacity: 1;
+          z-index: 50 !important;
+          filter: grayscale(0%);
+          border-color: #2563eb !important;
+          background-color: #ffffff;
+          box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+        
+        /* Checkmark Animation */
+        .check-badge {
+          transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        
+        /* Smooth Text Fade */
+        .fade-in-text {
+          animation: fadeIn 0.5s ease-out forwards;
+        }
+        
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(4px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* Radio Card Styling */
+        .radio-card:has(input:checked) {
+          background-color: #eff6ff;
+          border-color: #2563eb;
+          color: #1e3a8a;
+          box-shadow: inset 0 0 0 1px #2563eb;
+        }
+        
+        .radio-card:has(input:checked) .radio-icon {
+          color: #2563eb;
+        }
       `}</style>
 
       <div className="container mx-auto px-4 sm:px-6">
@@ -3395,75 +3477,6 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
             className="text-sm sm:text-base text-gray-600 hover:text-gray-900"
           />
         </div>
-
-        {/* Category Products Thumbnails - Show when viewing a product detail */}
-        {selectedProduct && categoryProducts.length > 1 && !loading && !error && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
-            className="mb-6"
-          >
-            <div className="bg-transparent">
-              <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 px-1 justify-end">
-                {categoryProducts.map((product) => {
-                  const isCurrentProduct = product._id === selectedProduct._id;
-                  const productImage = product.image || selectedSubCategory?.image || '/Glossy.png';
-
-                  return (
-                    <button
-                      key={product._id}
-                      onClick={() => {
-                        if (!isCurrentProduct) {
-                          // Navigate to the selected product
-                          const newUrl = categoryId && subCategoryId && nestedSubCategoryId
-                            ? `/services/${categoryId}/${subCategoryId}/${nestedSubCategoryId}/${product._id}`
-                            : categoryId && subCategoryId
-                              ? `/services/${categoryId}/${subCategoryId}/${product._id}`
-                              : categoryId
-                                ? `/services/${categoryId}/${product._id}`
-                                : `/services/${product._id}`;
-                          navigate(newUrl);
-                          window.scrollTo({ top: 0, behavior: 'smooth' });
-                        }
-                      }}
-                      className="flex-shrink-0 group transition-all duration-200 focus:outline-none"
-                    >
-                      <div
-                        className={`w-32 h-32 sm:w-36 sm:h-36 rounded-[20px] overflow-hidden flex flex-col transition-all duration-200 box-border bg-[#c7c7c7] ${isCurrentProduct
-                          ? 'border-[3px] border-[#2563eb] shadow-md' // Brighter blue border
-                          : 'border border-gray-200 hover:border-gray-300'
-                          }`}
-                      >
-                        {/* Image Section */}
-                        <div className="flex-grow bg-white flex items-center justify-center relative overflow-hidden rounded-b-[20px]">
-                          <img
-                            src={productImage}
-                            alt={product.name}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                            onError={(e) => {
-                              const target = e.target as HTMLImageElement;
-                              if (target.src !== '/Glossy.png') {
-                                target.src = selectedSubCategory?.image || '/Glossy.png';
-                              }
-                            }}
-                          />
-                        </div>
-
-                        {/* Label Section */}
-                        <div className="h-10 bg-[#c7c7c7] flex items-center justify-center px-2 relative z-10">
-                          <p className="text-[11px] font-black text-black uppercase text-center leading-tight line-clamp-2 tracking-tighter">
-                            {product.name}
-                          </p>
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </motion.div>
-        )}
 
         {/* Product Variants Filter - Show when nested subcategories are available */}
         {availableNestedSubcategories.length > 0 && !loading && !error && (
@@ -3544,9 +3557,14 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
               <div className="lg:w-1/2">
                 <div className="lg:sticky lg:top-24 space-y-4">
                   <motion.div
-                    className="bg-white p-4 sm:p-6 md:p-8 lg:p-12 rounded-2xl sm:rounded-3xl shadow-sm border border-gray-100 flex items-center justify-center min-h-[320px] sm:min-h-[420px] md:min-h-[520px] bg-gray-100/50"
+                    className="relative bg-gray-50 rounded-xl overflow-hidden aspect-[4/3] border border-gray-100 group shadow-sm"
                   >
-                    <div className="w-full h-full flex items-center justify-center">
+                    {/* Premium Badge */}
+                    <div className="absolute top-4 left-4 bg-white/90 backdrop-blur px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider shadow-sm text-gray-900 border border-gray-200 z-10">
+                      {selectedProduct?.name}
+                    </div>
+                    
+                    <div className="w-full h-full flex items-center justify-center ">
                       {(() => {
                         // Get the image to display based on selected attributes
                         // Prioritize product image first, then subcategory, then fallback
@@ -3628,17 +3646,13 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                           <img
                             src={displayImage}
                             alt={displayAlt}
-                            className="w-full h-full object-contain rounded-lg"
+                            className="w-full h-full object-cover rounded-lg transition-transform duration-700 group-hover:scale-105"
                             onError={(e) => {
                               // Fallback to subcategory image or default if product image fails to load
                               const target = e.target as HTMLImageElement;
                               if (target.src !== selectedSubCategory?.image && target.src !== "/Glossy.png") {
                                 target.src = selectedSubCategory?.image || "/Glossy.png";
                               }
-                            }}
-                            style={{
-                              maxWidth: '100%',
-                              maxHeight: '100%',
                             }}
                           />
                         );
@@ -3913,6 +3927,103 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                         className="flex flex-col h-full"
                       >
                         <div className="flex-1 overflow-y-auto pr-2">
+                          {/* POP-OUT DECK VARIANT SELECTOR */}
+                          {categoryProducts.length > 1 && (
+                            <div className="mb-6 relative z-10">
+                              {/* Header Row */}
+                              <div className="flex justify-between items-center mb-2">
+                                <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Select Variant</p>
+                                <span className="text-[10px] text-blue-600 bg-blue-50 px-2 py-0.5 rounded font-bold animate-pulse">Swipe to select</span>
+                              </div>
+                              
+                              {/* Deck Container */}
+                              <div className="relative w-full h-44 flex items-center overflow-visible">
+                                {/* Scroll Container with overlapping stacking cards */}
+                                <div 
+                                  id="deck-scroll-container"
+                                  className="flex items-center overflow-x-auto hide-scroll pl-4 pr-16 pb-4 -space-x-4 w-full h-full pt-10"
+                                >
+                                  {categoryProducts.map((product, index) => {
+                                    const isCurrentProduct = product._id === selectedProduct._id;
+                                    const productImage = product.image || selectedSubCategory?.image || '/Glossy.png';
+
+                                    return (
+                                      <div
+                                        key={product._id}
+                                        id={`deck-card-${product._id}`}
+                                        onClick={(e) => {
+                                          if (!isCurrentProduct) {
+                                            // Scroll clicked card into center view
+                                            const cardElement = e.currentTarget;
+                                            cardElement.scrollIntoView({ 
+                                              behavior: 'smooth', 
+                                              block: 'nearest', 
+                                              inline: 'center' 
+                                            });
+                                            
+                                            // Navigate to the new product
+                                            const newUrl = categoryId && subCategoryId && nestedSubCategoryId
+                                              ? `/services/${categoryId}/${subCategoryId}/${nestedSubCategoryId}/${product._id}`
+                                              : categoryId && subCategoryId
+                                                ? `/services/${categoryId}/${subCategoryId}/${product._id}`
+                                                : categoryId
+                                                  ? `/services/${categoryId}/${product._id}`
+                                                  : `/services/${product._id}`;
+                                            navigate(newUrl);
+                                          }
+                                        }}
+                                        className={`deck-card flex-shrink-0 w-24 h-32 rounded-xl border-2 cursor-pointer p-2 flex flex-col items-center justify-center gap-1 select-none bg-white hover:z-50 ${
+                                          isCurrentProduct ? 'active border-blue-600 shadow-xl' : 'border-gray-200 shadow-sm'
+                                        }`}
+                                        style={{
+                                          zIndex: isCurrentProduct ? 50 : (10 - Math.abs(index - categoryProducts.findIndex(p => p._id === selectedProduct._id))),
+                                          transition: 'all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1)',
+                                        }}
+                                      >
+                                        {/* Blue checkmark badge */}
+                                        <div 
+                                          className={`check-badge absolute -top-2 -right-2 bg-blue-600 text-white rounded-full p-1 shadow-md z-30 transition-all duration-300 ${
+                                            isCurrentProduct ? 'opacity-100 scale-100' : 'opacity-0 scale-50'
+                                          }`}
+                                        >
+                                          <Check size={10} />
+                                        </div>
+
+                                        {/* Product Image */}
+                                        <div className="w-14 h-14 rounded-lg overflow-hidden border border-gray-100 shadow-sm relative z-10 pointer-events-none bg-gray-50">
+                                          <img
+                                            src={productImage}
+                                            alt={product.name}
+                                            className="w-full h-full object-cover"
+                                            onError={(e) => {
+                                              const target = e.target as HTMLImageElement;
+                                              if (target.src !== '/Glossy.png') {
+                                                target.src = selectedSubCategory?.image || '/Glossy.png';
+                                              }
+                                            }}
+                                          />
+                                        </div>
+
+                                        {/* Label */}
+                                        <div className="text-center w-full pointer-events-none mt-0.5">
+                                          <span className={`block text-[9px] font-bold uppercase tracking-tight leading-tight line-clamp-2 ${
+                                            isCurrentProduct ? 'text-gray-900' : 'text-gray-500'
+                                          }`}>
+                                            {product.name}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+
+                                {/* Fade Gradients */}
+                                <div className="absolute left-0 top-0 bottom-0 w-10 bg-gradient-to-r from-white to-transparent pointer-events-none z-20"></div>
+                                <div className="absolute right-0 top-0 bottom-0 w-10 bg-gradient-to-l from-white to-transparent pointer-events-none z-20"></div>
+                              </div>
+                            </div>
+                          )}
+                          
                           {/* Product Header */}
                           <div className="mb-6 sm:mb-8 border-b border-gray-100 pb-4 sm:pb-6 relative">
                             <div className="flex items-start justify-between mb-2">
@@ -3972,9 +4083,20 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                             </div>
                             <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
                               <div className="flex-1">
-                                <h1 className="font-serif text-xl sm:text-2xl md:text-3xl font-bold text-gray-900 mb-2">
-                                  {selectedProduct.name}
-                                </h1>
+                                {/* Product Header with Price */}
+                                <div className="border-b border-gray-100 flex flex-row justify-between items-center pb-4 mb-4">
+                                  <h1 className="font-serif text-xl sm:text-2xl md:text-3xl font-bold text-gray-900 mb-1">
+                                    {selectedProduct.name}
+                                  </h1>
+                                  <div className="flex items-center justify-between flex-wrap gap-2">
+                                    <div className="text-right">
+                                      <span className="text-2xl font-bold text-gray-900">
+                                        ₹{(selectedProduct.basePrice || 0).toFixed(2)}
+                                      </span>
+                                      <span className="text-xs text-gray-400 ml-1">/ unit</span>
+                                    </div>
+                                  </div>
+                                </div>
 
                                 {/* Product Variants Filter - Only shown when nested subcategories exist */}
                                 {availableNestedSubcategories.length > 0 && (
@@ -5398,31 +5520,60 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
                         </div>
 
-                        {/* Place Order Button - Fixed at bottom */}
-                        <div className="mt-4 pt-4 border-t border-gray-100">
+                        {/* Premium Sticky Footer with Total Price + CTA */}
+                        <div className="mt-auto pt-6 border-t border-gray-100 bg-white sticky bottom-0 z-10">
+                          <div className="flex justify-between items-end mb-4">
+                            <div>
+                              <p className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-1">Total Price</p>
+                              <div className="flex items-baseline gap-1">
+                                <span className="text-3xl font-bold text-gray-900">
+                                  ₹{(price + gstAmount).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                                </span>
+                                <span className="text-xs text-gray-500 font-medium">incl. taxes</span>
+                              </div>
+                            </div>
+                            <div className="text-right text-xs text-green-600 font-medium flex flex-col items-end">
+                              <span className="flex items-center gap-1">
+                                <Zap size={12} className="text-green-600" />
+                                Fast Production
+                              </span>
+                              {/* <span className="text-gray-600">
+                                Est. Delivery: <strong className="text-gray-900">
+                                  {(() => {
+                                    const d = new Date();
+                                    d.setDate(d.getDate() + (selectedProduct.productionTime || 4));
+                                    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                                  })()}
+                                </strong>
+                              </span> */}
+                            </div>
+                          </div>
+                          
                           <button
                             onClick={handlePlaceOrder}
                             disabled={isProcessingPayment}
-                            className={`w-full py-4 sm:py-5 md:py-6 rounded-xl font-bold text-lg sm:text-xl md:text-2xl transition-all shadow-xl hover:shadow-2xl hover:-translate-y-1 flex items-center justify-center gap-3 min-h-[60px] sm:min-h-[70px] ${isProcessingPayment
-                              ? 'bg-gray-400 text-gray-700 cursor-not-allowed opacity-60'
-                              : 'bg-gray-900 text-white hover:bg-gray-800 active:bg-gray-700 cursor-pointer opacity-100'
-                              }`}
+                            className={`w-full py-4 rounded-xl font-bold text-base transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 flex items-center justify-center gap-2 group ${
+                              isProcessingPayment
+                                ? 'bg-gray-400 text-gray-700 cursor-not-allowed opacity-60'
+                                : 'bg-gray-900 text-white hover:bg-black'
+                            }`}
                           >
                             {isProcessingPayment ? (
                               <>
-                                <Loader className="animate-spin" size={24} />
-                                <span>Processing Payment...</span>
+                                <Loader className="animate-spin" size={20} />
+                                <span>Processing...</span>
                               </>
                             ) : (
                               <>
-                                <Check size={24} />
-                                <span>Place Order</span>
+                                <span>Customize Design</span>
+                                <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
                               </>
                             )}
                           </button>
-
-                          <div className="mt-4 text-center text-xs text-white0 flex items-center justify-center gap-2">
-                            <CreditCard size={14} /> Secure Payment & Data Protection
+                          
+                          <div className="mt-3 text-center text-xs text-gray-400 flex items-center justify-center gap-2">
+                            <Lock size={12} />
+                            <span>Secure Payment & Data Protection</span>
                           </div>
                         </div>
                       </motion.div>

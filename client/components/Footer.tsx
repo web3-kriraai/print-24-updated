@@ -46,7 +46,7 @@ const Footer: React.FC = () => {
 
       {/* Left Side - Image Section */}
       <div
-        className="w-full lg:w-[350px] relative flex-shrink-0 z-10"
+        className="hidden lg:block lg:w-[350px] relative flex-shrink-0 z-10"
         style={{ minHeight: '100%' }}
       >
         <img

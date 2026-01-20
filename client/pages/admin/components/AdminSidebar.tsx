@@ -17,6 +17,7 @@ import {
     Star,
     Layers,
 } from 'lucide-react';
+import { useLogo } from '../../../hooks/useSiteSettings';
 
 interface NavItem {
     id: string;
@@ -40,6 +41,7 @@ interface AdminSidebarProps {
 const AdminSidebar: React.FC<AdminSidebarProps> = ({ activeTab, onTabChange }) => {
     const navigate = useNavigate();
     const [expandedSections, setExpandedSections] = useState<string[]>(['categories']);
+    const { logo } = useLogo();
 
     const navigationItems: NavItem[] = [
         {
@@ -93,6 +95,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ activeTab, onTabChange }) =
             icon: <FileText size={20} />,
             subItems: [
                 { id: 'services', label: 'Services' },
+                { id: 'site-settings', label: 'Site Settings' },
             ],
         },
     ];
@@ -131,7 +134,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ activeTab, onTabChange }) =
                     <Link to="/" className="flex items-center justify-center hover:opacity-80 transition-opacity">
                         <div className="bg-white p-2 rounded-xl shadow-lg">
                             <img
-                                src="/logo.svg"
+                                src={logo}
                                 alt="Logo"
                                 className="h-10 w-auto object-contain"
                             />

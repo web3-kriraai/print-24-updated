@@ -11,6 +11,7 @@ import {
   Package,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useLogo } from "../hooks/useSiteSettings";
 
 interface UserData {
   id: string;
@@ -28,6 +29,7 @@ const Navbar: React.FC = () => {
 
   const location = useLocation();
   const navigate = useNavigate();
+  const { logo } = useLogo();
 
   // Detect login state and user data from localStorage (only on client)
   // Use useEffect to avoid hydration mismatch - server always renders logged out state
@@ -174,7 +176,7 @@ const Navbar: React.FC = () => {
               }}
             >
               <motion.img
-                src="/logo.svg"
+                src={logo}
                 alt="Prints24 Logo"
                 className={`object-contain group-hover:scale-105 transition-all duration-300 cursor-pointer ${isAuthPage
                   ? "h-12 sm:h-14 md:h-16 w-auto"

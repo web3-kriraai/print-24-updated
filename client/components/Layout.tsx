@@ -54,6 +54,11 @@ const Layout: React.FC = () => {
   // Scroll to top on route change (client-side only)
   React.useEffect(() => {
     if (typeof window !== 'undefined') {
+      // Disable browser scroll restoration
+      if ('scrollRestoration' in history) {
+        history.scrollRestoration = 'manual';
+      }
+      // Immediate scroll to top
       window.scrollTo(0, 0);
     }
   }, [location.pathname]);

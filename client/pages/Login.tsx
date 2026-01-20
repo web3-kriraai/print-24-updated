@@ -20,10 +20,7 @@ import {
 } from "lucide-react";
 import { API_BASE_URL_WITH_API } from "../lib/apiConfig";
 import { scrollToInvalidField } from "../lib/validationUtils";
-
-// Import your logo - Update this path to match your actual logo file
-// Using string path to avoid TypeScript module resolution issues
-const Logo = "/logo.svg"; // Update this path to match your actual logo location
+import { useLogo } from "../hooks/useSiteSettings";
 
 // Country code interface
 interface CountryCode {
@@ -84,6 +81,7 @@ interface LoginResponse {
 const Login: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { logo } = useLogo();
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -552,7 +550,7 @@ const Login: React.FC = () => {
               <div>
                 <h1 className="text-2xl font-bold">
                   <img
-                    src={Logo}
+                    src={logo}
                     alt="PrintHub Logo"
                     className="h-12 object-contain"
                     onError={(e) => {

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useParams, useNavigate, Navigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowRight, Loader, Search, X } from 'lucide-react';
+import { ArrowRight, Loader, Search, X, Clock, FileText, Star, Sparkles } from 'lucide-react';
 import GlossProductSelection from './GlossProductSelection';
 import { API_BASE_URL_WITH_API as API_BASE_URL } from "../lib/apiConfig";
 import { ReviewFilterDropdown } from "../components/ReviewFilterDropdown";
@@ -1012,8 +1012,9 @@ const VisitingCards: React.FC = () => {
               }
             }
 
-            // Auto-skip: If only one product, directly navigate to its detail page
-            if (Array.isArray(productsData) && productsData.length === 1) {
+            // Auto-skip: If products exist, directly navigate to the first product's detail page
+            // This skips the product selection page entirely
+            if (Array.isArray(productsData) && productsData.length >= 1) {
               const singleProduct = productsData[0];
               const productSubcategory = typeof singleProduct.subcategory === "object"
                 ? singleProduct.subcategory
@@ -1276,21 +1277,60 @@ const VisitingCards: React.FC = () => {
 
       {/* Header with Breadcrumb - Only show when viewing subcategories, not products */}
       {!subCategoryId && (
-        <div className="bg-white border-b border-gray-200 pb-6 sm:pb-10 pt-6 sm:pt-8 mb-6 sm:mb-8 shadow-sm">
-          <div className="container mx-auto px-4 sm:px-6">
-            <div className="flex flex-col gap-2 text-center md:text-left">
-              <div className="flex items-center justify-center md:justify-start gap-2 text-xs sm:text-sm font-medium text-white0 uppercase tracking-widest">
-                <Link to="/services" className="hover:text-gray-900 transition-colors">Services</Link>
-                <ArrowRight size={12} className="sm:w-3.5 sm:h-3.5" />
-                <span className="text-gray-900">{categoryName}</span>
+        <div className="relative overflow-hidden bg-gradient-to-r from-rose-50 via-purple-50 to-blue-50 pb-8 sm:pb-12 pt-8 sm:pt-12 mb-8 sm:mb-10">
+          {/* Decorative background elements */}
+          <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-rose-200/30 to-transparent rounded-full blur-3xl" />
+          <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-purple-200/30 to-transparent rounded-full blur-3xl" />
+          <div className="absolute top-1/2 left-1/3 w-32 h-32 bg-gradient-to-r from-blue-200/20 to-transparent rounded-full blur-2xl" />
+          
+          {/* Floating sparkle decorations */}
+          <motion.div 
+            className="absolute top-8 right-16 text-rose-300"
+            animate={{ y: [-5, 5, -5], rotate: [0, 10, 0] }}
+            transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+          >
+            <Sparkles size={24} />
+          </motion.div>
+          <motion.div 
+            className="absolute bottom-12 right-1/4 text-purple-300"
+            animate={{ y: [5, -5, 5], rotate: [0, -10, 0] }}
+            transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut" }}
+          >
+            <Sparkles size={18} />
+          </motion.div>
+          
+          <div className="container mx-auto px-4 sm:px-6 relative z-10">
+            <div className="flex flex-col gap-3 text-center md:text-left">
+              {/* Breadcrumb with pill style */}
+              <div className="flex items-center justify-center md:justify-start gap-2 text-xs sm:text-sm font-medium">
+                <Link to="/services" className="px-3 py-1 rounded-full bg-white/60 backdrop-blur-sm text-gray-600 hover:bg-white hover:text-gray-900 transition-all duration-300 shadow-sm">
+                  Services
+                </Link>
+                <ArrowRight size={14} className="text-gray-400" />
+                <span className="px-3 py-1 rounded-full bg-gradient-to-r from-rose-500 to-purple-500 text-white font-semibold shadow-md">
+                  {categoryName}
+                </span>
               </div>
-              <h1 className="font-serif text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-gray-900">
+              
+              {/* Animated title */}
+              <motion.h1 
+                className="font-serif text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold bg-gradient-to-r from-gray-900 via-purple-800 to-rose-900 bg-clip-text text-transparent"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6 }}
+              >
                 {categoryName}
-              </h1>
+              </motion.h1>
+              
               {categoryDescription && (
-                <p className="text-sm sm:text-base text-gray-600 mt-2 max-w-xl mx-auto md:mx-0">
+                <motion.p 
+                  className="text-base sm:text-lg text-gray-600 mt-2 max-w-2xl mx-auto md:mx-0 leading-relaxed"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.6, delay: 0.2 }}
+                >
                   Choose the perfect paper type and finish for your brand identity.
-                </p>
+                </motion.p>
               )}
             </div>
           </div>
@@ -1321,22 +1361,22 @@ const VisitingCards: React.FC = () => {
           <>
             {/* Subcategory Filters - Only show when subcategories are available */}
             {subCategories.length > 0 && (
-              <div className="mb-6 bg-white rounded-xl shadow-md border border-gray-200 p-4 sm:p-6">
+              <div className="relative z-50 mb-8 bg-gradient-to-r from-white via-purple-50/50 to-rose-50/50 rounded-2xl shadow-lg border border-white/60 backdrop-blur-sm p-5 sm:p-7">
                 <div className="flex flex-col sm:flex-row items-start sm:items-end gap-4">
                   {/* Subcategory Search Bar */}
                   <div className="relative flex-1 sm:flex-initial sm:w-64">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white0 w-5 h-5" />
+                    <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-purple-400 w-5 h-5" />
                     <input
                       type="text"
                       placeholder="Search subcategories..."
                       value={subCategorySearchQuery}
                       onChange={(e) => setSubCategorySearchQuery(e.target.value)}
-                      className="w-full pl-10 pr-10 py-2.5 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-gray-500 text-sm sm:text-base bg-white shadow-sm transition-all"
+                      className="w-full pl-12 pr-10 py-3 border-2 border-purple-100 rounded-xl focus:ring-2 focus:ring-purple-400 focus:border-purple-400 text-sm sm:text-base bg-white/80 shadow-sm transition-all duration-300 placeholder:text-gray-400"
                     />
                     {subCategorySearchQuery && (
                       <button
                         onClick={() => setSubCategorySearchQuery("")}
-                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-white0 hover:text-gray-700 transition-colors"
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-rose-500 transition-colors p-1 rounded-full hover:bg-rose-50"
                       >
                         <X size={18} />
                       </button>
@@ -1345,7 +1385,7 @@ const VisitingCards: React.FC = () => {
 
                   {/* Subcategory Dropdown */}
                   <div className="flex-1 sm:flex-initial sm:w-64">
-                    <label className="block text-sm font-semibold text-gray-900 mb-2">
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
                       Filter Subcategory
                     </label>
                     <ReviewFilterDropdown
@@ -1377,7 +1417,7 @@ const VisitingCards: React.FC = () => {
                         setSubCategorySearchQuery("");
                         setSelectedSubCategoryFilter(null);
                       }}
-                      className="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:text-gray-900 bg-gray-100 hover:bg-purple-200 rounded-lg transition-colors whitespace-nowrap"
+                      className="flex items-center gap-2 px-5 py-3 text-sm font-medium text-white bg-gradient-to-r from-rose-500 to-purple-500 hover:from-rose-600 hover:to-purple-600 rounded-xl transition-all duration-300 shadow-md hover:shadow-lg whitespace-nowrap transform hover:scale-105"
                     >
                       <X size={16} />
                       Clear Filters
@@ -1426,42 +1466,54 @@ const VisitingCards: React.FC = () => {
                           window.scrollTo({ top: 0, behavior: 'smooth' });
                         }}
                       >
-                        <div className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-2xl transition-all duration-500 border border-gray-100 h-full flex flex-col hover:-translate-y-2">
+                      <div className="bg-gradient-to-br from-white/50 via-white/30 to-white/10 backdrop-blur-xl rounded-3xl overflow-hidden shadow-2xl hover:shadow-3xl transition-all duration-500 border border-white/60 h-full flex flex-col hover:-translate-y-2 hover:scale-[1.02] group relative before:absolute before:inset-0 before:bg-gradient-to-br before:from-white/20 before:to-transparent before:opacity-0 before:hover:opacity-100 before:transition-opacity before:duration-500">
+  {/* Rounded Square Image Container with Glow Effect */}
+  <div className="relative aspect-[4/3] overflow-hidden bg-gradient-to-br from-gray-50/80 via-white to-gray-100/80 flex items-center justify-center rounded-2xl sm:rounded-3xl m-4 mx-3 sm:mx-4 shadow-inner group-hover:shadow-lg transition-shadow duration-500">
+    {/* Subtle Gradient Overlay */}
+    <div className="absolute inset-0 bg-gradient-to-tr from-purple-100/20 via-transparent to-rose-100/20 opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
+    
+    {/* Shine Effect */}
+    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+    
+    <img
+      src={imageUrl}
+      alt={subCategory.name}
+      className="object-contain h-full w-full transition-all duration-700 group-hover:scale-110 group-hover:brightness-105 rounded-2xl sm:rounded-3xl p-2"
+    />
+    
+  </div>
 
-                          {/* Rounded Square Image Container */}
-                          <div className="relative aspect-[4/3] overflow-hidden bg-gray-100 flex items-center justify-center rounded-2xl sm:rounded-3xl m-3 sm:m-4 mx-2 sm:mx-3">
-                            <img
-                              src={imageUrl}
-                              alt={subCategory.name}
-                              className="object-contain h-full w-full transition-transform duration-700 group-hover:scale-110 rounded-2xl sm:rounded-3xl"
-                            />
+  {/* Content */}
+  <div className="px-5 sm:px-6 py-5 sm:py-6 flex flex-col flex-grow">
+    <div className="mb-3">
+      <h3 className="font-serif text-xl sm:text-2xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent group-hover:from-purple-700 group-hover:to-rose-600 transition-all duration-400">
+        {subCategory.name}
+      </h3>
+    </div>
 
-                            {/* Quick View Overlay */}
-                            <div className="absolute inset-0 bg-gray-900/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 backdrop-blur-[2px]">
-                              <span className="bg-white text-gray-900 px-6 py-3 rounded-full font-bold text-sm transform translate-y-4 group-hover:translate-y-0 transition-all duration-300 shadow-lg">
-                                Customize Now
-                              </span>
-                            </div>
-                          </div>
+    {/* Decorative Divider */}
+    <div className="pt-4 mt-auto border-t border-gray-200/50 group-hover:border-purple-200 transition-colors duration-300">
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-medium text-gray-600 group-hover:text-purple-700 transition-colors duration-300 flex items-center gap-2">
+          Explore Collection
+          <div className="w-4 h-0.5 bg-gradient-to-r from-purple-400 to-rose-400 rounded-full group-hover:w-6 transition-all duration-300" />
+        </span>
+        <div className="relative">
+          <div className="absolute inset-0 bg-gradient-to-r from-rose-400 to-purple-500 rounded-full blur group-hover:blur-md transition-all duration-300 opacity-50" />
+          <div className="relative w-9 h-9 rounded-full bg-gradient-to-r from-rose-400 to-purple-500 flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-md group-hover:shadow-lg">
+            <ArrowRight
+              size={18}
+              className="text-white group-hover:translate-x-1 transition-all duration-300"
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
-                          {/* Content */}
-                          <div className="px-3 sm:px-4 py-4 sm:py-5 flex flex-col flex-grow">
-                            <h3 className="font-serif text-lg sm:text-xl md:text-2xl font-bold text-gray-900 mb-2 group-hover:text-gray-600 transition-colors">
-                              {subCategory.name}
-                            </h3>
-                            <p className="text-gray-600 text-sm sm:text-base mb-4 flex-grow leading-relaxed">
-                              {subCategory.description || ''}
-                            </p>
-
-                            <div className="pt-3 border-t border-gray-100 flex items-center justify-between mt-auto">
-                              <span className="text-xs sm:text-sm text-white0">View Details</span>
-                              <ArrowRight
-                                size={18}
-                                className="text-gray-900 group-hover:text-gray-600 group-hover:translate-x-1 transition-all duration-300"
-                              />
-                            </div>
-                          </div>
-                        </div>
+  {/* Floating corner accent */}
+  <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-purple-400/10 to-rose-400/10 rounded-bl-3xl transform translate-x-8 -translate-y-8 group-hover:translate-x-6 group-hover:-translate-y-6 transition-transform duration-500" />
+</div>
                       </Link>
                     </motion.div>
                   );
@@ -2161,53 +2213,86 @@ const VisitingCards: React.FC = () => {
         {/* Category Details Footer - Only show when viewing subcategories, not products */}
         {!subCategoryId && categoryName && (
           <motion.div
-            className="mt-12 sm:mt-20 bg-white p-8 sm:p-10 rounded-3xl border border-gray-200 shadow-sm"
+            className="mt-16 sm:mt-24 relative overflow-hidden"
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4, duration: 0.5 }}
           >
-            {/* Header */}
-            <div className="bg-white border-b border-gray-200 sticky top-0 z-10 shadow-sm">
-              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-                <div className="flex items-center">
-                  <BackButton onClick={() => {
-                    if (nestedSubCategoryId && categoryId && subCategoryId) {
-                      navigate(`/services/${categoryId}/${subCategoryId}`);
-                    } else if (subCategoryId && categoryId) {
-                      navigate(`/services/${categoryId}`);
-                    } else {
-                      navigate('/services'); // Fallback to digital-print base if no category/subcategory
-                    }
-                  }} />
-                  <h1 className="ml-4 text-xl font-bold text-gray-900 truncate max-w-xs sm:max-w-md">
-                    {loading ? 'Loading...' : (selectedSubCategory ? selectedSubCategory.name : categoryName)}
-                  </h1>
+            {/* Background decoration */}
+            <div className="absolute inset-0 bg-gradient-to-br from-purple-50 via-rose-50 to-blue-50 rounded-3xl" />
+            <div className="absolute top-0 right-0 w-48 h-48 bg-gradient-to-bl from-purple-200/30 to-transparent rounded-full blur-3xl" />
+            <div className="absolute bottom-0 left-0 w-64 h-64 bg-gradient-to-tr from-rose-200/30 to-transparent rounded-full blur-3xl" />
+            
+            <div className="relative p-8 sm:p-12 rounded-3xl border border-white/60 backdrop-blur-sm shadow-xl">
+              <div className="flex flex-col gap-8">
+                {/* Title */}
+                <div className="text-center">
+                  <motion.h3 
+                    className="font-serif text-2xl sm:text-3xl md:text-4xl font-bold bg-gradient-to-r from-gray-900 via-purple-800 to-rose-900 bg-clip-text text-transparent mb-3"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.5 }}
+                  >
+                    Why Choose Our {categoryName}?
+                  </motion.h3>
+                  {categoryDescription && (
+                    <motion.p 
+                      className="text-gray-600 leading-relaxed max-w-2xl mx-auto"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.6 }}
+                    >
+                      {categoryDescription}
+                    </motion.p>
+                  )}
                 </div>
-              </div>
-            </div>
-            <div className="flex flex-col md:flex-row gap-10 items-start">
-              <div className="flex-1">
-                <h3 className="font-serif text-2xl font-bold text-gray-900 mb-4">
-                  Why Choose Our {categoryName}?
-                </h3>
-                {categoryDescription && (
-                  <p className="text-gray-700 leading-relaxed mb-6">
-                    {categoryDescription}
-                  </p>
-                )}
-                <div className="flex gap-4">
-                  <div className="text-center p-4 bg-gray-50 rounded-xl border border-gray-100">
-                    <div className="font-bold text-2xl text-gray-900 mb-1">24h</div>
-                    <div className="text-xs text-gray-500 uppercase tracking-wider">Production</div>
-                  </div>
-                  <div className="text-center p-4 bg-gray-50 rounded-xl border border-gray-100">
-                    <div className="font-bold text-2xl text-gray-900 mb-1">300+</div>
-                    <div className="text-xs text-gray-500 uppercase tracking-wider">GSM Paper</div>
-                  </div>
-                  <div className="text-center p-4 bg-gray-50 rounded-xl border border-gray-100">
-                    <div className="font-bold text-2xl text-gray-900 mb-1">100%</div>
-                    <div className="text-xs text-gray-500 uppercase tracking-wider">Satisfaction</div>
-                  </div>
+
+                {/* Stats Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
+                  {/* Production Time */}
+                  <motion.div 
+                    className="text-center p-6 sm:p-8 bg-white/80 backdrop-blur-sm rounded-2xl border border-white shadow-lg group hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.5 }}
+                    whileHover={{ scale: 1.02 }}
+                  >
+                    <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-rose-400 to-purple-500 flex items-center justify-center text-white shadow-lg group-hover:scale-110 transition-transform duration-300">
+                      <Clock size={28} />
+                    </div>
+                    <div className="font-bold text-3xl sm:text-4xl bg-gradient-to-r from-rose-500 to-purple-600 bg-clip-text text-transparent mb-2">24h</div>
+                    <div className="text-sm font-medium text-gray-500 uppercase tracking-wider">Fast Production</div>
+                  </motion.div>
+
+                  {/* Paper Quality */}
+                  <motion.div 
+                    className="text-center p-6 sm:p-8 bg-white/80 backdrop-blur-sm rounded-2xl border border-white shadow-lg group hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.6 }}
+                    whileHover={{ scale: 1.02 }}
+                  >
+                    <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white shadow-lg group-hover:scale-110 transition-transform duration-300">
+                      <FileText size={28} />
+                    </div>
+                    <div className="font-bold text-3xl sm:text-4xl bg-gradient-to-r from-blue-500 to-purple-600 bg-clip-text text-transparent mb-2">300+</div>
+                    <div className="text-sm font-medium text-gray-500 uppercase tracking-wider">GSM Premium Paper</div>
+                  </motion.div>
+
+                  {/* Satisfaction */}
+                  <motion.div 
+                    className="text-center p-6 sm:p-8 bg-white/80 backdrop-blur-sm rounded-2xl border border-white shadow-lg group hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.7 }}
+                    whileHover={{ scale: 1.02 }}
+                  >
+                    <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-amber-400 to-rose-500 flex items-center justify-center text-white shadow-lg group-hover:scale-110 transition-transform duration-300">
+                      <Star size={28} />
+                    </div>
+                    <div className="font-bold text-3xl sm:text-4xl bg-gradient-to-r from-amber-500 to-rose-600 bg-clip-text text-transparent mb-2">100%</div>
+                    <div className="text-sm font-medium text-gray-500 uppercase tracking-wider">Satisfaction Guaranteed</div>
+                  </motion.div>
                 </div>
               </div>
             </div>

@@ -1,18 +1,21 @@
 import React, { useEffect, useState, useRef } from 'react';
 import './ServicesMorph.css';
 import * as Icons from 'lucide-react';
+import { useLogo } from '../hooks/useSiteSettings';
 
 import type { Service } from '../types/serviceTypes';
 
 interface ServicesMorphProps {
     onServiceSelect?: (serviceId: string) => void;
     services: Service[];
+    selectedServiceId?: string;
 }
 
-const ServicesMorph: React.FC<ServicesMorphProps> = ({ onServiceSelect, services }) => {
+const ServicesMorph: React.FC<ServicesMorphProps> = ({ onServiceSelect, services, selectedServiceId }) => {
     const [hasMorphed, setHasMorphed] = useState(false);
     const stickyBarRef = useRef<HTMLDivElement>(null);
     const gridContainerRef = useRef<HTMLDivElement>(null);
+    const { logo } = useLogo();
 
     // Icon mapping based on service name or explicit icon field
     const getServiceIcon = (service: Service): any => {
@@ -245,19 +248,40 @@ const ServicesMorph: React.FC<ServicesMorphProps> = ({ onServiceSelect, services
             <div className="sticky-sub-nav" id="stickyBar" ref={stickyBarRef}>
                 {/* Logo on the left */}
                 <div className="sticky-nav-logo-container">
-                    <img src="/logo.svg" alt="P24 Logo" className="sticky-nav-logo" />
+                    <img src={logo} alt="P24 Logo" className="sticky-nav-logo" />
                 </div>
 
                 {/* Service Links */}
-                <div className="sticky-nav-links">
+                <div className="sticky-nav-links" style={{ gap: '12px', padding: '8px 16px' }}>
                     {services.map(service => {
                         const Icon = getServiceIcon(service);
+                        const isActive = selectedServiceId === service._id;
                         return (
                             <a
                                 key={service._id}
                                 href="#"
-                                className="sub-nav-link"
-                                style={{ color: service.color }}
+                                className={`sub-nav-link ${isActive ? 'active' : ''}`}
+                                style={{ 
+                                    backgroundColor: isActive ? '#ffffff' : service.color,
+                                    color: isActive ? service.color : '#ffffff',
+                                    borderRadius: '50px',
+                                    padding: '10px 24px',
+                                    margin: '0 4px',
+                                    boxShadow: isActive 
+                                        ? `0 4px 15px ${service.color}40, inset 0 0 0 2px ${service.color}` 
+                                        : `0 2px 8px ${service.color}30`,
+                                    transform: isActive ? 'scale(1.05)' : 'scale(1)',
+                                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                                    fontWeight: isActive ? '700' : '600',
+                                    letterSpacing: '0.5px',
+                                    textTransform: 'uppercase' as const,
+                                    fontSize: '0.75rem',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    flex: 'none',
+                                    whiteSpace: 'nowrap' as const,
+                                }}
                                 data-target={service._id}
                                 onClick={(e) => {
                                     e.preventDefault();
@@ -267,9 +291,21 @@ const ServicesMorph: React.FC<ServicesMorphProps> = ({ onServiceSelect, services
                                         scrollToBanner();
                                     }
                                 }}
+                                onMouseEnter={(e) => {
+                                    if (!isActive) {
+                                        e.currentTarget.style.transform = 'scale(1.03) translateY(-2px)';
+                                        e.currentTarget.style.boxShadow = `0 6px 20px ${service.color}50`;
+                                    }
+                                }}
+                                onMouseLeave={(e) => {
+                                    if (!isActive) {
+                                        e.currentTarget.style.transform = 'scale(1)';
+                                        e.currentTarget.style.boxShadow = `0 2px 8px ${service.color}30`;
+                                    }
+                                }}
                             >
-                                <Icon size={16} style={{ marginRight: '8px' }} />
-                                {service.name.split(' ')[0]}
+                                <Icon size={18} style={{ marginRight: '10px' }} />
+                                {service.name}
                             </a>
                         );
                     })}
@@ -277,8 +313,7 @@ const ServicesMorph: React.FC<ServicesMorphProps> = ({ onServiceSelect, services
             </div>
 
             <div className="hero-wrapper">
-                <h1 className="hero-title">OUR SERVICES</h1>
-                <p className="hero-subtitle">Login Type - Printers / Agent</p>
+                <h1 className="hero-title py-5">OUR SERVICES</h1>
 
                 <div className="services-grid" id="gridContainer" ref={gridContainerRef}>
                     {services.map(service => (

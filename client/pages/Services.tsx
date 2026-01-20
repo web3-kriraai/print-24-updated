@@ -28,12 +28,12 @@ interface Category {
 
 // Helper function to get number of visible items based on screen width
 const getVisibleItems = (screenWidth: number): number => {
-  if (screenWidth >= 1536) return 7; // 2xl: 7 items
-  if (screenWidth >= 1280) return 6; // xl: 6 items
-  if (screenWidth >= 1024) return 5; // lg: 5 items
-  if (screenWidth >= 768) return 4; // md: 4 items
-  if (screenWidth >= 640) return 3; // sm: 3 items
-  return 2; // mobile: 2 items
+  if (screenWidth >= 1536) return 9; // 2xl: 9 items
+  if (screenWidth >= 1280) return 8; // xl: 8 items
+  if (screenWidth >= 1024) return 6; // lg: 6 items
+  if (screenWidth >= 768) return 5; // md: 5 items
+  if (screenWidth >= 640) return 4; // sm: 4 items
+  return 3; // mobile: 3 items
 };
 
 // Helper function to get column width percentage based on visible items
@@ -53,6 +53,38 @@ const DigitalPrint: React.FC = () => {
   const [subCategories, setSubCategories] = useState<any[]>([]);
   const [loadingSubCategories, setLoadingSubCategories] = useState(false);
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [visibleItems, setVisibleItems] = useState<number>(getVisibleItems(window.innerWidth));
+  const [digitalScrollState, setDigitalScrollState] = useState({ isAtStart: true, isAtEnd: false });
+  const [bulkScrollState, setBulkScrollState] = useState({ isAtStart: true, isAtEnd: false });
+
+  const checkScrollPosition = (containerId: string) => {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    const { scrollLeft, scrollWidth, clientWidth } = container;
+    const isAtStart = scrollLeft <= 0;
+    // buffer of 1px for float/zoom issues
+    const isAtEnd = scrollLeft + clientWidth >= scrollWidth - 1;
+
+    if (containerId === "digital-scroll-container") {
+      setDigitalScrollState({ isAtStart, isAtEnd });
+    } else if (containerId === "bulk-scroll-container") {
+      setBulkScrollState({ isAtStart, isAtEnd });
+    }
+  };
+
+  // Update visible items and check scroll on resize
+  useEffect(() => {
+    const handleResize = () => {
+      setVisibleItems(getVisibleItems(window.innerWidth));
+      checkScrollPosition("digital-scroll-container");
+      checkScrollPosition("bulk-scroll-container");
+    };
+    window.addEventListener('resize', handleResize);
+    // Initial check on mount
+    handleResize();
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Auto-scroll for digital categories using inactivity slider
   const digitalSlider = useInactivitySlider({
@@ -273,6 +305,15 @@ const DigitalPrint: React.FC = () => {
     fetchSubCategories();
   }, [selectedCategory]);
 
+  // Check scroll position when categories filter/load
+  useEffect(() => {
+    // Small timeout to allow DOM to update
+    setTimeout(() => {
+      checkScrollPosition("digital-scroll-container");
+      checkScrollPosition("bulk-scroll-container");
+    }, 100);
+  }, [digitalCategories, bulkCategories, selectedType, selectedCategory, searchQuery, visibleItems]);
+
 
   if (loading) {
     return (
@@ -354,6 +395,8 @@ const DigitalPrint: React.FC = () => {
 
     return true;
   });
+
+
 
   // Get unique categories for dropdown (all categories)
   const categoryOptions = allCategories.map(cat => ({
@@ -573,7 +616,8 @@ const DigitalPrint: React.FC = () => {
             <div
               className="relative group/slider overflow-hidden"
             >
-              {/* Left Arrow Button - Scroll left to show items from left */}
+              {/* Left Arrow Button - Only show if items overflow and NOT at start */}
+              {filteredDigitalCategories.length > visibleItems && !digitalScrollState.isAtStart && (
               <button
                 onClick={() => {
                   const container = document.getElementById("digital-scroll-container");
@@ -584,13 +628,8 @@ const DigitalPrint: React.FC = () => {
 
                     const currentScroll = container.scrollLeft;
 
-                    if (currentScroll <= 0) {
-                      // If at the start, wrap to the end
-                      container.scrollTo({ left: container.scrollWidth - container.clientWidth, behavior: "smooth" });
-                    } else {
-                      // Scroll left by 1 item
-                      container.scrollTo({ left: currentScroll - itemWidth, behavior: "smooth" });
-                    }
+                    // Scroll left by 1 item
+                    container.scrollTo({ left: currentScroll - itemWidth, behavior: "smooth" });
                   }
                   if ((window as any).digitalUpdateFromArrow) {
                     (window as any).digitalUpdateFromArrow();
@@ -601,8 +640,10 @@ const DigitalPrint: React.FC = () => {
               >
                 <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6" />
               </button>
+              )}
 
-              {/* Right Arrow Button - Scroll right to show items from right */}
+              {/* Right Arrow Button - Only show if items overflow and NOT at end */}
+              {filteredDigitalCategories.length > visibleItems && !digitalScrollState.isAtEnd && (
               <button
                 onClick={() => {
                   const container = document.getElementById("digital-scroll-container");
@@ -612,20 +653,10 @@ const DigitalPrint: React.FC = () => {
                     const itemWidth = screenWidth / visibleItems;
 
                     const currentScroll = container.scrollLeft;
-                    const maxScroll = container.scrollWidth - container.clientWidth;
                     const newScrollLeft = currentScroll + itemWidth;
 
-                    // Check if we're already at or very close to the end
-                    if (currentScroll >= maxScroll - 1) {
-                      // If at the end, wrap to the start
-                      container.scrollTo({ left: 0, behavior: "smooth" });
-                    } else if (newScrollLeft >= maxScroll) {
-                      // If the new scroll would go past the end, scroll to the maximum to show last item
-                      container.scrollTo({ left: maxScroll, behavior: "smooth" });
-                    } else {
-                      // Scroll right by 1 item
-                      container.scrollTo({ left: newScrollLeft, behavior: "smooth" });
-                    }
+                    // Scroll right by 1 item
+                    container.scrollTo({ left: newScrollLeft, behavior: "smooth" });
                   }
                   if ((window as any).digitalUpdateFromArrow) {
                     (window as any).digitalUpdateFromArrow();
@@ -636,9 +667,11 @@ const DigitalPrint: React.FC = () => {
               >
                 <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6" />
               </button>
+              )}
 
               <div
                 id="digital-scroll-container"
+                onScroll={() => checkScrollPosition("digital-scroll-container")}
                 className="flex overflow-x-auto overflow-y-hidden pb-2 sm:pb-3 md:pb-4 snap-x snap-mandatory scroll-smooth touch-pan-x"
                 style={{
                   scrollbarWidth: 'none',
@@ -657,10 +690,10 @@ const DigitalPrint: React.FC = () => {
                       initial={{ opacity: 0, scale: 0.8 }}
                       animate={{ opacity: 1, scale: 1 }}
                       transition={{ delay: index * 0.03 }}
-                      className="flex-shrink-0 snap-start transition-all duration-500 ease-in-out w-1/2 sm:w-1/3 md:w-1/4 lg:w-1/5 xl:w-1/6 px-1 sm:px-1.5 md:px-2"
+                      className="flex-shrink-0 snap-start transition-all duration-500 ease-in-out w-1/3 sm:w-1/4 md:w-1/5 lg:w-1/6 xl:w-1/8 2xl:w-[11.11%]"
                     >
                       <Link to={`/services/${category._id}`} className="block">
-                        <div className="group flex flex-col items-center gap-1.5 sm:gap-2 p-2 sm:p-2.5 rounded-lg transition-all duration-300 bg-gray-50">
+                        <div className="group flex flex-col items-center gap-0.5 p-1 rounded-lg transition-all duration-300 bg-gray-50">
                           {/* Reduced circle sizes for better mobile compatibility */}
                           <div className="w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 lg:w-32 lg:h-32 xl:w-36 xl:h-36 rounded-full overflow-hidden bg-white group-hover:bg-[#f5faf0] transition-all duration-300 shadow-sm sm:shadow-md group-hover:shadow-lg group-hover:scale-105 flex items-center justify-center">
                             <img
@@ -700,7 +733,8 @@ const DigitalPrint: React.FC = () => {
             <div
               className="relative group/slider overflow-hidden"
             >
-              {/* Left Arrow Button - Scroll left to show items from left */}
+              {/* Left Arrow Button - Only show if items overflow and NOT at start */}
+              {filteredBulkCategories.length > visibleItems && !bulkScrollState.isAtStart && (
               <button
                 onClick={() => {
                   const container = document.getElementById("bulk-scroll-container");
@@ -711,13 +745,8 @@ const DigitalPrint: React.FC = () => {
 
                     const currentScroll = container.scrollLeft;
 
-                    if (currentScroll <= 0) {
-                      // If at the start, wrap to the end
-                      container.scrollTo({ left: container.scrollWidth - container.clientWidth, behavior: "smooth" });
-                    } else {
-                      // Scroll left by 1 item
-                      container.scrollTo({ left: currentScroll - itemWidth, behavior: "smooth" });
-                    }
+                    // Scroll left by 1 item
+                    container.scrollTo({ left: currentScroll - itemWidth, behavior: "smooth" });
                   }
                   if ((window as any).bulkUpdateFromArrow) {
                     (window as any).bulkUpdateFromArrow();
@@ -728,8 +757,10 @@ const DigitalPrint: React.FC = () => {
               >
                 <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6" />
               </button>
+              )}
 
-              {/* Right Arrow Button - Scroll right to show items from right */}
+              {/* Right Arrow Button - Only show if items overflow and NOT at end */}
+              {filteredBulkCategories.length > visibleItems && !bulkScrollState.isAtEnd && (
               <button
                 onClick={() => {
                   const container = document.getElementById("bulk-scroll-container");
@@ -739,20 +770,10 @@ const DigitalPrint: React.FC = () => {
                     const itemWidth = screenWidth / visibleItems;
 
                     const currentScroll = container.scrollLeft;
-                    const maxScroll = container.scrollWidth - container.clientWidth;
                     const newScrollLeft = currentScroll + itemWidth;
 
-                    // Check if we're already at or very close to the end
-                    if (currentScroll >= maxScroll - 1) {
-                      // If at the end, wrap to the start
-                      container.scrollTo({ left: 0, behavior: "smooth" });
-                    } else if (newScrollLeft >= maxScroll) {
-                      // If the new scroll would go past the end, scroll to the maximum to show last item
-                      container.scrollTo({ left: maxScroll, behavior: "smooth" });
-                    } else {
-                      // Scroll right by 1 item
-                      container.scrollTo({ left: newScrollLeft, behavior: "smooth" });
-                    }
+                    // Scroll right by 1 item
+                    container.scrollTo({ left: newScrollLeft, behavior: "smooth" });
                   }
                   if ((window as any).bulkUpdateFromArrow) {
                     (window as any).bulkUpdateFromArrow();
@@ -763,9 +784,11 @@ const DigitalPrint: React.FC = () => {
               >
                 <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6" />
               </button>
+              )}
 
               <div
                 id="bulk-scroll-container"
+                onScroll={() => checkScrollPosition("bulk-scroll-container")}
                 className="flex overflow-x-auto overflow-y-hidden pb-2 sm:pb-3 md:pb-4 snap-x snap-mandatory scroll-smooth touch-pan-x"
                 style={{
                   scrollbarWidth: 'none',
@@ -784,10 +807,10 @@ const DigitalPrint: React.FC = () => {
                       initial={{ opacity: 0, scale: 0.8 }}
                       animate={{ opacity: 1, scale: 1 }}
                       transition={{ delay: index * 0.03 }}
-                      className="flex-shrink-0 snap-start transition-all duration-500 ease-in-out w-1/2 sm:w-1/3 md:w-1/4 lg:w-1/5 xl:w-1/6 px-1 sm:px-1.5 md:px-2"
+                      className="flex-shrink-0 snap-start transition-all duration-500 ease-in-out w-1/3 sm:w-1/4 md:w-1/5 lg:w-1/6 xl:w-1/8 2xl:w-[11.11%]"
                     >
                       <Link to={`/services/${category._id}`} className="block">
-                        <div className="group flex flex-col items-center gap-1.5 sm:gap-2 p-2 sm:p-2.5 rounded-lg transition-all duration-300 bg-gray-50">
+                        <div className="group flex flex-col items-center gap-0.5 p-1 rounded-lg transition-all duration-300 bg-gray-50">
                           {/* Reduced circle sizes for better mobile compatibility */}
                           <div className="w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 lg:w-32 lg:h-32 xl:w-36 xl:h-36 rounded-full overflow-hidden bg-white group-hover:bg-[#f5fbff] transition-all duration-300 shadow-sm sm:shadow-md group-hover:shadow-lg group-hover:scale-105 flex items-center justify-center">
                             <img

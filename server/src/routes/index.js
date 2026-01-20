@@ -159,6 +159,13 @@ import {
   toggleServiceStatus,
 } from "../controllers/serviceController.js";
 
+/* SITE SETTINGS CONTROLLERS */
+import {
+  getSiteSettings,
+  updateSiteSettings,
+  uploadLogo,
+} from "../controllers/siteSettingsController.js";
+
 const router = express.Router();
 
 /* =====================================
@@ -437,5 +444,16 @@ router.get("/geocoding/reverse", reverseGeocode);
 
 // Forward geocoding - search by postalcode/address
 router.get("/geocoding/search", searchGeocode);
+
+/* =====================================
+   SITE SETTINGS ROUTES
+===================================== */
+
+// Public route - get site settings (logo, site name, etc.)
+router.get("/site-settings", getSiteSettings);
+
+// Admin routes
+router.put("/site-settings", authMiddleware, adminAuth, updateSiteSettings);
+router.post("/site-settings/logo", authMiddleware, adminAuth, uploadLogo);
 
 export default router;

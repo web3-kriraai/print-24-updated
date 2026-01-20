@@ -218,6 +218,7 @@ const Home: React.FC = () => {
           <ServicesMorph
             services={services}
             onServiceSelect={handleServiceSelect}
+            selectedServiceId={selectedService?._id}
           />
 
           {/* Service Banner */}
