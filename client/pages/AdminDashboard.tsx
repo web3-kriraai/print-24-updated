@@ -3388,6 +3388,7 @@ const AdminDashboard: React.FC = () => {
           hideWhenParentValue: attributeType.hideWhenParentValue || [],
         });
         setEditingAttributeTypeId(attributeTypeId);
+        updateUrl("attribute-types", "edit", attributeTypeId);
       } else {
         setError("Attribute type not found");
       }
@@ -5273,12 +5274,18 @@ const AdminDashboard: React.FC = () => {
       if (id !== editingSubCategoryId) {
         handleEditSubCategory(id);
       }
+    } else if (tab === "attribute-types" && action === "edit" && id) {
+      if (id !== editingAttributeTypeId) {
+        handleEditAttributeType(id);
+      }
     } else if (tab === "products" && !action) {
       // Clear editing state if URL is just tabs
       if (editingProductId) setEditingProductId(null);
     } else if (tab === "categories" && !action) {
       if (editingCategoryId) setEditingCategoryId(null);
       if (editingSubCategoryId) setEditingSubCategoryId(null);
+    } else if (tab === "attribute-types" && !action) {
+      if (editingAttributeTypeId) setEditingAttributeTypeId(null);
     }
   }, [searchParams, activeTab, editingProductId, editingCategoryId, editingSubCategoryId]);
 
@@ -5782,7 +5789,7 @@ const AdminDashboard: React.FC = () => {
 
           {/* Tab Content */}
           <div className="bg-white rounded-2xl shadow-lg p-6">
-        
+
             {activeTab === "products" && (
               <AddProductForm
                 productForm={productForm}

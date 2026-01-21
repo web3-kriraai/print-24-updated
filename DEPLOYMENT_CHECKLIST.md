@@ -59,7 +59,7 @@ Use this checklist to ensure smooth deployment to Google Cloud Platform.
 Create a checklist of all secrets you need:
 
 **Required Secrets:**
-- [ ] `MONGO_URI` - MongoDB connection string
+- [ ] `MONGO_TEST_URI` - MongoDB connection string
 - [ ] `JWT_SECRET` - Random strong string (generate one)
 - [ ] `CLOUDINARY_CLOUD_NAME`
 - [ ] `CLOUDINARY_API_KEY`
