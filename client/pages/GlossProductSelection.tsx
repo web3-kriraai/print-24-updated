@@ -4,7 +4,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowRight, Check, Truck, Upload as UploadIcon, FileImage, CreditCard, X, Loader, Info, Lock, AlertCircle, MapPin, Zap, Square, Circle } from 'lucide-react';
 import { Select, SelectOption } from '@/components/ui/select';
 import { API_BASE_URL_WITH_API as API_BASE_URL } from '../lib/apiConfig';
-import BackButton from '../components/BackButton';
 import { applyAttributeRules, type AttributeRule, type Attribute } from '../utils/attributeRuleEngine';
 
 interface SubCategory {
@@ -55,6 +54,12 @@ interface GlossProduct {
   };
   basePrice: number;
   image?: string;
+  category?: {
+    _id: string;
+    name: string;
+    description?: string;
+    type?: string;
+  } | string;
   subcategory?: SubCategory | string;
   options?: Array<{
     name: string;
@@ -131,6 +136,12 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
   const [categoryProducts, setCategoryProducts] = useState<GlossProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Breadcrumb navigation state - store names for each level
+  const [breadcrumbCategoryName, setBreadcrumbCategoryName] = useState<string>("");
+  const [breadcrumbSubCategoryName, setBreadcrumbSubCategoryName] = useState<string>("");
+  const [breadcrumbNestedSubCategoryName, setBreadcrumbNestedSubCategoryName] = useState<string>("");
+
 
   // PDP API data state
   const [pdpAttributes, setPdpAttributes] = useState<Attribute[]>([]);
@@ -1093,6 +1104,79 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
     fetchData();
   }, [categoryId, subCategoryId, nestedSubCategoryId, productId]);
+
+  // Fetch breadcrumb names for all levels in the URL
+  useEffect(() => {
+    const fetchBreadcrumbNames = async () => {
+      try {
+        // Fetch category name if categoryId exists
+        if (categoryId) {
+          // First check if we already have it from selectedProduct.category
+          if (selectedProduct?.category && typeof selectedProduct.category === 'object' && selectedProduct.category.name) {
+            setBreadcrumbCategoryName(selectedProduct.category.name);
+          } else {
+            // Fetch from API
+            const categoryResponse = await fetch(`${API_BASE_URL}/categories/${categoryId}`, {
+              method: "GET",
+              headers: { Accept: "application/json" },
+            });
+            if (categoryResponse.ok) {
+              const categoryData = await categoryResponse.json();
+              setBreadcrumbCategoryName(categoryData.name || "");
+            }
+          }
+        } else {
+          setBreadcrumbCategoryName("");
+        }
+
+        // Fetch subcategory name if subCategoryId exists
+        if (subCategoryId) {
+          // First check if we already have it from selectedSubCategory
+          if (selectedSubCategory?.name) {
+            setBreadcrumbSubCategoryName(selectedSubCategory.name);
+          } else {
+            // Fetch from API
+            const subCategoryResponse = await fetch(`${API_BASE_URL}/subcategories/${subCategoryId}`, {
+              method: "GET",
+              headers: { Accept: "application/json" },
+            });
+            if (subCategoryResponse.ok) {
+              const subCategoryData = await subCategoryResponse.json();
+              setBreadcrumbSubCategoryName(subCategoryData.name || "");
+            }
+          }
+        } else {
+          setBreadcrumbSubCategoryName("");
+        }
+
+        // Fetch nested subcategory name if nestedSubCategoryId exists
+        if (nestedSubCategoryId) {
+          // Check if we already have it in availableNestedSubcategories
+          const nestedSubCat = availableNestedSubcategories.find(ns => ns._id === nestedSubCategoryId);
+          if (nestedSubCat) {
+            setBreadcrumbNestedSubCategoryName(nestedSubCat.name);
+          } else {
+            // Fetch from API
+            const nestedSubCategoryResponse = await fetch(`${API_BASE_URL}/subcategories/${nestedSubCategoryId}`, {
+              method: "GET",
+              headers: { Accept: "application/json" },
+            });
+            if (nestedSubCategoryResponse.ok) {
+              const nestedSubCategoryData = await nestedSubCategoryResponse.json();
+              setBreadcrumbNestedSubCategoryName(nestedSubCategoryData.name || "");
+            }
+          }
+        } else {
+          setBreadcrumbNestedSubCategoryName("");
+        }
+      } catch (err) {
+        console.error("Error fetching breadcrumb names:", err);
+      }
+    };
+
+    fetchBreadcrumbNames();
+  }, [categoryId, subCategoryId, nestedSubCategoryId, selectedProduct, selectedSubCategory, availableNestedSubcategories]);
+
 
   // Handle product selection
   const handleProductSelect = (product: GlossProduct) => {
@@ -3420,67 +3504,102 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
       `}</style>
 
       <div className="container mx-auto px-4 sm:px-6">
-        {/* Back Link */}
+        {/* Breadcrumb Navigation */}
         <div className="mb-4 sm:mb-6">
-          <BackButton
-            onClick={() => {
-              // Ensure navbar is visible when navigating back
-              const mainNav = document.querySelector('nav');
-              if (mainNav) {
-                (mainNav as HTMLElement).style.opacity = '1';
-                (mainNav as HTMLElement).style.visibility = 'visible';
-                (mainNav as HTMLElement).style.pointerEvents = 'auto';
-              }
-
-              // Navigate back based on hierarchy
-              // Priority: Nested Subcategory -> Subcategory -> Category -> Home
-
-              if (forcedProductId) {
-                navigate("/");
-              } else if (location.state?.fromHome) {
-                // If came from home, we might want to go to category instead of home
-                // per user request "redirect to category page"
-                if (nestedSubCategoryId && subCategoryId && categoryId) {
-                  navigate(`/services/${categoryId}/${subCategoryId}/${nestedSubCategoryId}`);
-                } else if (subCategoryId && categoryId) {
-                  navigate(`/services/${categoryId}/${subCategoryId}`);
-                } else if (categoryId) {
-                  navigate(`/services/${categoryId}`);
-                } else {
-                  navigate("/");
+          <div className="flex items-center flex-wrap gap-2 text-xs sm:text-sm font-medium">
+            {/* Services Link */}
+            <Link 
+              to="/services" 
+              className="px-3 py-1 rounded-full bg-white/60 backdrop-blur-sm text-gray-600 hover:bg-white hover:text-gray-900 transition-all duration-300 shadow-sm"
+              onClick={() => {
+                const mainNav = document.querySelector('nav');
+                if (mainNav) {
+                  (mainNav as HTMLElement).style.opacity = '1';
+                  (mainNav as HTMLElement).style.visibility = 'visible';
+                  (mainNav as HTMLElement).style.pointerEvents = 'auto';
                 }
-              } else if (selectedProduct && productId) {
-                // We're viewing a product detail via proper routing
-                if (nestedSubCategoryId && subCategoryId && categoryId) {
-                  navigate(`/services/${categoryId}/${subCategoryId}/${nestedSubCategoryId}`);
-                } else if (subCategoryId && categoryId) {
-                  navigate(`/services/${categoryId}/${subCategoryId}`);
-                } else if (categoryId) {
-                  navigate(`/services/${categoryId}`);
-                } else {
-                  navigate("/");
-                }
-              } else if (nestedSubCategoryId && subCategoryId && categoryId) {
-                navigate(`/services/${categoryId}/${subCategoryId}`);
-              } else if (subCategoryId && categoryId) {
-                navigate(`/services/${categoryId}`);
-              } else if (categoryId) {
-                navigate("/"); // If in a category via this component (unlikely but possible), go home
-              } else {
-                navigate("/");
-              }
-              window.scrollTo(0, 0);
-            }}
-            fallbackPath="/"
-            label={
-              forcedProductId || (selectedProduct && productId)
-                ? "Back to products"
-                : subCategoryId || nestedSubCategoryId
-                  ? "Back to Category"
-                  : "Back to Home"
-            }
-            className="text-sm sm:text-base text-gray-600 hover:text-gray-900"
-          />
+                window.scrollTo(0, 0);
+              }}
+            >
+              Services
+            </Link>
+            
+            {/* Category Link - if categoryId exists in URL */}
+            {categoryId && breadcrumbCategoryName && (
+              <>
+                <ArrowRight size={14} className="text-gray-400" />
+                <Link
+                  to={`/services/${categoryId}`}
+                  className="px-3 py-1 rounded-full bg-white/60 backdrop-blur-sm text-gray-600 hover:bg-white hover:text-gray-900 transition-all duration-300 shadow-sm"
+                  onClick={() => {
+                    const mainNav = document.querySelector('nav');
+                    if (mainNav) {
+                      (mainNav as HTMLElement).style.opacity = '1';
+                      (mainNav as HTMLElement).style.visibility = 'visible';
+                      (mainNav as HTMLElement).style.pointerEvents = 'auto';
+                    }
+                    window.scrollTo(0, 0);
+                  }}
+                >
+                  {breadcrumbCategoryName}
+                </Link>
+              </>
+            )}
+            
+            {/* SubCategory Link - if subCategoryId exists in URL */}
+            {categoryId && subCategoryId && breadcrumbSubCategoryName && (
+              <>
+                <ArrowRight size={14} className="text-gray-400" />
+                <Link
+                  to={`/services/${categoryId}/${subCategoryId}`}
+                  className="px-3 py-1 rounded-full bg-white/60 backdrop-blur-sm text-gray-600 hover:bg-white hover:text-gray-900 transition-all duration-300 shadow-sm"
+                  onClick={() => {
+                    const mainNav = document.querySelector('nav');
+                    if (mainNav) {
+                      (mainNav as HTMLElement).style.opacity = '1';
+                      (mainNav as HTMLElement).style.visibility = 'visible';
+                      (mainNav as HTMLElement).style.pointerEvents = 'auto';
+                    }
+                    window.scrollTo(0, 0);
+                  }}
+                >
+                  {breadcrumbSubCategoryName}
+                </Link>
+              </>
+            )}
+            
+            {/* Nested SubCategory Link - if nestedSubCategoryId exists in URL */}
+            {categoryId && subCategoryId && nestedSubCategoryId && breadcrumbNestedSubCategoryName && (
+              <>
+                <ArrowRight size={14} className="text-gray-400" />
+                <Link
+                  to={`/services/${categoryId}/${subCategoryId}/${nestedSubCategoryId}`}
+                  className="px-3 py-1 rounded-full bg-white/60 backdrop-blur-sm text-gray-600 hover:bg-white hover:text-gray-900 transition-all duration-300 shadow-sm"
+                  onClick={() => {
+                    const mainNav = document.querySelector('nav');
+                    if (mainNav) {
+                      (mainNav as HTMLElement).style.opacity = '1';
+                      (mainNav as HTMLElement).style.visibility = 'visible';
+                      (mainNav as HTMLElement).style.pointerEvents = 'auto';
+                    }
+                    window.scrollTo(0, 0);
+                  }}
+                >
+                  {breadcrumbNestedSubCategoryName}
+                </Link>
+              </>
+            )}
+            
+            {/* Current Product Name - if viewing a product detail page */}
+            {selectedProduct && (
+              <>
+                <ArrowRight size={14} className="text-gray-400" />
+                <span className="px-3 py-1 rounded-full bg-gradient-to-r from-rose-500 to-purple-500 text-white font-semibold shadow-md">
+                  {selectedProduct.name}
+                </span>
+              </>
+            )}
+          </div>
         </div>
 
         {/* Product Variants Filter - Show when nested subcategories are available */}
