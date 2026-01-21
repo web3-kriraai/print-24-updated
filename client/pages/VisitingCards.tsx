@@ -397,47 +397,17 @@ const VisitingCards: React.FC = () => {
 
             // Set direct products if they exist (only when no subcategories)
             // If category has subcategories, show subcategories (already set above)
-            // If category has no subcategories but has products, show products directly
+            // If category has no subcategories but has products, AUTO-REDIRECT to first product
             if (directProducts && directProducts.length > 0 && !hasSubcategories) {
-              // Auto-skip: If only one product and no subcategories, directly navigate to its detail page
-              if (directProducts.length === 1) {
-                const singleProduct = directProducts[0];
+              // AUTO-REDIRECT: Always navigate to the first product (removed product listing page)
+              const firstProduct = directProducts[0];
 
-                // Navigate directly to the product detail page
-                if (categoryId) {
-                  navigate(`/services/${categoryId}/${singleProduct._id}`, { replace: true });
-                } else {
-                  navigate(`/services/${singleProduct._id}`, { replace: true });
-                }
-                setLoading(false);
-                return;
+              // Navigate directly to the product detail page
+              if (categoryId) {
+                navigate(`/services/${categoryId}/${firstProduct._id}`, { replace: true });
+              } else {
+                navigate(`/services/${firstProduct._id}`, { replace: true });
               }
-
-              // Multiple products - show them normally
-              setProducts(directProducts);
-
-              // Get category info
-              try {
-                const categoryResponse = await fetch(`${API_BASE_URL}/categories/${categoryId}`, {
-                  method: "GET",
-                  headers: {
-                    Accept: "application/json",
-                  },
-                });
-
-                if (!categoryResponse.ok) {
-                  throw new Error(`Failed to fetch category: ${categoryResponse.status} ${categoryResponse.statusText}`);
-                }
-
-                const categoryData = await handleApiResponse(categoryResponse);
-                setCategoryName(categoryData.name || '');
-                setCategoryDescription(categoryData.description || '');
-                setCategoryImage(categoryData.image || '/Glossy.png');
-              } catch (categoryErr) {
-                console.error("Error fetching category info:", categoryErr);
-                // Don't fail the whole operation if category info fetch fails
-              }
-
               setLoading(false);
               return;
             }
@@ -1014,7 +984,7 @@ const VisitingCards: React.FC = () => {
 
             // Auto-skip: If products exist, directly navigate to the first product's detail page
             // This skips the product selection page entirely
-            if (Array.isArray(productsData) && productsData.length >= 1) {
+            if (Array.isArray(productsData) && productsData.length === 1) {
               const singleProduct = productsData[0];
               const productSubcategory = typeof singleProduct.subcategory === "object"
                 ? singleProduct.subcategory
@@ -1052,13 +1022,39 @@ const VisitingCards: React.FC = () => {
             // Set products data - ensure it's set even if subcategory doesn't exist
             console.log("Final products data to set:", productsData);
             console.log("Products array length:", Array.isArray(productsData) ? productsData.length : 0);
-            setProducts(Array.isArray(productsData) ? productsData : []);
 
-            // If we have products but no subcategory data, ensure we have category info for display
-            if (Array.isArray(productsData) && productsData.length > 0 && !subcategoryData && categoryId) {
-              // Products exist but subcategory doesn't - this is valid, show the products
-              console.log("Products found but subcategory data missing - will display products anyway");
+            // AUTO-REDIRECT: If products exist, navigate to first product instead of showing listing
+            if (Array.isArray(productsData) && productsData.length > 0) {
+              const firstProduct = productsData[0];
+              const productSubcategory = typeof firstProduct.subcategory === "object"
+                ? firstProduct.subcategory
+                : null;
+              const productSubcategoryId = productSubcategory?.slug || productSubcategory?._id;
+
+              // Only include subcategory in URL if:
+              // 1. Product has a valid subcategory ID
+              // 2. It's different from categoryId
+              // 3. subcategoryData was actually found (not null, meaning it's a real subcategory)
+              const hasValidSubcategory = productSubcategoryId &&
+                productSubcategoryId !== categoryId &&
+                productSubcategoryId !== firstProduct._id &&
+                subcategoryData !== null;
+
+              // Navigate directly to the first product detail page
+              console.log(`Auto-navigating to first product: ${firstProduct.name} (${firstProduct._id})`);
+              if (categoryId && hasValidSubcategory) {
+                navigate(`/services/${categoryId}/${productSubcategoryId}/${firstProduct._id}`, { replace: true });
+              } else if (categoryId) {
+                navigate(`/services/${categoryId}/${firstProduct._id}`, { replace: true });
+              } else {
+                navigate(`/services/${firstProduct._id}`, { replace: true });
+              }
+              setLoading(false);
+              return;
             }
+
+            // No products found - set empty array
+            setProducts(Array.isArray(productsData) ? productsData : []);
 
             setLoading(false);
             return;
@@ -1282,23 +1278,23 @@ const VisitingCards: React.FC = () => {
           <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-rose-200/30 to-transparent rounded-full blur-3xl" />
           <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-purple-200/30 to-transparent rounded-full blur-3xl" />
           <div className="absolute top-1/2 left-1/3 w-32 h-32 bg-gradient-to-r from-blue-200/20 to-transparent rounded-full blur-2xl" />
-          
+
           {/* Floating sparkle decorations */}
-          <motion.div 
+          <motion.div
             className="absolute top-8 right-16 text-rose-300"
             animate={{ y: [-5, 5, -5], rotate: [0, 10, 0] }}
             transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
           >
             <Sparkles size={24} />
           </motion.div>
-          <motion.div 
+          <motion.div
             className="absolute bottom-12 right-1/4 text-purple-300"
             animate={{ y: [5, -5, 5], rotate: [0, -10, 0] }}
             transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut" }}
           >
             <Sparkles size={18} />
           </motion.div>
-          
+
           <div className="container mx-auto px-4 sm:px-6 relative z-10">
             <div className="flex flex-col gap-3 text-center md:text-left">
               {/* Breadcrumb with pill style */}
@@ -1311,9 +1307,9 @@ const VisitingCards: React.FC = () => {
                   {categoryName}
                 </span>
               </div>
-              
+
               {/* Animated title */}
-              <motion.h1 
+              <motion.h1
                 className="font-serif text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold bg-gradient-to-r from-gray-900 via-purple-800 to-rose-900 bg-clip-text text-transparent"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -1321,9 +1317,9 @@ const VisitingCards: React.FC = () => {
               >
                 {categoryName}
               </motion.h1>
-              
+
               {categoryDescription && (
-                <motion.p 
+                <motion.p
                   className="text-base sm:text-lg text-gray-600 mt-2 max-w-2xl mx-auto md:mx-0 leading-relaxed"
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -1338,17 +1334,6 @@ const VisitingCards: React.FC = () => {
       )}
 
       <div className="container mx-auto px-4 sm:px-6 pb-12 sm:pb-16">
-        {/* Back Button - Show when viewing category */}
-        {categoryId && !subCategoryId && (
-          <div className="mb-6">
-            <BackButton
-              fallbackPath="/"
-              label="Back to Home"
-              className="text-gray-600 hover:text-gray-900"
-            />
-          </div>
-        )}
-
         {loading ? (
           <div className="flex items-center justify-center py-20">
             <Loader className="animate-spin text-gray-900" size={48} />
@@ -1398,54 +1383,54 @@ const VisitingCards: React.FC = () => {
                           window.scrollTo({ top: 0, behavior: 'smooth' });
                         }}
                       >
-                      <div className="bg-gradient-to-br from-white/50 via-white/30 to-white/10 backdrop-blur-xl rounded-3xl overflow-hidden shadow-2xl hover:shadow-3xl transition-all duration-500 border border-white/60 h-full flex flex-col hover:-translate-y-2 hover:scale-[1.02] group relative before:absolute before:inset-0 before:bg-gradient-to-br before:from-white/20 before:to-transparent before:opacity-0 before:hover:opacity-100 before:transition-opacity before:duration-500">
-  {/* Rounded Square Image Container with Glow Effect */}
-  <div className="relative aspect-[4/3] overflow-hidden bg-gradient-to-br from-gray-50/80 via-white to-gray-100/80 flex items-center justify-center rounded-2xl sm:rounded-3xl m-4 mx-3 sm:mx-4 shadow-inner group-hover:shadow-lg transition-shadow duration-500">
-    {/* Subtle Gradient Overlay */}
-    <div className="absolute inset-0 bg-gradient-to-tr from-purple-100/20 via-transparent to-rose-100/20 opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
-    
-    {/* Shine Effect */}
-    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
-    
-    <img
-      src={imageUrl}
-      alt={subCategory.name}
-      className="object-contain h-full w-full transition-all duration-700 group-hover:scale-110 group-hover:brightness-105 rounded-2xl sm:rounded-3xl p-2"
-    />
-    
-  </div>
+                        <div className="bg-gradient-to-br from-white/50 via-white/30 to-white/10 backdrop-blur-xl rounded-3xl overflow-hidden shadow-2xl hover:shadow-3xl transition-all duration-500 border border-white/60 h-full flex flex-col hover:-translate-y-2 hover:scale-[1.02] group relative before:absolute before:inset-0 before:bg-gradient-to-br before:from-white/20 before:to-transparent before:opacity-0 before:hover:opacity-100 before:transition-opacity before:duration-500">
+                          {/* Rounded Square Image Container with Glow Effect */}
+                          <div className="relative aspect-[4/3] overflow-hidden bg-gradient-to-br from-gray-50/80 via-white to-gray-100/80 flex items-center justify-center rounded-2xl sm:rounded-3xl m-4 mx-3 sm:mx-4 shadow-inner group-hover:shadow-lg transition-shadow duration-500">
+                            {/* Subtle Gradient Overlay */}
+                            <div className="absolute inset-0 bg-gradient-to-tr from-purple-100/20 via-transparent to-rose-100/20 opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
 
-  {/* Content */}
-  <div className="px-5 sm:px-6 py-5 sm:py-6 flex flex-col flex-grow">
-    <div className="mb-3">
-      <h3 className="font-serif text-xl sm:text-2xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent group-hover:from-purple-700 group-hover:to-rose-600 transition-all duration-400">
-        {subCategory.name}
-      </h3>
-    </div>
+                            {/* Shine Effect */}
+                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
 
-    {/* Decorative Divider */}
-    <div className="pt-4 mt-auto border-t border-gray-200/50 group-hover:border-purple-200 transition-colors duration-300">
-      <div className="flex items-center justify-between">
-        <span className="text-sm font-medium text-gray-600 group-hover:text-purple-700 transition-colors duration-300 flex items-center gap-2">
-          Explore Collection
-          <div className="w-4 h-0.5 bg-gradient-to-r from-purple-400 to-rose-400 rounded-full group-hover:w-6 transition-all duration-300" />
-        </span>
-        <div className="relative">
-          <div className="absolute inset-0 bg-gradient-to-r from-rose-400 to-purple-500 rounded-full blur group-hover:blur-md transition-all duration-300 opacity-50" />
-          <div className="relative w-9 h-9 rounded-full bg-gradient-to-r from-rose-400 to-purple-500 flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-md group-hover:shadow-lg">
-            <ArrowRight
-              size={18}
-              className="text-white group-hover:translate-x-1 transition-all duration-300"
-            />
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
+                            <img
+                              src={imageUrl}
+                              alt={subCategory.name}
+                              className="object-contain h-full w-full transition-all duration-700 group-hover:scale-110 group-hover:brightness-105 rounded-2xl sm:rounded-3xl p-2"
+                            />
 
-  {/* Floating corner accent */}
-  <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-purple-400/10 to-rose-400/10 rounded-bl-3xl transform translate-x-8 -translate-y-8 group-hover:translate-x-6 group-hover:-translate-y-6 transition-transform duration-500" />
-</div>
+                          </div>
+
+                          {/* Content */}
+                          <div className="px-5 sm:px-6 py-5 sm:py-6 flex flex-col flex-grow">
+                            <div className="mb-3">
+                              <h3 className="font-serif text-xl sm:text-2xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent group-hover:from-purple-700 group-hover:to-rose-600 transition-all duration-400">
+                                {subCategory.name}
+                              </h3>
+                            </div>
+
+                            {/* Decorative Divider */}
+                            <div className="pt-4 mt-auto border-t border-gray-200/50 group-hover:border-purple-200 transition-colors duration-300">
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm font-medium text-gray-600 group-hover:text-purple-700 transition-colors duration-300 flex items-center gap-2">
+                                  Explore Collection
+                                  <div className="w-4 h-0.5 bg-gradient-to-r from-purple-400 to-rose-400 rounded-full group-hover:w-6 transition-all duration-300" />
+                                </span>
+                                <div className="relative">
+                                  <div className="absolute inset-0 bg-gradient-to-r from-rose-400 to-purple-500 rounded-full blur group-hover:blur-md transition-all duration-300 opacity-50" />
+                                  <div className="relative w-9 h-9 rounded-full bg-gradient-to-r from-rose-400 to-purple-500 flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-md group-hover:shadow-lg">
+                                    <ArrowRight
+                                      size={18}
+                                      className="text-white group-hover:translate-x-1 transition-all duration-300"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Floating corner accent */}
+                          <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-purple-400/10 to-rose-400/10 rounded-bl-3xl transform translate-x-8 -translate-y-8 group-hover:translate-x-6 group-hover:-translate-y-6 transition-transform duration-500" />
+                        </div>
                       </Link>
                     </motion.div>
                   );
@@ -1816,146 +1801,8 @@ const VisitingCards: React.FC = () => {
               </>
             )}
 
-            {/* Products Display - Show only if no nested subcategories */}
-            {subCategories.length === 0 && products.length > 0 ? (
-
-              <>
-                <h2 className="font-serif text-2xl sm:text-3xl font-bold text-gray-900 mb-6">
-                  Select Product
-                </h2>
-
-                {/* Main Layout: 50/50 Split - Left Image, Right Products */}
-                <div className="flex flex-col lg:flex-row gap-6 sm:gap-8 lg:gap-12 min-h-[600px]">
-                  {/* Left Side: Category Image (Fixed, Large) */}
-                  <div className="lg:w-1/2">
-                    <div className="lg:sticky lg:top-24">
-                      <motion.div
-                        className="bg-white p-4 sm:p-6 md:p-8 lg:p-12 rounded-2xl sm:rounded-3xl shadow-sm border border-gray-100 flex items-center justify-center min-h-[400px] sm:min-h-[500px] md:min-h-[600px] bg-gray-100/50"
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ duration: 0.5 }}
-                      >
-                        <div className="w-full h-full flex items-center justify-center">
-                          <img
-                            src={categoryImage || selectedSubCategory?.image || "/Glossy.png"}
-                            alt={categoryName || selectedSubCategory?.name || "Category Preview"}
-                            className="w-full h-full object-contain cursor-pointer hover:opacity-90 transition-opacity rounded-lg"
-                            style={{
-                              maxWidth: '100%',
-                              maxHeight: '100%',
-                            }}
-                          />
-                        </div>
-                      </motion.div>
-                    </div>
-                  </div>
-
-                  {/* Right Side: Product List - Old UI Style */}
-                  <div className="lg:w-1/2">
-                    <motion.div
-                      className="space-y-3 sm:space-y-4 w-full"
-                      variants={containerVariants}
-                      initial="hidden"
-                      animate="visible"
-                    >
-                      {products.map((product) => {
-                        const productSubcategory = typeof product.subcategory === "object"
-                          ? product.subcategory
-                          : null;
-                        // Only use the product's actual subcategory - don't use subCategoryId from URL as fallback
-                        // because it might be a productId when products are directly under category
-                        const productSubcategoryId = productSubcategory?.slug || productSubcategory?._id;
-
-                        // Only include subcategory in URL if:
-                        // 1. Product has a valid subcategory ID
-                        // 2. It's different from categoryId
-                        // 3. It's different from the product's own ID (to avoid using productId as subcategoryId)
-                        const hasValidSubcategory = productSubcategoryId &&
-                          productSubcategoryId !== categoryId &&
-                          productSubcategoryId !== product._id;
-
-                        // Calculate price per 1000 units if basePrice is less than 1
-                        const basePrice = product.basePrice || 0;
-                        const displayPrice = basePrice < 1
-                          ? (basePrice * 1000).toFixed(2)
-                          : basePrice.toFixed(2);
-                        const priceLabel = basePrice < 1 ? "per 1000 units" : "";
-
-                        // Get description preview (strip HTML and get first few lines)
-                        const descriptionText = product.description
-                          ? product.description.replace(/<[^>]*>/g, '').trim()
-                          : "";
-                        // Get first 3 lines or up to 200 characters
-                        const lines = descriptionText.split('\n').filter(line => line.trim());
-                        const firstFewLines = lines.slice(0, 3).join(' ').trim();
-                        const shortDescription = firstFewLines.length > 200
-                          ? firstFewLines.substring(0, 200) + '...'
-                          : firstFewLines || "";
-
-                        return (
-                          <motion.div
-                            key={product._id}
-                            variants={itemVariants}
-                          >
-                            <Link
-                              to={categoryId && hasValidSubcategory
-                                ? `/services/${categoryId}/${productSubcategoryId}/${product._id}`
-                                : categoryId
-                                  ? `/services/${categoryId}/${product._id}`
-                                  : `/services/${product._id}`
-                              }
-                              className="group block w-full"
-                              onClick={() => {
-                                window.scrollTo({ top: 0, behavior: 'smooth' });
-                              }}
-                            >
-                              <div className="w-full p-4 sm:p-6 rounded-xl border-2 border-gray-200 hover:border-gray-900 text-left transition-all duration-200 hover:bg-gray-50 min-h-[140px] sm:min-h-[160px] flex gap-4">
-                                {/* Product Image */}
-                                <div className="flex-shrink-0 w-24 sm:w-32 h-24 sm:h-32 rounded-lg overflow-hidden bg-gray-100 border border-gray-200">
-                                  <img
-                                    src={product.image || "/Glossy.png"}
-                                    alt={product.name}
-                                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                                  />
-                                </div>
-
-                                {/* Product Content */}
-                                <div className="flex-1 flex flex-col min-w-0">
-                                  <div className="flex items-start justify-between gap-3 mb-2">
-                                    <h3 className="font-serif text-base sm:text-lg font-bold text-gray-900 group-hover:text-gray-600 transition-colors flex-1">
-                                      {product.name}
-                                    </h3>
-                                    <div className="text-right flex-shrink-0 flex items-center gap-2">
-                                      <div>
-                                        <div className="text-lg sm:text-xl font-bold text-gray-900">
-                                          ₹{displayPrice}
-                                        </div>
-                                        {priceLabel && (
-                                          <div className="text-xs text-gray-500 mt-0.5">
-                                            {priceLabel}
-                                          </div>
-                                        )}
-                                      </div>
-                                      <span className="text-gray-900 group-hover:text-gray-600 text-xl font-bold transition-colors">→</span>
-                                    </div>
-                                  </div>
-
-                                  {shortDescription && (
-                                    <div className="text-gray-600 text-xs sm:text-sm leading-relaxed flex-grow">
-                                      <p className="line-clamp-2">{shortDescription}</p>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            </Link>
-                          </motion.div>
-                        );
-                      })}
-                    </motion.div>
-                  </div>
-                </div>
-              </>
-            ) : subCategories.length === 0 ? (
+            {/* Products Display - Removed: Auto-redirect navigates to first product */}
+            {subCategories.length === 0 ? (
               <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
                 <p className="text-gray-700">No products found for this subcategory.</p>
                 {categoryId && (
@@ -1975,144 +1822,6 @@ const VisitingCards: React.FC = () => {
                 )}
               </div>
             ) : null}
-          </div>
-        ) : categoryId && products.length > 0 ? (
-          /* Products Display - Direct from category (with or without subcategories) - 50/50 Layout */
-          <div>
-            {/* Select Product Heading */}
-            <h2 className="font-serif text-2xl sm:text-3xl font-bold text-gray-900 mb-6">
-              Select Product
-            </h2>
-
-            {/* Main Layout: 50/50 Split - Left Category Image, Right Products */}
-            <div className="flex flex-col lg:flex-row gap-6 sm:gap-8 lg:gap-12 min-h-[600px]">
-              {/* Left Side: Category Image (Fixed, Large) */}
-              <div className="lg:w-1/2">
-                <div className="lg:sticky lg:top-24">
-                  <motion.div
-                    className="bg-white p-4 sm:p-6 md:p-8 lg:p-12 rounded-2xl sm:rounded-3xl shadow-sm border border-gray-100 flex items-center justify-center min-h-[400px] sm:min-h-[500px] md:min-h-[600px] bg-gray-100/50"
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.5 }}
-                  >
-                    <div className="w-full h-full flex items-center justify-center">
-                      <img
-                        src={categoryImage || "/Glossy.png"}
-                        alt={categoryName || "Category Preview"}
-                        className="w-full h-full object-contain cursor-pointer hover:opacity-90 transition-opacity rounded-lg"
-                        style={{
-                          maxWidth: '100%',
-                          maxHeight: '100%',
-                        }}
-                      />
-                    </div>
-                  </motion.div>
-                </div>
-              </div>
-
-              {/* Right Side: Product List with Images */}
-              <div className="lg:w-1/2">
-                <motion.div
-                  className="space-y-3 sm:space-y-4 w-full"
-                  variants={containerVariants}
-                  initial="hidden"
-                  animate="visible"
-                >
-                  {products.map((product) => {
-                    const productSubcategory = typeof product.subcategory === "object"
-                      ? product.subcategory
-                      : null;
-                    // Only use the product's actual subcategory - don't use categoryId as fallback
-                    const productSubcategoryId = productSubcategory?.slug || productSubcategory?._id;
-
-                    // Only include subcategory in URL if:
-                    // 1. Product has a valid subcategory ID
-                    // 2. It's different from categoryId
-                    // 3. It's different from the product's own ID (to avoid using productId as subcategoryId)
-                    const hasValidSubcategory = productSubcategoryId &&
-                      productSubcategoryId !== categoryId &&
-                      productSubcategoryId !== product._id;
-
-                    // Calculate price per 1000 units if basePrice is less than 1
-                    const basePrice = product.basePrice || 0;
-                    const displayPrice = basePrice < 1
-                      ? (basePrice * 1000).toFixed(2)
-                      : basePrice.toFixed(2);
-                    const priceLabel = basePrice < 1 ? "per 1000 units" : "";
-
-                    // Get description preview (strip HTML and get first few lines)
-                    const descriptionText = product.description
-                      ? product.description.replace(/<[^>]*>/g, '').trim()
-                      : "";
-                    // Get first 3 lines or up to 200 characters
-                    const lines = descriptionText.split('\n').filter(line => line.trim());
-                    const firstFewLines = lines.slice(0, 3).join(' ').trim();
-                    const shortDescription = firstFewLines.length > 200
-                      ? firstFewLines.substring(0, 200) + '...'
-                      : firstFewLines || "";
-
-                    return (
-                      <motion.div
-                        key={product._id}
-                        variants={itemVariants}
-                      >
-                        <Link
-                          to={categoryId && hasValidSubcategory
-                            ? `/services/${categoryId}/${productSubcategoryId}/${product._id}`
-                            : categoryId
-                              ? `/services/${categoryId}/${product._id}`
-                              : `/services/${product._id}`
-                          }
-                          className="group block w-full"
-                          onClick={() => {
-                            window.scrollTo({ top: 0, behavior: 'smooth' });
-                          }}
-                        >
-                          <div className="w-full p-4 sm:p-6 rounded-xl border-2 border-gray-200 hover:border-gray-900 text-left transition-all duration-200 hover:bg-gray-50 min-h-[140px] sm:min-h-[160px] flex gap-4">
-                            {/* Product Image */}
-                            <div className="flex-shrink-0 w-24 sm:w-32 h-24 sm:h-32 rounded-lg overflow-hidden bg-gray-100 border border-gray-200">
-                              <img
-                                src={product.image || "/Glossy.png"}
-                                alt={product.name}
-                                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                              />
-                            </div>
-
-                            {/* Product Content */}
-                            <div className="flex-1 flex flex-col min-w-0">
-                              <div className="flex items-start justify-between gap-3 mb-2">
-                                <h3 className="font-serif text-base sm:text-lg font-bold text-gray-900 group-hover:text-gray-600 transition-colors flex-1">
-                                  {product.name}
-                                </h3>
-                                <div className="text-right flex-shrink-0 flex items-center gap-2">
-                                  <div>
-                                    <div className="text-lg sm:text-xl font-bold text-gray-900">
-                                      ₹{displayPrice}
-                                    </div>
-                                    {priceLabel && (
-                                      <div className="text-xs text-gray-500 mt-0.5">
-                                        {priceLabel}
-                                      </div>
-                                    )}
-                                  </div>
-                                  <span className="text-gray-900 group-hover:text-gray-600 text-xl font-bold transition-colors">→</span>
-                                </div>
-                              </div>
-
-                              {shortDescription && (
-                                <div className="text-gray-600 text-xs sm:text-sm leading-relaxed flex-grow">
-                                  <p className="line-clamp-2">{shortDescription}</p>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </Link>
-                      </motion.div>
-                    );
-                  })}
-                </motion.div>
-              </div>
-            </div>
           </div>
         ) : (categoryId && subCategories.length === 0) && products.length === 0 ? (
           <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
@@ -2154,12 +1863,12 @@ const VisitingCards: React.FC = () => {
             <div className="absolute inset-0 bg-gradient-to-br from-purple-50 via-rose-50 to-blue-50 rounded-3xl" />
             <div className="absolute top-0 right-0 w-48 h-48 bg-gradient-to-bl from-purple-200/30 to-transparent rounded-full blur-3xl" />
             <div className="absolute bottom-0 left-0 w-64 h-64 bg-gradient-to-tr from-rose-200/30 to-transparent rounded-full blur-3xl" />
-            
+
             <div className="relative p-8 sm:p-12 rounded-3xl border border-white/60 backdrop-blur-sm shadow-xl">
               <div className="flex flex-col gap-8">
                 {/* Title */}
                 <div className="text-center">
-                  <motion.h3 
+                  <motion.h3
                     className="font-serif text-2xl sm:text-3xl md:text-4xl font-bold bg-gradient-to-r from-gray-900 via-purple-800 to-rose-900 bg-clip-text text-transparent mb-3"
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -2168,7 +1877,7 @@ const VisitingCards: React.FC = () => {
                     Why Choose Our {categoryName}?
                   </motion.h3>
                   {categoryDescription && (
-                    <motion.p 
+                    <motion.p
                       className="text-gray-600 leading-relaxed max-w-2xl mx-auto"
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
@@ -2182,7 +1891,7 @@ const VisitingCards: React.FC = () => {
                 {/* Stats Grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
                   {/* Production Time */}
-                  <motion.div 
+                  <motion.div
                     className="text-center p-6 sm:p-8 bg-white/80 backdrop-blur-sm rounded-2xl border border-white shadow-lg group hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -2197,7 +1906,7 @@ const VisitingCards: React.FC = () => {
                   </motion.div>
 
                   {/* Paper Quality */}
-                  <motion.div 
+                  <motion.div
                     className="text-center p-6 sm:p-8 bg-white/80 backdrop-blur-sm rounded-2xl border border-white shadow-lg group hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -2212,7 +1921,7 @@ const VisitingCards: React.FC = () => {
                   </motion.div>
 
                   {/* Satisfaction */}
-                  <motion.div 
+                  <motion.div
                     className="text-center p-6 sm:p-8 bg-white/80 backdrop-blur-sm rounded-2xl border border-white shadow-lg group hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
