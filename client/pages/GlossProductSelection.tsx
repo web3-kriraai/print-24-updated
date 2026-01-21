@@ -3932,8 +3932,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                             <div className="mb-6 relative z-10">
                               {/* Header Row */}
                               <div className="flex justify-between items-center mb-2">
-                                <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Select Variant</p>
-                                <span className="text-[10px] text-blue-600 bg-blue-50 px-2 py-0.5 rounded font-bold animate-pulse">Swipe to select</span>
+                                <p className="text-[10px] font-bold text-red-500 bg-red-50 px-2 py-0.5 rounded uppercase tracking-widest">Select Product</p>
                               </div>
                               
                               {/* Deck Container */}
@@ -4026,61 +4025,6 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                           
                           {/* Product Header */}
                           <div className="mb-6 sm:mb-8 border-b border-gray-100 pb-4 sm:pb-6 relative">
-                            <div className="flex items-start justify-between mb-2">
-                              <BackButton
-                                onClick={() => {
-                                  // Navigate back by removing the product from the URL
-                                  // IMPORTANT: Check for most specific case first (4-level URL with productId)
-
-                                  if (forcedProductId) {
-                                    // forcedProductId means VisitingCards is rendering us
-                                    // This happens when a single product is directly under a category
-                                    // Navigate to main digital-print page to avoid auto-redirect loop
-                                    navigate("/services");
-                                  } else if (params.productId && nestedSubCategoryId && subCategoryId && categoryId) {
-                                    // 4-level URL: Product in nested subcategory → go back to nested subcategory products list
-                                    // This must be checked BEFORE availableNestedSubcategories to handle the correct case
-                                    navigate(`/services/${categoryId}/${subCategoryId}/${nestedSubCategoryId}`);
-                                  } else if (availableNestedSubcategories.length > 0 && subCategoryId && categoryId) {
-                                    // Product with nested subcategory filters (not in a nested subcategory) → go back to parent subcategory
-                                    navigate(`/services/${categoryId}/${subCategoryId}`);
-                                  } else if (subCategoryId && categoryId) {
-                                    // Product in subcategory → go back to subcategory products list
-                                    navigate(`/services/${categoryId}/${subCategoryId}`);
-                                  } else if (categoryId) {
-                                    // Product directly under category → go back to category
-                                    navigate(`/services/${categoryId}`);
-                                  } else {
-                                    // Fallback
-                                    navigate("/services");
-                                  }
-                                  window.scrollTo(0, 0);
-                                }}
-                                fallbackPath={
-                                  forcedProductId
-                                    ? "/services"
-                                    : params.productId && nestedSubCategoryId && subCategoryId && categoryId
-                                      ? `/services/${categoryId}/${subCategoryId}/${nestedSubCategoryId}`
-                                      : availableNestedSubcategories.length > 0 && subCategoryId && categoryId
-                                        ? `/services/${categoryId}/${subCategoryId}`
-                                        : subCategoryId && categoryId
-                                          ? `/services/${categoryId}/${subCategoryId}`
-                                          : categoryId
-                                            ? `/services/${categoryId}`
-                                            : "/services"
-                                }
-                                label={
-                                  params.productId && nestedSubCategoryId
-                                    ? "Back to Products"
-                                    : nestedSubCategoryId
-                                      ? "Back to Subcategory"
-                                      : subCategoryId
-                                        ? "Back to Subcategory"
-                                        : "Back to Category"
-                                }
-                                className="text-sm text-gray-600 hover:text-gray-900 mb-2"
-                              />
-                            </div>
                             <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
                               <div className="flex-1">
                                 {/* Product Header with Price */}
@@ -4088,14 +4032,6 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                   <h1 className="font-serif text-xl sm:text-2xl md:text-3xl font-bold text-gray-900 mb-1">
                                     {selectedProduct.name}
                                   </h1>
-                                  <div className="flex items-center justify-between flex-wrap gap-2">
-                                    <div className="text-right">
-                                      <span className="text-2xl font-bold text-gray-900">
-                                        ₹{(selectedProduct.basePrice || 0).toFixed(2)}
-                                      </span>
-                                      <span className="text-xs text-gray-400 ml-1">/ unit</span>
-                                    </div>
-                                  </div>
                                 </div>
 
                                 {/* Product Variants Filter - Only shown when nested subcategories exist */}
