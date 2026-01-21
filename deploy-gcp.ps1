@@ -82,7 +82,7 @@ gcloud run deploy $SERVICE_NAME `
   --min-instances 1 `
   --max-instances 4 `
   --set-env-vars="NODE_ENV=production" `
-  --set-secrets="MONGO_TEST_URI=MONGO_TEST_URI:latest,JWT_SECRET=JWT_SECRET:latest,CLOUDINARY_CLOUD_NAME=CLOUDINARY_CLOUD_NAME:latest,CLOUDINARY_API_KEY=CLOUDINARY_API_KEY:latest,CLOUDINARY_API_SECRET=CLOUDINARY_API_SECRET:latest"
+  --set-secrets="MONGO_URI=MONGO_URI:latest,JWT_SECRET=JWT_SECRET:latest,CLOUDINARY_CLOUD_NAME=CLOUDINARY_CLOUD_NAME:latest,CLOUDINARY_API_KEY=CLOUDINARY_API_KEY:latest,CLOUDINARY_API_SECRET=CLOUDINARY_API_SECRET:latest"
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Failed to deploy to Cloud Run" -ForegroundColor Red
