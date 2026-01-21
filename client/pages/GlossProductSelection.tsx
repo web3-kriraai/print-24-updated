@@ -295,6 +295,11 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
       let quantityConstraints: { min?: number; max?: number; step?: number } | null = null;
 
       for (const rule of pdpRules) {
+        // Skip if rule or when condition is invalid
+        if (!rule || !rule.when || !rule.when.attribute) {
+          continue;
+        }
+
         // Check if rule condition is met
         const whenAttributeId = typeof rule.when.attribute === 'object'
           ? rule.when.attribute._id

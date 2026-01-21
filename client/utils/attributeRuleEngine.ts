@@ -69,11 +69,22 @@ export const applyAttributeRules = ({
 
   // Evaluate each rule
   for (const rule of sortedRules) {
+    // Skip if rule or when condition is invalid
+    if (!rule || !rule.when || !rule.when.attribute) {
+      console.warn('Skipping invalid rule:', rule);
+      continue;
+    }
+
     // Check if WHEN condition is met
     const whenAttributeId =
       typeof rule.when.attribute === "object"
-        ? rule.when.attribute._id.toString()
+        ? rule.when.attribute._id?.toString()
         : rule.when.attribute.toString();
+
+    // Skip if we couldn't resolve the attribute ID
+    if (!whenAttributeId) {
+      continue;
+    }
 
     const selectedValue = selectedValues[whenAttributeId];
 
@@ -84,13 +95,19 @@ export const applyAttributeRules = ({
 
     // Condition is met - apply THEN actions
     for (const action of rule.then) {
+      // Skip if action or targetAttribute is invalid
+      if (!action || !action.targetAttribute) {
+        console.warn('Skipping invalid action:', action);
+        continue;
+      }
+
       const targetAttributeId =
         typeof action.targetAttribute === "object"
-          ? action.targetAttribute._id.toString()
+          ? action.targetAttribute._id?.toString()
           : action.targetAttribute.toString();
 
-      // Skip if target attribute doesn't exist in result
-      if (!result[targetAttributeId]) {
+      // Skip if target attribute doesn't exist in result or ID couldn't be resolved
+      if (!targetAttributeId || !result[targetAttributeId]) {
         continue;
       }
 
