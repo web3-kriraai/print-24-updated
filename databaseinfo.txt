@@ -1,0 +1,1120 @@
+================================================================================
+                    PRINT24 PROJECT - DATABASE SCHEMA DOCUMENTATION
+================================================================================
+Database: MongoDB (Mongoose ODM)
+Total Collections: 38
+
+Generated on: 2026-01-19
+================================================================================
+
+--------------------------------------------------------------------------------
+                            TABLE OF CONTENTS
+--------------------------------------------------------------------------------
+1.  USER MANAGEMENT (5 collections)
+2.  PRODUCT CATALOG (7 collections)
+3.  PRICING ENGINE (8 collections)
+4.  ORDER MANAGEMENT (5 collections)
+5.  LOGISTICS & DELIVERY (4 collections)
+6.  ANALYTICS & TRACKING (3 collections)
+7.  INTEGRATIONS & SUPPORT (6 collections)
+
+================================================================================
+                        1. USER MANAGEMENT
+================================================================================
+
+--------------------------------------------------------------------------------
+1.1 USER (users)
+--------------------------------------------------------------------------------
+Purpose: Core user accounts for customers, admins, and employees
+
+Fields:
+├── name                    String (optional)
+├── firstName               String (optional)
+├── lastName                String (optional)
+├── email                   String (required, unique)
+├── mobileNumber            String
+├── countryCode             String
+├── role                    Enum ["user", "admin", "emp"] (default: "user")
+├── password                String (optional - set later in signup)
+├── userSegment             ObjectId → UserSegment
+├── approvalStatus          Enum ["pending", "approved", "rejected"]
+├── userType                Enum ["customer", "print partner", "corporate"]
+├── signupIntent            Enum ["CUSTOMER", "PRINT_PARTNER", "CORPORATE"] (required)
+├── isEmailVerified         Boolean (default: false)
+├── emailOtp                String (hashed)
+├── emailOtpExpiresAt       Date
+├── userTypeId              ObjectId → UserType
+├── creditLimit             Number (default: 0)
+├── paymentTerms            String (e.g., "NET30", "PREPAID", "COD")
+├── walletBalance           Number (default: 0)
+├── commissionRate          Number (0-100, for agents)
+├── territoryAccess         [String] (pincode/zone codes)
+├── assignedHub             ObjectId → InternalHub
+├── clients                 [ObjectId] → User (for agents)
+├── brandKit                {
+│   ├── logo                String
+│   ├── primaryColor        String
+│   ├── secondaryColor      String
+│   ├── fonts               [String]
+│   └── templates           [ObjectId] → Design
+│   }
+├── createdAt               Date
+└── updatedAt               Date
+
+Indexes: userTypeId+territoryAccess, commissionRate, assignedHub
+
+--------------------------------------------------------------------------------
+1.2 USER_TYPE (usertypes)
+--------------------------------------------------------------------------------
+Purpose: Dynamic privilege management system for configurable user types
+
+Fields:
+├── name                    Enum ["AGENT", "CORPORATE", "DISTRIBUTOR", "BRANCH", 
+│                                 "HUB", "RETAIL", "VIP"]
+├── code                    String (required, unique, uppercase)
+├── displayName             String
+├── description             String
+├── pricingTier             Number (0-4, 0=Retail highest, 4=VIP lowest)
+├── parentType              ObjectId → UserType (for hierarchy)
+├── isActive                Boolean (default: true)
+├── features                [{
+│   ├── featureKey          String
+│   ├── isEnabled           Boolean
+│   └── config              Mixed
+│   }]
+├── viewConfig              Mixed (JSON for UI customization)
+├── permissions             [{
+│   ├── resource            String (e.g., "orders", "products")
+│   └── actions             [String] (e.g., ["read", "write", "delete"])
+│   }]
+├── limits                  {
+│   ├── maxOrders           Number
+│   ├── maxClients          Number
+│   └── maxCreditLimit      Number
+│   }
+├── createdAt               Date
+└── updatedAt               Date
+
+Methods: hasFeature(), getFeatureConfig(), getAncestors()
+
+--------------------------------------------------------------------------------
+1.3 USER_SEGMENT (usersegments)
+--------------------------------------------------------------------------------
+Purpose: User segments for pricing differentiation (RETAIL, VIP, WHOLESALE, etc.)
+
+Fields:
+├── code                    String (required, unique, uppercase)
+├── name                    String
+├── description             String
+├── isDefault               Boolean (default: false - for guests)
+├── priority                Number (higher = better pricing)
+├── pricingTier             Number (0-4, 0=retail, 4=best)
+├── isActive                Boolean (default: true)
+├── isSystem                Boolean (protected from deletion)
+├── createdAt               Date
+└── updatedAt               Date
+
+Static Methods: getDefaultSegment(), getByCode()
+
+--------------------------------------------------------------------------------
+1.4 CORPORATE_PROFILE (corporateprofiles)
+--------------------------------------------------------------------------------
+Purpose: Corporate customer details and verification
+
+Fields:
+├── user                    ObjectId → User (required, unique)
+├── organizationName        String (required)
+├── organizationType        Enum ["PRIVATE_LIMITED", "LLP", "LIMITED", "GOVERNMENT",
+│                                 "HOSPITAL", "SCHOOL", "INSTITUTE", "NGO", 
+│                                 "FRANCHISE", "OTHER"]
+├── authorizedPersonName    String (required)
+├── designation             Enum ["PURCHASE_MANAGER", "MARKETING_HEAD", "ADMIN",
+│                                 "FINANCE_MANAGER", "DIRECTOR", "OTHER"]
+├── mobileNumber            String (required)
+├── whatsappNumber          String
+├── officialEmail           String (required)
+├── gstNumber               String (required)
+├── address                 {fullAddress, city, state, pincode}
+├── proofDocument           String (URL)
+├── verificationStatus      Enum ["PENDING", "APPROVED", "REJECTED"]
+├── verifiedBy              ObjectId → User
+├── verifiedAt              Date
+├── createdAt               Date
+└── updatedAt               Date
+
+--------------------------------------------------------------------------------
+1.5 PRINT_PARTNER_PROFILE (printpartnerprofiles)
+--------------------------------------------------------------------------------
+Purpose: Print partner business details and verification
+
+Fields:
+├── user                    ObjectId → User (required, unique)
+├── businessName            String (required)
+├── ownerName               String (required)
+├── mobileNumber            String (required)
+├── whatsappNumber          String
+├── email                   String (required)
+├── gstNumber               String
+├── address                 {fullAddress, city, state, pincode}
+├── proofDocument           String (Cloudinary/S3 URL)
+├── verificationStatus      Enum ["PENDING", "APPROVED", "REJECTED"]
+├── verifiedBy              ObjectId → User
+├── verifiedAt              Date
+├── createdAt               Date
+└── updatedAt               Date
+
+================================================================================
+                        2. PRODUCT CATALOG
+================================================================================
+
+--------------------------------------------------------------------------------
+2.1 CATEGORY (categories)
+--------------------------------------------------------------------------------
+Purpose: Product categories with unlimited depth hierarchy
+
+Fields:
+├── name                    String (required)
+├── description             String
+├── image                   String
+├── type                    Enum ["Digital", "Bulk"] (default: "Digital")
+├── parent                  ObjectId → Category (null for root)
+├── sortOrder               Number (default: 0)
+├── slug                    String (unique, URL-friendly)
+├── createdAt               Date
+└── updatedAt               Date
+
+Indexes: parent, type+parent, parent+sortOrder
+
+--------------------------------------------------------------------------------
+2.2 SUBCATEGORY (subcategories)
+--------------------------------------------------------------------------------
+Purpose: Legacy subcategories (nested subcategories supported)
+
+Fields:
+├── category                ObjectId → Category (required)
+├── parent                  ObjectId → SubCategory (for nesting)
+├── name                    String (required)
+├── description             String
+├── image                   String (URL)
+├── slug                    String (unique)
+├── sortOrder               Number (default: 0)
+├── createdAt               Date
+└── updatedAt               Date
+
+--------------------------------------------------------------------------------
+2.3 PRODUCT (products)
+--------------------------------------------------------------------------------
+Purpose: Core product catalog with dynamic attributes
+
+Fields:
+├── category                ObjectId → Category (required)
+├── subcategory             ObjectId → SubCategory
+├── name                    String (required)
+├── description             String
+├── descriptionArray        [String] (legacy)
+├── productType             String
+├── image                   String
+├── options                 [{name, description, image}] (UI display only)
+├── filters                 Object (legacy, hidden)
+├── dynamicAttributes       [{
+│   ├── attributeType       ObjectId → AttributeType
+│   ├── dependsOn           {attribute: ObjectId, value: String}
+│   ├── isEnabled           Boolean
+│   ├── displayOrder        Number
+│   └── isRequired          Boolean
+│   }]
+├── quantityConfig          {
+│   ├── quantityType        Enum ["SIMPLE", "STEP_WISE", "RANGE_WISE"]
+│   ├── minQuantity         Number
+│   ├── maxQuantity         Number
+│   ├── multiples           Number
+│   ├── stepWiseQuantities  [Number]
+│   └── rangeWiseQuantities [{min, max, label}]
+│   }
+├── fileRules               {maxFileSizeMB, min/maxWidth, min/maxHeight, blockedFormats}
+├── additionalDesignCharge  Number (default: 0)
+├── gstPercentage           Number (0-100)
+├── showPriceIncludingGst   Boolean
+├── instructions            String
+├── isActive                Boolean (default: false)
+├── productionSequence      [ObjectId] → Department
+├── suggestedBaseCost       Number (from Zoho)
+├── bom                     [{material, quantity, unit}]
+├── relatedProducts         [ObjectId] → Product
+├── frequentlyBoughtTogether [ObjectId] → Product
+├── keywords                [String] (SEO/up-sell)
+├── views                   {defaultView, alternativeView}
+├── availabilityRules       [{geoZoneId, isSellable, reason}]
+├── createdAt               Date
+└── updatedAt               Date
+
+--------------------------------------------------------------------------------
+2.4 ATTRIBUTE_TYPE (attributetypes)
+--------------------------------------------------------------------------------
+Purpose: Dynamic product attribute definitions
+
+Fields:
+├── attributeName           String (required)
+├── functionType            Enum ["QUANTITY_PRICING", "PRINTING_IMAGE", 
+│                                 "SPOT_UV_IMAGE", "GENERAL"]
+├── pricingBehavior         Enum ["NONE", "SIGNAL_ONLY", "QUANTITY_DRIVER"]
+├── inputStyle              Enum ["DROPDOWN", "TEXT_FIELD", "FILE_UPLOAD", 
+│                                 "NUMBER", "CHECKBOX", "RADIO", "POPUP"]
+├── displayOrder            Number
+├── quantityConfig          {quantityType, min/max, stepWise, rangeWise}
+├── primaryEffectType       Enum ["PRICE", "FILE", "VARIANT", "INFORMATIONAL"]
+├── effectDescription       String
+├── isFilterable            Boolean
+├── defaultValue            String
+├── isCommonAttribute       Boolean
+├── applicableCategories    [ObjectId] → Category
+├── applicableSubCategories [ObjectId] → SubCategory
+├── createdAt               Date
+└── updatedAt               Date
+
+--------------------------------------------------------------------------------
+2.5 SUB_ATTRIBUTE (subattributes)
+--------------------------------------------------------------------------------
+Purpose: Attribute values with hierarchical nesting and pricing keys
+
+Fields:
+├── parentAttribute         ObjectId → AttributeType (required)
+├── parentValue             String ("__root__" for root level)
+├── value                   String (lowercase, required)
+├── label                   String (display name)
+├── image                   String
+├── pricingKey              String (uppercase, connects to pricing engine)
+├── isEnabled               Boolean
+├── createdAt               Date
+└── updatedAt               Date
+
+Unique Index: parentAttribute + parentValue + value
+
+--------------------------------------------------------------------------------
+2.6 ATTRIBUTE_RULE (attributerules)
+--------------------------------------------------------------------------------
+Purpose: Conditional attribute visibility and pricing rule triggers
+
+Fields:
+├── name                    String (required)
+├── when                    {attribute: ObjectId, value: String} (condition)
+├── then                    [{
+│   ├── action              Enum ["SHOW", "HIDE", "SHOW_ONLY", "SET_DEFAULT", 
+│   │                             "TRIGGER_PRICING"]
+│   ├── targetAttribute     ObjectId → AttributeType
+│   ├── allowedValues       [String]
+│   ├── defaultValue        String
+│   └── pricingSignal       {pricingKey, scope, priority}
+│   }]
+├── applicableCategory      ObjectId → Category
+├── applicableProduct       ObjectId → Product
+├── applicableUserSegments  [ObjectId] → UserSegment
+├── applicableGeoZones      [ObjectId] → GeoZone
+├── priority                Number
+├── isActive                Boolean
+├── createdAt               Date
+└── updatedAt               Date
+
+--------------------------------------------------------------------------------
+2.7 SEQUENCE (sequences)
+--------------------------------------------------------------------------------
+Purpose: Production workflow sequences for categories
+
+Fields:
+├── name                    String (required)
+├── category                ObjectId → Category (required)
+├── subcategory             ObjectId → SubCategory (legacy)
+├── departments             [{department: ObjectId, order: Number}]
+├── attributes              [ObjectId] → AttributeType
+├── isDefault               Boolean
+├── createdAt               Date
+└── updatedAt               Date
+
+================================================================================
+                        3. PRICING ENGINE
+================================================================================
+
+--------------------------------------------------------------------------------
+3.1 PRICE_BOOK (pricebooks)
+--------------------------------------------------------------------------------
+Purpose: Virtual price book system with master/child hierarchy
+
+Fields:
+├── name                    String (required)
+├── currency                String (default: "INR")
+├── isDefault               Boolean
+├── isMaster                Boolean (Master=base prices, Child=overrides)
+├── suggestedPrice          Number (from Zoho Books)
+├── parentBook              ObjectId → PriceBook (null for master)
+├── zone                    ObjectId → GeoZone
+├── segment                 ObjectId → UserSegment
+├── isVirtual               Boolean (calculated view vs physical)
+├── calculationLogic        Enum ["MASTER_ONLY", "MASTER_PLUS_ZONE", 
+│                                 "MASTER_PLUS_SEGMENT", "MASTER_PLUS_BOTH", "CUSTOM"]
+├── overridePriority        Number (higher wins in conflicts)
+├── isOverride              Boolean
+├── createdFrom             ObjectId → PriceBook (for cloning)
+├── version                 Number (conflict detection)
+├── description             String
+├── isActive                Boolean
+├── createdAt               Date
+└── updatedAt               Date
+
+Virtual: children (all child price books)
+Methods: isMasterBook(), isChildBook(), getHierarchyPath()
+Statics: getMasterBook(), getBookForContext()
+
+--------------------------------------------------------------------------------
+3.2 PRICE_BOOK_ENTRY (pricebookentries)
+--------------------------------------------------------------------------------
+Purpose: Individual product prices within a price book
+
+Fields:
+├── priceBook               ObjectId → PriceBook (required)
+├── product                 ObjectId → Product (required)
+├── basePrice               Number (required)
+├── compareAtPrice          Number
+├── createdAt               Date
+└── updatedAt               Date
+
+Unique Index: priceBook + product
+
+--------------------------------------------------------------------------------
+3.3 PRICE_MODIFIER (pricemodifiers)
+--------------------------------------------------------------------------------
+Purpose: Dynamic pricing rules, discounts, and promotional offers
+
+Fields:
+├── name                    String
+├── description             String
+├── code                    String (promo code, uppercase, optional)
+├── appliesTo               Enum ["GLOBAL", "ZONE", "SEGMENT", "PRODUCT", 
+│                                 "ATTRIBUTE", "COMBINATION", "USER", "CATEGORY"]
+├── geoZone                 ObjectId → GeoZone
+├── userSegment             ObjectId → UserSegment
+├── userId                  ObjectId → User
+├── product                 ObjectId → Product
+├── productType             Enum ["DIGITAL", "PHYSICAL", "SERVICE"]
+├── category                ObjectId → Category
+├── subCategory             ObjectId → SubCategory
+├── attributeType           ObjectId → AttributeType
+├── attributeValue          String
+├── conditions              Mixed (JSON logic for COMBINATION modifiers)
+├── appliesOn               Enum ["UNIT", "SUBTOTAL"]
+├── modifierType            Enum ["PERCENT_INC", "PERCENT_DEC", "FLAT_INC", "FLAT_DEC"]
+├── value                   Number (required)
+├── minQuantity             Number
+├── maxQuantity             Number
+├── maxUses                 Number
+├── usedCount               Number
+├── maxUsesPerUser          Number
+├── minOrderValue           Number
+├── maxDiscountAmount       Number
+├── validFrom               Date
+├── validTo                 Date
+├── isStackable             Boolean
+├── priority                Number
+├── isActive                Boolean
+├── reason                  String
+├── createdBy               ObjectId → User
+├── tags                    [String]
+├── isExclusive             Boolean
+├── timeBased               {validFrom, validTo, daysOfWeek, timeSlots}
+├── stackingRules           {maxStackable, excludeModifiers}
+├── conflictResolution      {parentOverrideId, resolutionAction, resolvedBy, 
+│                            resolvedAt, originalPrice}
+├── createdAt               Date
+└── updatedAt               Date
+
+Methods: isValid(), matchesContext(), calculateAdjustment()
+
+--------------------------------------------------------------------------------
+3.4 GEO_ZONE (geozones)
+--------------------------------------------------------------------------------
+Purpose: Hierarchical geographic zones for pricing/availability
+
+Fields:
+├── name                    String (required)
+├── code                    String (ISO 3166 codes)
+├── currency_code           String (default: "INR")
+├── level                   Enum ["COUNTRY", "STATE", "DISTRICT", "CITY", "ZIP", 
+│                                 "ZONE", "REGION", "UT", "CONTINENT", "WORLD"]
+├── parentZone              ObjectId → GeoZone (null for top-level)
+├── priority                Number (auto-assigned by level: ZIP=5, CITY=4, etc.)
+├── isRestricted            Boolean
+├── restrictionReason       String
+├── isActive                Boolean
+├── description             String
+├── zoneType                String (alias for level)
+├── timezone                String (default: "Asia/Kolkata")
+├── deliveryDays            Number (default: 3)
+├── holidays                [Date]
+├── operatingHours          {start, end, timezone}
+├── createdAt               Date
+└── updatedAt               Date
+
+Methods: getAncestors(), getChildren(), getHierarchyPath()
+Statics: resolveByPincode(), getMostSpecific()
+
+--------------------------------------------------------------------------------
+3.5 GEO_ZONE_MAPPING (geozonemappings)
+--------------------------------------------------------------------------------
+Purpose: Maps pincodes/country codes to GeoZones
+
+Fields:
+├── geoZone                 ObjectId → GeoZone (required)
+├── countryCode             String (ISO 3166-1 alpha-2, 2 chars)
+├── zipCode                 String (exact match)
+├── pincodeStart            Number (range start)
+├── pincodeEnd              Number (range end)
+├── isDefault               Boolean
+├── createdAt               Date
+└── updatedAt               Date
+
+Statics: findByCountryCode(), findByZipCode(), findByPincodeRange()
+
+--------------------------------------------------------------------------------
+3.6 SEGMENT_PRICE_BOOK (segmentpricebooks)
+--------------------------------------------------------------------------------
+Purpose: Links user segments to specific price books
+
+Fields:
+├── userSegment             ObjectId → UserSegment (required)
+├── priceBook               ObjectId → PriceBook (required)
+├── priority                Number
+├── geoZone                 ObjectId → GeoZone (optional zone restriction)
+├── isActive                Boolean
+├── createdAt               Date
+└── updatedAt               Date
+
+Unique Index: userSegment + priceBook + geoZone
+Static: getPriceBookForSegment()
+
+--------------------------------------------------------------------------------
+3.7 PRODUCT_AVAILABILITY (productavailabilities)
+--------------------------------------------------------------------------------
+Purpose: Hard restrictions on where products can be sold
+
+Fields:
+├── product                 ObjectId → Product (required)
+├── geoZone                 ObjectId → GeoZone (required)
+├── isSellable              Boolean (default: true)
+├── reason                  String (shown to customers)
+├── internalNotes           String (admin only)
+├── effectiveFrom           Date
+├── effectiveTo             Date
+├── isActive                Boolean
+├── createdAt               Date
+└── updatedAt               Date
+
+Statics: isProductAvailable(), getRestrictionReason()
+
+--------------------------------------------------------------------------------
+3.8 PRICING_CALCULATION_LOG (pricingcalculationlogs)
+--------------------------------------------------------------------------------
+Purpose: Audit trail for price calculations applied to orders
+
+Fields:
+├── order                   ObjectId → Order (required)
+├── pricingKey              String (required)
+├── modifier                ObjectId → PriceModifier
+├── scope                   Enum ["GLOBAL", "ZONE", "SEGMENT", "PRODUCT", "ATTRIBUTE"]
+├── beforeAmount            Number
+├── afterAmount             Number
+├── reason                  String
+├── appliedAt               Date
+├── createdAt               Date
+└── updatedAt               Date
+
+================================================================================
+                        4. ORDER MANAGEMENT
+================================================================================
+
+--------------------------------------------------------------------------------
+4.1 ORDER (orders)
+--------------------------------------------------------------------------------
+Purpose: Core order records with immutable price snapshots
+
+Fields:
+├── user                    ObjectId → User (required)
+├── product                 ObjectId → Product (required)
+├── orderNumber             String (unique, auto-generated)
+├── quantity                Number (required, min: 1)
+├── selectedDynamicAttributes [{
+│   ├── attributeType       ObjectId → AttributeType
+│   ├── attributeName       String
+│   ├── pricingKey          String (required)
+│   ├── value               Mixed
+│   ├── label               String
+│   └── uploadedImages      [{data, contentType, filename}]
+│   }]
+├── priceSnapshot           {                    ← IMMUTABLE
+│   ├── basePrice           Number (required)
+│   ├── unitPrice           Number (required)
+│   ├── quantity            Number (required)
+│   ├── appliedModifiers    [{pricingKey, modifierType, value, source, 
+│   │                         modifierId, beforeAmount, afterAmount, reason, appliesOn}]
+│   ├── subtotal            Number (required)
+│   ├── gstPercentage       Number
+│   ├── gstAmount           Number
+│   ├── totalPayable        Number (required)
+│   ├── currency            String
+│   └── calculatedAt        Date
+│   }
+├── status                  Enum ["REQUESTED", "DESIGN", "APPROVED", "PRODUCTION",
+│                                 "QC", "PACKED", "DISPATCHED", "DELIVERED", 
+│                                 "CANCELLED", "REJECTED"]
+├── currentDepartment       ObjectId → Department
+├── address                 String (required)
+├── pincode                 String (required)
+├── mobileNumber            String (required)
+├── advancePaid             Number (default: 0)
+├── paymentStatus           Enum ["PENDING", "PARTIAL", "COMPLETED"]
+├── paymentGatewayInvoiceId String
+├── paperGSM                String (legacy)
+├── laminationType          String (legacy)
+├── specialEffects          [String] (legacy)
+├── notes                   String
+├── adminNotes              String
+├── productionJobId         ObjectId → ProductionJob
+├── docketId                ObjectId → Docket
+├── logisticsProvider       ObjectId → LogisticsProvider
+├── trackingId              String
+├── estimatedDeliveryDate   Date
+├── actualDeliveryDate      Date
+├── deliveryStatus          Enum ["PENDING", "DISPATCHED", "IN_TRANSIT", 
+│                                 "OUT_FOR_DELIVERY", "DELIVERED", "FAILED"]
+├── deliveryOTP             String
+├── isPriority              Boolean
+├── parentOrderId           ObjectId → Order (for bulk)
+├── childOrders             [ObjectId] → Order
+├── designerSessionId       ObjectId → DesignerSession
+├── paymentGatewayId        ObjectId → PaymentGateway
+├── zohoInvoiceId           String
+├── deliveryRating          {agentRating, customerRating, feedback, ratedAt}
+├── createdAt               Date
+└── updatedAt               Date
+
+Virtual: totalPrice (→ priceSnapshot.totalPayable)
+
+--------------------------------------------------------------------------------
+4.2 ORDER_STATE (orderstates)
+--------------------------------------------------------------------------------
+Purpose: Valid order states and transitions
+
+Fields:
+├── code                    Enum ["REQUESTED", "APPROVED", "DESIGN", "PRODUCTION",
+│                                 "QC", "PACKED", "DISPATCHED", "DELIVERED", "CANCELLED"]
+├── allowedNextStates       [String]
+├── createdAt               Date
+└── updatedAt               Date
+
+--------------------------------------------------------------------------------
+4.3 ORDER_STATE_LOG (orderstatelogs)
+--------------------------------------------------------------------------------
+Purpose: Audit trail for order status changes
+
+Fields:
+├── order                   ObjectId → Order (required)
+├── fromState               String (required)
+├── toState                 String (required)
+├── changedBy               ObjectId → User (required)
+├── reason                  String
+├── timestamp               Date (default: now)
+└── (no timestamps)
+
+--------------------------------------------------------------------------------
+4.4 COMPLAINT (complaints)
+--------------------------------------------------------------------------------
+Purpose: Customer complaints with immutable price snapshots
+
+Fields:
+├── order                   ObjectId → Order (required, unique - 1 per order)
+├── raisedBy                ObjectId → User (required)
+├── registeredByRole        Enum ["CUSTOMER", "ADMIN", "EMP"]
+├── type                    Enum ["PRICE", "QUALITY", "DELIVERY"]
+├── description             String (required)
+├── priceSnapshot           Mixed (immutable for PRICE complaints)
+├── allowedUntil            Date (eligibility window)
+├── resolutionStatus        Enum ["OPEN", "IN_REVIEW", "RESOLVED", "REJECTED"]
+├── resolutionNotes         String
+├── resolvedBy              ObjectId → User
+├── resolvedAt              Date
+├── reopenCount             Number
+├── lastReopenedAt          Date
+├── escalationLevel         Number
+├── timeLimit               Number (7 for customers, 15 for agents)
+├── complaintSource         Enum ["WEBSITE", "CHAT", "CALL", "WHATSAPP", "EMAIL"]
+├── existingComplaintId     ObjectId → Complaint (for single complaint rule)
+├── reopenedCount           Number
+├── assignedTo              ObjectId → User
+├── resolutionType          Enum ["REPRINT", "PRIORITY_PROCESSING", "REFUND", "OTHER"]
+├── reprintOrderId          ObjectId → Order
+├── notificationLogs        [{sentAt, type, recipient, status, messageId}]
+├── createdAt               Date
+└── updatedAt               Date
+
+Pre-save Hook: Prevents modification of priceSnapshot after save
+Pre-validate Hook: Ensures order status is DELIVERED before complaint
+
+--------------------------------------------------------------------------------
+4.5 REVIEW (reviews)
+--------------------------------------------------------------------------------
+Purpose: Customer reviews and ratings
+
+Fields:
+├── user                    ObjectId → User (optional)
+├── userName                String (required)
+├── rating                  Number (1-5)
+├── comment                 String (required)
+├── createdAt               Date
+└── updatedAt               Date
+
+================================================================================
+                        5. LOGISTICS & DELIVERY
+================================================================================
+
+--------------------------------------------------------------------------------
+5.1 INTERNAL_HUB (internalhubs)
+--------------------------------------------------------------------------------
+Purpose: Physical delivery hub locations
+
+Fields:
+├── name                    String (required, unique)
+├── address                 String (required)
+├── managerUserId           ObjectId → User
+├── serviceablePincodes     [String]
+├── contactNumber           String (required)
+├── alternateContactNumber  String
+├── email                   String
+├── isActive                Boolean
+├── capacity                {maxOrders, maxAgents}
+├── operatingHours          {start, end, timezone}
+├── holidays                [Date]
+├── createdAt               Date
+└── updatedAt               Date
+
+Methods: canServicePincode()
+Static: findByPincode()
+
+--------------------------------------------------------------------------------
+5.2 LOGISTICS_PROVIDER (logisticsproviders)
+--------------------------------------------------------------------------------
+Purpose: External/internal shipping provider configuration
+
+Fields:
+├── name                    Enum ["DELHIVERY", "SHIPROCKET", "INTERNAL", 
+│                                 "BLUEDART", "DTDC", "ECOM_EXPRESS"]
+├── displayName             String
+├── type                    Enum ["INTERNAL", "EXTERNAL"]
+├── isActive                Boolean
+├── apiCredentials          Mixed (⚠️ ENCRYPTED, hidden by default)
+├── baseUrl                 String
+├── serviceablePincodes     [String]
+├── serviceableRanges       [{start, end}]
+├── excludedPincodes        [String]
+├── pricingRules            Mixed (baseRate, perKg, codCharges)
+├── averageDeliveryTime     Number (days)
+├── expressDeliveryTime     Number
+├── supportsCOD             Boolean
+├── supportsReverse         Boolean
+├── maxWeight               Number (kg)
+├── priority                Number
+├── webhookUrl              String
+├── webhookSecret           String (hidden)
+├── lastSyncAt              Date
+├── syncStatus              Enum ["OK", "ERROR", "PENDING"]
+├── createdAt               Date
+└── updatedAt               Date
+
+Methods: canServicePincode()
+Static: findBestForPincode()
+
+--------------------------------------------------------------------------------
+5.3 DOCKET (dockets)
+--------------------------------------------------------------------------------
+Purpose: Shipment tracking between hubs
+
+Fields:
+├── docketNumber            String (required, unique, auto-generated)
+├── orders                  [ObjectId] → Order
+├── originHub               ObjectId → InternalHub (required)
+├── destinationHub          ObjectId → InternalHub (required)
+├── currentStatus           Enum ["CREATED", "DISPATCHED", "RECEIVED_AT_HUB",
+│                                 "OUT_FOR_DELIVERY", "DELIVERED"]
+├── statusHistory           [{status, timestamp, location, userId}]
+├── deliveryAgent           ObjectId → User
+├── estimatedDelivery       Date
+├── actualDelivery          Date
+├── otpCode                 String
+├── otpVerified             Boolean
+├── createdAt               Date
+└── updatedAt               Date
+
+Auto-generate: docketNumber = "DCK-{timestamp}-{random}"
+
+--------------------------------------------------------------------------------
+5.4 PRODUCTION_JOB (productionjobs)
+--------------------------------------------------------------------------------
+Purpose: Production batch tracking
+
+Fields:
+├── jobNumber               String (required, unique, auto-generated)
+├── jobType                 Enum ["OFFSET_GANG", "DIGITAL_DIRECT"]
+├── orders                  [ObjectId] → Order
+├── currentStation          Enum ["PRINTING", "CUTTING", "LAMINATION", "DISPATCH"]
+├── filePath                String
+├── status                  Enum ["PENDING", "IN_PROGRESS", "COMPLETED"]
+├── startedAt               Date
+├── completedAt             Date
+├── assignedTo              ObjectId → User
+├── departmentLogs          [{department, startTime, endTime, userId, notes}]
+├── preflightResult         {status, reportUrl, errorCodes, checkedAt}
+├── priority                Number
+├── notes                   String
+├── createdAt               Date
+└── updatedAt               Date
+
+Auto-generate: jobNumber = "{OFG|DIG}-{timestamp}-{random}"
+
+================================================================================
+                        6. ANALYTICS & TRACKING
+================================================================================
+
+--------------------------------------------------------------------------------
+6.1 ANALYTICS (analytics)
+--------------------------------------------------------------------------------
+Purpose: User behavior tracking (views, cart, checkout, etc.)
+
+Fields:
+├── eventType               Enum ["PRODUCT_VIEW", "ADD_TO_CART", "REMOVE_FROM_CART",
+│                                 "CHECKOUT_START", "CHECKOUT_COMPLETE", "DESIGN_UPLOAD",
+│                                 "SEARCH", "FILTER_APPLY", "CATEGORY_VIEW", 
+│                                 "LOGIN", "SIGNUP", "LOGOUT"]
+├── userId                  ObjectId → User
+├── productId               ObjectId → Product
+├── categoryId              ObjectId → Category
+├── orderId                 ObjectId → Order
+├── sessionId               String
+├── timestamp               Date
+├── metadata                Mixed (event-specific data)
+├── deviceInfo              {type, os, browser, userAgent, screenWidth, screenHeight}
+├── location                {ip, country, state, city, pincode, latitude, longitude}
+├── referrer                {source, medium, campaign, url}
+├── pageUrl                 String
+├── pageTitle               String
+├── createdAt               Date
+└── updatedAt               Date
+
+Static Methods: track(), getProductViews()
+
+--------------------------------------------------------------------------------
+6.2 CROSS_SELL_ANALYTICS (crosssellanalytics)
+--------------------------------------------------------------------------------
+Purpose: Product pair recommendations based on co-viewing/purchasing
+
+Fields:
+├── sourceProduct           ObjectId → Product (required)
+├── targetProduct           ObjectId → Product (required)
+├── viewCount               Number (times target viewed after source)
+├── purchaseCount           Number (times both purchased together)
+├── addToCartCount          Number
+├── conversionRate          Number (0-1, purchaseCount/viewCount)
+├── confidence              Number (0-1, statistical confidence)
+├── score                   Number (weighted ranking score)
+├── lastUpdated             Date
+├── sourceCategory          ObjectId → Category
+├── targetCategory          ObjectId → Category
+├── createdAt               Date
+└── updatedAt               Date
+
+Unique Index: sourceProduct + targetProduct
+Methods: incrementView(), incrementPurchase(), recalculateMetrics()
+Statics: getRecommendations(), recordView(), recordPurchase()
+
+--------------------------------------------------------------------------------
+6.3 DESIGNER_SESSION (designersessions)
+--------------------------------------------------------------------------------
+Purpose: "Hire a Designer" service session tracking
+
+Fields:
+├── orderId                 ObjectId → Order
+├── customerId              ObjectId → User (required)
+├── designerId              ObjectId → User (required)
+├── sessionType             Enum ["VISUAL", "PHYSICAL"]
+├── status                  Enum ["SCHEDULED", "ACTIVE", "COMPLETED", "CANCELLED"]
+├── startTime               Date
+├── endTime                 Date
+├── duration                Number (minutes)
+├── paymentStatus           Enum ["PENDING", "PAID"]
+├── amount                  Number
+├── historyLogs             [{timestamp, message, userId}]
+├── artifacts               [{type, content, uploadedBy, uploadedAt}]
+├── designRequirements      {cardFor, designStyle, colorPreference, language,
+│                            logoAvailable, logoUrl, photoAvailable, photoUrl,
+│                            specialInstructions}
+├── createdAt               Date
+└── updatedAt               Date
+
+================================================================================
+                        7. INTEGRATIONS & SUPPORT
+================================================================================
+
+--------------------------------------------------------------------------------
+7.1 PAYMENT_GATEWAY (paymentgateways)
+--------------------------------------------------------------------------------
+Purpose: Multi-gateway payment configuration
+
+Fields:
+├── name                    Enum ["RAZORPAY", "STRIPE", "PHONEPE", "PAYTM", "CASHFREE"]
+├── displayName             String
+├── isActive                Boolean
+├── mode                    Enum ["SANDBOX", "PRODUCTION"]
+├── publicKey               String (⚠️ should be encrypted)
+├── secretKey               String (⚠️ encrypted, hidden)
+├── webhookSecret           String (⚠️ encrypted, hidden)
+├── priority                Number
+├── trafficSplit            Number (0-100 percentage)
+├── supportedCurrencies     [String] (default: ["INR"])
+├── supportedMethods        [String] (default: ["UPI", "CARD", "NETBANKING", "WALLET"])
+├── config                  Mixed (provider-specific)
+├── webhookUrl              String
+├── callbackUrl             String
+├── lastTestedAt            Date
+├── testResult              {success, message}
+├── createdAt               Date
+└── updatedAt               Date
+
+Static: getActiveGateway()
+
+--------------------------------------------------------------------------------
+7.2 ZOHO_SYNC_LOG (zohosynclogs)
+--------------------------------------------------------------------------------
+Purpose: ERP integration audit trail
+
+Fields:
+├── orderId                 ObjectId → Order
+├── syncType                Enum ["INVOICE", "INVENTORY", "CONTACT", 
+│                                 "PAYMENT", "CREDIT_NOTE"]
+├── status                  Enum ["PENDING", "SUCCESS", "FAILED", "RETRYING"]
+├── requestData             Mixed
+├── responseData            Mixed
+├── zohoId                  String
+├── zohoModule              String
+├── errorMessage            String
+├── errorCode               String
+├── retryCount              Number (default: 0)
+├── maxRetries              Number (default: 3)
+├── nextRetryAt             Date
+├── syncedAt                Date
+├── syncDuration            Number (milliseconds)
+├── createdAt               Date
+└── updatedAt               Date
+
+Methods: markSuccess(), markFailed()
+Static: getPendingRetries()
+
+--------------------------------------------------------------------------------
+7.3 DEPARTMENT (departments)
+--------------------------------------------------------------------------------
+Purpose: Production department configuration
+
+Fields:
+├── name                    String (required, unique)
+├── description             String
+├── isEnabled               Boolean
+├── operators               [ObjectId] → User
+├── sequenceOrder           Number
+├── canStart                Boolean
+├── canPause                Boolean
+├── canStop                 Boolean
+├── defaultDuration         Number (minutes)
+├── requiredOperators       Number (default: 1)
+├── equipment               [String]
+├── checklist               [String]
+├── createdAt               Date
+└── updatedAt               Date
+
+--------------------------------------------------------------------------------
+7.4 FEATURE (features)
+--------------------------------------------------------------------------------
+Purpose: Feature flags for access control
+
+Fields:
+├── key                     String (required, unique, lowercase)
+├── name                    String (required)
+├── description             String
+├── category                String (e.g., "ORDERS", "PRODUCTS", "DELIVERY")
+├── subcategory             String
+├── isActive                Boolean
+├── isBeta                  Boolean
+├── isPremium               Boolean
+├── dependsOn               [String] (other feature keys)
+├── configSchema            Mixed (JSON Schema for configuration)
+├── icon                    String
+├── sortOrder               Number
+├── createdAt               Date
+└── updatedAt               Date
+
+Statics: getByCategory(), getAllActive()
+
+--------------------------------------------------------------------------------
+7.5 PRINT_PARTNER_REQUEST (printpartnerrequests)
+--------------------------------------------------------------------------------
+Purpose: Print partner registration requests
+
+Fields:
+├── businessName            String (required)
+├── ownerName               String (required)
+├── mobileNumber            String (required)
+├── whatsappNumber          String (required)
+├── emailAddress            String (required)
+├── gstNumber               String
+├── fullBusinessAddress     String (required)
+├── city                    String (required)
+├── state                   String (required)
+├── pincode                 String (required)
+├── proofFileUrl            String (required)
+├── password                String (required, hashed)
+├── status                  Enum ["pending", "approved", "rejected"]
+├── approvedBy              ObjectId → User
+├── approvedAt              Date
+├── rejectionReason         String
+├── userId                  ObjectId → User (created on approval)
+├── createdAt               Date
+└── updatedAt               Date
+
+--------------------------------------------------------------------------------
+7.6 DESIGN (designs / uploads)
+--------------------------------------------------------------------------------
+Purpose: User-uploaded design files
+
+Fields:
+├── user                    ObjectId → User (required)
+├── height                  Number (required)
+├── width                   Number (required)
+├── description             String
+├── safeArea                {top, bottom, left, right}
+├── bleedArea               {top, bottom, left, right}
+├── frontImage              {data: Buffer, contentType, filename, size} (REQUIRED)
+├── backImage               {data: Buffer, contentType, filename, size} (optional)
+├── createdAt               Date
+└── updatedAt               Date
+
+================================================================================
+                        RELATIONSHIP DIAGRAM
+================================================================================
+
+User ──────────┬──→ UserType
+               ├──→ UserSegment
+               ├──→ CorporateProfile
+               ├──→ PrintPartnerProfile
+               └──→ InternalHub (assignedHub)
+
+Category ──────┬──→ Category (parent - unlimited depth)
+               └──→ SubCategory
+
+Product ───────┬──→ Category
+               ├──→ SubCategory
+               ├──→ AttributeType (dynamicAttributes)
+               ├──→ Department (productionSequence)
+               └──→ GeoZone (availabilityRules)
+
+AttributeType ─┬──→ Category (applicableCategories)
+               └──→ SubCategory (applicableSubCategories)
+
+SubAttribute ──┴──→ AttributeType (parentAttribute)
+
+Order ─────────┬──→ User
+               ├──→ Product
+               ├──→ Department (currentDepartment)
+               ├──→ ProductionJob
+               ├──→ Docket
+               ├──→ LogisticsProvider
+               ├──→ DesignerSession
+               ├──→ PaymentGateway
+               └──→ Order (parent/children)
+
+PriceBook ─────┬──→ PriceBook (parentBook)
+               ├──→ GeoZone (zone)
+               └──→ UserSegment (segment)
+
+PriceModifier ─┬──→ GeoZone
+               ├──→ UserSegment
+               ├──→ User
+               ├──→ Product
+               ├──→ Category
+               ├──→ SubCategory
+               └──→ AttributeType
+
+GeoZone ───────┴──→ GeoZone (parentZone - hierarchical)
+
+Complaint ─────┬──→ Order (1:1)
+               └──→ User (raisedBy, resolvedBy, assignedTo)
+
+================================================================================
+                        KEY INDEXES SUMMARY
+================================================================================
+
+HIGH-VOLUME QUERIES:
+├── orders: user+createdAt, status, deliveryStatus+estimatedDeliveryDate
+├── products: category, name, isActive
+├── analytics: eventType+timestamp, userId+timestamp, productId+timestamp
+├── pricemodifiers: isActive+validFrom+validTo, appliesTo+isStackable+priority
+
+UNIQUE CONSTRAINTS:
+├── users: email
+├── categories: slug (sparse)
+├── products: (none - name can repeat)
+├── pricebookentries: priceBook+product (compound)
+├── subattributes: parentAttribute+parentValue+value (compound)
+├── geozonemappings: geoZone+pincodeStart+pincodeEnd (compound)
+
+================================================================================
+                        SECURITY CONSIDERATIONS
+================================================================================
+
+ENCRYPTED FIELDS (⚠️ CRITICAL):
+├── PaymentGateway.secretKey
+├── PaymentGateway.webhookSecret
+├── LogisticsProvider.apiCredentials
+├── LogisticsProvider.webhookSecret
+
+SENSITIVE FIELDS (select: false):
+├── PaymentGateway.secretKey
+├── PaymentGateway.webhookSecret
+├── LogisticsProvider.apiCredentials
+├── Product.filters (legacy, hidden)
+
+IMMUTABLE FIELDS:
+├── Order.priceSnapshot (prevents price tampering)
+├── Complaint.priceSnapshot (preserves evidence)
+
+================================================================================
+                        NOTES & CONSIDERATIONS
+================================================================================
+
+1. PRICING ENGINE FLOW:
+   User → UserSegment → SegmentPriceBook → PriceBook
+   Pincode → GeoZoneMapping → GeoZone → PriceModifier
+   Product + Attributes → PriceModifier (PRODUCT, ATTRIBUTE, COMBINATION)
+   
+2. ORDER IMMUTABILITY:
+   priceSnapshot is IMMUTABLE after order creation to prevent fraud
+   
+3. HIERARCHICAL STRUCTURES:
+   - Category: unlimited depth via parent reference
+   - SubCategory: unlimited depth via parent reference
+   - GeoZone: Country → State → District → City → ZIP
+   - PriceBook: Master → Child (zone/segment specific)
+   - UserType: supports parent chain
+   
+4. VIRTUAL PRICE BOOKS:
+   Can be calculated on-the-fly without storing entries
+   
+5. ZOHO INTEGRATION:
+   ZohoSyncLog tracks all ERP sync with retry logic (exponential backoff)
+
+================================================================================
+                        END OF DOCUMENTATION
+================================================================================

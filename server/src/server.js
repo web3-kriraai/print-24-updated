@@ -93,12 +93,15 @@ app.use("/api", (req, res, next) => {
   next();
 });
 
+// Mount pricing admin routes FIRST (more specific path /api/admin before general /api)
+app.use("/api/admin", pricingAdminRoutes);
+
+// Then mount general API routes
 app.use("/api/auth", authRoutes);
 app.use("/api", apiRoutes);
 app.use("/api", uploadRoutes);
 app.use("/api/timeline", timelineRoutes);
 app.use("/api/pricing", pricingRoutes);
-app.use("/api/admin", pricingAdminRoutes);
 app.use("/api/user", userContextRoutes);  // User context API
 app.use("/api/geolocation", geolocationRoutes);  // Geolocation API
 app.use("/api/currency", currencyRoutes);  // Currency conversion API
@@ -157,8 +160,23 @@ mongoose
     retryWrites: true,
     w: 'majority'
   })
-  .then(() => {
+  .then(async () => {
     console.log("✅ MongoDB connected successfully");
+
+    // Initialize Payment Gateway Orchestration System
+    try {
+      const { paymentRouter } = await import('./services/payment/index.js');
+      await paymentRouter.loadProviders();
+      console.log("💳 Payment Gateway Orchestration initialized");
+
+      // Start reconciliation service (optional - controlled by env)
+      const reconciliationService = (await import('./services/reconciliation.service.js')).default;
+      reconciliationService.schedule();
+    } catch (paymentError) {
+      console.warn("⚠️ Payment system initialization warning:", paymentError.message);
+      console.warn("   Payment features may be limited until configuration is complete.");
+    }
+
     const port = process.env.PORT || 5000;
     app.listen(port, () => {
       console.log(`========================================`);
@@ -171,3 +189,4 @@ mongoose
     console.error("❌ MongoDB connection error:", err.message);
     process.exit(1);
   });
+

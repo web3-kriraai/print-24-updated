@@ -149,6 +149,11 @@ import { requireAdmin } from "../middlewares/authMiddleware.js";
 /* PRICING ROUTES */
 import pricingRoutes from "./pricingRoutes.js";
 
+/* PAYMENT ROUTES */
+import paymentRoutes from "./payment.routes.js";
+import paymentGatewayRoutes from "./admin/payment-gateways.routes.js";
+
+
 const router = express.Router();
 
 /* =====================================
@@ -429,6 +434,16 @@ router.use("/modifiers", authMiddleware, requireAdmin, modifierRoutes);
 
 // Pricing routes (optional auth - uses RETAIL segment if not logged in)
 router.use("/pricing", pricingRoutes);
+
+/* =====================================
+   PAYMENT ROUTES
+===================================== */
+
+// Payment routes (initialize, verify, status, webhook)
+router.use("/payment", paymentRoutes);
+
+// Payment gateway admin routes
+router.use("/admin/payment-gateways", authMiddleware, requireAdmin, paymentGatewayRoutes);
 
 export default router;
 

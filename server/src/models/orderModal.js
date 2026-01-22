@@ -149,11 +149,65 @@ const OrderSchema = new mongoose.Schema(
 
     paymentStatus: {
       type: String,
-      enum: ["PENDING", "PARTIAL", "COMPLETED"],
+      enum: [
+        "PENDING",           // Awaiting payment
+        "PARTIAL",           // Partial payment received
+        "COMPLETED",         // Full payment received
+        "FAILED",            // Payment failed
+        "REFUNDED",          // Fully refunded
+        "PARTIALLY_REFUNDED" // Partial refund issued
+      ],
       default: "PENDING",
+      index: true,
     },
 
     paymentGatewayInvoiceId: String,
+
+    // Enhanced payment tracking
+    payment_details: {
+      // Reference to PaymentTransaction
+      transaction_id: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "PaymentTransaction"
+      },
+
+      // Gateway used for this order
+      gateway_used: {
+        type: String,
+        enum: ['RAZORPAY', 'STRIPE', 'PHONEPE', 'PAYU', 'CASHFREE']
+      },
+
+      // Payment method used
+      payment_method: {
+        type: String,
+        enum: ['UPI', 'CARD', 'NETBANKING', 'WALLET', 'QR', 'BANK_TRANSFER', 'EMI', 'COD', 'CREDIT']
+      },
+
+      // Capture timestamp
+      captured_at: Date,
+
+      // Total paid amount
+      amount_paid: {
+        type: Number,
+        default: 0
+      },
+
+      // Refund summary
+      refund_summary: {
+        total_refunded: { type: Number, default: 0 },
+        refund_count: { type: Number, default: 0 },
+        last_refund_at: Date
+      },
+
+      // For split payments
+      split_details: {
+        is_split: { type: Boolean, default: false },
+        platform_amount: Number,  // Amount retained by platform
+        vendor_amount: Number,    // Amount to vendor/partner
+        vendor_id: mongoose.Schema.Types.ObjectId
+      }
+    },
+
 
     /* =====================
        LEGACY FIELDS (DO NOT DELETE)
