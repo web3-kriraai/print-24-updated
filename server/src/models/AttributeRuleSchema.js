@@ -32,7 +32,7 @@ const AttributeRuleSchema = new mongoose.Schema(
         targetAttribute: {
           type: mongoose.Schema.Types.ObjectId,
           ref: "AttributeType",
-          required: true,
+          required: false,
         },
 
         allowedValues: [String], // for SHOW_ONLY

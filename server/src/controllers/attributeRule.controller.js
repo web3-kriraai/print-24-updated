@@ -123,15 +123,21 @@ export const createAttributeRule = async (req, res) => {
         attribute: when.attribute,
         value: when.value,
       },
-      then: then.map((action) => ({
-        action: action.action,
-        targetAttribute: action.targetAttribute,
-        allowedValues: action.allowedValues || [],
-        defaultValue: action.defaultValue || null,
-        minQuantity: action.minQuantity,
-        maxQuantity: action.maxQuantity,
-        stepQuantity: action.stepQuantity,
-      })),
+      then: then.map((action) => {
+        const actionObj = {
+          action: action.action,
+          allowedValues: action.allowedValues || [],
+          defaultValue: action.defaultValue || null,
+          minQuantity: action.minQuantity,
+          maxQuantity: action.maxQuantity,
+          stepQuantity: action.stepQuantity,
+        };
+        // Only include targetAttribute if it's a valid non-empty value
+        if (action.targetAttribute && action.targetAttribute !== "") {
+          actionObj.targetAttribute = action.targetAttribute;
+        }
+        return actionObj;
+      }),
       applicableCategory: applicableCategory || null,
       applicableProduct: applicableProduct || null,
       priority: priority !== undefined ? priority : 0,
@@ -361,15 +367,21 @@ export const updateAttributeRule = async (req, res) => {
           attribute: when.attribute,
           value: when.value,
         },
-        then: then.map((action) => ({
-          action: action.action,
-          targetAttribute: action.targetAttribute,
-          allowedValues: action.allowedValues || [],
-          defaultValue: action.defaultValue || null,
-          minQuantity: action.minQuantity,
-          maxQuantity: action.maxQuantity,
-          stepQuantity: action.stepQuantity,
-        })),
+        then: then.map((action) => {
+          const actionObj = {
+            action: action.action,
+            allowedValues: action.allowedValues || [],
+            defaultValue: action.defaultValue || null,
+            minQuantity: action.minQuantity,
+            maxQuantity: action.maxQuantity,
+            stepQuantity: action.stepQuantity,
+          };
+          // Only include targetAttribute if it's a valid non-empty value
+          if (action.targetAttribute && action.targetAttribute !== "") {
+            actionObj.targetAttribute = action.targetAttribute;
+          }
+          return actionObj;
+        }),
         applicableCategory: applicableCategory || null,
         applicableProduct: applicableProduct || null,
         priority: priority !== undefined ? priority : 0,

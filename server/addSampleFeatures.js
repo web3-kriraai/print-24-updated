@@ -56,7 +56,7 @@ const sampleFeatures = [
 async function addSampleFeatures() {
     try {
         // Connect to MongoDB
-        await mongoose.connect(process.env.MONGO_URI);
+        await mongoose.connect(process.env.MONGO_TEST_URI);
         console.log('✅ Connected to MongoDB');
 
         // Clear existing features

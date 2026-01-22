@@ -220,23 +220,51 @@ const ManageAttributeRules: React.FC<ManageAttributeRulesProps> = ({
     };
 
     const handleEditRule = (rule: Rule) => {
-        // Determine scope ref ID
+        // Determine scope and scope ref ID from applicableCategory/applicableProduct
+        let scope: "GLOBAL" | "CATEGORY" | "PRODUCT" = "GLOBAL";
         let scopeRefId = "";
-        if (rule.scope === "CATEGORY") {
-            scopeRefId = typeof rule.applicableCategory === 'object' ? rule.applicableCategory?._id : rule.applicableCategory || "";
-        } else if (rule.scope === "PRODUCT") {
-            scopeRefId = typeof rule.applicableProduct === 'object' ? rule.applicableProduct?._id : rule.applicableProduct || "";
+
+        // Check if rule has applicableCategory
+        if (rule.applicableCategory) {
+            scope = "CATEGORY";
+            scopeRefId = typeof rule.applicableCategory === 'object'
+                ? (rule.applicableCategory as Category)?._id
+                : rule.applicableCategory || "";
         }
+        // Check if rule has applicableProduct  
+        else if (rule.applicableProduct) {
+            scope = "PRODUCT";
+            scopeRefId = typeof rule.applicableProduct === 'object'
+                ? (rule.applicableProduct as Product)?._id
+                : rule.applicableProduct || "";
+        }
+        // If rule.scope is set, use it as fallback
+        else if (rule.scope) {
+            scope = rule.scope;
+        }
+
+        // Extract targetAttribute IDs from populated objects in then array
+        const processedThenActions = (rule.then || []).map((action: any) => ({
+            action: action.action,
+            targetAttribute: typeof action.targetAttribute === 'object' && action.targetAttribute !== null
+                ? action.targetAttribute._id
+                : (action.targetAttribute || ""),
+            allowedValues: action.allowedValues || [],
+            defaultValue: action.defaultValue || "",
+            minQuantity: action.minQuantity,
+            maxQuantity: action.maxQuantity,
+            stepQuantity: action.stepQuantity,
+        }));
 
         setRuleForm({
             name: rule.name,
-            scope: rule.scope,
+            scope: scope,
             scopeRefId: scopeRefId,
             when: {
                 attribute: typeof rule.when.attribute === 'object' ? (rule.when.attribute as any)._id : rule.when.attribute,
                 value: rule.when.value,
             },
-            then: rule.then || [],
+            then: processedThenActions,
             priority: rule.priority || 0,
             isActive: rule.isActive,
         });
@@ -266,7 +294,17 @@ const ManageAttributeRules: React.FC<ManageAttributeRulesProps> = ({
                     attribute: typeof rule.when.attribute === 'object' ? (rule.when.attribute as any)?._id : rule.when.attribute,
                     value: rule.when.value
                 },
-                then: rule.then,
+                then: (rule.then || []).map((action: any) => ({
+                    action: action.action,
+                    targetAttribute: typeof action.targetAttribute === 'object' && action.targetAttribute !== null
+                        ? action.targetAttribute._id
+                        : (action.targetAttribute || undefined),
+                    allowedValues: action.allowedValues || [],
+                    defaultValue: action.defaultValue || undefined,
+                    minQuantity: action.minQuantity,
+                    maxQuantity: action.maxQuantity,
+                    stepQuantity: action.stepQuantity,
+                })),
                 priority: rule.priority,
                 isActive: rule.isActive
             };
@@ -337,6 +375,17 @@ const ManageAttributeRules: React.FC<ManageAttributeRulesProps> = ({
             if (value === 'SHOW' || value === 'HIDE' || value === 'QUANTITY') {
                 delete newActions[index].allowedValues;
                 delete newActions[index].defaultValue;
+            }
+
+            // When QUANTITY action is selected, set default targetAttribute to Lamination
+            if (value === 'QUANTITY') {
+                const laminationAttr = attributeTypes.find(
+                    attr => attr.attributeName?.toLowerCase() === 'lamination' ||
+                        attr.systemName?.toLowerCase() === 'lamination'
+                );
+                if (laminationAttr) {
+                    newActions[index].targetAttribute = laminationAttr._id;
+                }
             }
         }
 
