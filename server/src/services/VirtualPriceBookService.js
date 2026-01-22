@@ -46,7 +46,7 @@ class VirtualPriceBookService {
 
     // No exact match - CREATE a new price book for this specific combination
     console.log(`[getOrCreateBookForContext] No exact match for zone=${zoneId}, segment=${segmentId}. Creating new book...`);
-    
+
     const masterBook = await PriceBook.getMasterBook();
     const zone = zoneId ? await GeoZone.findById(zoneId) : null;
     const segment = segmentId ? await UserSegment.findById(segmentId) : null;
@@ -668,6 +668,12 @@ class VirtualPriceBookService {
    * Group Zone View: All products for a zone + segment combination
    */
   async getGroupZoneView(zoneId, segmentId) {
+    // Fetch zone and segment details for display
+    const [zone, segment] = await Promise.all([
+      zoneId ? GeoZone.findById(zoneId).lean() : null,
+      segmentId ? UserSegment.findById(segmentId).lean() : null
+    ]);
+
     const products = await Product.find({}).lean();
     const prices = [];
 
@@ -691,6 +697,8 @@ class VirtualPriceBookService {
       viewType: 'GROUP_ZONE',
       zoneId,
       segmentId,
+      zoneName: zone?.name || null,
+      segmentName: segment?.name || null,
       prices
     };
   }
@@ -699,7 +707,12 @@ class VirtualPriceBookService {
    * Product Zone View: One product across all segments in a zone
    */
   async getProductZoneView(zoneId, productId) {
-    const product = await Product.findById(productId).lean();
+    // Fetch zone and product details for display
+    const [zone, product] = await Promise.all([
+      zoneId ? GeoZone.findById(zoneId).lean() : null,
+      Product.findById(productId).lean()
+    ]);
+
     const segments = await UserSegment.find().lean();
     const prices = [];
 
@@ -723,6 +736,8 @@ class VirtualPriceBookService {
       viewType: 'PRODUCT_ZONE',
       zoneId,
       productId,
+      zoneName: zone?.name || null,
+      productName: product?.name || null,
       prices
     };
   }
@@ -745,7 +760,7 @@ class VirtualPriceBookService {
     console.log(`[getZoneView] Loaded ${products.length} products, ${segments.length} segments`);
 
     // 2. BATCH LOAD: Get all master price entries at once
-    const masterEntries = await PriceBookEntry.find({ 
+    const masterEntries = await PriceBookEntry.find({
       priceBook: masterBook._id,
       product: { $in: products.map(p => p._id) }
     }).lean();
@@ -775,7 +790,7 @@ class VirtualPriceBookService {
     const availabilityMap = new Map();
     // Default: all products available unless explicitly blocked
     products.forEach(p => availabilityMap.set(p._id.toString(), true));
-    
+
     // Apply availability rules
     availabilityRecords.forEach(record => {
       if (!record.isAvailable) {
@@ -835,15 +850,15 @@ class VirtualPriceBookService {
       // Process all segments for this product
       for (const segment of segments) {
         const segmentIdStr = segment._id.toString();
-        
+
         // Check for zone+segment specific price
         const specificKey = `${productIdStr}-${segmentIdStr}`;
         const zoneOnlyKey = `${productIdStr}-all`;
-        
+
         // Priority: zone+segment > zone-only > master
-        let finalPrice = zonePriceMap.get(specificKey) 
-                        || zonePriceMap.get(zoneOnlyKey) 
-                        || masterPrice;
+        let finalPrice = zonePriceMap.get(specificKey)
+          || zonePriceMap.get(zoneOnlyKey)
+          || masterPrice;
 
         row.segments[segment.code] = {
           finalPrice: finalPrice,

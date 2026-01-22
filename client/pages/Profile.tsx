@@ -184,8 +184,9 @@ interface Order {
 }
 
 // Format currency helper
-const formatCurrency = (amount: number): string => {
-  return `₹${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const formatCurrency = (amount: number | undefined | null): string => {
+  const safeAmount = amount ?? 0;
+  return `₹${safeAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };
 
 // Subcategory Image Component with error handling
