@@ -4595,6 +4595,9 @@ const AdminDashboard: React.FC = () => {
       });
       setIsSlugManuallyEdited(!!category.slug); // If category has a slug, consider it manually set
 
+      // Set editing state before updating URL
+      setEditingCategoryId(categoryId);
+
       // Update URL instead of setting state directly
       updateUrl("categories", "edit", categoryId);
       setError(null);
@@ -4617,6 +4620,9 @@ const AdminDashboard: React.FC = () => {
     setFilteredCategoriesByType([]);
     setFilteredSubCategories([]);
     setIsProductSlugManuallyEdited(false);
+    // Reset form modes to default (show category form)
+    setIsSubCategoryMode(false);
+    setIsNestedSubcategoryMode(false);
     setProductForm({
       name: "",
       slug: "",
@@ -4862,6 +4868,11 @@ const AdminDashboard: React.FC = () => {
         setIsSlugManuallyEdited(false);
         setEditingCategoryId(null);
         setEditingCategoryImage(null);
+        // Reset form modes to default
+        setIsSubCategoryMode(false);
+        setIsNestedSubcategoryMode(false);
+        // Navigate back to clean categories view
+        updateUrl("categories");
         fetchCategories();
         fetchSubCategories(); // Refresh subcategories
         fetchAvailableParentCategories(); // Refresh available parents
@@ -4981,6 +4992,11 @@ const AdminDashboard: React.FC = () => {
         setIsSlugManuallyEdited(false);
         setEditingCategoryId(null);
         setEditingCategoryImage(null);
+        // Reset form modes to default
+        setIsSubCategoryMode(false);
+        setIsNestedSubcategoryMode(false);
+        // Navigate back to clean categories view
+        updateUrl("categories");
         fetchCategories();
         fetchAvailableParentCategories(); // Refresh available parents
       }
@@ -5135,6 +5151,11 @@ const AdminDashboard: React.FC = () => {
       setIsSubCategorySlugManuallyEdited(false);
       setEditingSubCategoryId(null);
       setEditingSubCategoryImage(null);
+      // Reset form modes to default
+      setIsSubCategoryMode(false);
+      setIsNestedSubcategoryMode(false);
+      // Navigate back to clean categories view
+      updateUrl("categories");
       fetchSubCategories();
     } catch (err) {
       setError(err instanceof Error ? err.message : `Failed to ${editingSubCategoryId ? "update" : "create"} subcategory`);
@@ -5182,8 +5203,12 @@ const AdminDashboard: React.FC = () => {
       });
       setIsSubCategorySlugManuallyEdited(!!subCategory.slug); // If subcategory has a slug, consider it manually set
 
-      // Set nested mode based on whether it has a parent subcategory
-      setIsNestedSubcategoryMode(!!parentId);
+      // Set form modes based on whether it has a parent subcategory
+      // If it has a parent, it's a nested subcategory - show nested form
+      // If no parent, it's a regular subcategory - show subcategory form
+      const isNested = !!parentId;
+      setIsNestedSubcategoryMode(isNested);
+      setIsSubCategoryMode(!isNested); // Show subcategory form for non-nested subcategories
 
       // Fetch available parent subcategories for the category (with nested children)
       if (categoryId) {
@@ -5898,7 +5923,7 @@ const AdminDashboard: React.FC = () => {
                 setIsSubCategorySlugManuallyEdited={setIsSubCategorySlugManuallyEdited}
                 onCategorySubmit={handleCategorySubmit}
                 onSubCategorySubmit={handleSubCategorySubmit}
-                onCancelEdit={() => updateUrl("categories")}
+                onCancelEdit={() => { handleCancelEdit(); updateUrl("categories"); }}
                 loading={loading}
                 error={error}
                 success={success}

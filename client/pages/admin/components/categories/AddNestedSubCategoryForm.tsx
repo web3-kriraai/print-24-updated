@@ -29,6 +29,7 @@ interface AddNestedSubCategoryFormProps {
     loading: boolean;
     error: string | null;
     success: string | null;
+    editingSubCategoryId: string | null;
 }
 
 const AddNestedSubCategoryForm: React.FC<AddNestedSubCategoryFormProps> = ({
@@ -44,6 +45,7 @@ const AddNestedSubCategoryForm: React.FC<AddNestedSubCategoryFormProps> = ({
     loading,
     error,
     success,
+    editingSubCategoryId,
 }) => {
     const [isUploadHover, setIsUploadHover] = useState(false);
 
@@ -93,7 +95,7 @@ const AddNestedSubCategoryForm: React.FC<AddNestedSubCategoryFormProps> = ({
                     </motion.div>
                     <div className="flex-1 min-w-0">
                         <h2 className="text-lg md:text-xl font-bold text-slate-800">
-                            Add Nested Subcategory
+                            {editingSubCategoryId ? 'Edit Nested Subcategory' : 'Add Nested Subcategory'}
                         </h2>
                         <p className="text-xs md:text-sm text-slate-600 mt-1">
                             Configure nested subcategory details under a parent subcategory
@@ -431,7 +433,7 @@ const AddNestedSubCategoryForm: React.FC<AddNestedSubCategoryFormProps> = ({
                         ) : (
                             <>
                                 <Save size={16} />
-                                Create Nested Subcategory
+                                {editingSubCategoryId ? 'Update Nested Subcategory' : 'Create Nested Subcategory'}
                             </>
                         )}
                     </motion.button>

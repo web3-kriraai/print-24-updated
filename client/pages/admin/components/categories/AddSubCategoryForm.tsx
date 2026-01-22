@@ -29,6 +29,7 @@ interface AddSubCategoryFormProps {
     loading: boolean;
     error: string | null;
     success: string | null;
+    editingSubCategoryId: string | null;
 }
 
 const AddSubCategoryForm: React.FC<AddSubCategoryFormProps> = ({
@@ -44,6 +45,7 @@ const AddSubCategoryForm: React.FC<AddSubCategoryFormProps> = ({
     loading,
     error,
     success,
+    editingSubCategoryId,
 }) => {
     const [isUploadHover, setIsUploadHover] = useState(false);
 
@@ -88,8 +90,8 @@ const AddSubCategoryForm: React.FC<AddSubCategoryFormProps> = ({
                     </motion.div>
                     <div className="flex-1 min-w-0">
                         <h2 className="text-lg md:text-xl font-bold text-slate-800">
-                            Add New Subcategory
-                        </h2>
+                        {editingSubCategoryId ? 'Edit Subcategory' : 'Add New Subcategory'}
+                    </h2>
                         <p className="text-xs md:text-sm text-slate-600 mt-1">
                             Configure subcategory details under a parent category
                         </p>
@@ -398,7 +400,7 @@ const AddSubCategoryForm: React.FC<AddSubCategoryFormProps> = ({
                         ) : (
                             <>
                                 <Save size={16} />
-                                Create Subcategory
+                                {editingSubCategoryId ? 'Update Subcategory' : 'Create Subcategory'}
                             </>
                         )}
                     </motion.button>

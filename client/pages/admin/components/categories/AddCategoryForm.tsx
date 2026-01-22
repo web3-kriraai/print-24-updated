@@ -746,6 +746,7 @@ const AddCategoryForm: React.FC<AddCategoryFormProps> = ({
                             loading={loading}
                             error={error}
                             success={success}
+                            editingSubCategoryId={editingSubCategoryId}
                         />
                     </motion.div>
                 )}
@@ -772,6 +773,7 @@ const AddCategoryForm: React.FC<AddCategoryFormProps> = ({
                             loading={loading}
                             error={error}
                             success={success}
+                            editingSubCategoryId={editingSubCategoryId}
                         />
                     </motion.div>
                 )}

@@ -718,28 +718,7 @@ const ManageCategoriesView: React.FC<ManageCategoriesViewProps> = ({
                         </div>
                     </div>
                     <div className="flex gap-2">
-                        <motion.button
-                            whileHover={{ scale: 1.05 }}
-                            whileTap={{ scale: 0.95 }}
-                            onClick={() => setViewMode('categories')}
-                            className={`px-4 py-2 rounded-lg transition-colors font-medium ${viewMode === 'categories'
-                                ? 'bg-white text-teal-600'
-                                : 'bg-white/20 text-white hover:bg-white/30'
-                                }`}
-                        >
-                            Categories
-                        </motion.button>
-                        <motion.button
-                            whileHover={{ scale: 1.05 }}
-                            whileTap={{ scale: 0.95 }}
-                            onClick={() => setViewMode('subcategories')}
-                            className={`px-4 py-2 rounded-lg transition-colors font-medium ${viewMode === 'subcategories'
-                                ? 'bg-white text-teal-600'
-                                : 'bg-white/20 text-white hover:bg-white/30'
-                                }`}
-                        >
-                            Subcategories
-                        </motion.button>
+                        
                     </div>
                 </div>
             </div>
