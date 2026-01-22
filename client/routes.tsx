@@ -18,6 +18,7 @@ import MyOrders from './pages/MyOrders';
 import DepartmentPortal from './pages/DepartmentPortal';
 import EmployeeDashboard from './pages/EmployeeDashboard';
 import AdminDashboard from './pages/AdminDashboard';
+import PaymentGatewayManager from './src/components/admin/PaymentGatewayManager';
 import NotFound from './pages/NotFound';
 // AdminPricingDashboard and AdminPricingHub removed - functionality consolidated into AdminDashboard
 
@@ -58,6 +59,7 @@ export const routes = [
       { path: 'orders/:orderId', element: <OrderDetails />, errorElement: <ErrorBoundary /> },
       { path: 'order/:orderId', element: <OrderDetails />, errorElement: <ErrorBoundary /> },
       { path: 'admin/dashboard', element: <AdminDashboard />, errorElement: <ErrorBoundary /> },
+      { path: 'admin/payment-gateways', element: <PaymentGatewayManager />, errorElement: <ErrorBoundary /> },
       // admin/pricing and admin/pricing-hub removed - use admin/dashboard Pricing tabs instead
       { path: 'employee/dashboard', element: <EmployeeDashboard />, errorElement: <ErrorBoundary /> },
       { path: 'department-portal', element: <DepartmentPortal />, errorElement: <ErrorBoundary /> },

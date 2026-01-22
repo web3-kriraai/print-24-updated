@@ -100,8 +100,56 @@ const userSchema = new mongoose.Schema(
         },
       ],
     },
+
+    /* =====================
+       PAYMENT ACCOUNTS (for split payments)
+    ====================== */
+    payment_accounts: [{
+      gateway: {
+        type: String,
+        enum: ['RAZORPAY', 'STRIPE', 'PHONEPE', 'PAYU', 'CASHFREE']
+      },
+      account_id: String,      // Gateway's linked account ID
+      account_type: {
+        type: String,
+        enum: ['ROUTE', 'CONNECT', 'SPLIT']  // Razorpay Route, Stripe Connect, etc.
+      },
+      verified: {
+        type: Boolean,
+        default: false
+      },
+      verification_data: mongoose.Schema.Types.Mixed,
+      created_at: {
+        type: Date,
+        default: Date.now
+      }
+    }],
+
+    payout_preferences: {
+      default_bank_account: {
+        account_number_masked: String,  // Last 4 digits only
+        ifsc_code: String,
+        account_holder: String,
+        bank_name: String
+      },
+      upi_id: String,
+      auto_payout: {
+        type: Boolean,
+        default: false
+      },
+      payout_threshold: {
+        type: Number,
+        default: 1000  // Minimum balance for auto-payout
+      },
+      payout_schedule: {
+        type: String,
+        enum: ['DAILY', 'WEEKLY', 'MONTHLY'],
+        default: 'WEEKLY'
+      }
+    },
   },
   { timestamps: true }
+
 );
 
 /* =====================
