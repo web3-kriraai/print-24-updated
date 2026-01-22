@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { MapPin, Globe, Flag, DollarSign, ChevronDown, Loader2, CheckCircle2 } from 'lucide-react';
+import { SearchableDropdown, DropdownOption } from './SearchableDropdown';
 
 interface LocationValue {
     country?: string;
@@ -268,39 +269,30 @@ export const CascadingLocationSelect: React.FC<CascadingLocationSelectProps> = (
                     Country {required && <span className="text-red-500">*</span>}
                 </label>
 
-                <div className="relative">
-                    <select
-                        value={value.country || ''}
-                        onChange={handleCountryChange}
-                        disabled={disabled || loading.countries}
-                        required={required}
-                        className="w-full px-4 py-3 pl-4 pr-10 text-sm border-2 border-gray-300 rounded-lg 
-                                 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all
-                                 disabled:bg-gray-100 disabled:cursor-not-allowed
-                                 hover:border-gray-400 appearance-none cursor-pointer"
-                    >
-                        <option value="">{placeholder.country || '🌍 Select a country...'}</option>
-                        {countries.map(country => (
-                            <option key={country.code} value={country.code}>
-                                {country.flag} {country.name}
-                            </option>
-                        ))}
-                    </select>
-
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                        {loading.countries ? (
-                            <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />
-                        ) : value.country ? (
-                            <CheckCircle2 className="w-5 h-5 text-green-500" />
-                        ) : (
-                            <ChevronDown className="w-5 h-5 text-gray-400" />
-                        )}
-                    </div>
-                </div>
-
-                {errors.countries && (
-                    <p className="text-xs text-red-500 mt-1">{errors.countries}</p>
-                )}
+                <SearchableDropdown
+                    options={countries.map(c => ({
+                        value: c.code,
+                        label: c.name,
+                        icon: c.flag
+                    }))}
+                    value={value.country || ''}
+                    onChange={(val, opt) => {
+                        onChange({
+                            country: val,
+                            countryName: opt?.label || '',
+                            state: undefined,
+                            stateName: undefined,
+                            city: undefined,
+                            cityName: undefined,
+                            zipCode: undefined
+                        });
+                    }}
+                    placeholder={placeholder.country || '🌍 Select a country...'}
+                    disabled={disabled}
+                    loading={loading.countries}
+                    error={errors.countries}
+                    icon={<Globe className="w-4 h-4" />}
+                />
             </div>
 
             {/* State Dropdown */}
@@ -310,47 +302,34 @@ export const CascadingLocationSelect: React.FC<CascadingLocationSelectProps> = (
                     State/Province {required && <span className="text-red-500">*</span>}
                 </label>
 
-                <div className="relative">
-                    <select
-                        value={value.state || ''}
-                        onChange={handleStateChange}
-                        disabled={disabled || !value.country || loading.states || states.length === 0}
-                        required={required}
-                        className="w-full px-4 py-3 pl-4 pr-10 text-sm border-2 border-gray-300 rounded-lg 
-                                 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all
-                                 disabled:bg-gray-100 disabled:cursor-not-allowed
-                                 hover:border-gray-400 appearance-none cursor-pointer"
-                    >
-                        <option value="">
-                            {!value.country
-                                ? '↑ Select country first'
-                                : loading.states
-                                    ? 'Loading states...'
-                                    : states.length === 0
-                                        ? 'No states available'
-                                        : placeholder.state || '📍 Select a state/province...'}
-                        </option>
-                        {states.map(state => (
-                            <option key={state.stateCode} value={state.stateCode}>
-                                {state.name}
-                            </option>
-                        ))}
-                    </select>
-
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                        {loading.states ? (
-                            <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />
-                        ) : value.state ? (
-                            <CheckCircle2 className="w-5 h-5 text-green-500" />
-                        ) : (
-                            <ChevronDown className="w-5 h-5 text-gray-400" />
-                        )}
-                    </div>
-                </div>
-
-                {errors.states && (
-                    <p className="text-xs text-red-500 mt-1">{errors.states}</p>
-                )}
+                <SearchableDropdown
+                    options={states.map(s => ({
+                        value: s.stateCode,
+                        label: s.name
+                    }))}
+                    value={value.state || ''}
+                    onChange={(val, opt) => {
+                        onChange({
+                            ...value,
+                            state: val,
+                            stateName: opt?.label || '',
+                            city: undefined,
+                            cityName: undefined,
+                            zipCode: undefined
+                        });
+                    }}
+                    placeholder={
+                        !value.country
+                            ? '↑ Select country first'
+                            : states.length === 0
+                                ? 'No states available'
+                                : placeholder.state || '📍 Select a state/province...'
+                    }
+                    disabled={disabled || !value.country || states.length === 0}
+                    loading={loading.states}
+                    error={errors.states}
+                    icon={<MapPin className="w-4 h-4" />}
+                />
             </div>
 
             {/* City Dropdown (Optional) */}
@@ -361,47 +340,31 @@ export const CascadingLocationSelect: React.FC<CascadingLocationSelectProps> = (
                         City {required && <span className="text-red-500">*</span>}
                     </label>
 
-                    <div className="relative">
-                        <select
-                            value={value.city || ''}
-                            onChange={handleCityChange}
-                            disabled={disabled || !value.state || loading.cities || cities.length === 0}
-                            required={required}
-                            className="w-full px-4 py-3 pl-4 pr-10 text-sm border-2 border-gray-300 rounded-lg 
-                                     focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all
-                                     disabled:bg-gray-100 disabled:cursor-not-allowed
-                                     hover:border-gray-400 appearance-none cursor-pointer"
-                        >
-                            <option value="">
-                                {!value.state
-                                    ? '↑ Select state first'
-                                    : loading.cities
-                                        ? 'Loading cities...'
-                                        : cities.length === 0
-                                            ? 'No cities available'
-                                            : placeholder.city || '🏙️ Select a city...'}
-                            </option>
-                            {cities.map((city, idx) => (
-                                <option key={`${city.name}-${idx}`} value={city.name}>
-                                    {city.name}
-                                </option>
-                            ))}
-                        </select>
-
-                        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                            {loading.cities ? (
-                                <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />
-                            ) : value.city ? (
-                                <CheckCircle2 className="w-5 h-5 text-green-500" />
-                            ) : (
-                                <ChevronDown className="w-5 h-5 text-gray-400" />
-                            )}
-                        </div>
-                    </div>
-
-                    {errors.cities && (
-                        <p className="text-xs text-red-500 mt-1">{errors.cities}</p>
-                    )}
+                    <SearchableDropdown
+                        options={cities.map((c, idx) => ({
+                            value: c.name,
+                            label: c.name
+                        }))}
+                        value={value.city || ''}
+                        onChange={(val, opt) => {
+                            onChange({
+                                ...value,
+                                city: val,
+                                cityName: opt?.label || ''
+                            });
+                        }}
+                        placeholder={
+                            !value.state
+                                ? '↑ Select state first'
+                                : cities.length === 0
+                                    ? 'No cities available'
+                                    : placeholder.city || '🏙️ Select a city...'
+                        }
+                        disabled={disabled || !value.state || cities.length === 0}
+                        loading={loading.cities}
+                        error={errors.cities}
+                        icon={<MapPin className="w-4 h-4" />}
+                    />
                 </div>
             )}
 

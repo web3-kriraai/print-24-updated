@@ -143,6 +143,8 @@ const GeoZoneSchema = new mongoose.Schema({
 // Compound index for hierarchy queries
 GeoZoneSchema.index({ level: 1, parentZone: 1, isActive: 1 });
 GeoZoneSchema.index({ priority: -1, isActive: 1 });
+// Unique case‑insensitive index on name
+GeoZoneSchema.index({ name: 1 }, { unique: true, collation: { locale: 'en', strength: 2 } });
 
 /* =======================
    METHODS

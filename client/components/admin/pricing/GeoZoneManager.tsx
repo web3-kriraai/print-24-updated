@@ -51,7 +51,7 @@ const GeoZoneManager: React.FC = () => {
     // Pagination state
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 8;
-    
+
     // Wizard state
     const [currentStep, setCurrentStep] = useState(1);
 
@@ -150,7 +150,7 @@ const GeoZoneManager: React.FC = () => {
                         const text = await response.text();
                         if (text) errorMessage = text;
                     } catch (e) {
-                         console.error('Failed to parse text response:', e);
+                        console.error('Failed to parse text response:', e);
                     }
                 }
                 toast.error(errorMessage);
@@ -210,8 +210,8 @@ const GeoZoneManager: React.FC = () => {
             currency_code: (zone as any).currency_code || (zone as any).currency || 'INR',
             level: (zone as any).level || 'COUNTRY',
             // Ensure deep copy of pincode ranges or fallback
-            pincodeRanges: zone.pincodeRanges && zone.pincodeRanges.length > 0 
-                ? zone.pincodeRanges.map(r => ({ ...r })) 
+            pincodeRanges: zone.pincodeRanges && zone.pincodeRanges.length > 0
+                ? zone.pincodeRanges.map(r => ({ ...r }))
                 : [{ start: 0, end: 0 }],
             isActive: zone.isActive,
         });
@@ -376,7 +376,7 @@ const GeoZoneManager: React.FC = () => {
     const nextStep = () => {
         // Validation for Step 1
         if (currentStep === 1) {
-             // Optional: Force selection? No, manual entry allowed in step 2.
+            // Optional: Force selection? No, manual entry allowed in step 2.
         }
         // Validation for Step 2
         if (currentStep === 2) {
@@ -581,8 +581,8 @@ const GeoZoneManager: React.FC = () => {
                                 {/* Track Background */}
                                 <div className="absolute top-5 left-0 right-0 h-1 -translate-y-1/2 bg-gray-200 rounded-full"></div>
                                 {/* Track Progress */}
-                                <div 
-                                    className="absolute top-5 left-0 h-1 -translate-y-1/2 bg-blue-600 rounded-full transition-all duration-300" 
+                                <div
+                                    className="absolute top-5 left-0 h-1 -translate-y-1/2 bg-blue-600 rounded-full transition-all duration-300"
                                     style={{ width: `${((currentStep - 1) / 2) * 100}%` }}
                                 ></div>
 
@@ -615,7 +615,7 @@ const GeoZoneManager: React.FC = () => {
                         {/* Scrollable Form Content */}
                         <div className="flex-1 overflow-y-auto px-8 py-8">
                             <form onSubmit={handleSubmit} id="geoZoneForm" className="max-w-3xl mx-auto">
-                                
+
                                 {/* STEP 1: LOCATION */}
                                 {currentStep === 1 && (
                                     <div className="animate-in fade-in slide-in-from-right-4 duration-300">
@@ -625,7 +625,7 @@ const GeoZoneManager: React.FC = () => {
                                         </div>
 
                                         <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm space-y-6">
-                                            
+
                                             {/* Quick Search - Primary Method for India */}
                                             <div>
                                                 <div className="flex items-center justify-between mb-2">
@@ -665,8 +665,8 @@ const GeoZoneManager: React.FC = () => {
                                                         setLocationValue(location);
                                                         setFormData({
                                                             ...formData,
-                                                            name: location.stateName || location.countryName || '',
-                                                            code: location.state || location.country || '',
+                                                            name: location.cityName || location.stateName || location.countryName || '',
+                                                            code: (location.cityName ? location.cityName.split('(')[0].trim().toUpperCase() : (location.state || location.country || '')),
                                                             level: location.city ? 'CITY' : location.state ? 'STATE' : 'COUNTRY'
                                                         });
 
@@ -785,7 +785,7 @@ const GeoZoneManager: React.FC = () => {
                                                     📮 Pincode Ranges
                                                     <span className="text-xs font-normal text-gray-500 px-2 py-1 bg-white rounded border">Optional</span>
                                                 </h4>
-                                                
+
                                                 <div className="space-y-3">
                                                     {formData.pincodeRanges.map((range, index) => (
                                                         <div key={index} className="flex gap-3 items-center">
@@ -816,7 +816,7 @@ const GeoZoneManager: React.FC = () => {
                                                         </div>
                                                     ))}
                                                 </div>
-                                                
+
                                                 <button
                                                     type="button"
                                                     onClick={addPincodeRange}

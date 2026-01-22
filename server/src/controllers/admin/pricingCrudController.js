@@ -19,6 +19,17 @@ export const createGeoZone = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Geo zone name is required' });
         }
 
+        // Check for duplicate name (case‑insensitive)
+        const existingZone = await GeoZone.findOne({
+            name: new RegExp('^' + name.trim() + '$', 'i')
+        });
+        if (existingZone) {
+            return res.status(400).json({
+                success: false,
+                message: 'A Geo Zone with this name already exists. Please choose a unique name.'
+            });
+        }
+
         // Create the geo zone
         const geoZone = await GeoZone.create({
             name,
@@ -62,6 +73,20 @@ export const updateGeoZone = async (req, res) => {
         const GeoZoneMapping = (await import('../../models/GeoZonMapping.js')).default;
         const { id } = req.params;
         const { name, code, description, currency_code, pincodeRanges, isActive, level } = req.body;
+
+        // Check for duplicate name (exclude current zone, case‑insensitive)
+        if (name) {
+            const existingZone = await GeoZone.findOne({
+                name: new RegExp('^' + name.trim() + '$', 'i'),
+                _id: { $ne: id }
+            });
+            if (existingZone) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'A Geo Zone with this name already exists. Please choose a unique name.'
+                });
+            }
+        }
 
         // Update the geo zone
         const geoZone = await GeoZone.findByIdAndUpdate(
@@ -192,22 +217,23 @@ export const bulkImportGeoZones = async (req, res) => {
                     continue;
                 }
 
-                // Find or create zone
-                // Note: code is sparse/unique, but might be empty in CSV
+                // Find or create zone with duplicate name guard (case‑insensitive)
                 const query = { name };
                 if (code) query.code = code;
 
-                let zone = await GeoZone.findOne({ $or: [{ name }, ...(code ? [{ code }] : [])] });
-
-                if (zone) {
-                    // Update existing
-                    zone.currency_code = currency_code || zone.currency_code;
-                    zone.level = level || zone.level;
-                    if (code) zone.code = code;
-                    await zone.save();
+                let zone;
+                // Check for existing zone with same name (case‑insensitive)
+                const duplicate = await GeoZone.findOne({ name: new RegExp('^' + name.trim() + '$', 'i') });
+                if (duplicate) {
+                    // Treat as update of existing zone
+                    duplicate.currency_code = currency_code || duplicate.currency_code;
+                    duplicate.level = level || duplicate.level;
+                    if (code) duplicate.code = code;
+                    await duplicate.save();
                     results.updated++;
+                    zone = duplicate;
                 } else {
-                    // Create new
+                    // Create new zone
                     zone = await GeoZone.create({
                         name,
                         code,
