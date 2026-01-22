@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useParams, useNavigate, Navigate } from 'react-router-dom';
+import { Link, useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowRight, Loader, Search, X, Clock, FileText, Star, Sparkles } from 'lucide-react';
+import { ArrowRight, Loader, X, Clock, FileText, Star } from 'lucide-react';
 import GlossProductSelection from './GlossProductSelection';
 import { API_BASE_URL_WITH_API as API_BASE_URL } from "../lib/apiConfig";
-import { ReviewFilterDropdown } from "../components/ReviewFilterDropdown";
+
 import BackButton from '../components/BackButton';
 
 interface SubCategory {
@@ -47,11 +47,7 @@ const VisitingCards: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isGlossFinish, setIsGlossFinish] = useState(false);
-  const [subCategorySearchQuery, setSubCategorySearchQuery] = useState<string>("");
-  const [selectedSubCategoryFilter, setSelectedSubCategoryFilter] = useState<string | null>(null);
   const [forcedProductId, setForcedProductId] = useState<string | null>(null);
-  const [selectedNestedSubCategory, setSelectedNestedSubCategory] = useState<SubCategory | null>(null);
-  const [nestedSubCategoryProducts, setNestedSubCategoryProducts] = useState<Product[]>([]);
 
   // Scroll to top when route params change
   useEffect(() => {
@@ -877,63 +873,50 @@ const VisitingCards: React.FC = () => {
 
               // PRIORITY: If nested subcategories exist, auto-navigate to first product
               if (nestedSubcategories.length > 0) {
-                // Auto-skip: If only one nested subcategory, redirect to it
-                if (nestedSubcategories.length === 1) {
-                  const singleNestedSubcategory = nestedSubcategories[0];
-                  // Use ObjectId instead of slug
-                  const nestedSubcategoryIdForLink = singleNestedSubcategory._id;
+                // Loop through ALL nested subcategories to find first one with products
+                for (const nestedSubcat of nestedSubcategories) {
+                  const nestedSubcatId = nestedSubcat._id;
 
-                  if (categoryId) {
-                    navigate(`/services/${categoryId}/${subcategoryIdForProducts}/${nestedSubcategoryIdForLink}`, { replace: true });
-                  } else {
-                    navigate(`/services/${subcategoryIdForProducts}/${nestedSubcategoryIdForLink}`, { replace: true });
-                  }
-                  setLoading(false);
-                  return;
-                }
+                  try {
+                    const nestedProductsUrl = `${API_BASE_URL}/products/subcategory/${nestedSubcatId}`;
+                    const nestedProductsResponse = await fetch(nestedProductsUrl, {
+                      method: "GET",
+                      headers: {
+                        Accept: "application/json",
+                      },
+                    });
 
-                // Multiple nested subcategories - auto-navigate to first product of first nested subcategory
-                const firstNestedSubcat = nestedSubcategories[0];
-                const firstNestedSubcatId = firstNestedSubcat._id;
+                    if (nestedProductsResponse.ok) {
+                      const nestedProductsText = await nestedProductsResponse.text();
+                      if (!nestedProductsText.startsWith("<!DOCTYPE") && !nestedProductsText.startsWith("<html")) {
+                        const nestedProductsData = JSON.parse(nestedProductsText);
 
-                // Fetch products for the first nested subcategory
-                try {
-                  const firstNestedProductsUrl = `${API_BASE_URL}/products/subcategory/${firstNestedSubcatId}`;
-                  const firstNestedProductsResponse = await fetch(firstNestedProductsUrl, {
-                    method: "GET",
-                    headers: {
-                      Accept: "application/json",
-                    },
-                  });
+                        if (Array.isArray(nestedProductsData) && nestedProductsData.length > 0) {
+                          const firstProduct = nestedProductsData[0];
+                          const firstProductId = firstProduct._id;
 
-                  if (firstNestedProductsResponse.ok) {
-                    const firstNestedProductsText = await firstNestedProductsResponse.text();
-                    if (!firstNestedProductsText.startsWith("<!DOCTYPE") && !firstNestedProductsText.startsWith("<html")) {
-                      const firstNestedProductsData = JSON.parse(firstNestedProductsText);
+                          // Navigate to the first product with full URL structure
+                          console.log(`Auto-navigating to first product: ${firstProduct.name} (${firstProductId}) from nested subcategory: ${nestedSubcat.name}`);
+                          const targetUrl = categoryId
+                            ? `/services/${categoryId}/${subcategoryIdForProducts}/${nestedSubcatId}/${firstProductId}`
+                            : `/services/${subcategoryIdForProducts}/${nestedSubcatId}/${firstProductId}`;
 
-                      if (Array.isArray(firstNestedProductsData) && firstNestedProductsData.length > 0) {
-                        const firstProduct = firstNestedProductsData[0];
-                        const firstProductId = firstProduct._id;
-
-                        // Navigate to the first product with full URL structure
-                        console.log(`Auto-navigating to first product: ${firstProduct.name} (${firstProductId})`);
-                        const targetUrl = categoryId
-                          ? `/services/${categoryId}/${subcategoryIdForProducts}/${firstNestedSubcatId}/${firstProductId}`
-                          : `/services/${subcategoryIdForProducts}/${firstNestedSubcatId}/${firstProductId}`;
-
-                        navigate(targetUrl, { replace: true });
-                        setLoading(false);
-                        return;
+                          navigate(targetUrl, { replace: true });
+                          setLoading(false);
+                          return;
+                        }
                       }
                     }
+                  } catch (nestedProductErr) {
+                    console.error(`Error fetching products for nested subcategory ${nestedSubcat.name}:`, nestedProductErr);
+                    // Continue to next nested subcategory
                   }
-                } catch (firstProductErr) {
-                  console.error("Error fetching first nested subcategory products:", firstProductErr);
                 }
 
-                // Fallback: If no products found, show nested subcategories as before
-                setSubCategories(nestedSubcategories);
-                setProducts([]); // Clear products when showing nested subcategories
+                // If no products found in any nested subcategory, show empty state instead of Product Variants page
+                console.log("No products found in any nested subcategory");
+                setSubCategories([]);
+                setProducts([]);
                 setLoading(false);
                 return;
               }
@@ -1173,72 +1156,6 @@ const VisitingCards: React.FC = () => {
     fetchData();
   }, [categoryId, subCategoryId, nestedSubCategoryId]);
 
-  // Fetch products when a nested subcategory is selected
-  useEffect(() => {
-    const fetchNestedSubCategoryProducts = async () => {
-      if (!selectedNestedSubCategory) {
-        setNestedSubCategoryProducts([]);
-        return;
-      }
-
-      try {
-        const productsUrl = `${API_BASE_URL}/products/subcategory/${selectedNestedSubCategory._id}`;
-        const response = await fetch(productsUrl, {
-          method: "GET",
-          headers: {
-            Accept: "application/json",
-          },
-        });
-
-        if (response.ok) {
-          const data = await handleApiResponse(response);
-          setNestedSubCategoryProducts(Array.isArray(data) ? data : []);
-        } else {
-          setNestedSubCategoryProducts([]);
-        }
-      } catch (err) {
-        console.error("Error fetching nested subcategory products:", err);
-        setNestedSubCategoryProducts([]);
-      }
-    };
-
-    fetchNestedSubCategoryProducts();
-  }, [selectedNestedSubCategory]);
-
-  // Auto-select first nested subcategory variant and update URL
-  useEffect(() => {
-    if (subCategories.length > 0 && !selectedNestedSubCategory) {
-      const firstNestedSubCategory = subCategories[0];
-      setSelectedNestedSubCategory(firstNestedSubCategory);
-
-      // Update URL with first variant's slug WITHOUT navigating
-      const nestedSubcategorySlug = firstNestedSubCategory.slug || firstNestedSubCategory._id;
-      if (categoryId && subCategoryId) {
-        const newUrl = `/services/${categoryId}/${subCategoryId}/${nestedSubcategorySlug}`;
-        window.history.replaceState(null, '', newUrl);
-      }
-    }
-  }, [subCategories, categoryId, subCategoryId]);
-
-  // Auto-select first nested subcategory when subCategories change
-  useEffect(() => {
-    if (subCategories.length > 0 && subCategoryId && !selectedNestedSubCategory) {
-      setSelectedNestedSubCategory(subCategories[0]);
-    }
-  }, [subCategories, subCategoryId]);
-
-  // Auto-navigate if only one product in selected nested subcategory
-  useEffect(() => {
-    if (nestedSubCategoryProducts.length === 1 && selectedNestedSubCategory && categoryId && subCategoryId) {
-      const singleProduct = nestedSubCategoryProducts[0];
-      const parentSubcategoryId = selectedSubCategory ? selectedSubCategory._id : subCategoryId;
-      const nestedSubcategoryId = selectedNestedSubCategory._id;
-
-      // Navigate directly to the product detail page
-      navigate(`/services/${categoryId}/${parentSubcategoryId}/${nestedSubcategoryId}/${singleProduct._id}`, { replace: true });
-    }
-  }, [nestedSubCategoryProducts, selectedNestedSubCategory, categoryId, subCategoryId, selectedSubCategory, navigate]);
-
 
 
   const containerVariants = {
@@ -1285,14 +1202,14 @@ const VisitingCards: React.FC = () => {
             animate={{ y: [-5, 5, -5], rotate: [0, 10, 0] }}
             transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
           >
-            <Sparkles size={24} />
+            <Star size={24} />
           </motion.div>
           <motion.div
             className="absolute bottom-12 right-1/4 text-purple-300"
             animate={{ y: [5, -5, 5], rotate: [0, -10, 0] }}
             transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut" }}
           >
-            <Sparkles size={18} />
+            <Star size={18} />
           </motion.div>
 
           <div className="container mx-auto px-4 sm:px-6 relative z-10">
@@ -1352,17 +1269,6 @@ const VisitingCards: React.FC = () => {
               animate="visible"
             >
               {subCategories
-                .filter(subCategory => {
-                  // Filter by search query
-                  if (subCategorySearchQuery && !subCategory.name.toLowerCase().includes(subCategorySearchQuery.toLowerCase())) {
-                    return false;
-                  }
-                  // Filter by selected subcategory
-                  if (selectedSubCategoryFilter && subCategory._id !== selectedSubCategoryFilter) {
-                    return false;
-                  }
-                  return true;
-                })
                 .map((subCategory, idx) => {
                   // Always use ObjectId instead of slug
                   const subCategoryIdForLink = subCategory._id;
@@ -1632,173 +1538,6 @@ const VisitingCards: React.FC = () => {
                   className="inline-flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900"
                 />
               </div>
-            )}
-
-            {/* Nested Subcategories - Show as Product Variants buttons */}
-            {subCategories.length > 0 && (
-              <>
-                {/* Product Variants Section */}
-                <div className="mb-8">
-                  <h2 className="font-serif text-2xl sm:text-3xl font-bold text-gray-900 mb-6">
-                    Product Variants
-                  </h2>
-
-                  {/* Variant Buttons */}
-                  <div className="flex flex-wrap gap-3">
-                    {subCategories.map((nestedSubCategory) => {
-                      const isSelected = selectedNestedSubCategory?._id === nestedSubCategory._id;
-
-                      return (
-                        <button
-                          key={nestedSubCategory._id}
-                          onClick={() => {
-                            // Update state only - NO URL changes, NO navigation
-                            setSelectedNestedSubCategory(nestedSubCategory);
-                          }}
-                          className={`flex items-center gap-3 px-4 py-3 rounded-xl font-semibold text-sm sm:text-base transition-all duration-300 border-2 ${isSelected
-                            ? 'bg-gray-900 text-white border-gray-900 shadow-lg transform scale-105'
-                            : 'bg-white text-gray-900 border-gray-300 hover:border-gray-900 hover:bg-gray-50'
-                            }`}
-                        >
-                          {/* Subcategory Image - Left Side */}
-                          <div className="flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden bg-gray-100 border border-gray-200">
-                            <img
-                              src={nestedSubCategory.image || "/Glossy.png"}
-                              alt={nestedSubCategory.name}
-                              className="w-full h-full object-cover"
-                            />
-                          </div>
-
-                          {/* Subcategory Name - Right Side */}
-                          <span className="flex-1 text-left">
-                            {nestedSubCategory.name}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Products Display for Selected Nested Subcategory */}
-                {nestedSubCategoryProducts.length > 0 ? (
-                  <>
-                    <h2 className="font-serif text-2xl sm:text-3xl font-bold text-gray-900 mb-6">
-                      {selectedNestedSubCategory?.name} Products
-                    </h2>
-
-                    {/* Product Cards Grid */}
-                    <motion.div
-                      className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4"
-                      variants={containerVariants}
-                      initial="hidden"
-                      animate="visible"
-                    >
-                      {nestedSubCategoryProducts.map((product) => {
-                        const productSubcategory = typeof product.subcategory === "object"
-                          ? product.subcategory
-                          : null;
-                        const productSubcategoryId = productSubcategory?._id;
-
-                        const hasValidSubcategory = productSubcategoryId &&
-                          productSubcategoryId !== categoryId &&
-                          productSubcategoryId !== product._id;
-
-                        const basePrice = product.basePrice || 0;
-                        const displayPrice = basePrice < 1
-                          ? (basePrice * 1000).toFixed(2)
-                          : basePrice.toFixed(2);
-                        const priceLabel = basePrice < 1 ? "per 1000 units" : "";
-
-                        const descriptionText = product.description
-                          ? product.description.replace(/<[^>]*>/g, '').trim()
-                          : "";
-                        const lines = descriptionText.split('\n').filter(line => line.trim());
-                        const firstFewLines = lines.slice(0, 2).join(' ').trim();
-                        const shortDescription = firstFewLines.length > 150
-                          ? firstFewLines.substring(0, 150) + '...'
-                          : firstFewLines || "";
-
-                        // Build the product URL with proper nested structure
-                        const parentSubcategoryId = selectedSubCategory ? selectedSubCategory._id : subCategoryId;
-                        const nestedSubcategoryId = selectedNestedSubCategory?._id;
-
-                        return (
-                          <motion.div
-                            key={product._id}
-                            variants={itemVariants}
-                          >
-                            <Link
-                              to={categoryId && parentSubcategoryId && nestedSubcategoryId
-                                ? `/services/${categoryId}/${parentSubcategoryId}/${nestedSubcategoryId}/${product._id}`
-                                : categoryId && hasValidSubcategory
-                                  ? `/services/${categoryId}/${productSubcategoryId}/${product._id}`
-                                  : categoryId
-                                    ? `/services/${categoryId}/${product._id}`
-                                    : `/services/${product._id}`
-                              }
-                              className="group block h-full"
-                              onClick={() => {
-                                window.scrollTo({ top: 0, behavior: 'smooth' });
-                              }}
-                            >
-                              <div className="bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-500 border border-gray-100 h-full flex flex-col hover:-translate-y-1">
-                                {/* Product Image - Smaller aspect ratio */}
-                                <div className="relative aspect-square overflow-hidden bg-gray-100 flex items-center justify-center rounded-xl m-2">
-                                  <img
-                                    src={product.image || "/Glossy.png"}
-                                    alt={product.name}
-                                    className="object-contain h-full w-full transition-transform duration-700 group-hover:scale-110 rounded-xl p-2"
-                                  />
-                                  <div className="absolute inset-0 bg-gray-900/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 backdrop-blur-[2px]">
-                                    <span className="bg-white text-gray-900 px-4 py-2 rounded-full font-bold text-xs transform translate-y-4 group-hover:translate-y-0 transition-all duration-300 shadow-lg">
-                                      View
-                                    </span>
-                                  </div>
-                                </div>
-
-                                {/* Product Content - Compact */}
-                                <div className="px-2 sm:px-3 py-3 flex flex-col flex-grow">
-                                  <h3 className="font-serif text-sm sm:text-base font-bold text-gray-900 mb-1 group-hover:text-gray-600 transition-colors line-clamp-2">
-                                    {product.name}
-                                  </h3>
-
-                                  {shortDescription && (
-                                    <p className="text-gray-600 text-xs mb-2 flex-grow leading-relaxed line-clamp-2 hidden sm:block">
-                                      {shortDescription}
-                                    </p>
-                                  )}
-
-                                  <div className="pt-2 border-t border-gray-100 flex items-center justify-between mt-auto">
-                                    <div>
-                                      <div className="text-base sm:text-lg font-bold text-gray-900">
-                                        ₹{displayPrice}
-                                      </div>
-                                      {priceLabel && (
-                                        <div className="text-xs text-gray-500 mt-0.5 hidden sm:block">
-                                          {priceLabel}
-                                        </div>
-                                      )}
-                                    </div>
-                                    <ArrowRight
-                                      size={16}
-                                      className="text-gray-900 group-hover:text-gray-600 group-hover:translate-x-1 transition-all duration-300"
-                                    />
-                                  </div>
-                                </div>
-                              </div>
-                            </Link>
-                          </motion.div>
-                        );
-                      })}
-                    </motion.div>
-
-                  </>
-                ) : (
-                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
-                    <p className="text-gray-700">No products found for {selectedNestedSubCategory?.name}.</p>
-                  </div>
-                )}
-              </>
             )}
 
             {/* Products Display - Removed: Auto-redirect navigates to first product */}
