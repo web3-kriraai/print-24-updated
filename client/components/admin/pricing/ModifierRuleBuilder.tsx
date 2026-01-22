@@ -115,6 +115,9 @@ export const ModifierRuleBuilder: React.FC = () => {
     const [ruleRows, setRuleRows] = useState<ConditionRow[]>([]);
     const [ruleLogic, setRuleLogic] = useState<'AND' | 'OR'>('AND');
 
+    // Validation state
+    const [reasonError, setReasonError] = useState<string | null>(null);
+
     // Form state
     const [formData, setFormData] = useState<Partial<PriceModifier>>({
         appliesTo: 'GLOBAL',
@@ -187,6 +190,14 @@ export const ModifierRuleBuilder: React.FC = () => {
     };
 
     const handleSubmit = async () => {
+        // Validate required fields
+        const reasonValue = (formData.reason || '').trim();
+        if (!reasonValue) {
+            setReasonError('This field is required');
+            return;
+        }
+        setReasonError(null);
+
         try {
             const url = editingModifier
                 ? `/api/admin/price-modifiers/${editingModifier._id}`
@@ -284,6 +295,7 @@ export const ModifierRuleBuilder: React.FC = () => {
             setRuleLogic('AND'); // Reset to default
         }
 
+        setReasonError(null); // Reset validation error
         setShowCreateModal(true);
     };
 
@@ -381,6 +393,7 @@ export const ModifierRuleBuilder: React.FC = () => {
                             conditions: null
                         });
                         setRuleRows([{ id: '1', field: 'geo_zone', operator: 'EQUALS', value: '' }]);
+                        setReasonError(null); // Reset validation error
                         setShowCreateModal(true);
                     }}
                     className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
@@ -852,11 +865,24 @@ export const ModifierRuleBuilder: React.FC = () => {
                                 </label>
                                 <textarea
                                     value={formData.reason || ''}
-                                    onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
+                                    onChange={(e) => {
+                                        setFormData({ ...formData, reason: e.target.value });
+                                        if (reasonError && e.target.value.trim()) {
+                                            setReasonError(null);
+                                        }
+                                    }}
                                     placeholder="e.g., Summer Sale 2024, Corporate Bulk Discount, etc."
                                     rows={3}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                    required
+                                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${reasonError ? 'border-red-500 focus:ring-red-500' : 'border-gray-300'
+                                        }`}
                                 />
+                                {reasonError && (
+                                    <div className="flex items-center gap-1 mt-1 text-red-600 text-sm">
+                                        <AlertCircle className="w-4 h-4" />
+                                        <span>{reasonError}</span>
+                                    </div>
+                                )}
                             </div>
 
                             {/* Stacking Controls - Enhanced */}
