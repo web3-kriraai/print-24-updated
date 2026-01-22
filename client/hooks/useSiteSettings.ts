@@ -24,12 +24,18 @@ interface FontSettings {
     cardDescFontWeight: string;
 }
 
+interface NavbarSettings {
+    itemWidth: string;
+    itemGap: string;
+}
+
 interface SiteSettings {
     logo: string;
     siteName: string;
     tagline: string;
     scrollSettings?: ScrollSettings;
     fontSettings?: FontSettings;
+    navbarSettings?: NavbarSettings;
 }
 
 const DEFAULT_SCROLL_SETTINGS: ScrollSettings = {
@@ -52,12 +58,18 @@ const DEFAULT_FONT_SETTINGS: FontSettings = {
     cardDescFontWeight: '400'
 };
 
+const DEFAULT_NAVBAR_SETTINGS: NavbarSettings = {
+    itemWidth: '150px',
+    itemGap: '8px'
+};
+
 const DEFAULT_SETTINGS: SiteSettings = {
     logo: '/logo.svg',
     siteName: 'Prints24',
     tagline: 'Premium Gifting, Printing & Packaging Solutions',
     scrollSettings: DEFAULT_SCROLL_SETTINGS,
-    fontSettings: DEFAULT_FONT_SETTINGS
+    fontSettings: DEFAULT_FONT_SETTINGS,
+    navbarSettings: DEFAULT_NAVBAR_SETTINGS
 };
 
 export const useSiteSettings = () => {
@@ -82,6 +94,10 @@ export const useSiteSettings = () => {
                     fontSettings: {
                         ...DEFAULT_FONT_SETTINGS,
                         ...data.fontSettings
+                    },
+                    navbarSettings: {
+                        ...DEFAULT_NAVBAR_SETTINGS,
+                        ...data.navbarSettings
                     }
                 });
             }
@@ -129,6 +145,15 @@ export const useFontSettings = () => {
     const { settings, loading } = useSiteSettings();
     return {
         fontSettings: settings.fontSettings || DEFAULT_FONT_SETTINGS,
+        loading
+    };
+};
+
+// Hook to get navbar settings
+export const useNavbarSettings = () => {
+    const { settings, loading } = useSiteSettings();
+    return {
+        navbarSettings: settings.navbarSettings || DEFAULT_NAVBAR_SETTINGS,
         loading
     };
 };

@@ -26,6 +26,11 @@ interface FontSettings {
     cardDescFontWeight: string;
 }
 
+interface NavbarSettings {
+    itemWidth: string;
+    itemGap: string;
+}
+
 interface SiteSettings {
     _id?: string;
     logo: string;
@@ -33,6 +38,7 @@ interface SiteSettings {
     tagline: string;
     scrollSettings?: ScrollSettings;
     fontSettings?: FontSettings;
+    navbarSettings?: NavbarSettings;
 }
 
 const SiteSettingsManagement: React.FC = () => {
@@ -57,12 +63,17 @@ const SiteSettingsManagement: React.FC = () => {
             cardTitleFontWeight: '700',
             cardDescFontSize: '14px',
             cardDescFontWeight: '400'
+        },
+        navbarSettings: {
+            itemWidth: '150px',
+            itemGap: '8px'
         }
     });
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [savingScroll, setSavingScroll] = useState(false);
     const [savingFonts, setSavingFonts] = useState(false);
+    const [savingNavbar, setSavingNavbar] = useState(false);
     const [uploading, setUploading] = useState(false);
     const [previewLogo, setPreviewLogo] = useState<string>('');
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -835,6 +846,111 @@ const SiteSettingsManagement: React.FC = () => {
                                 <>
                                     <Save className="w-4 h-4" />
                                     Save Font Settings
+                                </>
+                            )}
+                        </button>
+                    </div>
+                </div>
+
+                {/* Navbar Layout Settings Section */}
+                <div className="p-6 border-t border-gray-200">
+                    <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                        <Settings className="w-5 h-5" />
+                        Service Navbar Layout
+                    </h2>
+                    <p className="text-sm text-gray-500 mb-6">
+                        Control the width and spacing of service navigation buttons
+                    </p>
+                    
+                    <div className="space-y-6">
+                        {/* Navbar Item Width */}
+                        <div className="p-4 bg-gray-50 rounded-lg">
+                            <label className="block font-medium text-gray-900 mb-2">
+                                Navbar Button Width
+                            </label>
+                            <p className="text-sm text-gray-500 mb-2">Width of each service button in the navigation bar</p>
+                            <input
+                                type="text"
+                                value={settings.navbarSettings?.itemWidth || '150px'}
+                                onChange={(e) => setSettings(prev => ({
+                                    ...prev,
+                                    navbarSettings: {
+                                        ...prev.navbarSettings!,
+                                        itemWidth: e.target.value
+                                    }
+                                }))}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                                placeholder="150px"
+                            />
+                            <p className="text-xs text-gray-400 mt-1">Examples: 150px, 200px, 10rem</p>
+                        </div>
+
+                        {/* Navbar Item Gap */}
+                        <div className="p-4 bg-gray-50 rounded-lg">
+                            <label className="block font-medium text-gray-900 mb-2">
+                                Gap Between Buttons
+                            </label>
+                            <p className="text-sm text-gray-500 mb-2">Space between service buttons</p>
+                            <input
+                                type="text"
+                                value={settings.navbarSettings?.itemGap || '8px'}
+                                onChange={(e) => setSettings(prev => ({
+                                    ...prev,
+                                    navbarSettings: {
+                                        ...prev.navbarSettings!,
+                                        itemGap: e.target.value
+                                    }
+                                }))}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                                placeholder="8px"
+                            />
+                            <p className="text-xs text-gray-400 mt-1">Examples: 8px, 12px, 1rem</p>
+                        </div>
+
+                        {/* Save Navbar Settings Button */}
+                        <button
+                            onClick={async () => {
+                                try {
+                                    setSavingNavbar(true);
+                                    const response = await fetch(`${API_BASE_URL_WITH_API}/site-settings`, {
+                                        method: 'PUT',
+                                        headers: {
+                                            'Content-Type': 'application/json',
+                                            'Authorization': `Bearer ${getToken()}`
+                                        },
+                                        body: JSON.stringify({
+                                            navbarSettings: settings.navbarSettings
+                                        })
+                                    });
+
+                                    if (response.ok) {
+                                        toast.success('Navbar settings saved successfully!');
+                                    } else {
+                                        throw new Error('Failed to save navbar settings');
+                                    }
+                                } catch (error) {
+                                    console.error('Error saving navbar settings:', error);
+                                    toast.error('Failed to save navbar settings');
+                                } finally {
+                                    setSavingNavbar(false);
+                                }
+                            }}
+                            disabled={savingNavbar}
+                            className={`flex items-center gap-2 px-6 py-2 rounded-lg font-medium transition-all ${
+                                savingNavbar 
+                                    ? 'bg-gray-200 text-gray-500 cursor-not-allowed' 
+                                    : 'bg-orange-600 text-white hover:bg-orange-700'
+                            }`}
+                        >
+                            {savingNavbar ? (
+                                <>
+                                    <Loader className="w-4 h-4 animate-spin" />
+                                    Saving...
+                                </>
+                            ) : (
+                                <>
+                                    <Save className="w-4 h-4" />
+                                    Save Navbar Settings
                                 </>
                             )}
                         </button>

@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import './ServicesMorph.css';
 import * as Icons from 'lucide-react';
-import { useLogo, useScrollSettings, useFontSettings } from '../hooks/useSiteSettings';
+import { useLogo, useScrollSettings, useFontSettings, useNavbarSettings } from '../hooks/useSiteSettings';
 
 import type { Service } from '../types/serviceTypes';
 
@@ -19,6 +19,7 @@ const ServicesMorph: React.FC<ServicesMorphProps> = ({ onServiceSelect, services
     const { logo } = useLogo();
     const { scrollSettings } = useScrollSettings();
     const { fontSettings } = useFontSettings();
+    const { navbarSettings } = useNavbarSettings();
 
     // Auto-scroll nav links to show selected service
     useEffect(() => {
@@ -265,7 +266,7 @@ const ServicesMorph: React.FC<ServicesMorphProps> = ({ onServiceSelect, services
                 </div>
 
                 {/* Service Links */}
-                <div className="sticky-nav-links" ref={navLinksRef} style={{ gap: '8px', padding: '8px 12px' }}>
+                <div className="sticky-nav-links" ref={navLinksRef} style={{ gap: navbarSettings.itemGap || '8px', padding: '8px 12px' }}>
                     {services.map(service => {
                         const Icon = getServiceIcon(service);
                         const isActive = selectedServiceId === service._id;
@@ -279,7 +280,7 @@ const ServicesMorph: React.FC<ServicesMorphProps> = ({ onServiceSelect, services
                                     color: isActive ? service.color : '#ffffff',
                                     borderRadius: '6px',
                                     padding: '8px 12px',
-                                    margin: '0 2px',
+                                    margin: '0',
                                     boxShadow: isActive 
                                         ? `0 4px 15px ${service.color}40, inset 0 0 0 2px ${service.color}` 
                                         : `0 2px 8px ${service.color}30`,
@@ -293,8 +294,7 @@ const ServicesMorph: React.FC<ServicesMorphProps> = ({ onServiceSelect, services
                                     justifyContent: 'center',
                                     gap: '6px',
                                     textWrap: 'nowrap',
-                                    minWidth: '140px',
-                                    maxWidth: '160px',
+                                    width: navbarSettings.itemWidth || '150px',
                                     flex: '0 0 auto'
                                 }}
                                 data-target={service._id}

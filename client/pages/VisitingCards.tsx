@@ -1447,20 +1447,20 @@ const VisitingCards: React.FC = () => {
                                 window.scrollTo({ top: 0, behavior: 'smooth' });
                               }}
                             >
-                              <div className="w-full p-4 sm:p-6 rounded-xl border-2 border-gray-200 hover:border-gray-900 text-left transition-all duration-200 hover:bg-gray-50 min-h-[140px] sm:min-h-[160px] flex gap-4">
+                              <div className="w-full p-4 sm:p-6 rounded-xl border-2 border-gray-200 hover:border-purple-400 text-left transition-all duration-300 hover:bg-gradient-to-br hover:from-white hover:to-purple-50 min-h-[140px] sm:min-h-[160px] flex gap-4 shadow-sm hover:shadow-lg hover:-translate-y-1">
                                 {/* Product Image */}
-                                <div className="flex-shrink-0 w-24 sm:w-32 h-24 sm:h-32 rounded-lg overflow-hidden bg-gray-100 border border-gray-200">
+                                <div className="flex-shrink-0 w-24 sm:w-32 h-24 sm:h-32 rounded-lg overflow-hidden bg-gradient-to-br from-gray-50 to-gray-100 border border-gray-200 shadow-inner">
                                   <img
                                     src={product.image || "/Glossy.png"}
                                     alt={product.name}
-                                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                                   />
                                 </div>
 
                                 {/* Product Content */}
                                 <div className="flex-1 flex flex-col min-w-0">
                                   <div className="flex items-start justify-between gap-3 mb-2">
-                                    <h3 className="font-serif text-base sm:text-lg font-bold text-gray-900 group-hover:text-gray-600 transition-colors flex-1">
+                                    <h3 className="font-serif text-base sm:text-lg font-bold text-gray-900 group-hover:bg-gradient-to-r group-hover:from-purple-700 group-hover:to-rose-600 group-hover:bg-clip-text group-hover:text-transparent transition-all duration-300 flex-1">
                                       {product.name}
                                     </h3>
                                     <div className="text-right flex-shrink-0 flex items-center gap-2">
@@ -1474,7 +1474,7 @@ const VisitingCards: React.FC = () => {
                                           </div>
                                         )}
                                       </div>
-                                      <span className="text-gray-900 group-hover:text-gray-600 text-xl font-bold transition-colors">→</span>
+                                      <span className="text-purple-600 group-hover:text-rose-600 text-xl font-bold transition-all duration-300 group-hover:translate-x-1">→</span>
                                     </div>
                                   </div>
 

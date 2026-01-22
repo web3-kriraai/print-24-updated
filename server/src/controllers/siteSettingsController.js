@@ -43,7 +43,7 @@ export const getSiteSettings = async (req, res) => {
 // Update site settings (admin only)
 export const updateSiteSettings = async (req, res) => {
     try {
-        const { siteName, tagline, logo, scrollSettings, fontSettings } = req.body;
+        const { siteName, tagline, logo, scrollSettings, fontSettings, navbarSettings } = req.body;
         
         let settings = await SiteSettings.findOne();
         if (!settings) {
@@ -127,6 +127,21 @@ export const updateSiteSettings = async (req, res) => {
             }
             // Mark the nested object as modified so Mongoose saves it
             settings.markModified('fontSettings');
+        }
+        
+        // Handle navbar settings
+        if (navbarSettings !== undefined) {
+            if (!settings.navbarSettings) {
+                settings.navbarSettings = {};
+            }
+            if (navbarSettings.itemWidth !== undefined) {
+                settings.navbarSettings.itemWidth = navbarSettings.itemWidth;
+            }
+            if (navbarSettings.itemGap !== undefined) {
+                settings.navbarSettings.itemGap = navbarSettings.itemGap;
+            }
+            // Mark the nested object as modified so Mongoose saves it
+            settings.markModified('navbarSettings');
         }
         
         await settings.save();

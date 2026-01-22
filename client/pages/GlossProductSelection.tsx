@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useParams, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowRight, Check, Truck, Upload as UploadIcon, FileImage, CreditCard, X, Loader, Info, Lock, AlertCircle, MapPin, Zap, Square, Circle } from 'lucide-react';
+import { ArrowRight, Check, Truck, Upload as UploadIcon, FileImage, CreditCard, X, Loader, Info, Lock, AlertCircle, MapPin, Zap, Square, Circle, FileText } from 'lucide-react';
 import { Select, SelectOption } from '@/components/ui/select';
 import { API_BASE_URL_WITH_API as API_BASE_URL } from '../lib/apiConfig';
 import { applyAttributeRules, type AttributeRule, type Attribute } from '../utils/attributeRuleEngine';
@@ -195,6 +195,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
   const [baseSubtotalBeforeDiscount, setBaseSubtotalBeforeDiscount] = useState(0);
   const [perUnitPriceExcludingGst, setPerUnitPriceExcludingGst] = useState(0); // Store per unit price excluding GST
   const [isImageModalOpen, setIsImageModalOpen] = useState(false);
+  const [isDescriptionOpen, setIsDescriptionOpen] = useState(false);
   const [isInstructionsOpen, setIsInstructionsOpen] = useState(false);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -4183,261 +4184,298 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                   </div>
                                 )}
 
-                                {/* Instructions Button */}
-                                <button
-                                  onClick={() => setIsInstructionsOpen(!isInstructionsOpen)}
-                                  className="mt-2 mb-4 px-4 py-2 bg-gray-100 hover:bg-purple-200 text-gray-900 rounded-lg border border-gray-300 text-sm font-medium transition-all flex items-center gap-2"
-                                >
-                                  <Info size={16} />
-                                  Instructions
-                                </button>
+                                {/* Info Sections Row - Buttons displayed in a single row */}
+                                <div className="mt-4 mb-6">
+                                  <div className="flex flex-wrap gap-2 mb-4">
+                                    {/* Product Description Button - Only show if description exists */}
+                                    {(selectedProduct.description || (selectedProduct.descriptionArray && selectedProduct.descriptionArray.length > 0)) && (
+                                      <button
+                                        onClick={() => setIsDescriptionOpen(!isDescriptionOpen)}
+                                        className="px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-900 rounded-lg border border-blue-200 text-sm font-medium transition-all flex items-center gap-2 shadow-sm hover:shadow-md"
+                                      >
+                                        <FileText size={16} />
+                                        Product Description
+                                      </button>
+                                    )}
 
-                                {/* Instructions Modal/Expanded Section with Smooth Transition */}
-                                <AnimatePresence>
-                                  {isInstructionsOpen && (
-                                    <motion.div
-                                      initial={{ opacity: 0, height: 0 }}
-                                      animate={{ opacity: 1, height: "auto" }}
-                                      exit={{ opacity: 0, height: 0 }}
-                                      transition={{ duration: 0.3, ease: "easeInOut" }}
-                                      className="overflow-hidden"
-                                    >
-                                      <div className="mt-4 mb-6 p-4 sm:p-6 bg-yellow-50 border border-yellow-200 rounded-lg">
-                                        <h4 className="text-sm font-bold text-yellow-900 mb-3 flex items-center gap-2">
-                                          <Info size={16} />
-                                          Important Instructions - Please Read Carefully
-                                        </h4>
+                                    {/* Instructions Button - Only show if instructions or constraints exist */}
+                                    {(selectedProduct.instructions || selectedProduct.maxFileSizeMB || selectedProduct.minFileWidth || selectedProduct.maxFileWidth || selectedProduct.minFileHeight || selectedProduct.maxFileHeight || selectedProduct.blockCDRandJPG || selectedProduct.additionalDesignCharge || selectedProduct.gstPercentage) && (
+                                      <button
+                                        onClick={() => setIsInstructionsOpen(!isInstructionsOpen)}
+                                        className="px-4 py-2 bg-yellow-50 hover:bg-yellow-100 text-yellow-900 rounded-lg border border-yellow-200 text-sm font-medium transition-all flex items-center gap-2 shadow-sm hover:shadow-md"
+                                      >
+                                        <Info size={16} />
+                                        Instructions
+                                      </button>
+                                    )}
+                                  </div>
 
-                                        {/* Custom Instructions from Admin */}
-                                        {selectedProduct.instructions && (
-                                          <div className="mb-4 p-3 bg-red-50 border-2 border-red-300 rounded-lg">
-                                            <p className="text-xs font-bold text-red-900 mb-2 flex items-center gap-2">
-                                              <X size={14} className="text-red-600" />
-                                              CRITICAL: Company Not Responsible If Instructions Not Followed
-                                            </p>
-                                            <div className="text-xs sm:text-sm text-red-800 whitespace-pre-line">
-                                              {selectedProduct.instructions}
-                                            </div>
+                                  {/* Product Description Expandable Section */}
+                                  <AnimatePresence>
+                                    {isDescriptionOpen && (selectedProduct.description || (selectedProduct.descriptionArray && selectedProduct.descriptionArray.length > 0)) && (
+                                      <motion.div
+                                        initial={{ opacity: 0, height: 0 }}
+                                        animate={{ opacity: 1, height: "auto" }}
+                                        exit={{ opacity: 0, height: 0 }}
+                                        transition={{ duration: 0.3, ease: "easeInOut" }}
+                                        className="overflow-hidden mb-4"
+                                      >
+                                        <div className="p-4 sm:p-6 bg-blue-50 border border-blue-200 rounded-lg">
+                                          <h4 className="text-sm font-bold text-blue-900 mb-3 flex items-center gap-2">
+                                            <FileText size={16} />
+                                            Product Description
+                                          </h4>
+                                          <div className="text-sm sm:text-base text-blue-800 space-y-2">
+                                            {(() => {
+                                              // First check if description contains HTML (prioritize description field)
+                                              if (selectedProduct.description) {
+                                                const hasHTML = /<[a-z][\s\S]*>/i.test(selectedProduct.description);
+                                                if (hasHTML) {
+                                                  // Render HTML description exactly as provided by admin
+                                                  return (
+                                                    <>
+                                                      <style>{`
+                                                        .product-description-html {
+                                                          color: #1e3a8a;
+                                                          line-height: 1.6;
+                                                          white-space: normal;
+                                                        }
+                                                        .product-description-html b,
+                                                        .product-description-html strong {
+                                                          font-weight: 600;
+                                                          color: #1e40af;
+                                                          display: inline;
+                                                        }
+                                                        .product-description-html > b:first-child,
+                                                        .product-description-html > strong:first-child {
+                                                          display: block;
+                                                          font-size: 1.1em;
+                                                          margin-bottom: 0.75rem;
+                                                          color: #1e40af;
+                                                        }
+                                                        .product-description-html p,
+                                                        .product-description-html div {
+                                                          margin-bottom: 0.5rem;
+                                                          line-height: 1.6;
+                                                          color: #1e3a8a;
+                                                          white-space: normal;
+                                                          word-wrap: break-word;
+                                                          overflow-wrap: break-word;
+                                                        }
+                                                        .product-description-html div:not(:first-child) {
+                                                          padding-left: 0;
+                                                        }
+                                                        .product-description-html ul,
+                                                        .product-description-html ol {
+                                                          margin-left: 1.5rem;
+                                                          margin-bottom: 0.5rem;
+                                                        }
+                                                        .product-description-html li {
+                                                          margin-bottom: 0.25rem;
+                                                        }
+                                                      `}</style>
+                                                      <div
+                                                        className="product-description-html"
+                                                        dangerouslySetInnerHTML={{ __html: selectedProduct.description }}
+                                                      />
+                                                    </>
+                                                  );
+                                                }
+                                              }
+
+                                              // Use descriptionArray if available, otherwise use description
+                                              if (selectedProduct.descriptionArray && Array.isArray(selectedProduct.descriptionArray) && selectedProduct.descriptionArray.length > 0) {
+                                                // Render descriptionArray with formatting
+                                                const renderTextWithBold = (text: string) => {
+                                                  const parts = text.split(/(\*\*.*?\*\*)/g);
+                                                  return parts.map((part, idx) => {
+                                                    if (part.startsWith('**') && part.endsWith('**')) {
+                                                      const boldText = part.slice(2, -2);
+                                                      return <strong key={idx} className="font-bold text-blue-900">{boldText}</strong>;
+                                                    }
+                                                    return <span key={idx}>{part}</span>;
+                                                  });
+                                                };
+
+                                                // Ensure descriptionArray is displayed left to right (correct order)
+                                                // Reverse the array if it's stored in reverse order
+                                                const descriptionLines = [...selectedProduct.descriptionArray].reverse();
+                                                return descriptionLines.map((desc, i) => {
+                                                  if (desc.includes(':')) {
+                                                    return (
+                                                      <div key={i} className="mt-3 first:mt-0">
+                                                        <p className="font-semibold text-blue-900 mb-1.5">
+                                                          {renderTextWithBold(desc)}
+                                                        </p>
+                                                      </div>
+                                                    );
+                                                  } else if (desc.startsWith('→') || desc.startsWith('->') || desc.startsWith('•')) {
+                                                    const cleanDesc = desc.replace(/^[→•\-]+\s*/, '').trim();
+                                                    return (
+                                                      <p key={i} className="flex items-start">
+                                                        <span className="mr-2 text-blue-600 mt-1">→</span>
+                                                        <span>{renderTextWithBold(cleanDesc)}</span>
+                                                      </p>
+                                                    );
+                                                  } else {
+                                                    return (
+                                                      <p key={i} className="flex items-start">
+                                                        <span className="mr-2 text-blue-600 mt-1">→</span>
+                                                        <span>{renderTextWithBold(desc)}</span>
+                                                      </p>
+                                                    );
+                                                  }
+                                                });
+                                              } else if (selectedProduct.description) {
+                                                // Render plain text description with formatting (HTML already handled above)
+                                                const descriptionLines = selectedProduct.description.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+                                                const renderTextWithBold = (text: string) => {
+                                                  const parts = text.split(/(\*\*.*?\*\*)/g);
+                                                  return parts.map((part, idx) => {
+                                                    if (part.startsWith('**') && part.endsWith('**')) {
+                                                      const boldText = part.slice(2, -2);
+                                                      return <strong key={idx} className="font-bold text-blue-900">{boldText}</strong>;
+                                                    }
+                                                    return <span key={idx}>{part}</span>;
+                                                  });
+                                                };
+                                                return descriptionLines.map((desc, i) => {
+                                                  if (desc.includes(':')) {
+                                                    return (
+                                                      <div key={i} className="mt-3 first:mt-0">
+                                                        <p className="font-semibold text-blue-900 mb-1.5">
+                                                          {renderTextWithBold(desc)}
+                                                        </p>
+                                                      </div>
+                                                    );
+                                                  } else if (desc.startsWith('→') || desc.startsWith('->') || desc.startsWith('•')) {
+                                                    const cleanDesc = desc.replace(/^[→•\-]+\s*/, '').trim();
+                                                    return (
+                                                      <p key={i} className="flex items-start">
+                                                        <span className="mr-2 text-blue-600 mt-1">→</span>
+                                                        <span>{renderTextWithBold(cleanDesc)}</span>
+                                                      </p>
+                                                    );
+                                                  } else {
+                                                    return (
+                                                      <p key={i} className="flex items-start">
+                                                        <span className="mr-2 text-blue-600 mt-1">→</span>
+                                                        <span>{renderTextWithBold(desc)}</span>
+                                                      </p>
+                                                    );
+                                                  }
+                                                });
+                                              } else {
+                                                return <p className="text-blue-700 italic">No description available</p>;
+                                              }
+                                            })()}
                                           </div>
-                                        )}
-
-                                        <div className="space-y-3 text-xs sm:text-sm text-yellow-800">
-                                          {/* File Upload Constraints */}
-                                          {(selectedProduct.maxFileSizeMB || selectedProduct.minFileWidth || selectedProduct.maxFileWidth || selectedProduct.minFileHeight || selectedProduct.maxFileHeight || selectedProduct.blockCDRandJPG) && (
-                                            <div>
-                                              <p className="font-semibold text-yellow-900 mb-2">File Upload Requirements:</p>
-                                              <div className="space-y-1 ml-4">
-                                                {selectedProduct.maxFileSizeMB && (
-                                                  <p>• Maximum file size: <strong>{selectedProduct.maxFileSizeMB} MB</strong></p>
-                                                )}
-                                                {(selectedProduct.minFileWidth || selectedProduct.maxFileWidth || selectedProduct.minFileHeight || selectedProduct.maxFileHeight) && (
-                                                  <div>
-                                                    <p>• File dimensions:</p>
-                                                    <div className="ml-4 space-y-1">
-                                                      {(selectedProduct.minFileWidth || selectedProduct.maxFileWidth) && (
-                                                        <p>
-                                                          - Width: <strong>
-                                                            {selectedProduct.minFileWidth && selectedProduct.maxFileWidth
-                                                              ? `${selectedProduct.minFileWidth} - ${selectedProduct.maxFileWidth} pixels`
-                                                              : selectedProduct.minFileWidth
-                                                                ? `Minimum ${selectedProduct.minFileWidth} pixels`
-                                                                : selectedProduct.maxFileWidth
-                                                                  ? `Maximum ${selectedProduct.maxFileWidth} pixels`
-                                                                  : "Any"}
-                                                          </strong>
-                                                        </p>
-                                                      )}
-                                                      {(selectedProduct.minFileHeight || selectedProduct.maxFileHeight) && (
-                                                        <p>
-                                                          - Height: <strong>
-                                                            {selectedProduct.minFileHeight && selectedProduct.maxFileHeight
-                                                              ? `${selectedProduct.minFileHeight} - ${selectedProduct.maxFileHeight} pixels`
-                                                              : selectedProduct.minFileHeight
-                                                                ? `Minimum ${selectedProduct.minFileHeight} pixels`
-                                                                : selectedProduct.maxFileHeight
-                                                                  ? `Maximum ${selectedProduct.maxFileHeight} pixels`
-                                                                  : "Any"}
-                                                          </strong>
-                                                        </p>
-                                                      )}
-                                                    </div>
-                                                  </div>
-                                                )}
-                                                {selectedProduct.blockCDRandJPG && (
-                                                  <p>• <strong>CDR and JPG files are not accepted</strong> for this product</p>
-                                                )}
-                                              </div>
-                                            </div>
-                                          )}
-
-                                          {/* Additional Settings */}
-                                          {(selectedProduct.additionalDesignCharge || selectedProduct.gstPercentage) && (
-                                            <div>
-                                              <p className="font-semibold text-yellow-900 mb-2">Additional Charges:</p>
-                                              <div className="space-y-1 ml-4">
-                                                {selectedProduct.additionalDesignCharge && selectedProduct.additionalDesignCharge > 0 && (
-                                                  <p>• Additional Design Charge: <strong>₹{selectedProduct.additionalDesignCharge.toFixed(2)}</strong> (applied if design help is needed)</p>
-                                                )}
-                                                {selectedProduct.gstPercentage && selectedProduct.gstPercentage > 0 && (
-                                                  <p>• GST: <strong>{selectedProduct.gstPercentage}%</strong> (applied on subtotal + design charge)</p>
-                                                )}
-                                              </div>
-                                            </div>
-                                          )}
-
-                                          {!selectedProduct.instructions && !selectedProduct.maxFileSizeMB && !selectedProduct.minFileWidth && !selectedProduct.maxFileWidth && !selectedProduct.minFileHeight && !selectedProduct.maxFileHeight && !selectedProduct.blockCDRandJPG && !selectedProduct.additionalDesignCharge && !selectedProduct.gstPercentage && (
-                                            <p className="text-yellow-700 italic">No special instructions for this product.</p>
-                                          )}
                                         </div>
-                                      </div>
-                                    </motion.div>
-                                  )}
-                                </AnimatePresence>
+                                      </motion.div>
+                                    )}
+                                  </AnimatePresence>
 
-                                <div className="text-sm sm:text-base text-gray-600 space-y-2">
-                                  {(() => {
-                                    // First check if description contains HTML (prioritize description field)
-                                    if (selectedProduct.description) {
-                                      const hasHTML = /<[a-z][\s\S]*>/i.test(selectedProduct.description);
-                                      if (hasHTML) {
-                                        // Render HTML description exactly as provided by admin
-                                        return (
-                                          <>
-                                            <style>{`
-                                        .product-description-html {
-                                          color: #92400e;
-                                          line-height: 1.6;
-                                          white-space: normal;
-                                        }
-                                        .product-description-html b,
-                                        .product-description-html strong {
-                                          font-weight: 600;
-                                          color: #7c2d12;
-                                          display: inline;
-                                        }
-                                        .product-description-html > b:first-child,
-                                        .product-description-html > strong:first-child {
-                                          display: block;
-                                          font-size: 1.1em;
-                                          margin-bottom: 0.75rem;
-                                          color: #7c2d12;
-                                        }
-                                        .product-description-html p,
-                                        .product-description-html div {
-                                          margin-bottom: 0.5rem;
-                                          line-height: 1.6;
-                                          color: #92400e;
-                                          white-space: normal;
-                                          word-wrap: break-word;
-                                          overflow-wrap: break-word;
-                                        }
-                                        .product-description-html div:not(:first-child) {
-                                          padding-left: 0;
-                                        }
-                                        .product-description-html ul,
-                                        .product-description-html ol {
-                                          margin-left: 1.5rem;
-                                          margin-bottom: 0.5rem;
-                                        }
-                                        .product-description-html li {
-                                          margin-bottom: 0.25rem;
-                                        }
-                                      `}</style>
-                                            <div
-                                              className="product-description-html text-gray-600"
-                                              dangerouslySetInnerHTML={{ __html: selectedProduct.description }}
-                                            />
-                                          </>
-                                        );
-                                      }
-                                    }
+                                  {/* Instructions Expandable Section */}
+                                  <AnimatePresence>
+                                    {isInstructionsOpen && (
+                                      <motion.div
+                                        initial={{ opacity: 0, height: 0 }}
+                                        animate={{ opacity: 1, height: "auto" }}
+                                        exit={{ opacity: 0, height: 0 }}
+                                        transition={{ duration: 0.3, ease: "easeInOut" }}
+                                        className="overflow-hidden"
+                                      >
+                                        <div className="mb-6 p-4 sm:p-6 bg-yellow-50 border border-yellow-200 rounded-lg">
+                                          <h4 className="text-sm font-bold text-yellow-900 mb-3 flex items-center gap-2">
+                                            <Info size={16} />
+                                            Important Instructions - Please Read Carefully
+                                          </h4>
 
-                                    // Use descriptionArray if available, otherwise use description
-                                    if (selectedProduct.descriptionArray && Array.isArray(selectedProduct.descriptionArray) && selectedProduct.descriptionArray.length > 0) {
-                                      // Render descriptionArray with formatting
-                                      const renderTextWithBold = (text: string) => {
-                                        const parts = text.split(/(\*\*.*?\*\*)/g);
-                                        return parts.map((part, idx) => {
-                                          if (part.startsWith('**') && part.endsWith('**')) {
-                                            const boldText = part.slice(2, -2);
-                                            return <strong key={idx} className="font-bold text-gray-800">{boldText}</strong>;
-                                          }
-                                          return <span key={idx}>{part}</span>;
-                                        });
-                                      };
-
-                                      // Ensure descriptionArray is displayed left to right (correct order)
-                                      // Reverse the array if it's stored in reverse order
-                                      const descriptionLines = [...selectedProduct.descriptionArray].reverse();
-                                      return descriptionLines.map((desc, i) => {
-                                        if (desc.includes(':')) {
-                                          return (
-                                            <div key={i} className="mt-3 first:mt-0">
-                                              <p className="font-semibold text-gray-700 mb-1.5">
-                                                {renderTextWithBold(desc)}
+                                          {/* Custom Instructions from Admin */}
+                                          {selectedProduct.instructions && (
+                                            <div className="mb-4 p-3 bg-red-50 border-2 border-red-300 rounded-lg">
+                                              <p className="text-xs font-bold text-red-900 mb-2 flex items-center gap-2">
+                                                <X size={14} className="text-red-600" />
+                                                CRITICAL: Company Not Responsible If Instructions Not Followed
                                               </p>
+                                              <div className="text-xs sm:text-sm text-red-800 whitespace-pre-line">
+                                                {selectedProduct.instructions}
+                                              </div>
                                             </div>
-                                          );
-                                        } else if (desc.startsWith('→') || desc.startsWith('->') || desc.startsWith('•')) {
-                                          const cleanDesc = desc.replace(/^[→•\-]+\s*/, '').trim();
-                                          return (
-                                            <p key={i} className="flex items-start">
-                                              <span className="mr-2 text-gray-500 mt-1">→</span>
-                                              <span>{renderTextWithBold(cleanDesc)}</span>
-                                            </p>
-                                          );
-                                        } else {
-                                          return (
-                                            <p key={i} className="flex items-start">
-                                              <span className="mr-2 text-gray-500 mt-1">→</span>
-                                              <span>{renderTextWithBold(desc)}</span>
-                                            </p>
-                                          );
-                                        }
-                                      });
-                                    } else if (selectedProduct.description) {
-                                      // Render plain text description with formatting (HTML already handled above)
-                                      const descriptionLines = selectedProduct.description.split('\n').map(line => line.trim()).filter(line => line.length > 0);
-                                      const renderTextWithBold = (text: string) => {
-                                        const parts = text.split(/(\*\*.*?\*\*)/g);
-                                        return parts.map((part, idx) => {
-                                          if (part.startsWith('**') && part.endsWith('**')) {
-                                            const boldText = part.slice(2, -2);
-                                            return <strong key={idx} className="font-bold text-gray-800">{boldText}</strong>;
-                                          }
-                                          return <span key={idx}>{part}</span>;
-                                        });
-                                      };
-                                      return descriptionLines.map((desc, i) => {
-                                        if (desc.includes(':')) {
-                                          return (
-                                            <div key={i} className="mt-3 first:mt-0">
-                                              <p className="font-semibold text-gray-700 mb-1.5">
-                                                {renderTextWithBold(desc)}
-                                              </p>
-                                            </div>
-                                          );
-                                        } else if (desc.startsWith('→') || desc.startsWith('->') || desc.startsWith('•')) {
-                                          const cleanDesc = desc.replace(/^[→•\-]+\s*/, '').trim();
-                                          return (
-                                            <p key={i} className="flex items-start">
-                                              <span className="mr-2 text-gray-500 mt-1">→</span>
-                                              <span>{renderTextWithBold(cleanDesc)}</span>
-                                            </p>
-                                          );
-                                        } else {
-                                          return (
-                                            <p key={i} className="flex items-start">
-                                              <span className="mr-2 text-gray-500 mt-1">→</span>
-                                              <span>{renderTextWithBold(desc)}</span>
-                                            </p>
-                                          );
-                                        }
-                                      });
-                                    } else {
-                                      return <p className="text-gray-500 italic">No description available</p>;
-                                    }
-                                  })()}
+                                          )}
+
+                                          <div className="space-y-3 text-xs sm:text-sm text-yellow-800">
+                                            {/* File Upload Constraints */}
+                                            {(selectedProduct.maxFileSizeMB || selectedProduct.minFileWidth || selectedProduct.maxFileWidth || selectedProduct.minFileHeight || selectedProduct.maxFileHeight || selectedProduct.blockCDRandJPG) && (
+                                              <div>
+                                                <p className="font-semibold text-yellow-900 mb-2">File Upload Requirements:</p>
+                                                <div className="space-y-1 ml-4">
+                                                  {selectedProduct.maxFileSizeMB && (
+                                                    <p>• Maximum file size: <strong>{selectedProduct.maxFileSizeMB} MB</strong></p>
+                                                  )}
+                                                  {(selectedProduct.minFileWidth || selectedProduct.maxFileWidth || selectedProduct.minFileHeight || selectedProduct.maxFileHeight) && (
+                                                    <div>
+                                                      <p>• File dimensions:</p>
+                                                      <div className="ml-4 space-y-1">
+                                                        {(selectedProduct.minFileWidth || selectedProduct.maxFileWidth) && (
+                                                          <p>
+                                                            - Width: <strong>
+                                                              {selectedProduct.minFileWidth && selectedProduct.maxFileWidth
+                                                                ? `${selectedProduct.minFileWidth} - ${selectedProduct.maxFileWidth} pixels`
+                                                                : selectedProduct.minFileWidth
+                                                                  ? `Minimum ${selectedProduct.minFileWidth} pixels`
+                                                                  : selectedProduct.maxFileWidth
+                                                                    ? `Maximum ${selectedProduct.maxFileWidth} pixels`
+                                                                    : "Any"}
+                                                            </strong>
+                                                          </p>
+                                                        )}
+                                                        {(selectedProduct.minFileHeight || selectedProduct.maxFileHeight) && (
+                                                          <p>
+                                                            - Height: <strong>
+                                                              {selectedProduct.minFileHeight && selectedProduct.maxFileHeight
+                                                                ? `${selectedProduct.minFileHeight} - ${selectedProduct.maxFileHeight} pixels`
+                                                                : selectedProduct.minFileHeight
+                                                                  ? `Minimum ${selectedProduct.minFileHeight} pixels`
+                                                                  : selectedProduct.maxFileHeight
+                                                                    ? `Maximum ${selectedProduct.maxFileHeight} pixels`
+                                                                    : "Any"}
+                                                            </strong>
+                                                          </p>
+                                                        )}
+                                                      </div>
+                                                    </div>
+                                                  )}
+                                                  {selectedProduct.blockCDRandJPG && (
+                                                    <p>• <strong>CDR and JPG files are not accepted</strong> for this product</p>
+                                                  )}
+                                                </div>
+                                              </div>
+                                            )}
+
+                                            {/* Additional Settings */}
+                                            {(selectedProduct.additionalDesignCharge || selectedProduct.gstPercentage) && (
+                                              <div>
+                                                <p className="font-semibold text-yellow-900 mb-2">Additional Charges:</p>
+                                                <div className="space-y-1 ml-4">
+                                                  {selectedProduct.additionalDesignCharge && selectedProduct.additionalDesignCharge > 0 && (
+                                                    <p>• Additional Design Charge: <strong>₹{selectedProduct.additionalDesignCharge.toFixed(2)}</strong> (applied if design help is needed)</p>
+                                                  )}
+                                                  {selectedProduct.gstPercentage && selectedProduct.gstPercentage > 0 && (
+                                                    <p>• GST: <strong>{selectedProduct.gstPercentage}%</strong> (applied on subtotal + design charge)</p>
+                                                  )}
+                                                </div>
+                                              </div>
+                                            )}
+
+                                            {!selectedProduct.instructions && !selectedProduct.maxFileSizeMB && !selectedProduct.minFileWidth && !selectedProduct.maxFileWidth && !selectedProduct.minFileHeight && !selectedProduct.maxFileHeight && !selectedProduct.blockCDRandJPG && !selectedProduct.additionalDesignCharge && !selectedProduct.gstPercentage && (
+                                              <p className="text-yellow-700 italic">No special instructions for this product.</p>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </motion.div>
+                                    )}
+                                  </AnimatePresence>
                                 </div>
                               </div>
 

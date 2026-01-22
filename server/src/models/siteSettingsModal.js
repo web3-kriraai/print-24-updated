@@ -92,6 +92,19 @@ const SiteSettingsSchema = new mongoose.Schema(
                 type: String,
                 default: '400'
             }
+        },
+        // Global Navbar Layout Settings for all services
+        navbarSettings: {
+            // Width of each service navbar item
+            itemWidth: {
+                type: String,
+                default: '150px'
+            },
+            // Gap between service navbar items
+            itemGap: {
+                type: String,
+                default: '8px'
+            }
         }
     },
     { timestamps: true }
