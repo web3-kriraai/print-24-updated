@@ -126,6 +126,9 @@ export const ModifierRuleBuilder: React.FC = () => {
         reason: '',
     });
 
+    // Validation errors state
+    const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+
     useEffect(() => {
         fetchModifiers();
         fetchLookupData();
@@ -187,6 +190,98 @@ export const ModifierRuleBuilder: React.FC = () => {
     };
 
     const handleSubmit = async () => {
+        // ========== VALIDATION ==========
+        const errors: Record<string, string> = {};
+
+        // 1. Required field: Value
+        if (formData.value === undefined || formData.value === null || String(formData.value).trim() === '') {
+            errors.value = 'Value is required';
+        } else {
+            const numValue = Number(formData.value);
+
+            // 2. Value must be a valid number
+            if (isNaN(numValue)) {
+                errors.value = 'Value must be a valid number';
+            } else {
+                // 3. Value range validation based on modifier type
+                if (formData.modifierType.includes('PERCENT')) {
+                    // Percentage must be between 0 and 100
+                    if (numValue < 0 || numValue > 100) {
+                        errors.value = 'Percentage value must be between 0 and 100';
+                    }
+                } else {
+                    // Flat amount must be positive
+                    if (numValue < 0) {
+                        errors.value = 'Flat amount must be a positive number';
+                    }
+                }
+            }
+        }
+
+        // 4. Priority validation
+        if (formData.priority === undefined || formData.priority === null || String(formData.priority).trim() === '') {
+            errors.priority = 'Priority is required';
+        } else if (Number(formData.priority) < 0) {
+            errors.priority = 'Priority must be 0 or higher';
+        }
+
+        // 5. Reason/Description validation
+        if (!formData.reason || formData.reason.trim() === '') {
+            errors.reason = 'Reason/Description is required';
+        }
+
+        // 6. Date validation
+        if (formData.validFrom && formData.validTo) {
+            const fromDate = new Date(formData.validFrom);
+            const toDate = new Date(formData.validTo);
+
+            if (toDate <= fromDate) {
+                errors.validTo = 'Valid To date must be after Valid From date';
+            }
+        }
+
+        // 7. Quantity validation
+        if (formData.minQuantity !== undefined && formData.minQuantity < 0) {
+            errors.minQuantity = 'Min Quantity cannot be negative';
+        }
+        if (formData.maxQuantity !== undefined && formData.maxQuantity < 0) {
+            errors.maxQuantity = 'Max Quantity cannot be negative';
+        }
+        if (formData.minQuantity !== undefined && formData.maxQuantity !== undefined) {
+            if (formData.maxQuantity > 0 && formData.minQuantity > formData.maxQuantity) {
+                errors.maxQuantity = 'Max Quantity must be greater than or equal to Min Quantity';
+            }
+        }
+
+        // 8. Scope-specific validation
+        if (formData.appliesTo === 'ZONE' && !formData.geoZone) {
+            errors.geoZone = 'Geo Zone is required when scope is ZONE';
+        }
+        if (formData.appliesTo === 'SEGMENT' && !formData.userSegment) {
+            errors.userSegment = 'User Segment is required when scope is SEGMENT';
+        }
+        if (formData.appliesTo === 'PRODUCT' && !formData.product) {
+            errors.product = 'Product is required when scope is PRODUCT';
+        }
+        if (formData.appliesTo === 'ATTRIBUTE') {
+            if (!formData.attributeType) {
+                errors.attributeType = 'Attribute Type is required when scope is ATTRIBUTE';
+            }
+            if (!formData.attributeValue) {
+                errors.attributeValue = 'Attribute Value is required when scope is ATTRIBUTE';
+            }
+        }
+
+        // If there are validation errors, show them and stop
+        if (Object.keys(errors).length > 0) {
+            setValidationErrors(errors);
+            return;
+        }
+
+        // Clear validation errors
+        setValidationErrors({});
+
+        // ========== SUBMIT ==========
         try {
             const url = editingModifier
                 ? `/api/admin/price-modifiers/${editingModifier._id}`
@@ -201,7 +296,10 @@ export const ModifierRuleBuilder: React.FC = () => {
                 body: JSON.stringify(formData),
             });
 
+            const data = await response.json();
+
             if (response.ok) {
+                alert(editingModifier ? 'Modifier updated successfully!' : 'Modifier created successfully!');
                 fetchModifiers();
                 setShowCreateModal(false);
                 setEditingModifier(null);
@@ -216,9 +314,12 @@ export const ModifierRuleBuilder: React.FC = () => {
                     conditions: null
                 });
                 setRuleRows([]); // Reset rules
+            } else {
+                alert('Error: ' + (data.message || 'Failed to save modifier'));
             }
         } catch (error) {
             console.error('Failed to save modifier:', error);
+            alert('Failed to save modifier. Please try again.');
         }
     };
 
@@ -766,13 +867,20 @@ export const ModifierRuleBuilder: React.FC = () => {
                                     value={formData.value || ''}
                                     onChange={(e) => setFormData({ ...formData, value: parseFloat(e.target.value) })}
                                     placeholder={formData.modifierType?.includes('PERCENT') ? '10' : '500'}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${validationErrors.value ? 'border-red-500' : 'border-gray-300'}`}
                                 />
-                                <p className="text-xs text-gray-500 mt-1">
-                                    {formData.modifierType?.includes('PERCENT')
-                                        ? 'Enter percentage (e.g., 10 for 10%)'
-                                        : 'Enter flat amount (e.g., 500 for ₹500)'}
-                                </p>
+                                {validationErrors.value ? (
+                                    <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
+                                        <AlertCircle className="w-3 h-3" />
+                                        {validationErrors.value}
+                                    </p>
+                                ) : (
+                                    <p className="text-xs text-gray-500 mt-1">
+                                        {formData.modifierType?.includes('PERCENT')
+                                            ? 'Enter percentage (e.g., 10 for 10%)'
+                                            : 'Enter flat amount (e.g., 500 for ₹500)'}
+                                    </p>
+                                )}
                             </div>
 
                             {/* Priority */}
@@ -784,11 +892,18 @@ export const ModifierRuleBuilder: React.FC = () => {
                                     type="number"
                                     value={formData.priority || 0}
                                     onChange={(e) => setFormData({ ...formData, priority: parseInt(e.target.value) })}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${validationErrors.priority ? 'border-red-500' : 'border-gray-300'}`}
                                 />
-                                <p className="text-xs text-gray-500 mt-1">
-                                    Higher priority modifiers are applied first
-                                </p>
+                                {validationErrors.priority ? (
+                                    <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
+                                        <AlertCircle className="w-3 h-3" />
+                                        {validationErrors.priority}
+                                    </p>
+                                ) : (
+                                    <p className="text-xs text-gray-500 mt-1">
+                                        Higher priority modifiers are applied first
+                                    </p>
+                                )}
                             </div>
 
                             {/* Quantity Constraints */}
@@ -802,8 +917,14 @@ export const ModifierRuleBuilder: React.FC = () => {
                                         value={formData.minQuantity || ''}
                                         onChange={(e) => setFormData({ ...formData, minQuantity: parseInt(e.target.value) || undefined })}
                                         placeholder="No minimum"
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                        className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${validationErrors.minQuantity ? 'border-red-500' : 'border-gray-300'}`}
                                     />
+                                    {validationErrors.minQuantity && (
+                                        <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
+                                            <AlertCircle className="w-3 h-3" />
+                                            {validationErrors.minQuantity}
+                                        </p>
+                                    )}
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -814,8 +935,14 @@ export const ModifierRuleBuilder: React.FC = () => {
                                         value={formData.maxQuantity || ''}
                                         onChange={(e) => setFormData({ ...formData, maxQuantity: parseInt(e.target.value) || undefined })}
                                         placeholder="No maximum"
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                        className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${validationErrors.maxQuantity ? 'border-red-500' : 'border-gray-300'}`}
                                     />
+                                    {validationErrors.maxQuantity && (
+                                        <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
+                                            <AlertCircle className="w-3 h-3" />
+                                            {validationErrors.maxQuantity}
+                                        </p>
+                                    )}
                                 </div>
                             </div>
 
@@ -840,8 +967,14 @@ export const ModifierRuleBuilder: React.FC = () => {
                                         type="date"
                                         value={formData.validTo || ''}
                                         onChange={(e) => setFormData({ ...formData, validTo: e.target.value })}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                        className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${validationErrors.validTo ? 'border-red-500' : 'border-gray-300'}`}
                                     />
+                                    {validationErrors.validTo && (
+                                        <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
+                                            <AlertCircle className="w-3 h-3" />
+                                            {validationErrors.validTo}
+                                        </p>
+                                    )}
                                 </div>
                             </div>
 
@@ -855,8 +988,14 @@ export const ModifierRuleBuilder: React.FC = () => {
                                     onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
                                     placeholder="e.g., Summer Sale 2024, Corporate Bulk Discount, etc."
                                     rows={3}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${validationErrors.reason ? 'border-red-500' : 'border-gray-300'}`}
                                 />
+                                {validationErrors.reason && (
+                                    <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
+                                        <AlertCircle className="w-3 h-3" />
+                                        {validationErrors.reason}
+                                    </p>
+                                )}
                             </div>
 
                             {/* Stacking Controls - Enhanced */}
