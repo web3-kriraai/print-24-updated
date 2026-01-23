@@ -147,6 +147,12 @@ const ProductSchema = new mongoose.Schema(
     maxFileHeight: { type: Number }, // Maximum file height in pixels
     blockCDRandJPG: { type: Boolean, default: false }, // Block CDR and JPG file types
 
+    // Sorting order for display in product selection deck
+    sortOrder: {
+      type: Number,
+      default: 0,
+    },
+
     // Additional charges and taxes
     additionalDesignCharge: { type: Number, default: 0 }, // Fixed fee for design help
     gstPercentage: { type: Number, default: 0 }, // GST percentage (required for invoice calculation)
@@ -174,6 +180,11 @@ ProductSchema.pre('save', function (next) {
   }
   next();
 });
+
+// Index for efficient sorting by sortOrder
+ProductSchema.index({ sortOrder: 1, createdAt: -1 });
+ProductSchema.index({ category: 1, sortOrder: 1 });
+ProductSchema.index({ subcategory: 1, sortOrder: 1 });
 
 // Compound index for scoped slug uniqueness within subcategory
 // Slug must be unique within the same subcategory

@@ -286,6 +286,18 @@ export const createProduct = async (req, res) => {
       });
     }
 
+    // Auto-assign sortOrder: get max sortOrder in the same scope and add 1
+    let nextSortOrder = 1;
+    const sortOrderQuery = subcategoryValue
+      ? { subcategory: subcategoryValue }
+      : { category: finalCategoryId, subcategory: null };
+    const maxSortOrderProduct = await Product.findOne(sortOrderQuery)
+      .sort({ sortOrder: -1 })
+      .select('sortOrder');
+    if (maxSortOrderProduct && maxSortOrderProduct.sortOrder) {
+      nextSortOrder = maxSortOrderProduct.sortOrder + 1;
+    }
+
     const data = await Product.create({
       name,
       slug: productSlug,
@@ -311,6 +323,7 @@ export const createProduct = async (req, res) => {
       showPriceIncludingGst: parsedShowPriceIncludingGst,
       instructions: instructions || "",
       productionSequence: parsedProductionSequence,
+      sortOrder: nextSortOrder,
     });
 
     // Populate category (and subcategory for backward compatibility) before returning
@@ -395,7 +408,7 @@ export const getAllProducts = async (req, res) => {
         path: "dynamicAttributes.attributeType",
         model: "AttributeType"
       })
-      .sort({ createdAt: -1 });
+      .sort({ sortOrder: 1, createdAt: -1 });
 
     console.log(`Fetched ${list.length} product(s) total`);
 
@@ -737,7 +750,7 @@ export const getProductsByCategory = async (req, res) => {
         path: "dynamicAttributes.attributeType",
         model: "AttributeType"
       })
-      .sort({ createdAt: -1 });
+      .sort({ sortOrder: 1, createdAt: -1 });
 
     console.log(`=== PRODUCTS BY CATEGORY (${categoryId}) ===`);
     console.log(`Fetched ${list.length} product(s)`);
@@ -860,7 +873,7 @@ export const getProductsBySubcategory = async (req, res) => {
         path: "dynamicAttributes.attributeType",
         model: "AttributeType"
       })
-      .sort({ createdAt: -1 });
+      .sort({ sortOrder: 1, createdAt: -1 });
 
     console.log(`Found ${list.length} product(s) with subcategory ${subcategoryId}`);
 
@@ -907,7 +920,7 @@ export const getProductsBySubcategory = async (req, res) => {
             path: "dynamicAttributes.attributeType",
             model: "AttributeType"
           })
-          .sort({ createdAt: -1 });
+          .sort({ sortOrder: 1, createdAt: -1 });
 
         console.log(`Found ${list.length} product(s) in parent category ${categoryId}`);
       }
@@ -1420,6 +1433,43 @@ export const reorderProducts = async (req, res) => {
 
   } catch (err) {
     console.error("Error reordering products:", err);
+    return res.status(500).json({ error: err.message });
+  }
+};
+
+// Batch update sort order for multiple products
+export const updateProductsSortOrder = async (req, res) => {
+  try {
+    const { updates } = req.body;
+
+    if (!updates || !Array.isArray(updates) || updates.length === 0) {
+      return res.status(400).json({ error: "Updates array is required" });
+    }
+
+    // Validate each update
+    for (const update of updates) {
+      if (!update.productId || typeof update.sortOrder !== 'number') {
+        return res.status(400).json({ error: "Each update must have productId and sortOrder" });
+      }
+    }
+
+    // Update each product's sortOrder
+    const updatePromises = updates.map(({ productId, sortOrder }) =>
+      Product.findByIdAndUpdate(productId, { sortOrder }, { new: true })
+    );
+
+    const results = await Promise.all(updatePromises);
+    
+    const successCount = results.filter(r => r !== null).length;
+
+    return res.json({
+      success: true,
+      message: `Updated sortOrder for ${successCount} product(s)`,
+      updated: successCount
+    });
+
+  } catch (err) {
+    console.error("Error updating products sort order:", err);
     return res.status(500).json({ error: err.message });
   }
 };

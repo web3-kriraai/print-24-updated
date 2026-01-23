@@ -29,6 +29,7 @@ import {
   updateProduct,
   deleteProduct,
   reorderProducts,
+  updateProductsSortOrder,
 } from "../controllers/productController.js";
 
 /* PRODUCT DETAIL CONTROLLER */
@@ -248,6 +249,12 @@ router.put(
   authMiddleware,
   adminAuth,
   reorderProducts
+);
+router.put(
+  "/products/sort-order",
+  authMiddleware,
+  adminAuth,
+  updateProductsSortOrder
 );
 router.get("/products/:id", getSingleProduct);
 router.put(

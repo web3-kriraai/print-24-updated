@@ -58,6 +58,7 @@ import ManageDepartments from "./admin/components/departments/ManageDepartments"
 import ManageSequences from "./admin/components/sequences/ManageSequences";
 import AddProductForm from "./admin/components/products/AddProductForm";
 import ManageProductsView from "./admin/components/products/ManageProductsView";
+import SortProductsView from "./admin/components/products/SortProductsView";
 import ManageAttributeTypes from "./admin/components/attributes/ManageAttributeTypes";
 import ManageAttributeRules from "./admin/components/attributes/ManageAttributeRules";
 import ManageSubAttributes from "./admin/components/attributes/ManageSubAttributes";
@@ -5739,6 +5740,10 @@ const AdminDashboard: React.FC = () => {
         if (tab === "manage-products") {
           setSelectedSubCategoryFilter("");
           fetchProducts();
+        } else if (tab === "sort-products") {
+          fetchCategories();
+          fetchSubCategories();
+          fetchProducts();
         } else if (tab === "manage-categories") {
           fetchCategories();
           fetchSubCategories();
@@ -6356,6 +6361,14 @@ const AdminDashboard: React.FC = () => {
                 loading={loading || loadingProducts || filteringProducts}
                 error={error}
                 success={success}
+                categories={categories}
+                subCategories={subCategories}
+              />
+            )}
+
+            {/* Sort Products */}
+            {activeTab === "sort-products" && (
+              <SortProductsView
                 categories={categories}
                 subCategories={subCategories}
               />

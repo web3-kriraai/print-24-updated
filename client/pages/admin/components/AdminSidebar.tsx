@@ -60,6 +60,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ activeTab, onTabChange }) =
             subItems: [
                 { id: 'products', label: 'Add Product' },
                 { id: 'manage-products', label: 'Manage Products' },
+                { id: 'sort-products', label: 'Sort Products' },
             ],
         },
         {
