@@ -3286,20 +3286,52 @@ const AdminDashboard: React.FC = () => {
             // Convert multiplier back to price impact per 1000
             // multiplier = 1 + (impact/1000), so impact = (multiplier - 1) * 1000
             const priceImpact = av.priceMultiplier ? ((av.priceMultiplier - 1) * 1000).toFixed(2) : "0";
-            // Default to price usage if priceImpact exists, otherwise default to image
             const hasPrice = parseFloat(priceImpact) > 0;
+            
+            // Try to parse optionUsage from description if it was saved there
+            let parsedUsage = { price: false, image: false, listing: false };
+            let numberOfImagesRequired = 0;
+            let listingFilters = "";
+            
+            if (av.description) {
+              // Parse the description which may contain: "Price Impact: ₹X | Images Required: Y | Filters: Z"
+              if (av.description.includes("Price Impact:")) {
+                parsedUsage.price = true;
+              }
+              if (av.description.includes("Images Required:")) {
+                parsedUsage.image = true;
+                const imageMatch = av.description.match(/Images Required:\s*(\d+)/);
+                if (imageMatch) {
+                  numberOfImagesRequired = parseInt(imageMatch[1]) || 0;
+                }
+              }
+              if (av.description.includes("Filters:")) {
+                parsedUsage.listing = true;
+                const filterMatch = av.description.match(/Filters:\s*([^|]+)/);
+                if (filterMatch && filterMatch[1].trim() !== 'None') {
+                  listingFilters = filterMatch[1].trim();
+                }
+              }
+            }
+            
+            // If no usage was parsed from description, fallback to heuristics
+            if (!parsedUsage.price && !parsedUsage.image && !parsedUsage.listing) {
+              parsedUsage.price = hasPrice;
+              parsedUsage.image = !!av.image;
+              // Ensure at least one is selected
+              if (!parsedUsage.price && !parsedUsage.image) {
+                parsedUsage.price = true;
+              }
+            }
+            
             return {
               name: av.label || av.value || "",
               priceImpactPer1000: priceImpact,
               image: av.image || undefined,
-              optionUsage: {
-                price: hasPrice,
-                image: !!av.image,
-                listing: false
-              },
+              optionUsage: parsedUsage,
               priceImpact: hasPrice ? priceImpact : "",
-              numberOfImagesRequired: av.image ? 1 : 0,
-              listingFilters: ""
+              numberOfImagesRequired: numberOfImagesRequired || (av.image ? 1 : 0),
+              listingFilters: listingFilters
             };
           })) || [];
 
@@ -3405,18 +3437,49 @@ const AdminDashboard: React.FC = () => {
           .map((av: any) => {
             const priceImpact = av.priceMultiplier ? ((av.priceMultiplier - 1) * 1000).toFixed(2) : "0";
             const hasPrice = parseFloat(priceImpact) > 0;
+            
+            // Try to parse optionUsage from description if it was saved there
+            let parsedUsage = { price: false, image: false, listing: false };
+            let numberOfImagesRequired = 0;
+            let listingFilters = "";
+            
+            if (av.description) {
+              if (av.description.includes("Price Impact:")) {
+                parsedUsage.price = true;
+              }
+              if (av.description.includes("Images Required:")) {
+                parsedUsage.image = true;
+                const imageMatch = av.description.match(/Images Required:\s*(\d+)/);
+                if (imageMatch) {
+                  numberOfImagesRequired = parseInt(imageMatch[1]) || 0;
+                }
+              }
+              if (av.description.includes("Filters:")) {
+                parsedUsage.listing = true;
+                const filterMatch = av.description.match(/Filters:\s*([^|]+)/);
+                if (filterMatch && filterMatch[1].trim() !== 'None') {
+                  listingFilters = filterMatch[1].trim();
+                }
+              }
+            }
+            
+            // If no usage was parsed from description, fallback to heuristics
+            if (!parsedUsage.price && !parsedUsage.image && !parsedUsage.listing) {
+              parsedUsage.price = hasPrice;
+              parsedUsage.image = !!av.image;
+              if (!parsedUsage.price && !parsedUsage.image) {
+                parsedUsage.price = true;
+              }
+            }
+            
             return {
               name: av.label || av.value || "",
               priceImpactPer1000: priceImpact,
               image: av.image || undefined,
-              optionUsage: {
-                price: hasPrice,
-                image: !!av.image,
-                listing: false
-              },
+              optionUsage: parsedUsage,
               priceImpact: hasPrice ? priceImpact : "",
-              numberOfImagesRequired: av.image ? 1 : 0,
-              listingFilters: ""
+              numberOfImagesRequired: numberOfImagesRequired || (av.image ? 1 : 0),
+              listingFilters: listingFilters
             };
           })) || [];
 

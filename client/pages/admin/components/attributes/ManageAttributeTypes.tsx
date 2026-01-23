@@ -618,64 +618,90 @@ const ManageAttributeTypes: React.FC<ManageAttributeTypesProps> = ({
                                                         </td>
                                                     )}
                                                     <td className="border border-purple-100 px-4 py-3">
-                                                        <label className="relative block cursor-pointer group/upload">
-                                                            <input
-                                                                type="file"
-                                                                accept="image/jpeg,image/jpg,image/png,image/webp"
-                                                                onChange={async (e) => {
-                                                                    const file = e.target.files?.[0];
-                                                                    if (file) {
-                                                                        const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-                                                                        if (!validTypes.includes(file.type)) {
-                                                                            setError("Invalid image format");
-                                                                            return;
-                                                                        }
-                                                                        if (file.size > 5 * 1024 * 1024) {
-                                                                            setError("Image size must be less than 5MB");
-                                                                            return;
-                                                                        }
-
-                                                                        try {
-                                                                            setLoading(true);
-                                                                            const formData = new FormData();
-                                                                            formData.append('image', file);
-
-                                                                            const uploadResponse = await fetch(`${API_BASE_URL}/upload-image`, {
-                                                                                method: 'POST',
-                                                                                headers: getAuthHeaders(),
-                                                                                body: formData,
-                                                                            });
-
-                                                                            if (!uploadResponse.ok) {
-                                                                                const errorData = await uploadResponse.json().catch(() => ({}));
-                                                                                throw new Error(errorData.error || 'Failed to upload image');
-                                                                            }
-
-                                                                            const uploadData = await uploadResponse.json();
-                                                                            const imageUrl = uploadData.url || uploadData.secure_url;
-
-                                                                            if (!imageUrl) {
-                                                                                throw new Error('No image URL returned');
-                                                                            }
-
+                                                        <div className="flex items-center gap-2">
+                                                            {option.image && (
+                                                                <div className="relative group/img">
+                                                                    <img
+                                                                        src={option.image}
+                                                                        alt={option.name || "Option"}
+                                                                        className="w-10 h-10 object-cover rounded-lg border border-purple-200"
+                                                                    />
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
                                                                             const updated = [...attributeTypeForm.attributeOptionsTable];
-                                                                            updated[index].image = imageUrl;
+                                                                            updated[index].image = undefined;
                                                                             setAttributeTypeForm({ ...attributeTypeForm, attributeOptionsTable: updated });
-                                                                            setError(null);
-                                                                        } catch (err) {
-                                                                            console.error("Error uploading image:", err);
-                                                                            setError(err instanceof Error ? err.message : "Failed to upload image");
-                                                                        } finally {
-                                                                            setLoading(false);
+                                                                        }}
+                                                                        className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white rounded-full text-xs flex items-center justify-center opacity-0 group-hover/img:opacity-100 transition-opacity"
+                                                                        title="Remove image"
+                                                                    >
+                                                                        ×
+                                                                    </button>
+                                                                </div>
+                                                            )}
+                                                            <label className="relative block cursor-pointer group/upload flex-1">
+                                                                <input
+                                                                    type="file"
+                                                                    accept="image/jpeg,image/jpg,image/png,image/webp"
+                                                                    onChange={async (e) => {
+                                                                        const file = e.target.files?.[0];
+                                                                        if (file) {
+                                                                            const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+                                                                            if (!validTypes.includes(file.type)) {
+                                                                                setError("Invalid image format");
+                                                                                return;
+                                                                            }
+                                                                            if (file.size > 5 * 1024 * 1024) {
+                                                                                setError("Image size must be less than 5MB");
+                                                                                return;
+                                                                            }
+
+                                                                            try {
+                                                                                setLoading(true);
+                                                                                const formData = new FormData();
+                                                                                formData.append('image', file);
+
+                                                                                const uploadResponse = await fetch(`${API_BASE_URL}/upload-image`, {
+                                                                                    method: 'POST',
+                                                                                    headers: getAuthHeaders(),
+                                                                                    body: formData,
+                                                                                });
+
+                                                                                if (!uploadResponse.ok) {
+                                                                                    const errorData = await uploadResponse.json().catch(() => ({}));
+                                                                                    throw new Error(errorData.error || 'Failed to upload image');
+                                                                                }
+
+                                                                                const uploadData = await uploadResponse.json();
+                                                                                const imageUrl = uploadData.url || uploadData.secure_url;
+
+                                                                                if (!imageUrl) {
+                                                                                    throw new Error('No image URL returned');
+                                                                                }
+
+                                                                                const updated = [...attributeTypeForm.attributeOptionsTable];
+                                                                                updated[index].image = imageUrl;
+                                                                                setAttributeTypeForm({ ...attributeTypeForm, attributeOptionsTable: updated });
+                                                                                setError(null);
+                                                                            } catch (err) {
+                                                                                console.error("Error uploading image:", err);
+                                                                                setError(err instanceof Error ? err.message : "Failed to upload image");
+                                                                            } finally {
+                                                                                setLoading(false);
+                                                                            }
                                                                         }
-                                                                    }
-                                                                }}
-                                                                className="hidden"
-                                                            />
-                                                            <div className="px-3 py-2.5 border border-purple-100 rounded-lg text-sm text-center transition-all duration-300 group-hover/upload:border-purple-400 group-hover/upload:bg-purple-50/50">
-                                                                <span className="text-gray-600 group-hover/upload:text-purple-600">Upload</span>
-                                                            </div>
-                                                        </label>
+                                                                    }}
+                                                                    className="hidden"
+                                                                />
+                                                                <div className="px-3 py-2.5 border border-purple-100 rounded-lg text-sm text-center transition-all duration-300 group-hover/upload:border-purple-400 group-hover/upload:bg-purple-50/50">
+                                                                    <span className="text-gray-600 group-hover/upload:text-purple-600">
+                                                                        {option.image ? "Replace" : "Upload"}
+                                                                    </span>
+                                                                </div>
+                                                            </label>
+                                                        </div>
                                                     </td>
                                                     <td className="border border-purple-100 px-4 py-3 text-center">
                                                         <button
