@@ -676,7 +676,60 @@ const SmartViewMatrix: React.FC = () => {
 
               <div className="flex justify-between items-center py-3 border-b">
                 <span className="text-gray-600">Master Price:</span>
-                <strong className="font-mono">₹{viewData.price?.masterPrice?.toFixed(2)}</strong>
+                {editingCell === 'single-cell-master' ? (
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center border-2 border-indigo-500 rounded-lg px-2 py-1 bg-white">
+                      <span className="text-gray-600 mr-1">₹</span>
+                      <input
+                        type="number"
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            confirmEdit(
+                              filters.product!,
+                              viewData.productName,
+                              filters.segment || undefined
+                            );
+                          } else if (e.key === 'Escape') {
+                            cancelEditing();
+                          }
+                        }}
+                        className="w-32 outline-none font-mono"
+                        autoFocus
+                      />
+                    </div>
+                    <button
+                      onClick={() => confirmEdit(
+                        filters.product!,
+                        viewData.productName,
+                        filters.segment || undefined
+                      )}
+                      className="px-3 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium"
+                    >
+                      ✓ Save
+                    </button>
+                    <button
+                      onClick={cancelEditing}
+                      className="px-3 py-1 bg-gray-500 text-white rounded-lg hover:bg-gray-600 text-sm font-medium"
+                    >
+                      ✗ Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <strong className="font-mono">₹{viewData.price?.masterPrice?.toFixed(2)}</strong>
+                    <button
+                      onClick={() => startEditing('single-cell-master', viewData.price?.masterPrice || 0)}
+                      className="px-3 py-1 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium flex items-center gap-1"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                      Edit
+                    </button>
+                  </div>
+                )}
               </div>
 
               {viewData.price?.adjustments?.map((adj: any, idx: number) => {
