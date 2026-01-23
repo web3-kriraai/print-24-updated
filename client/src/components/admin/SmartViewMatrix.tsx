@@ -684,15 +684,49 @@ const SmartViewMatrix: React.FC = () => {
                 const isIncrease = adj.modifierType === 'PERCENT_INC' || adj.modifierType === 'FLAT_INC' || adj.change > 0;
                 const changeAmount = isModifier ? Math.abs(adj.change) : Math.abs(adj.value);
 
+                // Get modifier source label
+                const getSourceLabel = () => {
+                  if (adj.type === 'ZONE_BOOK') return 'Zone Price Book';
+                  if (adj.type === 'SEGMENT_BOOK') return 'Segment Price Book';
+                  if (!isModifier) return adj.type;
+
+                  // For modifiers, determine the source
+                  if (adj.appliesTo === 'GLOBAL') return 'Global Modifier';
+                  if (adj.appliesTo === 'ZONE') return 'Zone Modifier';
+                  if (adj.appliesTo === 'SEGMENT') return 'Segment Modifier';
+                  if (adj.appliesTo === 'PRODUCT') return 'Product Modifier';
+                  if (adj.appliesTo === 'ATTRIBUTE') return 'Attribute Modifier';
+                  if (adj.appliesTo === 'COMBINATION') return 'Combination Modifier';
+                  return 'Modifier';
+                };
+
                 return (
-                  <div key={idx} className={`flex justify-between items-center py-3 border-b ${isIncrease ? 'text-green-600' : 'text-red-600'}`}>
-                    <span>{adj.modifierName || adj.type}</span>
-                    <strong className="font-mono">
-                      {isIncrease ? '+' : '-'}
-                      {adj.modifierType?.includes('PERCENT') ? '' : '₹'}
-                      {changeAmount?.toFixed(2)}
-                      {adj.modifierType?.includes('PERCENT') ? '%' : ''}
-                    </strong>
+                  <div key={idx} className={`py-3 border-b ${isIncrease ? 'bg-green-50/50' : 'bg-red-50/50'}`}>
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <div className="font-medium text-gray-900">
+                          {adj.modifierName || adj.type}
+                        </div>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${isIncrease ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                            }`}>
+                            {getSourceLabel()}
+                          </span>
+                          {isModifier && (
+                            <span className="text-xs text-gray-600">
+                              {adj.modifierType?.includes('PERCENT') ? '' : '₹'}
+                              {adj.value}
+                              {adj.modifierType?.includes('PERCENT') ? '%' : ''}
+                              {' '}
+                              {adj.modifierType?.includes('INC') ? 'increase' : 'decrease'}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <strong className={`font-mono text-lg ${isIncrease ? 'text-green-600' : 'text-red-600'}`}>
+                        {isIncrease ? '+' : '-'}₹{changeAmount?.toFixed(2)}
+                      </strong>
+                    </div>
                   </div>
                 );
               })}
