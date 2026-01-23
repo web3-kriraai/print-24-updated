@@ -670,14 +670,23 @@ const GeoZoneManager: React.FC = () => {
                                                             level: location.city ? 'CITY' : location.state ? 'STATE' : 'COUNTRY'
                                                         });
 
-                                                        if (location.country === 'IN' && location.state) {
+                                                        if (location.country === 'IN' && (location.city || location.state)) {
                                                             try {
                                                                 const token = localStorage.getItem('token');
+                                                                // Use city code if available, otherwise fall back to state code
+                                                                const region = location.city || location.state;
+                                                                const regionType = location.city ? 'CITY' : 'STATE';
+
+                                                                console.log(`[Pin Code Fetch] Fetching pin codes for ${regionType}: ${region}`);
+
                                                                 const response = await fetch(
-                                                                    `/api/admin/locations/pincode-ranges?country=IN&region=${location.state}`,
+                                                                    `/api/admin/locations/pincode-ranges?country=IN&region=${region}`,
                                                                     { headers: { 'Authorization': `Bearer ${token}` } }
                                                                 );
                                                                 const data = await response.json();
+
+                                                                console.log(`[Pin Code Fetch] Response:`, data);
+
                                                                 if (data.success && data.data.available) {
                                                                     setFormData(prev => ({
                                                                         ...prev,
@@ -686,6 +695,9 @@ const GeoZoneManager: React.FC = () => {
                                                                             end: parseInt(data.data.end)
                                                                         }]
                                                                     }));
+                                                                    console.log(`[Pin Code Fetch] Successfully set pin codes: ${data.data.start} - ${data.data.end}`);
+                                                                } else {
+                                                                    console.warn(`[Pin Code Fetch] No pin code data available for ${region}`);
                                                                 }
                                                             } catch (err) {
                                                                 console.error('Failed to fetch pincode ranges:', err);
