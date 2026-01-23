@@ -1357,15 +1357,36 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
     }
   };
 
-  // Auto-select product if productId is provided in URL
+  // Auto-select product if productId is provided in URL, OR auto-redirect to first product if no productId
   useEffect(() => {
-    if (productId && products.length > 0 && !selectedProduct) {
-      const productToSelect = products.find(p => p._id === productId || p.id === productId);
-      if (productToSelect) {
-        handleProductSelect(productToSelect);
+    if (products.length > 0 && !selectedProduct && !loading) {
+      if (productId) {
+        // If productId is in URL, select that product
+        const productToSelect = products.find(p => p._id === productId || p.id === productId);
+        if (productToSelect) {
+          handleProductSelect(productToSelect);
+        }
+      } else if (nestedSubCategories.length === 0) {
+        // If no productId in URL and no nested subcategories, auto-redirect to first product
+        const firstProduct = products[0];
+        if (firstProduct) {
+          // Build the URL with the first product's ID
+          let newUrl = '';
+          if (categoryId && subCategoryId && nestedSubCategoryId) {
+            newUrl = `/services/${categoryId}/${subCategoryId}/${nestedSubCategoryId}/${firstProduct._id}`;
+          } else if (categoryId && subCategoryId) {
+            newUrl = `/services/${categoryId}/${subCategoryId}/${firstProduct._id}`;
+          } else if (categoryId) {
+            newUrl = `/services/${categoryId}/${firstProduct._id}`;
+          } else {
+            newUrl = `/services/${firstProduct._id}`;
+          }
+          // Navigate to the first product's detail page
+          navigate(newUrl, { replace: true });
+        }
       }
     }
-  }, [productId, products, selectedProduct]);
+  }, [productId, products, selectedProduct, loading, nestedSubCategories.length, categoryId, subCategoryId, nestedSubCategoryId, navigate]);
 
   // Generate quantity options based on quantity type
   const generateQuantities = (product: GlossProduct) => {
@@ -3883,162 +3904,12 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
               <div className="lg:w-1/2">
                 <div className="bg-white p-4 sm:p-6 md:p-8 rounded-2xl sm:rounded-3xl shadow-lg border border-gray-100 min-h-[600px] lg:min-h-[700px] flex flex-col">
                   {!selectedProduct ? (
-                    /* Product Selection List or Nested Subcategories */
-                    <div>
-                      <div className="mb-6 sm:mb-8 border-b border-gray-100 pb-4 sm:pb-6">
-                        <h1 className="font-serif text-xl sm:text-2xl md:text-3xl font-bold text-gray-900 mb-2">
-                          {selectedSubCategory?.name || "Products"}
-                        </h1>
-                        <p className="text-sm sm:text-base text-gray-600">
-                          {nestedSubCategories.length > 0
-                            ? "Select a subcategory to view products."
-                            : "Select a product to customize and place your order."}
-                        </p>
+                    /* Loading state - auto-redirecting to first product */
+                    <div className="flex items-center justify-center py-12 min-h-[400px]">
+                      <div className="text-center">
+                        <Loader className="animate-spin text-gray-600 mx-auto mb-4" size={40} />
+                        <p className="text-gray-600 text-lg">Loading product details...</p>
                       </div>
-
-                      {/* Nested Subcategories Display */}
-                      {nestedSubCategories.length > 0 ? (
-                        <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2">
-                          {nestedSubCategories.map((nestedSubCategory) => {
-                            const nestedSubCategoryIdForLink = nestedSubCategory._id;
-                            const imageUrl = nestedSubCategory.image || '/Glossy.png';
-
-                            return (
-                              <Link
-                                key={nestedSubCategory._id}
-                                to={categoryId && subCategoryId
-                                  ? `/services/${categoryId}/${subCategoryId}/${nestedSubCategoryIdForLink}`
-                                  : categoryId
-                                    ? `/services/${categoryId}/${nestedSubCategoryIdForLink}`
-                                    : `/services/${nestedSubCategoryIdForLink}`
-                                }
-                                className="block w-full"
-                                onClick={() => {
-                                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                                }}
-                              >
-                                <div className="w-full p-4 sm:p-5 rounded-xl border-2 border-gray-200 hover:border-gray-900 text-left transition-all duration-200 hover:bg-gray-50 group">
-                                  <div className="flex items-start gap-4">
-                                    {/* Subcategory Image */}
-                                    <div className="flex-shrink-0 w-20 sm:w-24 h-20 sm:h-24 rounded-lg overflow-hidden bg-gray-100 border border-gray-200">
-                                      <img
-                                        src={imageUrl}
-                                        alt={nestedSubCategory.name}
-                                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                                      />
-                                    </div>
-
-                                    {/* Subcategory Content */}
-                                    <div className="flex-1 flex flex-col min-w-0">
-                                      <div className="flex items-start justify-between gap-3 mb-2">
-                                        <h3 className="font-serif text-base sm:text-lg font-bold text-gray-900 group-hover:text-gray-600 transition-colors flex-1">
-                                          {nestedSubCategory.name}
-                                        </h3>
-                                        <ArrowRight size={18} className="text-gray-400 group-hover:text-gray-600 group-hover:translate-x-1 transition-all flex-shrink-0" />
-                                      </div>
-
-                                      {nestedSubCategory.description && (
-                                        <div className="text-gray-600 text-xs sm:text-sm mb-2 leading-relaxed">
-                                          <p className="line-clamp-2">{nestedSubCategory.description}</p>
-                                        </div>
-                                      )}
-
-                                      <div className="mt-auto flex items-center text-white0 text-xs sm:text-sm font-medium">
-                                        <span>View Products</span>
-                                      </div>
-                                    </div>
-                                  </div>
-                                </div>
-                              </Link>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        /* Products Display */
-                        <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2">
-                          {products.length === 0 ? (
-                            <div className="text-center py-12">
-                              <p className="text-gray-600">No products available</p>
-                            </div>
-                          ) : (
-                            products.map((product) => {
-                              // Get description points (2-3 lines)
-                              const descriptionList = product.descriptionArray && product.descriptionArray.length > 0
-                                ? product.descriptionArray
-                                : (product.description
-                                  ? product.description.split('\n').filter(line => line.trim())
-                                  : []);
-
-                              // Get first 2-3 meaningful description points
-                              const descriptionPoints: string[] = [];
-                              for (const item of descriptionList) {
-                                const cleanItem = item.replace(/<[^>]*>/g, '').trim();
-                                // Skip headers (containing colon) and empty items
-                                if (cleanItem && !cleanItem.includes(':') && cleanItem.length > 10) {
-                                  descriptionPoints.push(cleanItem);
-                                  if (descriptionPoints.length >= 3) break; // Get max 3 lines
-                                }
-                              }
-
-                              // If no points found, use first items
-                              if (descriptionPoints.length === 0 && descriptionList.length > 0) {
-                                for (let i = 0; i < Math.min(3, descriptionList.length); i++) {
-                                  const cleanItem = descriptionList[i].replace(/<[^>]*>/g, '').trim();
-                                  if (cleanItem) {
-                                    descriptionPoints.push(cleanItem);
-                                  }
-                                }
-                              }
-
-                              // Join first 2-3 lines
-                              const shortDescription = descriptionPoints.slice(0, 3).join(' • ') || '';
-
-                              // Calculate price display
-                              const basePrice = product.basePrice || 0;
-                              const displayPrice = basePrice < 1
-                                ? (basePrice * 1000).toFixed(2)
-                                : basePrice.toFixed(2);
-                              const priceLabel = basePrice < 1 ? "per 1000 units" : "";
-
-                              return (
-                                <button
-                                  key={product._id || product.id}
-                                  data-product-select
-                                  onClick={() => handleProductSelect(product)}
-                                  className="w-full p-3 sm:p-4 rounded-xl border-2 border-gray-200 hover:border-gray-900 text-left transition-all duration-200 hover:bg-gray-50 group"
-                                >
-                                  <div className="flex items-start justify-between gap-3 mb-2">
-                                    <h3 className="font-serif text-base sm:text-lg font-bold text-gray-900 group-hover:text-gray-600 transition-colors flex-1">
-                                      {product.name}
-                                    </h3>
-                                    <div className="text-right flex-shrink-0">
-                                      <div className="text-lg sm:text-xl font-bold text-gray-900">
-                                        ₹{displayPrice}
-                                      </div>
-                                      {priceLabel && (
-                                        <div className="text-xs text-white0 mt-0.5">
-                                          {priceLabel}
-                                        </div>
-                                      )}
-                                    </div>
-                                  </div>
-
-                                  {shortDescription && (
-                                    <div className="text-gray-600 text-xs sm:text-sm mb-2 leading-relaxed">
-                                      <p className="line-clamp-3">{shortDescription}</p>
-                                    </div>
-                                  )}
-
-                                  <div className="mt-2 flex items-center text-white0 text-xs sm:text-sm font-medium">
-                                    <span>View Details & Customize</span>
-                                    <ArrowRight size={14} className="ml-2 group-hover:translate-x-1 transition-transform" />
-                                  </div>
-                                </button>
-                              );
-                            })
-                          )}
-                        </div>
-                      )}
                     </div>
                   ) : (
                     /* Product Filters and Order Form */
