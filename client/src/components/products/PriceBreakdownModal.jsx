@@ -42,7 +42,7 @@ const PriceBreakdownModal = ({ priceData, product, quantity, onClose }) => {
 
   const getModifierLabel = (modifier) => {
     if (modifier.reason) return modifier.reason;
-    
+
     const labels = {
       'PERCENTAGE': 'Percentage Discount',
       'FIXED_AMOUNT': 'Fixed Amount',
@@ -99,8 +99,8 @@ const PriceBreakdownModal = ({ priceData, product, quantity, onClose }) => {
               {appliedModifiers.map((modifier, index) => (
                 <div key={index} className="breakdown-row modifier">
                   <div className="breakdown-label">
-                    <span 
-                      className="modifier-icon" 
+                    <span
+                      className="modifier-icon"
                       style={{ color: getModifierColor(modifier.modifierType) }}
                     >
                       {getModifierIcon(modifier.source)}
@@ -110,13 +110,14 @@ const PriceBreakdownModal = ({ priceData, product, quantity, onClose }) => {
                       <div className="modifier-source">{modifier.source}</div>
                     </div>
                   </div>
-                  <div 
+                  <div
                     className="breakdown-value modifier-value"
                     style={{ color: getModifierColor(modifier.modifierType) }}
                   >
                     {modifier.value > 0 ? '+' : ''}
+                    {modifier.modifierType?.includes('PERCENT') ? '' : '₹'}
                     {modifier.value}
-                    {modifier.modifierType.includes('PERCENTAGE') ? '%' : ''}
+                    {modifier.modifierType?.includes('PERCENT') ? '%' : ''}
                   </div>
                 </div>
               ))}

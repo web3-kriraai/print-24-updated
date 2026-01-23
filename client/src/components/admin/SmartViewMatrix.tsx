@@ -355,7 +355,7 @@ const SmartViewMatrix: React.FC = () => {
   };
 
   const removeEditedCell = (productId: string, segmentId?: string) => {
-    setEditedCells(prev => prev.filter(c => 
+    setEditedCells(prev => prev.filter(c =>
       !(c.productId === productId && c.segmentId === segmentId)
     ));
     toast('Change removed', { icon: '↩️' });
@@ -399,13 +399,13 @@ const SmartViewMatrix: React.FC = () => {
                 step="0.01"
                 className="w-20 px-2 py-1 border-2 border-indigo-500 rounded text-right font-mono text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
               />
-              <button 
+              <button
                 onClick={() => confirmEdit(productId, productName, segmentId)}
                 className="w-7 h-7 bg-green-500 text-white rounded flex items-center justify-center hover:bg-green-600"
               >
                 ✓
               </button>
-              <button 
+              <button
                 onClick={cancelEditing}
                 className="w-7 h-7 bg-red-500 text-white rounded flex items-center justify-center hover:bg-red-600"
               >
@@ -442,9 +442,8 @@ const SmartViewMatrix: React.FC = () => {
     return (
       <td
         key={key}
-        className={`p-3 text-center font-mono cursor-pointer transition-colors hover:bg-indigo-50 ${
-          isModified ? 'bg-amber-100 border-l-4 border-amber-500' : ''
-        }`}
+        className={`p-3 text-center font-mono cursor-pointer transition-colors hover:bg-indigo-50 ${isModified ? 'bg-amber-100 border-l-4 border-amber-500' : ''
+          }`}
         onClick={() => startEditing(key, displayPrice)}
         title="Click to edit"
       >
@@ -479,7 +478,7 @@ const SmartViewMatrix: React.FC = () => {
       return (
         <div className="flex flex-col items-center justify-center min-h-[400px]">
           <p className="text-red-500 mb-4">❌ Error: {error}</p>
-          <button 
+          <button
             onClick={fetchMatrixData}
             className="px-4 py-2 bg-indigo-500 text-white rounded-lg font-semibold hover:bg-indigo-600"
           >
@@ -689,7 +688,10 @@ const SmartViewMatrix: React.FC = () => {
                   <div key={idx} className={`flex justify-between items-center py-3 border-b ${isIncrease ? 'text-green-600' : 'text-red-600'}`}>
                     <span>{adj.modifierName || adj.type}</span>
                     <strong className="font-mono">
-                      {isIncrease ? '+' : '-'}₹{changeAmount?.toFixed(2)}
+                      {isIncrease ? '+' : '-'}
+                      {adj.modifierType?.includes('PERCENT') ? '' : '₹'}
+                      {changeAmount?.toFixed(2)}
+                      {adj.modifierType?.includes('PERCENT') ? '%' : ''}
                     </strong>
                   </div>
                 );
@@ -799,7 +801,7 @@ const SmartViewMatrix: React.FC = () => {
             </div>
 
             {/* Clear Filters Button */}
-            <button 
+            <button
               onClick={clearFilters}
               className="w-full py-3 bg-gray-100 text-gray-600 rounded-xl font-semibold hover:bg-gray-200 transition-colors flex items-center justify-center gap-2"
             >
@@ -822,7 +824,7 @@ const SmartViewMatrix: React.FC = () => {
                   <p className="text-xs text-amber-600">Click save to apply</p>
                 </div>
               </div>
-              
+
               {/* List edited items */}
               <div className="max-h-48 overflow-y-auto mb-4 space-y-2">
                 {editedCells.map((cell, idx) => (
@@ -835,7 +837,7 @@ const SmartViewMatrix: React.FC = () => {
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="font-mono text-amber-700 font-semibold">₹{cell.newPrice.toFixed(2)}</span>
-                      <button 
+                      <button
                         onClick={() => removeEditedCell(cell.productId, cell.segmentId)}
                         className="w-6 h-6 rounded-full bg-red-100 text-red-600 hover:bg-red-200 flex items-center justify-center text-sm"
                       >
@@ -847,7 +849,7 @@ const SmartViewMatrix: React.FC = () => {
               </div>
 
               <div className="space-y-2">
-                <button 
+                <button
                   onClick={saveAllChanges}
                   disabled={isSaving}
                   className="w-full py-3.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-bold hover:from-green-600 hover:to-emerald-700 disabled:opacity-60 transition-all flex items-center justify-center gap-2 shadow-lg shadow-green-500/20"
@@ -861,7 +863,7 @@ const SmartViewMatrix: React.FC = () => {
                     <>💾 Save All Changes</>
                   )}
                 </button>
-                <button 
+                <button
                   onClick={discardChanges}
                   disabled={isSaving}
                   className="w-full py-3 border-2 border-red-400 text-red-600 rounded-xl font-semibold hover:bg-red-50 disabled:opacity-60 transition-colors"
