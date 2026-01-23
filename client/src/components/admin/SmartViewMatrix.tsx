@@ -201,14 +201,26 @@ const SmartViewMatrix: React.FC = () => {
       return;
     }
 
+    const effectiveSegmentId = applyToAllSegments ? undefined : (segmentId || filters.segment || undefined);
+
+    console.log('[confirmEdit] Creating edited cell:', {
+      productId,
+      productName,
+      segmentId_param: segmentId,
+      filters_segment: filters.segment,
+      effectiveSegmentId,
+      applyToAllSegments,
+      zoneId: filters.zone
+    });
+
     const editedCell: EditedCell = {
       productId,
       productName,
-      segmentId: applyToAllSegments ? undefined : (segmentId || filters.segment || undefined), // If apply to all, don't set segmentId
+      segmentId: effectiveSegmentId,
       zoneId: filters.zone || undefined,
       originalPrice,
       newPrice,
-      applyToAllSegments // Store the flag
+      applyToAllSegments
     };
 
     // Add or update in editedCells array
@@ -249,10 +261,12 @@ const SmartViewMatrix: React.FC = () => {
       const priceUpdates = editedCells.map(cell => ({
         productId: cell.productId,
         newPrice: cell.newPrice,
-        segmentId: cell.applyToAllSegments ? undefined : cell.segmentId, // If apply to all, don't specify segment
+        segmentId: cell.applyToAllSegments ? undefined : cell.segmentId,
         zoneId: cell.zoneId,
-        applyToAllSegments: cell.applyToAllSegments || false // Flag to update zone book instead of zone+segment
+        applyToAllSegments: cell.applyToAllSegments || false
       }));
+
+      console.log('[saveAllChanges] Sending price updates:', JSON.stringify(priceUpdates, null, 2));
 
       // Call the Smart View update API with ASK strategy to check for conflicts
       const response = await fetch('/api/admin/pricing/smart-view/update', {
@@ -576,7 +590,9 @@ const SmartViewMatrix: React.FC = () => {
                             </td>
                           );
                         }
-                        return renderEditableCell(row.productId, row.productName, priceValue, row.segmentIds?.[code], `zone-${row.productId}-${code}`);
+                        const segId = row.segmentIds?.[code];
+                        console.log(`[ZONE View] Rendering cell for ${row.productName} - ${code}: segmentId=${segId}`);
+                        return renderEditableCell(row.productId, row.productName, priceValue, segId, `zone-${row.productId}-${code}`);
                       })}
                     </tr>
                   ))}
