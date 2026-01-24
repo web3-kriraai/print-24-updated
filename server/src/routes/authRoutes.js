@@ -1,9 +1,9 @@
 import express from "express";
-import { 
-  registerUser, 
-  loginUser, 
-  updateUserEmail, 
-  sendOtp, 
+import {
+  registerUser,
+  loginUser,
+  updateUserEmail,
+  sendOtp,
   verifyOtpAndRegister,
   forgotPassword,
   verifyOtpForPasswordReset,
@@ -11,10 +11,17 @@ import {
   getUserProfile,
   updateUserProfile,
   sendOtpForMobileUpdate,
+  sendEmailOtp,
+  verifyEmailOtp,
+  completeCustomerSignup,
+  submitCorporateRequest,
   submitPrintPartnerRequest,
   getAllPrintPartnerRequests,
   approvePrintPartnerRequest,
-  rejectPrintPartnerRequest
+  rejectPrintPartnerRequest,
+  getAllCorporateRequests,
+  approveCorporateRequest,
+  rejectCorporateRequest
 } from "../controllers/auth/authController.js";
 import { authMiddleware } from "../middlewares/authMiddleware.js";
 import { adminAuth } from "../middlewares/roleMiddleware.js";
@@ -48,5 +55,16 @@ router.post("/submit-print-partner-request", upload.single("proofFile"), submitP
 router.get("/print-partner-requests", authMiddleware, adminAuth, getAllPrintPartnerRequests);
 router.post("/print-partner-requests/:requestId/approve", authMiddleware, adminAuth, approvePrintPartnerRequest);
 router.post("/print-partner-requests/:requestId/reject", authMiddleware, adminAuth, rejectPrintPartnerRequest);
+
+// Corporate Request Routes
+router.post("/submit-corporate-request", upload.single("proofFile"), submitCorporateRequest);
+router.get("/corporate-requests", authMiddleware, adminAuth, getAllCorporateRequests);
+router.post("/corporate-requests/:requestId/approve", authMiddleware, adminAuth, approveCorporateRequest);
+router.post("/corporate-requests/:requestId/reject", authMiddleware, adminAuth, rejectCorporateRequest);
+
+// Email Verification Routes
+router.post("/send-email-otp", sendEmailOtp);
+router.post("/verify-email-otp", verifyEmailOtp);
+router.post("/complete-customer-signup", completeCustomerSignup);
 
 export default router;

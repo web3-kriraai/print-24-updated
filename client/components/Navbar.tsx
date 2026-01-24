@@ -115,6 +115,7 @@ const Navbar: React.FC = () => {
   };
 
   const getInitials = (name: string) => {
+    if (!name) return "U";
     return name
       .split(" ")
       .map((word) => word[0])
@@ -124,6 +125,7 @@ const Navbar: React.FC = () => {
   };
 
   const getRandomColor = (name: string) => {
+    if (!name) return "bg-blue-500";
     const colors = [
       "bg-blue-500",
       "bg-green-500",
@@ -249,7 +251,7 @@ const Navbar: React.FC = () => {
                         {getInitials(userData.name)}
                       </div>
                       <span className="text-cream-700 text-sm font-medium">
-                        {userData.name.split(" ")[0]}
+                        {userData.name?.split(" ")[0] || "User"}
                       </span>
                     </button>
 

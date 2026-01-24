@@ -4,8 +4,20 @@ import SubAttribute from "../models/subAttributeSchema.js";
 
 /**
  * GET /api/products/:id/detail
- * Returns complete PDP data including product, attributes, sub-attributes, and rules
- * Does NOT apply rule logic - only returns raw data for frontend
+ * 
+ * ⚠️ PDP CONTRACT (CONFIGURATION ONLY):
+ * - Returns ONLY product configuration data
+ * - NO pricing (basePrice, quantityDiscounts, priceAdd)
+ * - NO price calculations or rule execution
+ * - Frontend receives raw data for UI rendering
+ * - Pricing is resolved separately via Pricing API
+ * 
+ * ✅ Returns:
+ * - Product metadata
+ * - Attributes (structure only)
+ * - SubAttributes (structure only, with pricingKey)
+ * - Rules (conditions + actions, no execution)
+ * - Quantity config (driver only)
  */
 export const getProductDetail = async (req, res) => {
   try {
@@ -15,48 +27,46 @@ export const getProductDetail = async (req, res) => {
       return res.status(400).json({ error: "Product ID is required" });
     }
 
-    // Check if identifier is a MongoDB ObjectId (24 hex characters)
+    // Validate MongoDB ObjectId format
     const isObjectId = /^[0-9a-fA-F]{24}$/.test(productId);
 
-    let product;
-    if (isObjectId) {
-      // Try to find by ID first
-      product = await Product.findById(productId)
-        .populate({
-          path: "category",
-          select: "_id name description image type parent slug",
-          populate: {
-            path: "parent",
-            select: "_id name type",
-          },
-        })
-        .populate({
-          path: "subcategory",
-          select: "_id name description image slug category",
-          populate: {
-            path: "category",
-            model: "Category",
-            select: "_id name description type image",
-          },
-        })
-        .populate({
-          path: "dynamicAttributes.attributeType",
-          model: "AttributeType",
-        })
-        .lean();
-    } else {
-      // Not a valid ObjectId format
+    if (!isObjectId) {
       return res.status(400).json({
         error: "Invalid product ID format. Expected MongoDB ObjectId (24 hex characters).",
         received: productId,
       });
     }
 
+    // Fetch product with populated references
+    const product = await Product.findById(productId)
+      .populate({
+        path: "category",
+        select: "_id name description image type parent slug",
+        populate: {
+          path: "parent",
+          select: "_id name type",
+        },
+      })
+      .populate({
+        path: "subcategory",
+        select: "_id name description image slug category",
+        populate: {
+          path: "category",
+          model: "Category",
+          select: "_id name description type image",
+        },
+      })
+      .populate({
+        path: "dynamicAttributes.attributeType",
+        model: "AttributeType",
+      })
+      .lean();
+
     if (!product) {
       return res.status(404).json({ error: "Product not found" });
     }
 
-    // Extract attribute type IDs from product's dynamicAttributes
+    // Extract enabled attribute type IDs
     const attributeTypeIds = product.dynamicAttributes
       .filter((da) => da.attributeType && da.isEnabled)
       .map((da) =>
@@ -101,26 +111,24 @@ export const getProductDetail = async (req, res) => {
       .sort({ priority: -1 }) // Higher priority first
       .lean();
 
-    // Build quantity configuration from product filters or QUANTITY_PRICING attribute
+    // ========== QUANTITY CONFIGURATION ==========
+    // ✅ Use product.quantityConfig as primary source
+    // ✅ Fallback to QUANTITY_DRIVER attribute type
+    // ❌ DO NOT use filters (legacy/read-only)
+
     let quantityConfig = null;
 
-    // Check if product has filters.orderQuantity
-    if (product.filters && product.filters.orderQuantity) {
-      quantityConfig = {
-        quantityType: product.filters.orderQuantity.quantityType || "SIMPLE",
-        minQuantity: product.filters.orderQuantity.min,
-        maxQuantity: product.filters.orderQuantity.max,
-        quantityMultiples: product.filters.orderQuantity.multiples,
-        stepWiseQuantities: product.filters.orderQuantity.stepWiseQuantities || [],
-        rangeWiseQuantities: product.filters.orderQuantity.rangeWiseQuantities || [],
-      };
+    // Primary: Check product.quantityConfig
+    if (product.quantityConfig) {
+      quantityConfig = product.quantityConfig;
     } else {
-      // Look for QUANTITY_PRICING attribute type in dynamicAttributes
+      // Fallback: Look for QUANTITY_DRIVER attribute type
       const quantityAttribute = product.dynamicAttributes.find(
         (da) =>
           da.attributeType &&
           typeof da.attributeType === "object" &&
-          da.attributeType.functionType === "QUANTITY_PRICING" &&
+          (da.attributeType.functionType === "QUANTITY_PRICING" ||
+            da.attributeType.functionType === "QUANTITY_DRIVER") &&
           da.isEnabled
       );
 
@@ -129,7 +137,10 @@ export const getProductDetail = async (req, res) => {
       }
     }
 
-    // Build attributes array from dynamicAttributes
+    // ========== BUILD ATTRIBUTES ARRAY ==========
+    // ✅ Return only valid schema fields
+    // ❌ Remove ghost fields: isPricingAttribute, isStepQuantity, isRangeQuantity, stepQuantities, rangeQuantities, customValues
+
     const attributes = product.dynamicAttributes
       .filter((da) => da.attributeType && da.isEnabled)
       .map((da) => {
@@ -143,30 +154,29 @@ export const getProductDetail = async (req, res) => {
           attributeName: attrType.attributeName,
           functionType: attrType.functionType,
           inputStyle: attrType.inputStyle,
-          isPricingAttribute: attrType.isPricingAttribute,
+          pricingBehavior: attrType.pricingBehavior, // ✅ Correct field
           primaryEffectType: attrType.primaryEffectType,
           isRequired: da.isRequired !== undefined ? da.isRequired : attrType.isRequired || false,
           displayOrder: da.displayOrder !== undefined ? da.displayOrder : attrType.displayOrder || 0,
           defaultValue: attrType.defaultValue,
           attributeValues: attrType.attributeValues || [],
-          customValues: da.customValues || [],
-          // Step and Range quantity settings
-          isStepQuantity: attrType.isStepQuantity || false,
-          isRangeQuantity: attrType.isRangeQuantity || false,
-          stepQuantities: attrType.stepQuantities || [],
-          rangeQuantities: attrType.rangeQuantities || [],
+          // ✅ Include quantityConfig only if this is a QUANTITY_DRIVER
+          ...(attrType.quantityConfig && { quantityConfig: attrType.quantityConfig }),
           // Product-specific overrides
           productConfig: {
             isEnabled: da.isEnabled,
             isRequired: da.isRequired,
             displayOrder: da.displayOrder,
-            customValues: da.customValues || [],
           },
         };
       })
       .sort((a, b) => a.displayOrder - b.displayOrder);
 
-    // Group sub-attributes by parentAttribute and parentValue
+    // ========== BUILD SUB-ATTRIBUTES MAP ==========
+    // ✅ Group by parentAttribute and parentValue
+    // ✅ Include pricingKey (NOT priceAdd)
+    // ❌ Remove priceAdd field
+
     const subAttributesMap = {};
     subAttributes.forEach((subAttr) => {
       const parentAttrId =
@@ -182,12 +192,17 @@ export const getProductDetail = async (req, res) => {
         value: subAttr.value,
         label: subAttr.label,
         image: subAttr.image,
-        priceAdd: subAttr.priceAdd || 0,
         parentValue: subAttr.parentValue,
+        pricingKey: subAttr.pricingKey, // ✅ Correct field for pricing engine
       });
     });
 
-    // Return PDP response
+    // ========== RETURN PDP RESPONSE ==========
+    // ⚠️ CRITICAL: NO PRICING FIELDS
+    // ❌ basePrice - REMOVED
+    // ❌ quantityDiscounts - REMOVED
+    // ❌ Legacy file fields - REPLACED with fileRules
+
     return res.json({
       product: {
         _id: product._id,
@@ -195,19 +210,13 @@ export const getProductDetail = async (req, res) => {
         description: product.description,
         descriptionArray: product.descriptionArray,
         image: product.image,
-        basePrice: product.basePrice,
         category: product.category,
         subcategory: product.subcategory,
         productType: product.productType,
         options: product.options,
-        filters: product.filters,
-        quantityDiscounts: product.quantityDiscounts,
-        maxFileSizeMB: product.maxFileSizeMB,
-        minFileWidth: product.minFileWidth,
-        maxFileWidth: product.maxFileWidth,
-        minFileHeight: product.minFileHeight,
-        maxFileHeight: product.maxFileHeight,
-        blockCDRandJPG: product.blockCDRandJPG,
+        filters: product.filters, // ⚠️ Legacy compatibility only - read-only
+        // ✅ Use fileRules object (aligned with schema)
+        fileRules: product.fileRules,
         additionalDesignCharge: product.additionalDesignCharge,
         gstPercentage: product.gstPercentage,
         showPriceIncludingGst: product.showPriceIncludingGst,
@@ -229,9 +238,6 @@ export const getProductDetail = async (req, res) => {
           targetAttribute: action.targetAttribute,
           allowedValues: action.allowedValues || [],
           defaultValue: action.defaultValue,
-          minQuantity: action.minQuantity,
-          maxQuantity: action.maxQuantity,
-          stepQuantity: action.stepQuantity,
         })),
         priority: rule.priority,
         applicableCategory: rule.applicableCategory,
@@ -239,7 +245,7 @@ export const getProductDetail = async (req, res) => {
       })),
     });
   } catch (err) {
-    console.error("Error fetching product detail:", err);
+    console.error("❌ Error fetching product detail:", err);
     if (err.name === "CastError") {
       return res.status(400).json({ error: "Invalid product ID format" });
     }

@@ -5,6 +5,8 @@ import { ArrowRight, Check, Truck, Upload as UploadIcon, FileImage, CreditCard, 
 import { Select, SelectOption } from '@/components/ui/select';
 import { API_BASE_URL_WITH_API as API_BASE_URL } from '../lib/apiConfig';
 import { applyAttributeRules, type AttributeRule, type Attribute } from '../utils/attributeRuleEngine';
+import { useDynamicPricing } from '../src/hooks/useDynamicPricing';
+import ProductPriceBox from '../components/ProductPriceBox';
 
 interface SubCategory {
   _id: string;
@@ -233,6 +235,23 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
     selectedValue: string | null;
   } | null>(null);
   const [isGettingLocation, setIsGettingLocation] = useState(false);
+
+  // Dynamic Pricing Integration - fetch zone/segment-adjusted prices from pricing engine
+  const {
+    price: dynamicPriceData,
+    loading: dynamicPriceLoading,
+    error: dynamicPriceError,
+    refetch: refetchDynamicPrice
+  } = useDynamicPricing(selectedProduct?._id, {
+    quantity,
+    pincode: pincode || undefined,
+    selectedDynamicAttributes: Object.entries(selectedDynamicAttributes || {}).map(([key, value]) => ({
+      attributeType: key,
+      value: String(value)
+    })),
+    skip: !selectedProduct?._id // Don't fetch until product is selected
+  });
+
 
 
   // Close modal on ESC key
@@ -1588,7 +1607,10 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
   // Calculate price with all factors
   React.useEffect(() => {
     if (selectedProduct) {
-      let basePrice = selectedProduct.basePrice;
+      // DYNAMIC PRICING: Use price from pricing engine API if available
+      // The pricing engine applies Price Books, Geo Zones, User Segments, and Modifiers
+      // Falls back to product's static basePrice if API hasn't responded yet
+      let basePrice = dynamicPriceData?.pricing?.basePrice ?? selectedProduct.basePrice;
 
       // Apply range-wise price multiplier if applicable (applied first, before other multipliers)
       if (selectedProduct.filters?.orderQuantity?.quantityType === "RANGE_WISE" &&
@@ -1881,7 +1903,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
       const perUnitExcludingGst = quantity > 0 ? priceExcludingGst / quantity : basePrice;
       setPerUnitPriceExcludingGst(perUnitExcludingGst);
     }
-  }, [selectedProduct, selectedPrintingOption, selectedDeliverySpeed, selectedTextureType, quantity, selectedDynamicAttributes, selectedProductOptions]);
+  }, [selectedProduct, selectedPrintingOption, selectedDeliverySpeed, selectedTextureType, quantity, selectedDynamicAttributes, selectedProductOptions, dynamicPriceData]);
 
   // Update quantity when attribute with step/range quantity is selected
   React.useEffect(() => {
@@ -1897,26 +1919,26 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
   // Auto-scroll deck slider to center the active card (horizontal only)
   React.useEffect(() => {
     if (!selectedProduct?._id) return;
-    
+
     // Small delay to ensure DOM is ready
     const timer = setTimeout(() => {
       const deckContainer = document.getElementById('deck-scroll-container');
       const activeCard = document.getElementById(`deck-card-${selectedProduct._id}`);
-      
+
       if (deckContainer && activeCard) {
         // Calculate scroll position to center the active card horizontally
         const containerWidth = deckContainer.offsetWidth;
         const cardLeft = activeCard.offsetLeft;
         const cardWidth = activeCard.offsetWidth;
         const scrollPosition = cardLeft - (containerWidth / 2) + (cardWidth / 2);
-        
+
         deckContainer.scrollTo({
           left: Math.max(0, scrollPosition),
           behavior: 'smooth'
         });
       }
     }, 150);
-    
+
     return () => clearTimeout(timer);
   }, [selectedProduct?._id]);
 
@@ -2286,6 +2308,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
               // If geolocation fails, try to get pincode from localStorage
               const savedPincode = localStorage.getItem('userPincode');
               if (savedPincode && savedPincode.length === 6) {
+                setPincode(savedPincode);
                 const coords = await getPincodeCoordinates(savedPincode);
                 if (coords) {
                   const estimate = await calculateDeliveryFromNearestBranch(coords.lat, coords.lon, coords.address);
@@ -2321,6 +2344,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
           // Fallback: try pincode from localStorage
           const savedPincode = localStorage.getItem('userPincode');
           if (savedPincode && savedPincode.length === 6) {
+            setPincode(savedPincode);
             const coords = await getPincodeCoordinates(savedPincode);
             if (coords) {
               const estimate = await calculateDeliveryFromNearestBranch(coords.lat, coords.lon, coords.address);
@@ -3508,8 +3532,8 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
         <div className="mb-4 sm:mb-6">
           <div className="flex items-center flex-wrap gap-2 text-xs sm:text-sm font-medium">
             {/* Services Link */}
-            <Link 
-              to="/services" 
+            <Link
+              to="/services"
               className="px-3 py-1 rounded-full bg-white/60 backdrop-blur-sm text-gray-600 hover:bg-white hover:text-gray-900 transition-all duration-300 shadow-sm"
               onClick={() => {
                 const mainNav = document.querySelector('nav');
@@ -3523,7 +3547,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
             >
               Services
             </Link>
-            
+
             {/* Category Link - if categoryId exists in URL */}
             {categoryId && breadcrumbCategoryName && (
               <>
@@ -3545,7 +3569,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                 </Link>
               </>
             )}
-            
+
             {/* SubCategory Link - if subCategoryId exists in URL */}
             {categoryId && subCategoryId && breadcrumbSubCategoryName && (
               <>
@@ -3567,7 +3591,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                 </Link>
               </>
             )}
-            
+
             {/* Nested SubCategory Link - if nestedSubCategoryId exists in URL */}
             {categoryId && subCategoryId && nestedSubCategoryId && breadcrumbNestedSubCategoryName && (
               <>
@@ -3589,7 +3613,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                 </Link>
               </>
             )}
-            
+
             {/* Current Product Name - if viewing a product detail page */}
             {selectedProduct && (
               <>
@@ -3687,7 +3711,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                     <div className="absolute top-4 left-4 bg-white/90 backdrop-blur px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider shadow-sm text-gray-900 border border-gray-200 z-10">
                       {selectedProduct?.name}
                     </div>
-                    
+
                     <div className="w-full h-full flex items-center justify-center ">
                       {(() => {
                         // Get the image to display based on selected attributes
@@ -4058,11 +4082,11 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                               <div className="flex justify-between items-center mb-2">
                                 <p className="text-[10px] font-bold text-red-500 bg-red-50 px-2 py-0.5 rounded uppercase tracking-widest">Select Product</p>
                               </div>
-                              
+
                               {/* Deck Container */}
                               <div className="relative w-full h-44 flex items-center overflow-visible">
                                 {/* Scroll Container with overlapping stacking cards */}
-                                <div 
+                                <div
                                   id="deck-scroll-container"
                                   className="flex items-center overflow-x-auto hide-scroll pl-4 pr-16 pb-4 -space-x-4 w-full h-full pt-10"
                                 >
@@ -4078,12 +4102,12 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                           if (!isCurrentProduct) {
                                             // Scroll clicked card into center view
                                             const cardElement = e.currentTarget;
-                                            cardElement.scrollIntoView({ 
-                                              behavior: 'smooth', 
-                                              block: 'nearest', 
-                                              inline: 'center' 
+                                            cardElement.scrollIntoView({
+                                              behavior: 'smooth',
+                                              block: 'nearest',
+                                              inline: 'center'
                                             });
-                                            
+
                                             // Navigate to the new product
                                             const newUrl = categoryId && subCategoryId && nestedSubCategoryId
                                               ? `/services/${categoryId}/${subCategoryId}/${nestedSubCategoryId}/${product._id}`
@@ -4095,19 +4119,17 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                             navigate(newUrl);
                                           }
                                         }}
-                                        className={`deck-card flex-shrink-0 w-24 h-32 rounded-xl border-2 cursor-pointer p-2 flex flex-col items-center justify-center gap-1 select-none bg-white hover:z-50 ${
-                                          isCurrentProduct ? 'active border-blue-600 shadow-xl' : 'border-gray-200 shadow-sm'
-                                        }`}
+                                        className={`deck-card flex-shrink-0 w-24 h-32 rounded-xl border-2 cursor-pointer p-2 flex flex-col items-center justify-center gap-1 select-none bg-white hover:z-50 ${isCurrentProduct ? 'active border-blue-600 shadow-xl' : 'border-gray-200 shadow-sm'
+                                          }`}
                                         style={{
                                           zIndex: isCurrentProduct ? 50 : (10 - Math.abs(index - categoryProducts.findIndex(p => p._id === selectedProduct._id))),
                                           transition: 'all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1)',
                                         }}
                                       >
                                         {/* Blue checkmark badge */}
-                                        <div 
-                                          className={`check-badge absolute -top-2 -right-2 bg-blue-600 text-white rounded-full p-1 shadow-md z-30 transition-all duration-300 ${
-                                            isCurrentProduct ? 'opacity-100 scale-100' : 'opacity-0 scale-50'
-                                          }`}
+                                        <div
+                                          className={`check-badge absolute -top-2 -right-2 bg-blue-600 text-white rounded-full p-1 shadow-md z-30 transition-all duration-300 ${isCurrentProduct ? 'opacity-100 scale-100' : 'opacity-0 scale-50'
+                                            }`}
                                         >
                                           <Check size={10} />
                                         </div>
@@ -4129,9 +4151,8 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
                                         {/* Label */}
                                         <div className="text-center w-full pointer-events-none mt-0.5">
-                                          <span className={`block text-[9px] font-bold uppercase tracking-tight leading-tight line-clamp-2 ${
-                                            isCurrentProduct ? 'text-gray-900' : 'text-gray-500'
-                                          }`}>
+                                          <span className={`block text-[9px] font-bold uppercase tracking-tight leading-tight line-clamp-2 ${isCurrentProduct ? 'text-gray-900' : 'text-gray-500'
+                                            }`}>
                                             {product.name}
                                           </span>
                                         </div>
@@ -4146,16 +4167,28 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                               </div>
                             </div>
                           )}
-                          
+
                           {/* Product Header */}
                           <div className="mb-6 sm:mb-8 border-b border-gray-100 pb-4 sm:pb-6 relative">
                             <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
                               <div className="flex-1">
                                 {/* Product Header with Price */}
-                                <div className="border-b border-gray-100 flex flex-row justify-between items-center pb-4 mb-4">
-                                  <h1 className="font-serif text-xl sm:text-2xl md:text-3xl font-bold text-gray-900 mb-1">
+                                <div className="border-b border-gray-100 flex flex-row justify-between items-start pb-4 mb-4">
+                                  <h1 className="font-serif text-xl sm:text-2xl md:text-3xl font-bold text-gray-900 mb-1 flex-1">
                                     {selectedProduct.name}
                                   </h1>
+                                  <div className="flex-shrink-0 ml-4 w-[280px]">
+                                    <ProductPriceBox
+                                      productId={selectedProduct._id}
+                                      quantity={quantity}
+                                      selectedDynamicAttributes={Object.entries(selectedDynamicAttributes || {}).map(([key, value]) => ({
+                                        attributeType: key,
+                                        value: value
+                                      }))}
+                                      showBreakdown={false}
+                                      priceData={dynamicPriceData}
+                                    />
+                                  </div>
                                 </div>
 
                                 {/* Product Variants Filter - Only shown when nested subcategories exist */}
@@ -5608,15 +5641,14 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                               </span> */}
                             </div>
                           </div>
-                          
+
                           <button
                             onClick={handlePlaceOrder}
                             disabled={isProcessingPayment}
-                            className={`w-full py-4 rounded-xl font-bold text-base transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 flex items-center justify-center gap-2 group ${
-                              isProcessingPayment
-                                ? 'bg-gray-400 text-gray-700 cursor-not-allowed opacity-60'
-                                : 'bg-gray-900 text-white hover:bg-black'
-                            }`}
+                            className={`w-full py-4 rounded-xl font-bold text-base transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 flex items-center justify-center gap-2 group ${isProcessingPayment
+                              ? 'bg-gray-400 text-gray-700 cursor-not-allowed opacity-60'
+                              : 'bg-gray-900 text-white hover:bg-black'
+                              }`}
                           >
                             {isProcessingPayment ? (
                               <>
@@ -5630,7 +5662,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                               </>
                             )}
                           </button>
-                          
+
                           <div className="mt-3 text-center text-xs text-gray-400 flex items-center justify-center gap-2">
                             <Lock size={12} />
                             <span>Secure Payment & Data Protection</span>

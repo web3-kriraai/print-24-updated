@@ -30,6 +30,15 @@ const AttributeTypeSchema = new mongoose.Schema(
       default: false,
     },
 
+    /* =========================
+       PRICING BEHAVIOR
+    ========================= */
+    pricingBehavior: {
+      type: String,
+      enum: ["NONE", "SIGNAL_ONLY", "QUANTITY_DRIVER"],
+      default: "NONE",
+    },
+
     // How the option is presented: Dropdown, Text Field, File Upload
     inputStyle: {
       type: String,
@@ -65,29 +74,31 @@ const AttributeTypeSchema = new mongoose.Schema(
       price: { type: Number, default: 0 },
     }],
 
-    // Quantity configuration for QUANTITY_PRICING attributes
+    /* =========================
+       QUANTITY CONFIG
+       (only for QUANTITY_DRIVER)
+    ========================= */
     quantityConfig: {
-      // Quantity configuration type: "SIMPLE" (min/max/multiples), "STEP_WISE", "RANGE_WISE"
       quantityType: {
         type: String,
         enum: ["SIMPLE", "STEP_WISE", "RANGE_WISE"],
-        default: "SIMPLE"
+        default: "SIMPLE",
       },
-      // For SIMPLE type: min, max, multiples
+
       minQuantity: Number,
       maxQuantity: Number,
       quantityMultiples: Number,
-      // For STEP_WISE type: specific discrete quantities
-      // e.g., [1000, 2500, 5000, 10000] - exact quantities available
+
       stepWiseQuantities: [Number],
-      // For RANGE_WISE type: quantity ranges with different pricing
-      // e.g., [{min: 1000, max: 5000, priceMultiplier: 1.0, label: "1,000 - 5,000"}, ...]
-      rangeWiseQuantities: [{
-        min: { type: Number, required: true },
-        max: { type: Number }, // null means no upper limit
-        priceMultiplier: { type: Number, default: 1.0 }, // Price multiplier for this range
-        label: String, // Optional display label
-      }],
+
+      rangeWiseQuantities: [
+        {
+          min: { type: Number, required: true },
+          max: Number,
+          priceMultiplier: { type: Number, default: 1.0 },
+          label: String,
+        },
+      ],
     },
 
     // What area of the system is impacted: PRICE, FILE, VARIANT, INFORMATIONAL
@@ -117,6 +128,7 @@ const AttributeTypeSchema = new mongoose.Schema(
       {
         value: String, // The option value (e.g., "Red")
         label: String, // Display label (e.g., "Red")
+        pricingKey: String, // Key used for pricing lookup
         priceMultiplier: Number, // Price multiplier for this value (optional, only if isPricingAttribute is true)
         description: String, // Optional description for this value
         image: String, // Optional image URL for this value
@@ -167,6 +179,7 @@ const AttributeTypeSchema = new mongoose.Schema(
 
 // Index for faster queries
 AttributeTypeSchema.index({ attributeName: 1 });
+AttributeTypeSchema.index({ pricingBehavior: 1 });
 AttributeTypeSchema.index({ isCommonAttribute: 1 });
 
 export default mongoose.model("AttributeType", AttributeTypeSchema);

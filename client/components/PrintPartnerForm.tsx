@@ -186,7 +186,7 @@ const PrintPartnerForm: React.FC<PrintPartnerFormProps> = ({ onBack }) => {
       setFilteredMobileCountries([]);
       return;
     }
-    
+
     if (!mobileCountrySearchQuery || mobileCountrySearchQuery.trim() === "") {
       setFilteredMobileCountries(countryCodes);
       return;
@@ -209,7 +209,7 @@ const PrintPartnerForm: React.FC<PrintPartnerFormProps> = ({ onBack }) => {
       setFilteredWhatsappCountries([]);
       return;
     }
-    
+
     if (!whatsappCountrySearchQuery || whatsappCountrySearchQuery.trim() === "") {
       setFilteredWhatsappCountries(countryCodes);
       return;
@@ -254,7 +254,7 @@ const PrintPartnerForm: React.FC<PrintPartnerFormProps> = ({ onBack }) => {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    
+
     // For mobile number, only allow digits
     if (name === "mobileNumber") {
       const digitsOnly = value.replace(/\D/g, "");
@@ -373,7 +373,7 @@ const PrintPartnerForm: React.FC<PrintPartnerFormProps> = ({ onBack }) => {
     if (!formData.mobileCountryCode) {
       newErrors.mobileCountryCode = "Country code is required";
     }
-    
+
     if (!formData.mobileNumber.trim()) {
       newErrors.mobileNumber = "Mobile number is required";
     } else {
@@ -412,7 +412,7 @@ const PrintPartnerForm: React.FC<PrintPartnerFormProps> = ({ onBack }) => {
     if (!formData.whatsappCountryCode) {
       newErrors.whatsappCountryCode = "Country code is required";
     }
-    
+
     if (!formData.whatsappNumber.trim()) {
       newErrors.whatsappNumber = "WhatsApp number is required";
     } else {
@@ -523,7 +523,7 @@ const PrintPartnerForm: React.FC<PrintPartnerFormProps> = ({ onBack }) => {
       submitData.append("city", formData.city);
       submitData.append("state", formData.state);
       submitData.append("pincode", formData.pincode);
-      
+
       if (formData.proofFile) {
         submitData.append("proofFile", formData.proofFile);
       }
@@ -540,7 +540,23 @@ const PrintPartnerForm: React.FC<PrintPartnerFormProps> = ({ onBack }) => {
 
       if (!response.ok) {
         setIsSubmitting(false);
-        alert(data.message || "Failed to submit request. Please try again.");
+        if (response.status === 409 && data.conflictField) {
+          const fieldMap: Record<string, keyof FormErrors> = {
+            emailAddress: 'emailAddress',
+            mobileNumber: 'mobileNumber',
+            gstNumber: 'gstNumber'
+          };
+          const formField = fieldMap[data.conflictField] || data.conflictField as keyof FormErrors;
+          setErrors(prev => ({ ...prev, [formField]: data.message }));
+
+          // Scroll to the error field
+          const element = document.querySelector(`[name="${formField}"]`) || document.getElementById(formField);
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        } else {
+          alert(data.message || "Failed to submit request. Please try again.");
+        }
         return;
       }
 
@@ -600,11 +616,10 @@ const PrintPartnerForm: React.FC<PrintPartnerFormProps> = ({ onBack }) => {
               type="text"
               value={formData.businessName}
               onChange={handleChange}
-              className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${
-                errors.businessName
+              className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${errors.businessName
                   ? "border-red-300 focus:ring-red-500"
                   : "border-cream-200 focus:ring-cream-900"
-              } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
+                } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
               placeholder="Enter business name"
             />
           </div>
@@ -631,11 +646,10 @@ const PrintPartnerForm: React.FC<PrintPartnerFormProps> = ({ onBack }) => {
               type="text"
               value={formData.ownerName}
               onChange={handleChange}
-              className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${
-                errors.ownerName
+              className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${errors.ownerName
                   ? "border-red-300 focus:ring-red-500"
                   : "border-cream-200 focus:ring-cream-900"
-              } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
+                } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
               placeholder="Enter owner name"
             />
           </div>
@@ -646,392 +660,382 @@ const PrintPartnerForm: React.FC<PrintPartnerFormProps> = ({ onBack }) => {
 
         {/* Mobile Number */}
         <div>
-            <label
-              htmlFor="mobileNumber"
-              className="block text-sm font-medium text-cream-700 mb-1"
-            >
-              Mobile Number <span className="text-red-500">*</span>
-            </label>
-            <div className="flex gap-2">
-              {/* Country Code Dropdown */}
-              <div className="relative" ref={mobileCountryDropdownRef}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const isOpening = !showMobileCountryDropdown;
-                    setShowMobileCountryDropdown(isOpening);
-                    if (isOpening && formData.mobileCountryCode && !mobileCountrySearchQuery) {
-                      const selectedCountry = getCountryByCode(formData.mobileCountryCode, countryCodes);
-                      if (selectedCountry) {
-                        setMobileCountrySearchQuery(selectedCountry.name);
-                      }
+          <label
+            htmlFor="mobileNumber"
+            className="block text-sm font-medium text-cream-700 mb-1"
+          >
+            Mobile Number <span className="text-red-500">*</span>
+          </label>
+          <div className="flex gap-2">
+            {/* Country Code Dropdown */}
+            <div className="relative" ref={mobileCountryDropdownRef}>
+              <button
+                type="button"
+                onClick={() => {
+                  const isOpening = !showMobileCountryDropdown;
+                  setShowMobileCountryDropdown(isOpening);
+                  if (isOpening && formData.mobileCountryCode && !mobileCountrySearchQuery) {
+                    const selectedCountry = getCountryByCode(formData.mobileCountryCode, countryCodes);
+                    if (selectedCountry) {
+                      setMobileCountrySearchQuery(selectedCountry.name);
                     }
-                  }}
-                  className={`flex items-center gap-2 px-3 py-3 border ${
-                    errors.mobileCountryCode
-                      ? "border-red-300 focus:ring-red-500"
-                      : "border-cream-200 focus:ring-cream-900"
+                  }
+                }}
+                className={`flex items-center gap-2 px-3 py-3 border ${errors.mobileCountryCode
+                    ? "border-red-300 focus:ring-red-500"
+                    : "border-cream-200 focus:ring-cream-900"
                   } text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all bg-white min-w-[140px] justify-between hover:bg-cream-50`}
-                >
-                  <span className="flex items-center gap-2">
-                    {isLoadingCountries ? (
-                      <Loader className="h-4 w-4 animate-spin text-cream-400" />
-                    ) : (
-                      <>
-                        <img
-                          src={getCountryByCode(formData.mobileCountryCode, countryCodes)?.flagUrl || "https://flagcdn.com/w40/in.png"}
-                          alt={getCountryByCode(formData.mobileCountryCode, countryCodes)?.name || "Country"}
-                          className="w-6 h-4 object-cover rounded"
-                          onError={(e) => {
-                            const target = e.target as HTMLImageElement;
-                            target.src = `https://flagcdn.com/w40/${getCountryByCode(formData.mobileCountryCode, countryCodes)?.country.toLowerCase() || 'in'}.png`;
-                          }}
-                        />
-                        <span className="font-medium">
-                          {formData.mobileCountryCode}
-                        </span>
-                      </>
-                    )}
-                  </span>
-                  <ChevronDown 
-                    className={`h-4 w-4 text-cream-400 transition-transform ${
-                      showMobileCountryDropdown ? "rotate-180" : ""
-                    }`}
-                  />
-                </button>
-
-                {/* Dropdown Menu */}
-                <AnimatePresence>
-                  {showMobileCountryDropdown && (
+              >
+                <span className="flex items-center gap-2">
+                  {isLoadingCountries ? (
+                    <Loader className="h-4 w-4 animate-spin text-cream-400" />
+                  ) : (
                     <>
-                      <div
-                        className="fixed inset-0 z-40"
-                        onClick={() => setShowMobileCountryDropdown(false)}
+                      <img
+                        src={getCountryByCode(formData.mobileCountryCode, countryCodes)?.flagUrl || "https://flagcdn.com/w40/in.png"}
+                        alt={getCountryByCode(formData.mobileCountryCode, countryCodes)?.name || "Country"}
+                        className="w-6 h-4 object-cover rounded"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.src = `https://flagcdn.com/w40/${getCountryByCode(formData.mobileCountryCode, countryCodes)?.country.toLowerCase() || 'in'}.png`;
+                        }}
                       />
-                      <motion.div
-                        initial={{ opacity: 0, y: -10, scale: 0.95 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                        transition={{ duration: 0.2 }}
-                        className="absolute z-50 mt-1 w-72 bg-white border border-cream-200 rounded-xl shadow-2xl"
-                      >
-                        <div className="p-2 border-b border-cream-200">
-                          <div className="relative">
-                            <div className="relative w-full">
-                              <input
-                                type="text"
-                                placeholder="Search country or code..."
-                                value={mobileCountrySearchQuery}
-                                onChange={(e) => setMobileCountrySearchQuery(e.target.value)}
-                                className="w-full px-3 py-2 pl-9 pr-8 border border-cream-200 rounded-lg text-sm text-cream-900 focus:outline-none focus:ring-2 focus:ring-cream-900 transition-all"
-                                autoFocus
-                              />
-                              <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-cream-400" />
-                              {mobileCountrySearchQuery && (
-                                <button
-                                  type="button"
-                                  onClick={() => setMobileCountrySearchQuery("")}
-                                  className="absolute right-2 top-1/2 transform -translate-y-1/2 text-cream-400 hover:text-cream-900 transition-colors"
-                                >
-                                  <X className="h-4 w-4" />
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                          {mobileCountrySearchQuery && filteredMobileCountries.length > 0 && (
-                            <p className="text-xs text-cream-500 mt-1 px-1">
-                              {filteredMobileCountries.length} {filteredMobileCountries.length === 1 ? 'country' : 'countries'} found
-                            </p>
-                          )}
-                        </div>
-
-                        <div className="overflow-y-auto" style={{ maxHeight: "400px" }}>
-                          {isLoadingCountries ? (
-                            <div className="p-8 text-center">
-                              <Loader className="h-6 w-6 animate-spin text-cream-400 mx-auto mb-2" />
-                              <p className="text-sm text-cream-600">Loading countries...</p>
-                            </div>
-                          ) : filteredMobileCountries.length === 0 ? (
-                            <div className="p-8 text-center">
-                              <p className="text-sm text-cream-600">No countries found</p>
-                            </div>
-                          ) : (
-                            <div className="p-2">
-                              {filteredMobileCountries.map((country, index) => (
-                                <button
-                                  key={country.uniqueId || `${country.code}-${country.country}-${index}`}
-                                  type="button"
-                                  onClick={() => handleMobileCountryCodeChange(country.code)}
-                                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-cream-50 transition-colors text-left ${
-                                    formData.mobileCountryCode === country.code
-                                      ? "bg-cream-100 border border-cream-300"
-                                      : ""
-                                  }`}
-                                >
-                                  <img
-                                    src={country.flagUrl}
-                                    alt={country.name}
-                                    className="w-8 h-6 object-cover rounded flex-shrink-0"
-                                    onError={(e) => {
-                                      const target = e.target as HTMLImageElement;
-                                      target.src = `https://flagcdn.com/w40/${country.country.toLowerCase()}.png`;
-                                    }}
-                                  />
-                                  <div className="flex-1 min-w-0">
-                                    <div className="font-medium text-cream-900 text-sm">
-                                      {country.name} ({country.code})
-                                    </div>
-                                  </div>
-                                  {formData.mobileCountryCode === country.code && (
-                                    <CheckCircle className="h-4 w-4 text-cream-900 flex-shrink-0" />
-                                  )}
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </motion.div>
+                      <span className="font-medium">
+                        {formData.mobileCountryCode}
+                      </span>
                     </>
                   )}
-                </AnimatePresence>
-              </div>
-
-              {/* Mobile Number Input */}
-              <div className="relative flex-1">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Phone className="h-5 w-5 text-cream-400" />
-                </div>
-                <input
-                  id="mobileNumber"
-                  name="mobileNumber"
-                  type="tel"
-                  value={formData.mobileNumber}
-                  onChange={handleChange}
-                  className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${
-                    errors.mobileNumber
-                      ? "border-red-300 focus:ring-red-500"
-                      : "border-cream-200 focus:ring-cream-900"
-                  } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
-                  placeholder={
-                    getCountryByCode(formData.mobileCountryCode, countryCodes)?.example || "1234567890"
-                  }
-                  maxLength={getCountryByCode(formData.mobileCountryCode, countryCodes)?.maxLength || 15}
+                </span>
+                <ChevronDown
+                  className={`h-4 w-4 text-cream-400 transition-transform ${showMobileCountryDropdown ? "rotate-180" : ""
+                    }`}
                 />
-              </div>
+              </button>
+
+              {/* Dropdown Menu */}
+              <AnimatePresence>
+                {showMobileCountryDropdown && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-40"
+                      onClick={() => setShowMobileCountryDropdown(false)}
+                    />
+                    <motion.div
+                      initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                      transition={{ duration: 0.2 }}
+                      className="absolute z-50 mt-1 w-72 bg-white border border-cream-200 rounded-xl shadow-2xl"
+                    >
+                      <div className="p-2 border-b border-cream-200">
+                        <div className="relative">
+                          <div className="relative w-full">
+                            <input
+                              type="text"
+                              placeholder="Search country or code..."
+                              value={mobileCountrySearchQuery}
+                              onChange={(e) => setMobileCountrySearchQuery(e.target.value)}
+                              className="w-full px-3 py-2 pl-9 pr-8 border border-cream-200 rounded-lg text-sm text-cream-900 focus:outline-none focus:ring-2 focus:ring-cream-900 transition-all"
+                              autoFocus
+                            />
+                            <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-cream-400" />
+                            {mobileCountrySearchQuery && (
+                              <button
+                                type="button"
+                                onClick={() => setMobileCountrySearchQuery("")}
+                                className="absolute right-2 top-1/2 transform -translate-y-1/2 text-cream-400 hover:text-cream-900 transition-colors"
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        {mobileCountrySearchQuery && filteredMobileCountries.length > 0 && (
+                          <p className="text-xs text-cream-500 mt-1 px-1">
+                            {filteredMobileCountries.length} {filteredMobileCountries.length === 1 ? 'country' : 'countries'} found
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="overflow-y-auto" style={{ maxHeight: "400px" }}>
+                        {isLoadingCountries ? (
+                          <div className="p-8 text-center">
+                            <Loader className="h-6 w-6 animate-spin text-cream-400 mx-auto mb-2" />
+                            <p className="text-sm text-cream-600">Loading countries...</p>
+                          </div>
+                        ) : filteredMobileCountries.length === 0 ? (
+                          <div className="p-8 text-center">
+                            <p className="text-sm text-cream-600">No countries found</p>
+                          </div>
+                        ) : (
+                          <div className="p-2">
+                            {filteredMobileCountries.map((country, index) => (
+                              <button
+                                key={country.uniqueId || `${country.code}-${country.country}-${index}`}
+                                type="button"
+                                onClick={() => handleMobileCountryCodeChange(country.code)}
+                                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-cream-50 transition-colors text-left ${formData.mobileCountryCode === country.code
+                                    ? "bg-cream-100 border border-cream-300"
+                                    : ""
+                                  }`}
+                              >
+                                <img
+                                  src={country.flagUrl}
+                                  alt={country.name}
+                                  className="w-8 h-6 object-cover rounded flex-shrink-0"
+                                  onError={(e) => {
+                                    const target = e.target as HTMLImageElement;
+                                    target.src = `https://flagcdn.com/w40/${country.country.toLowerCase()}.png`;
+                                  }}
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <div className="font-medium text-cream-900 text-sm">
+                                    {country.name} ({country.code})
+                                  </div>
+                                </div>
+                                {formData.mobileCountryCode === country.code && (
+                                  <CheckCircle className="h-4 w-4 text-cream-900 flex-shrink-0" />
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
             </div>
-            {errors.mobileNumber && (
-              <p className="mt-1 text-xs text-red-500">{errors.mobileNumber}</p>
-            )}
-            {errors.mobileCountryCode && (
-              <p className="mt-1 text-xs text-red-500">{errors.mobileCountryCode}</p>
-            )}
-            {/* Same as mobile number checkbox */}
-            <div className="mt-3 flex items-center gap-2">
+
+            {/* Mobile Number Input */}
+            <div className="relative flex-1">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Phone className="h-5 w-5 text-cream-400" />
+              </div>
               <input
-                type="checkbox"
-                id="sameAsMobile"
-                checked={sameAsMobile}
-                onChange={(e) => handleSameAsMobileChange(e.target.checked)}
-                className="w-4 h-4 text-cream-900 border-cream-300 rounded focus:ring-cream-900"
+                id="mobileNumber"
+                name="mobileNumber"
+                type="tel"
+                value={formData.mobileNumber}
+                onChange={handleChange}
+                className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${errors.mobileNumber
+                    ? "border-red-300 focus:ring-red-500"
+                    : "border-cream-200 focus:ring-cream-900"
+                  } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
+                placeholder={
+                  getCountryByCode(formData.mobileCountryCode, countryCodes)?.example || "1234567890"
+                }
+                maxLength={getCountryByCode(formData.mobileCountryCode, countryCodes)?.maxLength || 15}
               />
-              <label
-                htmlFor="sameAsMobile"
-                className="text-sm text-cream-700 cursor-pointer"
-              >
-                Same as mobile number
-              </label>
             </div>
           </div>
+          {errors.mobileNumber && (
+            <p className="mt-1 text-xs text-red-500">{errors.mobileNumber}</p>
+          )}
+          {errors.mobileCountryCode && (
+            <p className="mt-1 text-xs text-red-500">{errors.mobileCountryCode}</p>
+          )}
+          {/* Same as mobile number checkbox */}
+          <div className="mt-3 flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="sameAsMobile"
+              checked={sameAsMobile}
+              onChange={(e) => handleSameAsMobileChange(e.target.checked)}
+              className="w-4 h-4 text-cream-900 border-cream-300 rounded focus:ring-cream-900"
+            />
+            <label
+              htmlFor="sameAsMobile"
+              className="text-sm text-cream-700 cursor-pointer"
+            >
+              Same as mobile number
+            </label>
+          </div>
+        </div>
 
         {/* WhatsApp Number */}
         <div>
-            <label
-              htmlFor="whatsappNumber"
-              className="block text-sm font-medium text-cream-700 mb-1"
-            >
-              WhatsApp Number <span className="text-red-500">*</span>
-            </label>
-            <div className="flex gap-2">
-              {/* Country Code Dropdown */}
-              <div className="relative" ref={whatsappCountryDropdownRef}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (sameAsMobile) return;
-                    const isOpening = !showWhatsappCountryDropdown;
-                    setShowWhatsappCountryDropdown(isOpening);
-                    if (isOpening && formData.whatsappCountryCode && !whatsappCountrySearchQuery) {
-                      const selectedCountry = getCountryByCode(formData.whatsappCountryCode, countryCodes);
-                      if (selectedCountry) {
-                        setWhatsappCountrySearchQuery(selectedCountry.name);
-                      }
+          <label
+            htmlFor="whatsappNumber"
+            className="block text-sm font-medium text-cream-700 mb-1"
+          >
+            WhatsApp Number <span className="text-red-500">*</span>
+          </label>
+          <div className="flex gap-2">
+            {/* Country Code Dropdown */}
+            <div className="relative" ref={whatsappCountryDropdownRef}>
+              <button
+                type="button"
+                onClick={() => {
+                  if (sameAsMobile) return;
+                  const isOpening = !showWhatsappCountryDropdown;
+                  setShowWhatsappCountryDropdown(isOpening);
+                  if (isOpening && formData.whatsappCountryCode && !whatsappCountrySearchQuery) {
+                    const selectedCountry = getCountryByCode(formData.whatsappCountryCode, countryCodes);
+                    if (selectedCountry) {
+                      setWhatsappCountrySearchQuery(selectedCountry.name);
                     }
-                  }}
-                  disabled={sameAsMobile}
-                  className={`flex items-center gap-2 px-3 py-3 border ${
-                    errors.whatsappCountryCode
-                      ? "border-red-300 focus:ring-red-500"
-                      : "border-cream-200 focus:ring-cream-900"
-                  } text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all bg-white min-w-[140px] justify-between hover:bg-cream-50 ${
-                    sameAsMobile ? "bg-cream-100 cursor-not-allowed opacity-75" : ""
+                  }
+                }}
+                disabled={sameAsMobile}
+                className={`flex items-center gap-2 px-3 py-3 border ${errors.whatsappCountryCode
+                    ? "border-red-300 focus:ring-red-500"
+                    : "border-cream-200 focus:ring-cream-900"
+                  } text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all bg-white min-w-[140px] justify-between hover:bg-cream-50 ${sameAsMobile ? "bg-cream-100 cursor-not-allowed opacity-75" : ""
                   }`}
-                >
-                  <span className="flex items-center gap-2">
-                    {isLoadingCountries ? (
-                      <Loader className="h-4 w-4 animate-spin text-cream-400" />
-                    ) : (
-                      <>
-                        <img
-                          src={getCountryByCode(formData.whatsappCountryCode, countryCodes)?.flagUrl || "https://flagcdn.com/w40/in.png"}
-                          alt={getCountryByCode(formData.whatsappCountryCode, countryCodes)?.name || "Country"}
-                          className="w-6 h-4 object-cover rounded"
-                          onError={(e) => {
-                            const target = e.target as HTMLImageElement;
-                            target.src = `https://flagcdn.com/w40/${getCountryByCode(formData.whatsappCountryCode, countryCodes)?.country.toLowerCase() || 'in'}.png`;
-                          }}
-                        />
-                        <span className="font-medium">
-                          {formData.whatsappCountryCode}
-                        </span>
-                      </>
-                    )}
-                  </span>
-                  <ChevronDown 
-                    className={`h-4 w-4 text-cream-400 transition-transform ${
-                      showWhatsappCountryDropdown ? "rotate-180" : ""
-                    }`}
-                  />
-                </button>
-
-                {/* Dropdown Menu */}
-                <AnimatePresence>
-                  {showWhatsappCountryDropdown && (
+              >
+                <span className="flex items-center gap-2">
+                  {isLoadingCountries ? (
+                    <Loader className="h-4 w-4 animate-spin text-cream-400" />
+                  ) : (
                     <>
-                      <div
-                        className="fixed inset-0 z-40"
-                        onClick={() => setShowWhatsappCountryDropdown(false)}
+                      <img
+                        src={getCountryByCode(formData.whatsappCountryCode, countryCodes)?.flagUrl || "https://flagcdn.com/w40/in.png"}
+                        alt={getCountryByCode(formData.whatsappCountryCode, countryCodes)?.name || "Country"}
+                        className="w-6 h-4 object-cover rounded"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.src = `https://flagcdn.com/w40/${getCountryByCode(formData.whatsappCountryCode, countryCodes)?.country.toLowerCase() || 'in'}.png`;
+                        }}
                       />
-                      <motion.div
-                        initial={{ opacity: 0, y: -10, scale: 0.95 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                        transition={{ duration: 0.2 }}
-                        className="absolute z-50 mt-1 w-72 bg-white border border-cream-200 rounded-xl shadow-2xl"
-                      >
-                        <div className="p-2 border-b border-cream-200">
-                          <div className="relative">
-                            <div className="relative w-full">
-                              <input
-                                type="text"
-                                placeholder="Search country or code..."
-                                value={whatsappCountrySearchQuery}
-                                onChange={(e) => setWhatsappCountrySearchQuery(e.target.value)}
-                                className="w-full px-3 py-2 pl-9 pr-8 border border-cream-200 rounded-lg text-sm text-cream-900 focus:outline-none focus:ring-2 focus:ring-cream-900 transition-all"
-                                autoFocus
-                              />
-                              <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-cream-400" />
-                              {whatsappCountrySearchQuery && (
-                                <button
-                                  type="button"
-                                  onClick={() => setWhatsappCountrySearchQuery("")}
-                                  className="absolute right-2 top-1/2 transform -translate-y-1/2 text-cream-400 hover:text-cream-900 transition-colors"
-                                >
-                                  <X className="h-4 w-4" />
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                          {whatsappCountrySearchQuery && filteredWhatsappCountries.length > 0 && (
-                            <p className="text-xs text-cream-500 mt-1 px-1">
-                              {filteredWhatsappCountries.length} {filteredWhatsappCountries.length === 1 ? 'country' : 'countries'} found
-                            </p>
-                          )}
-                        </div>
-
-                        <div className="overflow-y-auto" style={{ maxHeight: "400px" }}>
-                          {isLoadingCountries ? (
-                            <div className="p-8 text-center">
-                              <Loader className="h-6 w-6 animate-spin text-cream-400 mx-auto mb-2" />
-                              <p className="text-sm text-cream-600">Loading countries...</p>
-                            </div>
-                          ) : filteredWhatsappCountries.length === 0 ? (
-                            <div className="p-8 text-center">
-                              <p className="text-sm text-cream-600">No countries found</p>
-                            </div>
-                          ) : (
-                            <div className="p-2">
-                              {filteredWhatsappCountries.map((country, index) => (
-                                <button
-                                  key={country.uniqueId || `${country.code}-${country.country}-${index}`}
-                                  type="button"
-                                  onClick={() => handleWhatsappCountryCodeChange(country.code)}
-                                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-cream-50 transition-colors text-left ${
-                                    formData.whatsappCountryCode === country.code
-                                      ? "bg-cream-100 border border-cream-300"
-                                      : ""
-                                  }`}
-                                >
-                                  <img
-                                    src={country.flagUrl}
-                                    alt={country.name}
-                                    className="w-8 h-6 object-cover rounded flex-shrink-0"
-                                    onError={(e) => {
-                                      const target = e.target as HTMLImageElement;
-                                      target.src = `https://flagcdn.com/w40/${country.country.toLowerCase()}.png`;
-                                    }}
-                                  />
-                                  <div className="flex-1 min-w-0">
-                                    <div className="font-medium text-cream-900 text-sm">
-                                      {country.name} ({country.code})
-                                    </div>
-                                  </div>
-                                  {formData.whatsappCountryCode === country.code && (
-                                    <CheckCircle className="h-4 w-4 text-cream-900 flex-shrink-0" />
-                                  )}
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </motion.div>
+                      <span className="font-medium">
+                        {formData.whatsappCountryCode}
+                      </span>
                     </>
                   )}
-                </AnimatePresence>
-              </div>
-
-              {/* WhatsApp Number Input */}
-              <div className="relative flex-1">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Phone className="h-5 w-5 text-cream-400" />
-                </div>
-                <input
-                  id="whatsappNumber"
-                  name="whatsappNumber"
-                  type="tel"
-                  value={formData.whatsappNumber}
-                  onChange={handleChange}
-                  disabled={sameAsMobile}
-                  className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${
-                    errors.whatsappNumber
-                      ? "border-red-300 focus:ring-red-500"
-                      : "border-cream-200 focus:ring-cream-900"
-                  } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all ${
-                    sameAsMobile ? "bg-cream-100 cursor-not-allowed opacity-75" : ""
-                  }`}
-                  placeholder={
-                    getCountryByCode(formData.whatsappCountryCode, countryCodes)?.example || "1234567890"
-                  }
-                  maxLength={getCountryByCode(formData.whatsappCountryCode, countryCodes)?.maxLength || 15}
+                </span>
+                <ChevronDown
+                  className={`h-4 w-4 text-cream-400 transition-transform ${showWhatsappCountryDropdown ? "rotate-180" : ""
+                    }`}
                 />
-              </div>
+              </button>
+
+              {/* Dropdown Menu */}
+              <AnimatePresence>
+                {showWhatsappCountryDropdown && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-40"
+                      onClick={() => setShowWhatsappCountryDropdown(false)}
+                    />
+                    <motion.div
+                      initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                      transition={{ duration: 0.2 }}
+                      className="absolute z-50 mt-1 w-72 bg-white border border-cream-200 rounded-xl shadow-2xl"
+                    >
+                      <div className="p-2 border-b border-cream-200">
+                        <div className="relative">
+                          <div className="relative w-full">
+                            <input
+                              type="text"
+                              placeholder="Search country or code..."
+                              value={whatsappCountrySearchQuery}
+                              onChange={(e) => setWhatsappCountrySearchQuery(e.target.value)}
+                              className="w-full px-3 py-2 pl-9 pr-8 border border-cream-200 rounded-lg text-sm text-cream-900 focus:outline-none focus:ring-2 focus:ring-cream-900 transition-all"
+                              autoFocus
+                            />
+                            <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-cream-400" />
+                            {whatsappCountrySearchQuery && (
+                              <button
+                                type="button"
+                                onClick={() => setWhatsappCountrySearchQuery("")}
+                                className="absolute right-2 top-1/2 transform -translate-y-1/2 text-cream-400 hover:text-cream-900 transition-colors"
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        {whatsappCountrySearchQuery && filteredWhatsappCountries.length > 0 && (
+                          <p className="text-xs text-cream-500 mt-1 px-1">
+                            {filteredWhatsappCountries.length} {filteredWhatsappCountries.length === 1 ? 'country' : 'countries'} found
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="overflow-y-auto" style={{ maxHeight: "400px" }}>
+                        {isLoadingCountries ? (
+                          <div className="p-8 text-center">
+                            <Loader className="h-6 w-6 animate-spin text-cream-400 mx-auto mb-2" />
+                            <p className="text-sm text-cream-600">Loading countries...</p>
+                          </div>
+                        ) : filteredWhatsappCountries.length === 0 ? (
+                          <div className="p-8 text-center">
+                            <p className="text-sm text-cream-600">No countries found</p>
+                          </div>
+                        ) : (
+                          <div className="p-2">
+                            {filteredWhatsappCountries.map((country, index) => (
+                              <button
+                                key={country.uniqueId || `${country.code}-${country.country}-${index}`}
+                                type="button"
+                                onClick={() => handleWhatsappCountryCodeChange(country.code)}
+                                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-cream-50 transition-colors text-left ${formData.whatsappCountryCode === country.code
+                                    ? "bg-cream-100 border border-cream-300"
+                                    : ""
+                                  }`}
+                              >
+                                <img
+                                  src={country.flagUrl}
+                                  alt={country.name}
+                                  className="w-8 h-6 object-cover rounded flex-shrink-0"
+                                  onError={(e) => {
+                                    const target = e.target as HTMLImageElement;
+                                    target.src = `https://flagcdn.com/w40/${country.country.toLowerCase()}.png`;
+                                  }}
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <div className="font-medium text-cream-900 text-sm">
+                                    {country.name} ({country.code})
+                                  </div>
+                                </div>
+                                {formData.whatsappCountryCode === country.code && (
+                                  <CheckCircle className="h-4 w-4 text-cream-900 flex-shrink-0" />
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
             </div>
-            {errors.whatsappNumber && (
-              <p className="mt-1 text-xs text-red-500">{errors.whatsappNumber}</p>
-            )}
-            {errors.whatsappCountryCode && (
-              <p className="mt-1 text-xs text-red-500">{errors.whatsappCountryCode}</p>
-            )}
+
+            {/* WhatsApp Number Input */}
+            <div className="relative flex-1">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Phone className="h-5 w-5 text-cream-400" />
+              </div>
+              <input
+                id="whatsappNumber"
+                name="whatsappNumber"
+                type="tel"
+                value={formData.whatsappNumber}
+                onChange={handleChange}
+                disabled={sameAsMobile}
+                className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${errors.whatsappNumber
+                    ? "border-red-300 focus:ring-red-500"
+                    : "border-cream-200 focus:ring-cream-900"
+                  } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all ${sameAsMobile ? "bg-cream-100 cursor-not-allowed opacity-75" : ""
+                  }`}
+                placeholder={
+                  getCountryByCode(formData.whatsappCountryCode, countryCodes)?.example || "1234567890"
+                }
+                maxLength={getCountryByCode(formData.whatsappCountryCode, countryCodes)?.maxLength || 15}
+              />
+            </div>
           </div>
+          {errors.whatsappNumber && (
+            <p className="mt-1 text-xs text-red-500">{errors.whatsappNumber}</p>
+          )}
+          {errors.whatsappCountryCode && (
+            <p className="mt-1 text-xs text-red-500">{errors.whatsappCountryCode}</p>
+          )}
+        </div>
 
         {/* Email Address */}
         <div>
@@ -1051,11 +1055,10 @@ const PrintPartnerForm: React.FC<PrintPartnerFormProps> = ({ onBack }) => {
               type="email"
               value={formData.emailAddress}
               onChange={handleChange}
-              className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${
-                errors.emailAddress
+              className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${errors.emailAddress
                   ? "border-red-300 focus:ring-red-500"
                   : "border-cream-200 focus:ring-cream-900"
-              } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
+                } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
               placeholder="business@example.com"
             />
           </div>
@@ -1083,11 +1086,10 @@ const PrintPartnerForm: React.FC<PrintPartnerFormProps> = ({ onBack }) => {
                 type="password"
                 value={formData.password}
                 onChange={handleChange}
-                className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${
-                  errors.password
+                className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${errors.password
                     ? "border-red-300 focus:ring-red-500"
                     : "border-cream-200 focus:ring-cream-900"
-                } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
+                  } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
                 placeholder="******"
               />
             </div>
@@ -1113,11 +1115,10 @@ const PrintPartnerForm: React.FC<PrintPartnerFormProps> = ({ onBack }) => {
                 type="password"
                 value={formData.confirmPassword}
                 onChange={handleChange}
-                className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${
-                  errors.confirmPassword
+                className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${errors.confirmPassword
                     ? "border-red-300 focus:ring-red-500"
                     : "border-cream-200 focus:ring-cream-900"
-                } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
+                  } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
                 placeholder="******"
               />
             </div>
@@ -1146,11 +1147,10 @@ const PrintPartnerForm: React.FC<PrintPartnerFormProps> = ({ onBack }) => {
               value={formData.gstNumber}
               onChange={handleChange}
               maxLength={15}
-              className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${
-                errors.gstNumber
+              className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${errors.gstNumber
                   ? "border-red-300 focus:ring-red-500"
                   : "border-cream-200 focus:ring-cream-900"
-              } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
+                } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
               placeholder="15-character GST number"
             />
           </div>
@@ -1177,11 +1177,10 @@ const PrintPartnerForm: React.FC<PrintPartnerFormProps> = ({ onBack }) => {
               value={formData.fullBusinessAddress}
               onChange={handleChange}
               rows={3}
-              className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${
-                errors.fullBusinessAddress
+              className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${errors.fullBusinessAddress
                   ? "border-red-300 focus:ring-red-500"
                   : "border-cream-200 focus:ring-cream-900"
-              } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all resize-none`}
+                } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all resize-none`}
               placeholder="Enter complete business address"
             />
           </div>
@@ -1205,11 +1204,10 @@ const PrintPartnerForm: React.FC<PrintPartnerFormProps> = ({ onBack }) => {
               type="text"
               value={formData.city}
               onChange={handleChange}
-              className={`appearance-none relative block w-full px-3 py-3 border ${
-                errors.city
+              className={`appearance-none relative block w-full px-3 py-3 border ${errors.city
                   ? "border-red-300 focus:ring-red-500"
                   : "border-cream-200 focus:ring-cream-900"
-              } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
+                } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
               placeholder="City"
             />
             {errors.city && (
@@ -1230,11 +1228,10 @@ const PrintPartnerForm: React.FC<PrintPartnerFormProps> = ({ onBack }) => {
               type="text"
               value={formData.state}
               onChange={handleChange}
-              className={`appearance-none relative block w-full px-3 py-3 border ${
-                errors.state
+              className={`appearance-none relative block w-full px-3 py-3 border ${errors.state
                   ? "border-red-300 focus:ring-red-500"
                   : "border-cream-200 focus:ring-cream-900"
-              } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
+                } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
               placeholder="State"
             />
             {errors.state && (
@@ -1256,11 +1253,10 @@ const PrintPartnerForm: React.FC<PrintPartnerFormProps> = ({ onBack }) => {
               value={formData.pincode}
               onChange={handleChange}
               maxLength={6}
-              className={`appearance-none relative block w-full px-3 py-3 border ${
-                errors.pincode
+              className={`appearance-none relative block w-full px-3 py-3 border ${errors.pincode
                   ? "border-red-300 focus:ring-red-500"
                   : "border-cream-200 focus:ring-cream-900"
-              } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
+                } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
               placeholder="123456"
             />
             {errors.pincode && (
@@ -1290,29 +1286,26 @@ const PrintPartnerForm: React.FC<PrintPartnerFormProps> = ({ onBack }) => {
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className={`w-full px-4 py-3 border-2 border-dashed rounded-xl transition-all ${
-                errors.proofFile
+              className={`w-full px-4 py-3 border-2 border-dashed rounded-xl transition-all ${errors.proofFile
                   ? "border-red-300 bg-red-50"
                   : formData.proofFile
-                  ? "border-green-300 bg-green-50"
-                  : "border-cream-300 bg-cream-50 hover:border-cream-900 hover:bg-cream-100"
-              }`}
+                    ? "border-green-300 bg-green-50"
+                    : "border-cream-300 bg-cream-50 hover:border-cream-900 hover:bg-cream-100"
+                }`}
             >
               <div className="flex flex-col items-center justify-center gap-2">
-                <FileImage className={`h-8 w-8 ${
-                  errors.proofFile
+                <FileImage className={`h-8 w-8 ${errors.proofFile
                     ? "text-red-400"
                     : formData.proofFile
-                    ? "text-green-600"
-                    : "text-cream-400"
-                }`} />
-                <span className={`text-sm ${
-                  errors.proofFile
+                      ? "text-green-600"
+                      : "text-cream-400"
+                  }`} />
+                <span className={`text-sm ${errors.proofFile
                     ? "text-red-600"
                     : formData.proofFile
-                    ? "text-green-700"
-                    : "text-cream-600"
-                }`}>
+                      ? "text-green-700"
+                      : "text-cream-600"
+                  }`}>
                   {formData.proofFile
                     ? formData.proofFile.name
                     : "Click to upload visiting card or shop photo"}

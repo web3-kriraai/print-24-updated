@@ -13,14 +13,9 @@ import {
   CheckCircle,
   X,
   ChevronDown,
-  Sparkles,
-  Shield,
-  Palette,
-  FileText,
 } from "lucide-react";
 import { API_BASE_URL_WITH_API } from "../lib/apiConfig";
 import { scrollToInvalidField } from "../lib/validationUtils";
-import { useLogo } from "../hooks/useSiteSettings";
 
 // Country code interface
 interface CountryCode {
@@ -81,7 +76,6 @@ interface LoginResponse {
 const Login: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { logo } = useLogo();
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -95,16 +89,15 @@ const Login: React.FC = () => {
 
   // Forgot password states
   const [showForgotPassword, setShowForgotPassword] = useState(false);
-  const [forgotPasswordStep, setForgotPasswordStep] = useState<"mobile" | "otp" | "newPassword">("mobile");
+  const [forgotPasswordStep, setForgotPasswordStep] = useState<"email" | "otp" | "newPassword">("email");
   const [forgotPasswordData, setForgotPasswordData] = useState({
-    mobileNumber: "",
-    countryCode: "+91",
+    email: "",
     otp: "",
     newPassword: "",
     confirmPassword: "",
   });
   const [forgotPasswordErrors, setForgotPasswordErrors] = useState<{
-    mobileNumber?: string;
+    email?: string;
     otp?: string;
     newPassword?: string;
     confirmPassword?: string;
@@ -265,20 +258,15 @@ const Login: React.FC = () => {
 
 
   // Forgot Password Handlers
-  const handleForgotPasswordMobile = async () => {
-    // Validate mobile number
-    if (!forgotPasswordData.mobileNumber.trim()) {
-      setForgotPasswordErrors({ mobileNumber: "Mobile number is required" });
+  const handleForgotPasswordEmail = async () => {
+    // Validate email
+    if (!forgotPasswordData.email.trim()) {
+      setForgotPasswordErrors({ email: "Email is required" });
       return;
     }
 
-    if (!/^\d+$/.test(forgotPasswordData.mobileNumber)) {
-      setForgotPasswordErrors({ mobileNumber: "Mobile number must contain only digits" });
-      return;
-    }
-
-    if (forgotPasswordData.mobileNumber.length < 8) {
-      setForgotPasswordErrors({ mobileNumber: "Mobile number must be at least 8 digits" });
+    if (!/\S+@\S+\.\S+/.test(forgotPasswordData.email)) {
+      setForgotPasswordErrors({ email: "Please enter a valid email address" });
       return;
     }
 
@@ -286,15 +274,13 @@ const Login: React.FC = () => {
     setForgotPasswordErrors({});
 
     try {
-      const fullMobileNumber = `${forgotPasswordData.countryCode}${forgotPasswordData.mobileNumber.trim()}`;
-
       const response = await fetch(`${API_BASE_URL_WITH_API}/auth/forgot-password`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          mobileNumber: fullMobileNumber,
+          email: forgotPasswordData.email.trim(),
         }),
       });
 
@@ -302,10 +288,10 @@ const Login: React.FC = () => {
 
       if (!response.ok) {
         setIsSendingOtp(false);
-        // If user not found (404), show validation error on mobile number field
+        // If user not found (404), show validation error on email field
         if (response.status === 404) {
           setForgotPasswordErrors({
-            mobileNumber: data.message || "No account found with this mobile number. Please check and try again.",
+            email: data.message || "No account found with this email address. Please check and try again.",
           });
         } else {
           setForgotPasswordErrors({
@@ -315,7 +301,7 @@ const Login: React.FC = () => {
         return;
       }
 
-      setOtpSentTo(fullMobileNumber);
+      setOtpSentTo(forgotPasswordData.email.trim());
       setForgotPasswordStep("otp");
       setIsSendingOtp(false);
     } catch (error) {
@@ -337,15 +323,13 @@ const Login: React.FC = () => {
     setForgotPasswordErrors({});
 
     try {
-      const fullMobileNumber = `${forgotPasswordData.countryCode}${forgotPasswordData.mobileNumber.trim()}`;
-
       const response = await fetch(`${API_BASE_URL_WITH_API}/auth/verify-otp-password-reset`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          mobileNumber: fullMobileNumber,
+          email: forgotPasswordData.email.trim(),
           otp: forgotPasswordData.otp,
         }),
       });
@@ -396,15 +380,14 @@ const Login: React.FC = () => {
     setForgotPasswordErrors({});
 
     try {
-      const fullMobileNumber = `${forgotPasswordData.countryCode}${forgotPasswordData.mobileNumber.trim()}`;
-
       const response = await fetch(`${API_BASE_URL_WITH_API}/auth/reset-password`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          mobileNumber: fullMobileNumber,
+          email: forgotPasswordData.email.trim(),
+          otp: forgotPasswordData.otp,
           newPassword: forgotPasswordData.newPassword,
         }),
       });
@@ -421,10 +404,9 @@ const Login: React.FC = () => {
 
       // Success - close modal and show success message
       setShowForgotPassword(false);
-      setForgotPasswordStep("mobile");
+      setForgotPasswordStep("email");
       setForgotPasswordData({
-        mobileNumber: "",
-        countryCode: "+91",
+        email: "",
         otp: "",
         newPassword: "",
         confirmPassword: "",
@@ -503,320 +485,178 @@ const Login: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center p-4 relative overflow-hidden">
-      {/* Printing-themed background elements */}
-      <div className="absolute inset-0 overflow-hidden">
-        {/* Printer pattern */}
-        <div className="absolute top-10 left-10 opacity-5">
-          <Printer size={100} />
-        </div>
-        <div className="absolute bottom-10 right-10 opacity-5">
-          <Printer size={100} />
-        </div>
-
-        {/* Paper sheet pattern */}
-        <div className="absolute top-1/4 right-1/4 w-64 h-96 bg-gradient-to-br from-white/20 to-blue-100/10 rotate-12 rounded-lg shadow-lg border border-blue-200/20" />
-        <div className="absolute bottom-1/4 left-1/4 w-72 h-80 bg-gradient-to-tr from-purple-100/10 to-white/20 -rotate-12 rounded-lg shadow-lg border border-purple-200/20" />
-
-        {/* Printing dots pattern */}
-        <div className="absolute inset-0 bg-[radial-gradient(#3b82f6_1px,transparent_1px)] [background-size:20px_20px] opacity-5" />
-      </div>
+    <div className="min-h-screen bg-cream-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
+      {/* Decorative Background Elements */}
+      <div className="absolute top-[-10%] right-[-5%] w-96 h-96 bg-cream-200 rounded-full blur-3xl opacity-40 pointer-events-none" />
+      <div className="absolute bottom-[-10%] left-[-5%] w-96 h-96 bg-cream-300 rounded-full blur-3xl opacity-40 pointer-events-none" />
 
       {/* Back Button */}
-      <div className="absolute top-6 left-6 z-20">
-        <BackButton fallbackPath="/" label="Back to Home" className="text-blue-700 hover:text-blue-900 bg-white/80 backdrop-blur-sm px-4 py-2 rounded-xl border border-blue-200/50 shadow-sm" />
+      <div className="absolute top-4 left-4 z-20">
+        <BackButton fallbackPath="/" label="Back to Home" className="text-cream-600 hover:text-cream-900" />
       </div>
 
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="w-full max-w-6xl flex flex-col lg:flex-row rounded-3xl shadow-2xl overflow-hidden border border-white/20 backdrop-blur-sm bg-white/95"
+        className="max-w-2xl w-full space-y-6 sm:space-y-8 bg-white p-6 sm:p-8 md:p-10 rounded-2xl sm:rounded-3xl shadow-xl border border-cream-100 relative z-10"
       >
-        {/* Left side - Brand & Info */}
-        <div className="lg:w-2/5 bg-gradient-to-br from-blue-600 to-purple-700 p-8 md:p-12 text-white relative overflow-hidden">
-          {/* Brand watermark */}
-          <div className="absolute inset-0 opacity-5">
-            <Printer size={400} className="absolute -top-20 -left-20" />
-            <FileText size={300} className="absolute -bottom-10 -right-10" />
-          </div>
-
-          <div className="relative z-10">
-            {/* Brand Logo */}
-            <div className="flex items-center gap-4 mb-8">
-              <div className="p-3 bg-white/10 rounded-2xl backdrop-blur-sm border border-white/20">
-                <Printer className="text-white" size={28} />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold">
-                  <img
-                    src={logo}
-                    alt="PrintHub Logo"
-                    className="h-12 object-contain"
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement;
-                      target.style.display = 'none';
-                      target.nextElementSibling?.classList.remove('hidden');
-                    }}
-                  />
-                  <span className="hidden">PrintHub Pro</span>
-                </h1>
-                <p className="text-sm text-blue-100 opacity-90">Professional Printing Solutions</p>
-              </div>
-            </div>
-
-            <div className="space-y-8">
-              <div>
-                <h2 className="text-3xl font-bold mb-4">Welcome Back to PrintHub Pro</h2>
-                <p className="text-blue-100/90 text-lg">
-                  Sign in to access your professional printing dashboard, manage orders, and track your print projects.
-                </p>
-              </div>
-
-              <div className="space-y-6">
-                <div className="flex items-start gap-4">
-                  <div className="p-3 bg-white/10 rounded-xl">
-                    <Palette className="h-6 w-6" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-lg mb-1">Premium Quality Prints</h3>
-                    <p className="text-blue-100/80">High-resolution printing with vibrant colors and professional finishes.</p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-4">
-                  <div className="p-3 bg-white/10 rounded-xl">
-                    <FileText className="h-6 w-6" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-lg mb-1">Order Management</h3>
-                    <p className="text-blue-100/80">Track, manage, and organize all your print orders in one place.</p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-4">
-                  <div className="p-3 bg-white/10 rounded-xl">
-                    <Shield className="h-6 w-6" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-lg mb-1">Secure & Protected</h3>
-                    <p className="text-blue-100/80">Enterprise-grade security for your designs and personal information.</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="pt-6 border-t border-white/20">
-                <p className="text-sm text-blue-100/70">
-                  Trusted by over 10,000+ businesses worldwide for their printing needs.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Decorative corner */}
-          <div className="absolute bottom-0 right-0 w-32 h-32 bg-gradient-to-tl from-blue-500/20 to-transparent rounded-tl-3xl" />
+        <div className="text-center">
+          <h2 className="font-serif text-2xl sm:text-3xl font-bold text-cream-900">
+            Welcome Back
+          </h2>
+          <p className="mt-2 text-xs sm:text-sm text-cream-600">
+            Sign in to manage your prints and orders
+          </p>
         </div>
 
-        {/* Right side - Login Form */}
-        <div className="lg:w-3/5 p-8 md:p-12">
-          <div className="max-w-lg mx-auto">
-            <div className="text-center mb-10">
-              <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-blue-100 to-purple-100 rounded-2xl mb-4 border border-blue-200/50">
-                <Printer className="h-10 w-10 text-blue-600" />
+        {/* Success Message from Registration */}
+        {successMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-sm flex items-center gap-2"
+          >
+            <AlertCircle size={16} />
+            {successMessage}
+          </motion.div>
+        )}
+
+        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+          {errors.general && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-red-50 border border-red-100 text-red-600 px-4 py-3 rounded-lg text-sm flex items-center gap-2"
+            >
+              <AlertCircle size={16} />
+              {errors.general}
+            </motion.div>
+          )}
+
+          <div className="space-y-4">
+            <div>
+              <label
+                htmlFor="email"
+                className="block text-sm font-medium text-cream-700 mb-1"
+              >
+                Email Address
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Mail className="h-5 w-5 text-cream-400" />
+                </div>
+                <input
+                  id="email"
+                  name="email"
+                  type="email"
+                  value={formData.email}
+                  onChange={handleChange}
+                  className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${errors.email
+                    ? "border-red-300 focus:ring-red-500 focus:border-red-500"
+                    : "border-cream-200 focus:ring-cream-900 focus:border-cream-900"
+                    } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
+                  placeholder="Enter your email address"
+                />
               </div>
-              <h2 className="text-3xl font-bold text-gray-900 mb-2">Sign In to Your Account</h2>
-              <p className="text-gray-600">Access your professional printing dashboard</p>
+              {errors.email && (
+                <p className="mt-1 text-xs text-red-500">{errors.email}</p>
+              )}
             </div>
 
-            {/* Success Message from Registration */}
-            {successMessage && (
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="mb-6 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 text-green-700 px-5 py-4 rounded-xl text-sm flex items-center gap-3"
+            <div>
+              <label
+                htmlFor="password"
+                className="block text-sm font-medium text-cream-700 mb-1"
               >
-                <CheckCircle size={20} className="text-green-500 flex-shrink-0" />
-                <span className="font-medium">{successMessage}</span>
-              </motion.div>
-            )}
-
-            <form className="space-y-6" onSubmit={handleSubmit}>
-              {errors.general && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="bg-gradient-to-r from-red-50 to-pink-50 border border-red-200 text-red-600 px-5 py-4 rounded-xl text-sm flex items-center gap-3"
-                >
-                  <AlertCircle size={20} className="text-red-500 flex-shrink-0" />
-                  <span className="font-medium">{errors.general}</span>
-                </motion.div>
-              )}
-
-              <div className="space-y-5">
-                <div>
-                  <label
-                    htmlFor="email"
-                    className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2"
-                  >
-                    <Mail size={16} className="text-blue-500" />
-                    Email Address
-                  </label>
-                  <div className="relative group">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <Mail className="h-5 w-5 text-gray-400 group-hover:text-blue-500 transition-colors" />
-                    </div>
-                    <input
-                      id="email"
-                      name="email"
-                      type="email"
-                      value={formData.email}
-                      onChange={handleChange}
-                      className={`appearance-none relative block w-full px-3 py-3.5 pl-10 border ${errors.email
-                        ? "border-red-300 focus:ring-2 focus:ring-red-500 focus:border-red-500"
-                        : "border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        } placeholder-gray-400 text-gray-900 rounded-xl focus:outline-none transition-all shadow-sm hover:shadow`}
-                      placeholder="Enter your email address"
-                    />
-                  </div>
-                  {errors.email && (
-                    <p className="mt-2 text-sm text-red-600 flex items-center gap-1">
-                      <AlertCircle size={14} />
-                      {errors.email}
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <label
-                    htmlFor="password"
-                    className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2"
-                  >
-                    <Lock size={16} className="text-blue-500" />
-                    Password
-                  </label>
-                  <div className="relative group">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <Lock className="h-5 w-5 text-gray-400 group-hover:text-blue-500 transition-colors" />
-                    </div>
-                    <input
-                      id="password"
-                      name="password"
-                      type="password"
-                      value={formData.password}
-                      onChange={handleChange}
-                      className={`appearance-none relative block w-full px-3 py-3.5 pl-10 border ${errors.password
-                        ? "border-red-300 focus:ring-2 focus:ring-red-500 focus:border-red-500"
-                        : "border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        } placeholder-gray-400 text-gray-900 rounded-xl focus:outline-none transition-all shadow-sm hover:shadow`}
-                      placeholder="Enter your password"
-                    />
-                  </div>
-                  {errors.password && (
-                    <p className="mt-2 text-sm text-red-600 flex items-center gap-1">
-                      <AlertCircle size={14} />
-                      {errors.password}
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div className="flex items-center">
-                  <input
-                    id="remember-me"
-                    name="remember-me"
-                    type="checkbox"
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                  />
-                  <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-700">
-                    Remember me
-                  </label>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowForgotPassword(true);
-                    setForgotPasswordStep("mobile");
-                    setForgotPasswordData({
-                      mobileNumber: "",
-                      countryCode: "+91",
-                      otp: "",
-                      newPassword: "",
-                      confirmPassword: "",
-                    });
-                    setForgotPasswordErrors({});
-                    setOtpSentTo("");
-                  }}
-                  className="text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline transition-colors"
-                >
-                  Forgot password?
-                </button>
-              </div>
-
-              <div>
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="group relative w-full flex justify-center py-3.5 px-4 border border-transparent text-base font-semibold rounded-xl text-white bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-300 shadow-lg hover:shadow-xl hover:-translate-y-0.5 disabled:opacity-70 disabled:cursor-not-allowed disabled:hover:translate-y-0"
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader className="animate-spin h-5 w-5 mr-2" />
-                      Signing in...
-                    </>
-                  ) : (
-                    <>
-                      Sign in to Dashboard
-                      <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
-                    </>
-                  )}
-                </button>
-              </div>
-
+                Password
+              </label>
               <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-gray-300"></div>
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Lock className="h-5 w-5 text-cream-400" />
                 </div>
-                <div className="relative flex justify-center text-sm">
-                  <span className="px-4 bg-white text-gray-500">Or continue with</span>
-                </div>
+                <input
+                  id="password"
+                  name="password"
+                  type="password"
+                  value={formData.password}
+                  onChange={handleChange}
+                  className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${errors.password
+                    ? "border-red-300 focus:ring-red-500 focus:border-red-500"
+                    : "border-cream-200 focus:ring-cream-900 focus:border-cream-900"
+                    } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
+                  placeholder="Enter your password"
+                />
               </div>
-
-              <div>
-                <Link
-                  to="/signup"
-                  className="w-full flex justify-center py-3.5 px-4 border-2 border-gray-300 rounded-xl text-base font-semibold text-gray-700 bg-white hover:bg-gray-50 hover:border-blue-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-300"
-                >
-                  <Sparkles className="h-5 w-5 mr-2 text-blue-500" />
-                  Create new account
-                </Link>
-              </div>
-
-              <div className="text-center pt-4">
-                <p className="text-sm text-gray-600">
-                  By signing in, you agree to our{" "}
-                  <Link to="/terms" className="font-medium text-blue-600 hover:text-blue-800 hover:underline">
-                    Terms of Service
-                  </Link>{" "}
-                  and{" "}
-                  <Link to="/privacy" className="font-medium text-blue-600 hover:text-blue-800 hover:underline">
-                    Privacy Policy
-                  </Link>
-                </p>
-              </div>
-            </form>
+              {errors.password && (
+                <p className="mt-1 text-xs text-red-500">{errors.password}</p>
+              )}
+            </div>
           </div>
+
+          <div className="flex items-center justify-end">
+            <div className="text-xs">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowForgotPassword(true);
+                  setForgotPasswordStep("email");
+                  setForgotPasswordData({
+                    email: "",
+                    otp: "",
+                    newPassword: "",
+                    confirmPassword: "",
+                  });
+                  setForgotPasswordErrors({});
+                  setOtpSentTo("");
+                }}
+                className="font-medium text-cream-900 hover:text-cream-700 hover:underline"
+              >
+                Forgot your password?
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-bold rounded-xl text-cream-50 bg-cream-900 hover:bg-cream-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cream-500 transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 disabled:opacity-70 disabled:cursor-not-allowed"
+            >
+              {isLoading ? (
+                <Loader className="animate-spin h-5 w-5" />
+              ) : (
+                <>
+                  Sign in
+                  <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
+                </>
+              )}
+            </button>
+          </div>
+
+        </form>
+
+        <div className="text-center mt-4">
+          <p className="text-sm text-cream-600">
+            Don't have an account?{" "}
+            <Link
+              to="/signup"
+              className="font-bold text-cream-900 hover:text-cream-700 underline transition-colors"
+            >
+              Sign Up
+            </Link>
+          </p>
         </div>
       </motion.div>
 
-      {/* Forgot Password Modal - Rest of the modal code remains the same */}
+      {/* Forgot Password Modal */}
       <AnimatePresence>
         {showForgotPassword && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
+            className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
             onClick={() => {
               if (!isSendingOtp && !isVerifyingOtp && !isResettingPassword) {
                 setShowForgotPassword(false);
@@ -830,8 +670,266 @@ const Login: React.FC = () => {
               onClick={(e) => e.stopPropagation()}
               className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 sm:p-8 relative"
             >
-              {/* Modal content remains the same as before */}
-              {/* ... (keep the existing forgot password modal content) */}
+              {!isSendingOtp && !isVerifyingOtp && !isResettingPassword && (
+                <button
+                  onClick={() => setShowForgotPassword(false)}
+                  className="absolute top-4 right-4 text-cream-400 hover:text-cream-900 transition-colors"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              )}
+
+              {/* Step 1: Email */}
+              {forgotPasswordStep === "email" && (
+                <div>
+                  <div className="text-center mb-6">
+                    <div className="mx-auto w-16 h-16 bg-cream-100 rounded-full flex items-center justify-center mb-4">
+                      <Mail className="h-8 w-8 text-cream-900" />
+                    </div>
+                    <h3 className="text-2xl font-bold text-cream-900 mb-2">
+                      Forgot Password?
+                    </h3>
+                    <p className="text-sm text-cream-600">
+                      Enter your email address to receive a verification code
+                    </p>
+                  </div>
+
+                  {forgotPasswordErrors.general && (
+                    <div className="mb-4 bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg text-sm flex items-center gap-2">
+                      <AlertCircle size={16} />
+                      {forgotPasswordErrors.general}
+                    </div>
+                  )}
+
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-cream-700 mb-1">
+                        Email Address
+                      </label>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                          <Mail className="h-5 w-5 text-cream-400" />
+                        </div>
+                        <input
+                          type="email"
+                          value={forgotPasswordData.email}
+                          onChange={(e) => {
+                            setForgotPasswordData({ ...forgotPasswordData, email: e.target.value });
+                            setForgotPasswordErrors({ ...forgotPasswordErrors, email: undefined });
+                          }}
+                          className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${forgotPasswordErrors.email
+                            ? "border-red-300 focus:ring-red-500 focus:border-red-500"
+                            : "border-cream-200 focus:ring-cream-900 focus:border-cream-900"
+                            } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
+                          placeholder="Enter your email address"
+                        />
+                      </div>
+                      {forgotPasswordErrors.email && (
+                        <p className="mt-1 text-xs text-red-500">{forgotPasswordErrors.email}</p>
+                      )}
+                    </div>
+
+                    <button
+                      onClick={handleForgotPasswordEmail}
+                      disabled={isSendingOtp || !forgotPasswordData.email}
+                      className="w-full bg-cream-900 text-cream-50 py-3 px-4 rounded-xl font-medium hover:bg-cream-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      {isSendingOtp ? (
+                        <>
+                          <Loader className="animate-spin h-5 w-5" />
+                          Sending OTP...
+                        </>
+                      ) : (
+                        <>
+                          Send OTP
+                          <ArrowRight className="h-5 w-5" />
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Step 2: OTP Verification */}
+              {forgotPasswordStep === "otp" && (
+                <div>
+                  <div className="text-center mb-6">
+                    <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
+                      <CheckCircle className="h-8 w-8 text-green-600" />
+                    </div>
+                    <h3 className="text-2xl font-bold text-cream-900 mb-2">
+                      Verify OTP
+                    </h3>
+                    <p className="text-sm text-cream-600 mb-2">
+                      We've sent a 6-digit code to:
+                    </p>
+                    <p className="text-lg font-semibold text-cream-900 mb-6">
+                      {otpSentTo}
+                    </p>
+                  </div>
+
+                  {forgotPasswordErrors.otp && (
+                    <div className="mb-4 bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg text-sm flex items-center gap-2">
+                      <AlertCircle size={16} />
+                      {forgotPasswordErrors.otp}
+                    </div>
+                  )}
+
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-cream-700 mb-2">
+                        Enter OTP
+                      </label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        value={forgotPasswordData.otp}
+                        onChange={(e) => {
+                          const value = e.target.value.replace(/\D/g, "").slice(0, 6);
+                          setForgotPasswordData({ ...forgotPasswordData, otp: value });
+                          setForgotPasswordErrors({ ...forgotPasswordErrors, otp: undefined });
+                        }}
+                        className={`w-full px-4 py-3 border-2 ${forgotPasswordErrors.otp
+                          ? "border-red-300 focus:ring-red-500 focus:border-red-500"
+                          : "border-cream-200 focus:ring-cream-900 focus:border-cream-900"
+                          } rounded-xl focus:outline-none focus:ring-2 text-center text-3xl font-bold tracking-widest bg-cream-50`}
+                        placeholder="------"
+                        maxLength={6}
+                        autoFocus
+                        autoComplete="one-time-code"
+                      />
+                    </div>
+
+                    <div className="flex gap-3">
+                      <button
+                        onClick={handleVerifyOtp}
+                        disabled={isVerifyingOtp || forgotPasswordData.otp.length !== 6}
+                        className="flex-1 bg-cream-900 text-cream-50 py-3 px-4 rounded-xl font-medium hover:bg-cream-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                      >
+                        {isVerifyingOtp ? (
+                          <>
+                            <Loader className="animate-spin h-5 w-5" />
+                            Verifying...
+                          </>
+                        ) : (
+                          <>
+                            Verify OTP
+                            <ArrowRight className="h-5 w-5" />
+                          </>
+                        )}
+                      </button>
+                      <button
+                        onClick={handleForgotPasswordEmail}
+                        disabled={isSendingOtp || isVerifyingOtp}
+                        className="px-4 py-3 bg-cream-100 text-cream-900 rounded-xl font-medium hover:bg-cream-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                      >
+                        {isSendingOtp ? "Sending..." : "Resend"}
+                      </button>
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        setForgotPasswordStep("email");
+                        setForgotPasswordData({ ...forgotPasswordData, otp: "" });
+                        setForgotPasswordErrors({});
+                      }}
+                      className="w-full text-sm text-cream-600 hover:text-cream-900 underline"
+                    >
+                      Change email address
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Step 3: New Password */}
+              {forgotPasswordStep === "newPassword" && (
+                <div>
+                  <div className="text-center mb-6">
+                    <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
+                      <Lock className="h-8 w-8 text-green-600" />
+                    </div>
+                    <h3 className="text-2xl font-bold text-cream-900 mb-2">
+                      Set New Password
+                    </h3>
+                    <p className="text-sm text-cream-600">
+                      Enter your new password below
+                    </p>
+                  </div>
+
+                  {forgotPasswordErrors.general && (
+                    <div className="mb-4 bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg text-sm flex items-center gap-2">
+                      <AlertCircle size={16} />
+                      {forgotPasswordErrors.general}
+                    </div>
+                  )}
+
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-cream-700 mb-2">
+                        New Password
+                      </label>
+                      <input
+                        type="password"
+                        value={forgotPasswordData.newPassword}
+                        onChange={(e) => {
+                          setForgotPasswordData({ ...forgotPasswordData, newPassword: e.target.value });
+                          setForgotPasswordErrors({ ...forgotPasswordErrors, newPassword: undefined });
+                        }}
+                        className={`w-full px-3 py-2 border ${forgotPasswordErrors.newPassword
+                          ? "border-red-300 focus:ring-red-500"
+                          : "border-cream-200 focus:ring-cream-900"
+                          } rounded-lg focus:outline-none focus:ring-2 text-sm`}
+                        placeholder="Enter new password (min 6 characters)"
+                        autoFocus
+                      />
+                      {forgotPasswordErrors.newPassword && (
+                        <p className="mt-1 text-xs text-red-500">{forgotPasswordErrors.newPassword}</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-cream-700 mb-2">
+                        Confirm Password
+                      </label>
+                      <input
+                        type="password"
+                        value={forgotPasswordData.confirmPassword}
+                        onChange={(e) => {
+                          setForgotPasswordData({ ...forgotPasswordData, confirmPassword: e.target.value });
+                          setForgotPasswordErrors({ ...forgotPasswordErrors, confirmPassword: undefined });
+                        }}
+                        className={`w-full px-3 py-2 border ${forgotPasswordErrors.confirmPassword
+                          ? "border-red-300 focus:ring-red-500"
+                          : "border-cream-200 focus:ring-cream-900"
+                          } rounded-lg focus:outline-none focus:ring-2 text-sm`}
+                        placeholder="Confirm new password"
+                      />
+                      {forgotPasswordErrors.confirmPassword && (
+                        <p className="mt-1 text-xs text-red-500">{forgotPasswordErrors.confirmPassword}</p>
+                      )}
+                    </div>
+
+                    <button
+                      onClick={handleResetPassword}
+                      disabled={isResettingPassword || !forgotPasswordData.newPassword || !forgotPasswordData.confirmPassword}
+                      className="w-full bg-cream-900 text-cream-50 py-3 px-4 rounded-xl font-medium hover:bg-cream-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      {isResettingPassword ? (
+                        <>
+                          <Loader className="animate-spin h-5 w-5" />
+                          Resetting Password...
+                        </>
+                      ) : (
+                        <>
+                          Reset Password
+                          <CheckCircle className="h-5 w-5" />
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
             </motion.div>
           </motion.div>
         )}

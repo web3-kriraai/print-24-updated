@@ -46,7 +46,11 @@ const SequenceSchema = new mongoose.Schema(
 );
 
 // Index for faster queries
-SequenceSchema.index({ category: 1, subcategory: 1 });
+SequenceSchema.index(
+  { category: 1, subcategory: 1, isDefault: 1 },
+  { partialFilterExpression: { isDefault: true } }
+);
+
 SequenceSchema.index({ isDefault: 1 });
 
 export default mongoose.model("Sequence", SequenceSchema);

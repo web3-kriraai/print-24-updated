@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig } from 'vite' // Updated port config
 import react from '@vitejs/plugin-react'
 import { resolve } from 'path'
 
@@ -16,7 +16,7 @@ export default defineConfig({
     port: 3000,
     proxy: {
       '/api': {
-        target: process.env.VITE_API_BASE_URL || 'http://localhost:5000',
+        target: process.env.VITE_API_BASE_URL || 'http://localhost:5001',
         changeOrigin: true,
         secure: true,
         configure: (proxy, _options) => {

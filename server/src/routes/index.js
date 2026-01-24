@@ -168,6 +168,9 @@ import {
 
 const router = express.Router();
 
+console.log('[Routes] Loading API routes...');
+
+
 /* =====================================
    CATEGORY ROUTES
 ===================================== */

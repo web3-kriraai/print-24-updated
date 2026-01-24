@@ -5,6 +5,8 @@ import { User } from "../models/User.js";
 import sharp from "sharp";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+import PricingService from "../services/pricing/PricingService.js";
+import ModifierEngine from "../services/ModifierEngine.js";
 // Email service temporarily disabled - uncomment when email configuration is ready
 // import { sendAccountCreationEmail, sendOrderConfirmationEmail } from "../utils/emailService.js";
 
@@ -18,18 +20,18 @@ export const createOrder = async (req, res) => {
       finish,
       shape,
       selectedOptions,
-      totalPrice,
       pincode,
       address,
       mobileNumber,
       uploadedDesign,
       notes,
+      promoCodes,  // NEW: Promo code support
     } = req.body;
 
     // Validate required fields
-    if (!productId || !quantity || !finish || !shape || !totalPrice || !pincode || !address || !mobileNumber) {
+    if (!productId || !quantity || !finish || !shape || !pincode || !address || !mobileNumber) {
       return res.status(400).json({
-        error: "Missing required fields: productId, quantity, finish, shape, totalPrice, pincode, address, mobileNumber",
+        error: "Missing required fields: productId, quantity, finish, shape, pincode, address, mobileNumber",
       });
     }
 
@@ -43,7 +45,6 @@ export const createOrder = async (req, res) => {
     let processedDesign = null;
     if (uploadedDesign) {
       processedDesign = {};
-      
       if (uploadedDesign.frontImage && uploadedDesign.frontImage.data) {
         try {
           // Handle both base64 string and data URL format
@@ -58,10 +59,10 @@ export const createOrder = async (req, res) => {
           if (!base64Data || base64Data.trim().length === 0) {
             return res.status(400).json({ error: "Front image data is empty." });
           }
-          
+
           // Convert base64 to Buffer
           const imageBuffer = Buffer.from(base64Data, "base64");
-          
+
           // Convert image to CMYK format using sharp
           const cmykBuffer = await sharp(imageBuffer)
             .toColourspace("cmyk")
@@ -70,7 +71,6 @@ export const createOrder = async (req, res) => {
               chromaSubsampling: '4:4:4'
             })
             .toBuffer();
-          
           processedDesign.frontImage = {
             data: cmykBuffer,
             contentType: "image/jpeg", // CMYK images are stored as JPEG
@@ -79,7 +79,7 @@ export const createOrder = async (req, res) => {
         } catch (err) {
           console.error("Error processing front image:", err);
           console.error("Error details:", err.message);
-          return res.status(400).json({ 
+          return res.status(400).json({
             error: "Invalid front image data format or conversion failed.",
             details: process.env.NODE_ENV === 'development' ? err.message : undefined
           });
@@ -87,7 +87,6 @@ export const createOrder = async (req, res) => {
       } else {
         return res.status(400).json({ error: "Front image is required." });
       }
-      
       if (uploadedDesign.backImage && uploadedDesign.backImage.data) {
         try {
           // Handle both base64 string and data URL format
@@ -101,7 +100,6 @@ export const createOrder = async (req, res) => {
             if (base64Data && base64Data.trim().length > 0) {
               // Convert base64 to Buffer
               const imageBuffer = Buffer.from(base64Data, "base64");
-              
               // Convert image to CMYK format using sharp
               const cmykBuffer = await sharp(imageBuffer)
                 .toColourspace("cmyk")
@@ -110,7 +108,6 @@ export const createOrder = async (req, res) => {
                   chromaSubsampling: '4:4:4'
                 })
                 .toBuffer();
-              
               processedDesign.backImage = {
                 data: cmykBuffer,
                 contentType: "image/jpeg", // CMYK images are stored as JPEG
@@ -174,7 +171,6 @@ export const createOrder = async (req, res) => {
                 if (base64Data && base64Data.trim().length > 0) {
                   // Convert base64 to Buffer
                   const imageBuffer = Buffer.from(base64Data, "base64");
-                  
                   // Convert image to CMYK format using sharp (same as design images)
                   const cmykBuffer = await sharp(imageBuffer)
                     .toColourspace("cmyk")
@@ -183,7 +179,6 @@ export const createOrder = async (req, res) => {
                       chromaSubsampling: '4:4:4'
                     })
                     .toBuffer();
-                  
                   processedUploadedImages.push({
                     data: cmykBuffer,
                     contentType: "image/jpeg",
@@ -197,7 +192,6 @@ export const createOrder = async (req, res) => {
             }
           }
         }
-        
         processedDynamicAttributes.push({
           attributeTypeId: attr.attributeTypeId || attr.attributeType?._id || null,
           attributeName: attr.attributeName || attr.attributeType?.attributeName || "Attribute",
@@ -227,17 +221,16 @@ export const createOrder = async (req, res) => {
           const value = req.body.selectedDynamicAttributes[attrTypeId];
           if (value !== null && value !== undefined && value !== "") {
             // Check if this is an object with uploadedImages (new format from frontend)
-            const attrData = typeof value === 'object' && value !== null && !Array.isArray(value) 
-              ? value 
+            const attrData = typeof value === 'object' && value !== null && !Array.isArray(value)
+              ? value
               : { attributeValue: value };
-            
+
             const actualValue = attrData.attributeValue !== undefined ? attrData.attributeValue : value;
-            
+
             // Find the attribute in product
             const productAttr = productWithAttrs.dynamicAttributes.find(
               (attr) => attr.attributeType?._id?.toString() === attrTypeId
             );
-            
             if (productAttr && productAttr.attributeType) {
               const attrType = productAttr.attributeType;
               const customValues = productAttr.customValues || [];
@@ -267,7 +260,6 @@ export const createOrder = async (req, res) => {
                       if (base64Data && base64Data.trim().length > 0) {
                         // Convert base64 to Buffer
                         const imageBuffer = Buffer.from(base64Data, "base64");
-                        
                         // Convert image to CMYK format using sharp (same as design images)
                         const cmykBuffer = await sharp(imageBuffer)
                           .toColourspace("cmyk")
@@ -276,7 +268,6 @@ export const createOrder = async (req, res) => {
                             chromaSubsampling: '4:4:4'
                           })
                           .toBuffer();
-                        
                         processedUploadedImages.push({
                           data: cmykBuffer,
                           contentType: "image/jpeg",
@@ -341,17 +332,43 @@ export const createOrder = async (req, res) => {
       }
     }
 
-    // Create order
+    // Calculate pricing using PricingService (NEW)
+    const pricingResult = await PricingService.resolvePrice({
+      userId,
+      productId,
+      pincode,
+      selectedDynamicAttributes: processedDynamicAttributes.map(attr => ({
+        attributeType: attr.attributeTypeId,
+        pricingKey: attr.pricingKey || `${attr.attributeName}_${attr.attributeValue}`,
+        value: attr.attributeValue,
+        attributeName: attr.attributeName,
+      })),
+      quantity: parseInt(quantity),
+      promoCodes: promoCodes || [],
+    });
+
+    // Create order with immutable priceSnapshot
     const orderData = {
       user: userId,
-      orderNumber: orderNumber, // Set orderNumber explicitly
+      orderNumber: orderNumber,
       product: productId,
       quantity: parseInt(quantity),
       finish,
       shape,
       selectedOptions: enhancedSelectedOptions,
       selectedDynamicAttributes: processedDynamicAttributes,
-      totalPrice: parseFloat(totalPrice),
+      priceSnapshot: {
+        basePrice: pricingResult.basePrice,
+        unitPrice: pricingResult.basePrice,
+        quantity: pricingResult.quantity,
+        appliedModifiers: pricingResult.appliedModifiers,
+        subtotal: pricingResult.subtotal,
+        gstPercentage: pricingResult.gstPercentage,
+        gstAmount: pricingResult.gstAmount,
+        totalPayable: pricingResult.totalPayable,
+        currency: pricingResult.currency,
+        calculatedAt: pricingResult.calculatedAt,
+      },
       pincode,
       address,
       mobileNumber,
@@ -359,11 +376,9 @@ export const createOrder = async (req, res) => {
       notes: notes || "",
       status: "request",
       departmentStatuses: departmentStatuses,
-      // Payment information - only set if provided (order created after payment)
       advancePaid: req.body.advancePaid ? parseFloat(req.body.advancePaid) : 0,
       paymentStatus: req.body.paymentStatus || "pending",
       paymentGatewayInvoiceId: req.body.paymentGatewayInvoiceId || null,
-      // Legacy product specifications (kept for backward compatibility)
       paperGSM: req.body.paperGSM || null,
       paperQuality: req.body.paperQuality || null,
       laminationType: req.body.laminationType || null,
@@ -371,11 +386,19 @@ export const createOrder = async (req, res) => {
     };
 
     const order = new Order(orderData);
-
     await order.save();
+
+    // FIX 4: Increment promo usage count (CRITICAL)
+    const promoModifierIds = pricingResult.appliedModifiers
+      .filter(m => m.source === "PROMO_CODE")
+      .map(m => m.modifierId);
+
+    if (promoModifierIds.length > 0) {
+      await ModifierEngine.incrementUsage(promoModifierIds);
+    }
     await order.populate({
       path: "product",
-      select: "name image basePrice subcategory options discount description instructions attributes minFileWidth maxFileWidth minFileHeight maxFileHeight filters gstPercentage additionalDesignCharge productionSequence",
+      select: "name image subcategory options discount description instructions attributes minFileWidth maxFileWidth minFileHeight maxFileHeight filters gstPercentage additionalDesignCharge productionSequence",
       populate: [
         { path: "subcategory", select: "name" },
         { path: "productionSequence", select: "name sequence" }
@@ -396,7 +419,6 @@ export const createOrder = async (req, res) => {
     console.error("Error name:", error.name);
     console.error("Error message:", error.message);
     console.error("Error stack:", error.stack);
-    
     if (error.name === 'ValidationError') {
       console.error("Validation errors:", error.errors);
       const validationDetails = Object.keys(error.errors).map(key => ({
@@ -404,25 +426,25 @@ export const createOrder = async (req, res) => {
         message: error.errors[key].message
       }));
       console.error("Validation details:", validationDetails);
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: "Validation error",
         details: validationDetails
       });
     }
     if (error.name === 'MongoServerError' && error.code === 11000) {
       console.error("Duplicate key error:", error.keyValue);
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: "Duplicate order number. Please try again."
       });
     }
     if (error.name === 'CastError') {
       console.error("Cast error:", error.path, error.value);
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: `Invalid value for field: ${error.path}`,
         details: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
     }
-    res.status(500).json({ 
+    res.status(500).json({
       error: "Failed to create order.",
       details: process.env.NODE_ENV === 'development' ? error.message : undefined,
       errorType: error.name
@@ -445,11 +467,11 @@ export const createOrderWithAccount = async (req, res) => {
       shape,
       selectedOptions,
       selectedDynamicAttributes,
-      totalPrice,
       pincode,
       address,
       uploadedDesign,
       notes,
+      promoCodes,  // NEW: Promo code support
       // Payment information
       advancePaid,
       paymentStatus,
@@ -468,9 +490,9 @@ export const createOrderWithAccount = async (req, res) => {
       });
     }
 
-    if (!productId || !quantity || !finish || !shape || !totalPrice || !pincode || !address) {
+    if (!productId || !quantity || !finish || !shape || !pincode || !address) {
       return res.status(400).json({
-        error: "Missing required order fields: productId, quantity, finish, shape, totalPrice, pincode, address",
+        error: "Missing required order fields: productId, quantity, finish, shape, pincode, address",
       });
     }
 
@@ -482,7 +504,6 @@ export const createOrderWithAccount = async (req, res) => {
     if (!user) {
       // Generate a random password
       tempPassword = Math.random().toString(36).slice(-12) + Math.random().toString(36).slice(-12).toUpperCase() + "!@#";
-      
       // Hash password
       const hashed = await bcrypt.hash(tempPassword, 10);
 
@@ -509,7 +530,6 @@ export const createOrderWithAccount = async (req, res) => {
     let processedDesign = null;
     if (uploadedDesign) {
       processedDesign = {};
-      
       if (uploadedDesign.frontImage && uploadedDesign.frontImage.data) {
         try {
           let base64Data = uploadedDesign.frontImage.data;
@@ -522,7 +542,6 @@ export const createOrderWithAccount = async (req, res) => {
           if (!base64Data || base64Data.trim().length === 0) {
             return res.status(400).json({ error: "Front image data is empty." });
           }
-          
           const imageBuffer = Buffer.from(base64Data, "base64");
           const cmykBuffer = await sharp(imageBuffer)
             .toColourspace("cmyk")
@@ -531,7 +550,6 @@ export const createOrderWithAccount = async (req, res) => {
               chromaSubsampling: '4:4:4'
             })
             .toBuffer();
-          
           processedDesign.frontImage = {
             data: cmykBuffer,
             contentType: "image/jpeg",
@@ -539,7 +557,7 @@ export const createOrderWithAccount = async (req, res) => {
           };
         } catch (err) {
           console.error("Error processing front image:", err);
-          return res.status(400).json({ 
+          return res.status(400).json({
             error: "Invalid front image data format or conversion failed.",
             details: process.env.NODE_ENV === 'development' ? err.message : undefined
           });
@@ -547,7 +565,6 @@ export const createOrderWithAccount = async (req, res) => {
       } else {
         return res.status(400).json({ error: "Front image is required." });
       }
-      
       if (uploadedDesign.backImage && uploadedDesign.backImage.data) {
         try {
           let base64Data = uploadedDesign.backImage.data;
@@ -566,7 +583,6 @@ export const createOrderWithAccount = async (req, res) => {
                   chromaSubsampling: '4:4:4'
                 })
                 .toBuffer();
-              
               processedDesign.backImage = {
                 data: cmykBuffer,
                 contentType: "image/jpeg",
@@ -658,7 +674,6 @@ export const createOrderWithAccount = async (req, res) => {
                         if (base64Data && base64Data.trim().length > 0) {
                           // Convert base64 to Buffer
                           const imageBuffer = Buffer.from(base64Data, "base64");
-                          
                           // Convert image to CMYK format using sharp (same as design images)
                           const cmykBuffer = await sharp(imageBuffer)
                             .toColourspace("cmyk")
@@ -667,7 +682,6 @@ export const createOrderWithAccount = async (req, res) => {
                               chromaSubsampling: '4:4:4'
                             })
                             .toBuffer();
-                          
                           processedUploadedImages.push({
                             data: cmykBuffer,
                             contentType: "image/jpeg",
@@ -681,7 +695,6 @@ export const createOrderWithAccount = async (req, res) => {
                     }
                   }
                 }
-                
                 if (Array.isArray(selectedValueDetails)) {
                   const labels = selectedValueDetails.map((sv) => sv.label || sv.value).join(", ");
                   const totalPriceMultiplier = selectedValueDetails.reduce((sum, sv) => sum + (sv.priceMultiplier || 0), 0);
@@ -727,7 +740,22 @@ export const createOrderWithAccount = async (req, res) => {
       }
     }
 
-    // Create order
+    // Calculate pricing using PricingService (NEW)
+    const pricingResult = await PricingService.resolvePrice({
+      userId: user._id.toString(),
+      productId,
+      pincode,
+      selectedDynamicAttributes: processedDynamicAttributes.map(attr => ({
+        attributeType: attr.attributeTypeId,
+        pricingKey: attr.pricingKey || `${attr.attributeName}_${attr.attributeValue}`,
+        value: attr.attributeValue,
+        attributeName: attr.attributeName,
+      })),
+      quantity: parseInt(quantity),
+      promoCodes: promoCodes || [],
+    });
+
+    // Create order with immutable priceSnapshot
     const orderData = {
       user: user._id,
       orderNumber: orderNumber,
@@ -737,7 +765,18 @@ export const createOrderWithAccount = async (req, res) => {
       shape,
       selectedOptions: enhancedSelectedOptions,
       selectedDynamicAttributes: processedDynamicAttributes,
-      totalPrice: parseFloat(totalPrice),
+      priceSnapshot: {
+        basePrice: pricingResult.basePrice,
+        unitPrice: pricingResult.basePrice,
+        quantity: pricingResult.quantity,
+        appliedModifiers: pricingResult.appliedModifiers,
+        subtotal: pricingResult.subtotal,
+        gstPercentage: pricingResult.gstPercentage,
+        gstAmount: pricingResult.gstAmount,
+        totalPayable: pricingResult.totalPayable,
+        currency: pricingResult.currency,
+        calculatedAt: pricingResult.calculatedAt,
+      },
       pincode,
       address,
       mobileNumber,
@@ -756,10 +795,19 @@ export const createOrderWithAccount = async (req, res) => {
 
     const order = new Order(orderData);
     await order.save();
-    
+
+    // FIX 4: Increment promo usage count (CRITICAL)
+    const promoModifierIds = pricingResult.appliedModifiers
+      .filter(m => m.source === "PROMO_CODE")
+      .map(m => m.modifierId);
+
+    if (promoModifierIds.length > 0) {
+      await ModifierEngine.incrementUsage(promoModifierIds);
+    }
+
     await order.populate({
       path: "product",
-      select: "name image basePrice subcategory options discount description instructions attributes minFileWidth maxFileWidth minFileHeight maxFileHeight filters gstPercentage additionalDesignCharge productionSequence",
+      select: "name image subcategory options discount description instructions attributes minFileWidth maxFileWidth minFileHeight maxFileHeight filters gstPercentage additionalDesignCharge productionSequence",
       populate: [
         { path: "subcategory", select: "name" },
         { path: "productionSequence", select: "name sequence" }
@@ -806,29 +854,28 @@ export const createOrderWithAccount = async (req, res) => {
     });
   } catch (error) {
     console.error("Create order with account error:", error);
-    
     if (error.name === 'ValidationError') {
       const validationDetails = Object.keys(error.errors).map(key => ({
         field: key,
         message: error.errors[key].message
       }));
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: "Validation error",
         details: validationDetails
       });
     }
     if (error.name === 'MongoServerError' && error.code === 11000) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: "Email already registered or duplicate order number. Please try again."
       });
     }
     if (error.name === 'CastError') {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: `Invalid value for field: ${error.path}`,
         details: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
     }
-    res.status(500).json({ 
+    res.status(500).json({
       error: "Failed to create order.",
       details: process.env.NODE_ENV === 'development' ? error.message : undefined,
       errorType: error.name
@@ -841,7 +888,6 @@ export const getSingleOrder = async (req, res) => {
   try {
     const { orderId } = req.params;
     const userId = req.user.id;
-    
     // Validate orderId is a valid ObjectId
     if (!orderId || !/^[0-9a-fA-F]{24}$/.test(orderId)) {
       return res.status(400).json({ error: "Invalid order ID format." });
@@ -852,8 +898,8 @@ export const getSingleOrder = async (req, res) => {
       .populate({
         path: "product",
         select: "name image basePrice subcategory options discount description instructions attributes minFileWidth maxFileWidth minFileHeight maxFileHeight filters gstPercentage additionalDesignCharge maxFileSizeMB",
-        populate: { 
-          path: "subcategory", 
+        populate: {
+          path: "subcategory",
           select: "name image",
           populate: {
             path: "category",
@@ -867,14 +913,6 @@ export const getSingleOrder = async (req, res) => {
         select: "name sequence",
       })
       .populate({
-        path: "departmentStatuses.department",
-        select: "name sequence",
-      })
-      .populate({
-        path: "departmentStatuses.operator",
-        select: "name email",
-      })
-      .populate({
         path: "designerAssigned",
         select: "name email",
       })
@@ -886,14 +924,7 @@ export const getSingleOrder = async (req, res) => {
         path: "designTimeline.operator",
         select: "name email",
       })
-      .populate({
-        path: "productionTimeline.operator",
-        select: "name email",
-      })
-      .populate({
-        path: "productionTimeline.department",
-        select: "name",
-      })
+      // Note: departmentStatuses and productionTimeline fields removed from schema per user request
       .lean(); // Use lean() for faster queries - returns plain JavaScript objects
 
     if (!order) {
@@ -950,8 +981,8 @@ export const getMyOrders = async (req, res) => {
       .populate({
         path: "product",
         select: "name image basePrice subcategory gstPercentage", // Minimal product fields
-        populate: { 
-          path: "subcategory", 
+        populate: {
+          path: "subcategory",
           select: "name image",
           populate: {
             path: "category",
@@ -962,14 +993,6 @@ export const getMyOrders = async (req, res) => {
       .populate({
         path: "currentDepartment",
         select: "name sequence",
-      })
-      .populate({
-        path: "departmentStatuses.department",
-        select: "name sequence",
-      })
-      .populate({
-        path: "departmentStatuses.operator",
-        select: "name email",
       })
       .sort({ createdAt: -1 })
       .limit(limit)
@@ -1001,20 +1024,11 @@ export const getAllOrders = async (req, res) => {
         path: "currentDepartment",
         select: "name sequence",
       })
-      .populate({
-        path: "departmentStatuses.department",
-        select: "name sequence",
-      })
-      .populate({
-        path: "departmentStatuses.operator",
-        select: "name email",
-      })
       .sort({ createdAt: -1 });
 
     // Convert uploaded design buffers to base64 for frontend
     const ordersWithImages = orders.map((order) => {
       const orderObj = order.toObject();
-      
       if (order.uploadedDesign?.frontImage?.data) {
         orderObj.uploadedDesign.frontImage.data = `data:${order.uploadedDesign.frontImage.contentType};base64,${order.uploadedDesign.frontImage.data.toString("base64")}`;
       }
@@ -1067,9 +1081,9 @@ export const updateOrderStatus = async (req, res) => {
     if (adminNotes !== undefined) order.adminNotes = adminNotes;
 
     // If admin approves order (request -> approved) or starts production (production_ready -> approved), send to first department
-    if ((previousStatus === "request" && (status === "approved" || status === "processing")) || 
-        (previousStatus === "production_ready" && status === "approved") ||
-        action === "start_production") {
+    if ((previousStatus === "request" && (status === "approved" || status === "processing")) ||
+      (previousStatus === "production_ready" && status === "approved") ||
+      action === "start_production") {
       // Set status to "approved" (not "processing" yet - processing starts when first dept starts)
       if (status === "processing") {
         order.status = "approved";
@@ -1087,9 +1101,9 @@ export const updateOrderStatus = async (req, res) => {
       let departmentsToUse = [];
       if (product.productionSequence && product.productionSequence.length > 0) {
         const deptIds = product.productionSequence.map(dept => typeof dept === 'object' ? dept._id : dept);
-        const departments = await Department.find({ 
+        const departments = await Department.find({
           _id: { $in: deptIds },
-          isEnabled: true 
+          isEnabled: true
         });
         // Create a map for O(1) lookup instead of O(n) find
         const deptMap = new Map(departments.map(d => [d._id.toString(), d]));
@@ -1107,7 +1121,6 @@ export const updateOrderStatus = async (req, res) => {
       if (departmentsToUse.length > 0) {
         const firstDept = departmentsToUse[0];
         const now = new Date();
-        
         // Initialize departmentStatuses array if it doesn't exist
         if (!order.departmentStatuses) {
           order.departmentStatuses = [];
@@ -1175,10 +1188,10 @@ export const updateOrderStatus = async (req, res) => {
     if (order.productionTimeline && order.productionTimeline.length > 0) {
       order.markModified('productionTimeline');
     }
-    
+
     // Save the order
     await order.save();
-    
+
     await order.populate({
       path: "product",
       select: "name image basePrice subcategory options discount description instructions attributes minFileWidth maxFileWidth minFileHeight maxFileHeight filters gstPercentage additionalDesignCharge productionSequence",

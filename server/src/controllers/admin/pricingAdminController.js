@@ -57,7 +57,17 @@ export const createPriceBook = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Price book name is required' });
         }
 
-        // If setting as default, unset others
+        // ⚠️ IMPORTANT: Only ONE Master book can exist
+        // If setting as master, unset all other master books
+        if (isMaster) {
+            const existingMaster = await PriceBook.findOne({ isMaster: true });
+            if (existingMaster) {
+                console.log(`⚠️ Unmarking previous master: ${existingMaster.name}`);
+                await PriceBook.updateMany({}, { isMaster: false });
+            }
+        }
+
+        // If setting as default, unset others (legacy - no longer used in UI)
         if (isDefault) {
             await PriceBook.updateMany({}, { isDefault: false });
         }
@@ -78,6 +88,9 @@ export const createPriceBook = async (req, res) => {
         };
 
         const priceBook = await PriceBook.create(priceBookData);
+
+        console.log(`✅ Created price book: ${priceBook.name} (Master: ${priceBook.isMaster})`);
+
         res.json({ success: true, priceBook });
     } catch (error) {
         console.error('Create price book error:', error);
@@ -104,6 +117,13 @@ export const updatePriceBook = async (req, res) => {
             isActive
         } = req.body;
 
+        // ⚠️ IMPORTANT: Only ONE Master book can exist
+        // If setting as master, unset all OTHER master books
+        if (isMaster) {
+            await PriceBook.updateMany({ _id: { $ne: id } }, { isMaster: false });
+        }
+
+        // If setting as default, unset others (legacy)
         if (isDefault) {
             await PriceBook.updateMany({ _id: { $ne: id } }, { isDefault: false });
         }
@@ -137,6 +157,8 @@ export const updatePriceBook = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Price book not found' });
         }
 
+        console.log(`✅ Updated price book: ${priceBook.name} (Master: ${priceBook.isMaster})`);
+
         res.json({ success: true, priceBook });
     } catch (error) {
         console.error('Update price book error:', error);
@@ -153,17 +175,110 @@ export const deletePriceBook = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Price book not found' });
         }
 
+        // ⚠️ Prevent deletion of Master book
+        if (priceBook.isMaster) {
+            return res.status(400).json({
+                success: false,
+                message: 'Cannot delete Master price book. Create a new Master first, then delete this one.'
+            });
+        }
+
+        // Legacy: Prevent deletion of default book (only if no master exists)
         if (priceBook.isDefault) {
-            return res.status(400).json({ success: false, message: 'Cannot delete default price book' });
+            const masterExists = await PriceBook.findOne({ isMaster: true, _id: { $ne: id }, isActive: true });
+            if (!masterExists) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Cannot delete default price book - please create a Master price book first'
+                });
+            }
+            // Master exists, allow deletion of legacy default book
+            console.log(`📝 Allowing deletion of legacy default book because Master exists`);
         }
 
         // Delete all entries associated with this price book
         await PriceBookEntry.deleteMany({ priceBook: id });
         await PriceBook.findByIdAndDelete(id);
 
+        console.log(`🗑️ Deleted price book: ${priceBook.name}`);
+
         res.json({ success: true, message: 'Price book deleted' });
     } catch (error) {
         console.error('Delete price book error:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+/**
+ * Copy a price book with all its entries
+ * POST /api/admin/price-books/:id/copy
+ */
+export const copyPriceBook = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { name } = req.body;
+
+        if (!name || name.trim() === '') {
+            return res.status(400).json({
+                success: false,
+                message: 'Name for the copied price book is required'
+            });
+        }
+
+        // Find the source price book
+        const sourcePriceBook = await PriceBook.findById(id);
+        if (!sourcePriceBook) {
+            return res.status(404).json({ success: false, message: 'Source price book not found' });
+        }
+
+        // Create the new price book (copy all fields except _id, isMaster, isDefault)
+        const newPriceBookData = {
+            name: name.trim(),
+            currency: sourcePriceBook.currency,
+            zone: sourcePriceBook.zone,
+            segment: sourcePriceBook.segment,
+            parentBook: sourcePriceBook.parentBook,
+            isOverride: sourcePriceBook.isOverride,
+            overridePriority: sourcePriceBook.overridePriority,
+            description: `Copied from: ${sourcePriceBook.name}`,
+            isVirtual: sourcePriceBook.isVirtual,
+            calculationLogic: sourcePriceBook.calculationLogic,
+            isActive: true,
+            isMaster: false, // Never copy as master
+            isDefault: false // Never copy as default
+        };
+
+        const newPriceBook = await PriceBook.create(newPriceBookData);
+
+        // Copy all entries from the source price book
+        const sourceEntries = await PriceBookEntry.find({ priceBook: id });
+        let entriesCopied = 0;
+
+        for (const entry of sourceEntries) {
+            await PriceBookEntry.create({
+                priceBook: newPriceBook._id,
+                product: entry.product,
+                basePrice: entry.basePrice,
+                compareAtPrice: entry.compareAtPrice,
+                isActive: entry.isActive
+            });
+            entriesCopied++;
+        }
+
+        console.log(`📋 Copied price book: ${sourcePriceBook.name} → ${newPriceBook.name} (${entriesCopied} entries)`);
+
+        // Populate and return the new price book
+        await newPriceBook.populate('zone', 'name');
+        await newPriceBook.populate('segment', 'name');
+
+        res.json({
+            success: true,
+            priceBook: newPriceBook,
+            entriesCopied,
+            message: `Successfully copied ${entriesCopied} product prices`
+        });
+    } catch (error) {
+        console.error('Copy price book error:', error);
         res.status(500).json({ success: false, message: error.message });
     }
 };

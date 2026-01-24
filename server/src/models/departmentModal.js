@@ -22,14 +22,53 @@ const DepartmentSchema = new mongoose.Schema(
         ref: "User",
       },
     ],
-    createdAt: {
-      type: Date,
-      default: Date.now,
+
+    /* =====================
+       NEW FIELDS - Production Workflow Control
+    ====================== */
+    sequenceOrder: {
+      type: Number,
+      default: 0,
     },
-    updatedAt: {
-      type: Date,
-      default: Date.now,
+
+    canStart: {
+      type: Boolean,
+      default: true,
     },
+
+    canPause: {
+      type: Boolean,
+      default: true,
+    },
+
+    canStop: {
+      type: Boolean,
+      default: true,
+    },
+
+    defaultDuration: {
+      type: Number, // in minutes
+    },
+
+    requiredOperators: {
+      type: Number,
+      default: 1,
+      min: 1,
+    },
+
+    equipment: [
+      {
+        type: String,
+        trim: true,
+      },
+    ],
+
+    checklist: [
+      {
+        type: String,
+        trim: true,
+      },
+    ],
   },
   { timestamps: true }
 );

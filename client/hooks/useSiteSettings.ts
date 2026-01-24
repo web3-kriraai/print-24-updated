@@ -25,6 +25,7 @@ interface FontSettings {
 }
 
 interface SiteSettings {
+    _id?: string;
     logo: string;
     siteName: string;
     tagline: string;
@@ -32,105 +33,156 @@ interface SiteSettings {
     fontSettings?: FontSettings;
 }
 
-const DEFAULT_SCROLL_SETTINGS: ScrollSettings = {
-    autoScrollEnabled: true,
-    autoScrollInterval: 3000,
-    inactivityTimeout: 6000,
-    smoothScrollEnabled: true,
-    stickyNavEnabled: true,
-    scrollToTopOnNavClick: true
-};
-
-const DEFAULT_FONT_SETTINGS: FontSettings = {
-    navbarNameFontSize: '14px',
-    navbarNameFontWeight: '600',
-    cardIntroFontSize: '12px',
-    cardIntroFontWeight: '400',
-    cardTitleFontSize: '24px',
-    cardTitleFontWeight: '700',
-    cardDescFontSize: '14px',
-    cardDescFontWeight: '400'
-};
-
-const DEFAULT_SETTINGS: SiteSettings = {
-    logo: '/logo.svg',
-    siteName: 'Prints24',
-    tagline: 'Premium Gifting, Printing & Packaging Solutions',
-    scrollSettings: DEFAULT_SCROLL_SETTINGS,
-    fontSettings: DEFAULT_FONT_SETTINGS
-};
-
-export const useSiteSettings = () => {
-    const [settings, setSettings] = useState<SiteSettings>(DEFAULT_SETTINGS);
+// Hook to fetch and use logo
+export const useLogo = () => {
+    const [logo, setLogo] = useState<string>('/logo.svg');
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-
-    const fetchSettings = async () => {
-        try {
-            setLoading(true);
-            const response = await fetch(`${API_BASE_URL_WITH_API}/site-settings`);
-            if (response.ok) {
-                const data = await response.json();
-                setSettings({
-                    logo: data.logo || DEFAULT_SETTINGS.logo,
-                    siteName: data.siteName || DEFAULT_SETTINGS.siteName,
-                    tagline: data.tagline || DEFAULT_SETTINGS.tagline,
-                    scrollSettings: {
-                        ...DEFAULT_SCROLL_SETTINGS,
-                        ...data.scrollSettings
-                    },
-                    fontSettings: {
-                        ...DEFAULT_FONT_SETTINGS,
-                        ...data.fontSettings
-                    }
-                });
-            }
-        } catch (err) {
-            console.error('Error fetching site settings:', err);
-            setError(err instanceof Error ? err.message : 'Failed to fetch settings');
-            // Keep default settings on error
-        } finally {
-            setLoading(false);
-        }
-    };
 
     useEffect(() => {
+        const fetchLogo = async () => {
+            try {
+                const response = await fetch(`${API_BASE_URL_WITH_API}/site-settings`);
+                if (response.ok) {
+                    const data: SiteSettings = await response.json();
+                    setLogo(data.logo || '/logo.svg');
+                }
+            } catch (error) {
+                console.error('Error fetching logo:', error);
+                // Use default logo on error
+                setLogo('/logo.svg');
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchLogo();
+    }, []);
+
+    return { logo, loading };
+};
+
+// Hook to fetch and use scroll settings
+export const useScrollSettings = () => {
+    const [scrollSettings, setScrollSettings] = useState<ScrollSettings>({
+        autoScrollEnabled: true,
+        autoScrollInterval: 3000,
+        inactivityTimeout: 6000,
+        smoothScrollEnabled: true,
+        stickyNavEnabled: true,
+        scrollToTopOnNavClick: true,
+        pageAutoScrollEnabled: true,
+        pageAutoScrollDelay: 2000,
+        pageAutoScrollAmount: 250,
+    });
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchScrollSettings = async () => {
+            try {
+                const response = await fetch(`${API_BASE_URL_WITH_API}/site-settings`);
+                if (response.ok) {
+                    const data: SiteSettings = await response.json();
+                    if (data.scrollSettings) {
+                        setScrollSettings(data.scrollSettings);
+                    }
+                }
+            } catch (error) {
+                console.error('Error fetching scroll settings:', error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchScrollSettings();
+    }, []);
+
+    return { scrollSettings, loading };
+};
+
+// Hook to fetch and use font settings
+export const useFontSettings = () => {
+    const [fontSettings, setFontSettings] = useState<FontSettings>({
+        navbarNameFontSize: '14px',
+        navbarNameFontWeight: '600',
+        cardIntroFontSize: '12px',
+        cardIntroFontWeight: '400',
+        cardTitleFontSize: '24px',
+        cardTitleFontWeight: '700',
+        cardDescFontSize: '14px',
+        cardDescFontWeight: '400',
+    });
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchFontSettings = async () => {
+            try {
+                const response = await fetch(`${API_BASE_URL_WITH_API}/site-settings`);
+                if (response.ok) {
+                    const data: SiteSettings = await response.json();
+                    if (data.fontSettings) {
+                        setFontSettings(data.fontSettings);
+                    }
+                }
+            } catch (error) {
+                console.error('Error fetching font settings:', error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchFontSettings();
+    }, []);
+
+    return { fontSettings, loading };
+};
+
+// Hook to fetch all site settings
+export const useSiteSettings = () => {
+    const [settings, setSettings] = useState<SiteSettings>({
+        logo: '/logo.svg',
+        siteName: 'Prints24',
+        tagline: 'Premium Gifting, Printing & Packaging Solutions',
+        scrollSettings: {
+            autoScrollEnabled: true,
+            autoScrollInterval: 3000,
+            inactivityTimeout: 6000,
+            smoothScrollEnabled: true,
+            stickyNavEnabled: true,
+            scrollToTopOnNavClick: true,
+            pageAutoScrollEnabled: true,
+            pageAutoScrollDelay: 2000,
+            pageAutoScrollAmount: 250,
+        },
+        fontSettings: {
+            navbarNameFontSize: '14px',
+            navbarNameFontWeight: '600',
+            cardIntroFontSize: '12px',
+            cardIntroFontWeight: '400',
+            cardTitleFontSize: '24px',
+            cardTitleFontWeight: '700',
+            cardDescFontSize: '14px',
+            cardDescFontWeight: '400',
+        },
+    });
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchSettings = async () => {
+            try {
+                const response = await fetch(`${API_BASE_URL_WITH_API}/site-settings`);
+                if (response.ok) {
+                    const data: SiteSettings = await response.json();
+                    setSettings(data);
+                }
+            } catch (error) {
+                console.error('Error fetching site settings:', error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
         fetchSettings();
     }, []);
 
-    return {
-        settings,
-        loading,
-        error,
-        refetch: fetchSettings
-    };
+    return { settings, loading };
 };
-
-// Simple hook to just get the logo URL with fallback
-export const useLogo = () => {
-    const { settings, loading } = useSiteSettings();
-    return {
-        logo: settings.logo || '/logo.svg',
-        loading
-    };
-};
-
-// Hook to get scroll settings
-export const useScrollSettings = () => {
-    const { settings, loading } = useSiteSettings();
-    return {
-        scrollSettings: settings.scrollSettings || DEFAULT_SCROLL_SETTINGS,
-        loading
-    };
-};
-
-// Hook to get font settings
-export const useFontSettings = () => {
-    const { settings, loading } = useSiteSettings();
-    return {
-        fontSettings: settings.fontSettings || DEFAULT_FONT_SETTINGS,
-        loading
-    };
-};
-
-export default useSiteSettings;

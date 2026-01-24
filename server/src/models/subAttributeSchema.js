@@ -18,6 +18,18 @@ const SubAttributeSchema = new mongoose.Schema(
 
     image: String,
 
+    /* =======================
+       PRICING ENGINE BRIDGE
+       (USED ONLY FOR LEAF)
+    ======================= */
+    pricingKey: {
+      type: String,
+      required: true,
+      uppercase: true,
+      trim: true,
+      index: true,
+    },
+
     priceAdd: {
       type: Number,
       default: 0,
@@ -34,6 +46,14 @@ const SubAttributeSchema = new mongoose.Schema(
     },
   },
   { timestamps: true }
+);
+
+/* =======================
+   PREVENT DUPLICATES
+======================= */
+SubAttributeSchema.index(
+  { parentAttribute: 1, parentValue: 1, value: 1 },
+  { unique: true }
 );
 
 export default mongoose.model("SubAttribute", SubAttributeSchema);

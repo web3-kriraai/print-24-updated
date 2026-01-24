@@ -13,6 +13,9 @@ const createTransporter = () => {
       user: process.env.EMAIL_USER,
       pass: process.env.EMAIL_PASSWORD, // App-specific password for Gmail
     },
+    tls: {
+      rejectUnauthorized: false // Accept self-signed certificates (for development)
+    }
   });
 };
 
@@ -195,3 +198,66 @@ export const sendOrderConfirmationEmail = async (userEmail, userName, orderNumbe
 };
 
 
+
+// Send OTP email
+export const sendOtpEmail = async (userEmail, otp) => {
+  try {
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASSWORD) {
+      console.warn("Email credentials not configured. Skipping email send.");
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`[DEV MODE] OTP for ${userEmail}: ${otp}`);
+      }
+      return;
+    }
+
+    const transporter = createTransporter();
+
+    const mailOptions = {
+      from: `"${process.env.EMAIL_FROM_NAME || 'Print24'}" <${process.env.EMAIL_USER}>`,
+      to: userEmail,
+      subject: "Your OTP for Print24",
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <style>
+            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; background-color: #f4f4f4; margin: 0; padding: 0; }
+            .container { max-width: 500px; margin: 30px auto; background-color: #ffffff; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+            .header { background: linear-gradient(135deg, #8B7355 0%, #6e5b42 100%); color: white; padding: 30px; text-align: center; }
+            .header h1 { margin: 0; font-size: 24px; font-weight: 600; }
+            .content { padding: 40px 30px; text-align: center; }
+            .otp-box { background-color: #f8f5f2; border: 2px dashed #8B7355; border-radius: 12px; padding: 20px; margin: 30px 0; font-size: 32px; font-weight: bold; color: #8B7355; letter-spacing: 5px; }
+            .message { font-size: 16px; color: #666; margin-bottom: 20px; }
+            .expiry { font-size: 14px; color: #999; margin-top: 20px; }
+            .footer { background-color: #f8f8f8; padding: 20px; text-align: center; font-size: 12px; color: #888; border-top: 1px solid #eeeeee; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1>Verification Code</h1>
+            </div>
+            <div class="content">
+              <p class="message">Please use the following One Time Password (OTP) to complete your action. Do not share this code with anyone.</p>
+              <div class="otp-box">${otp}</div>
+              <p class="expiry">This code is valid for 10 minutes.</p>
+            </div>
+            <div class="footer">
+              <p>This is an automated message, please do not reply.</p>
+              <p>&copy; ${new Date().getFullYear()} Print24. All rights reserved.</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `,
+      text: `Your OTP for Print24 is: ${otp}. This code is valid for 10 minutes. Do not share this code with anyone.`
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+    console.log("OTP email sent:", info.messageId);
+    return { success: true, messageId: info.messageId };
+  } catch (error) {
+    console.error("Error sending OTP email:", error);
+    return { success: false, error: error.message };
+  }
+};

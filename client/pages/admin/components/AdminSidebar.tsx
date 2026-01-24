@@ -6,6 +6,7 @@ import {
     Package,
     ShoppingBag,
     Users,
+    UserPlus,
     Building2,
     Settings,
     FileText,
@@ -16,6 +17,7 @@ import {
     LayoutDashboard,
     Star,
     Layers,
+    DollarSign,
 } from 'lucide-react';
 import { useLogo } from '../../../hooks/useSiteSettings';
 
@@ -71,6 +73,15 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ activeTab, onTabChange }) =
             ],
         },
         {
+            id: 'requests',
+            label: 'Partner Requests',
+            icon: <UserPlus size={20} />,
+            subItems: [
+                { id: 'print-partner-requests', label: 'Print Partner' },
+                { id: 'corporate-requests', label: 'Corporate' },
+            ],
+        },
+        {
             id: 'production',
             label: 'Production',
             icon: <Building2 size={20} />,
@@ -87,6 +98,20 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ activeTab, onTabChange }) =
                 { id: 'attribute-types', label: 'Attribute Types' },
                 { id: 'attribute-rules', label: 'Attribute Rules' },
                 { id: 'sub-attributes', label: 'Sub-Attributes' },
+            ],
+        },
+        {
+            id: 'pricing',
+            label: 'Pricing',
+            icon: <DollarSign size={20} />,
+            subItems: [
+                { id: 'price-books', label: 'Price Books' },
+                { id: 'geo-zones', label: 'Geo Zones' },
+                { id: 'user-segments', label: 'User Segments' },
+                { id: 'product-availability', label: 'Product Availability' },
+                { id: 'pricing-audit-log', label: 'Audit Log' },
+                { id: 'smart-view', label: 'Smart View' },
+                { id: 'price-modifiers', label: 'Price Modifiers' },
             ],
         },
         {

@@ -5,6 +5,7 @@ const AttributeRuleSchema = new mongoose.Schema(
     name: {
       type: String,
       required: true,
+      trim: true,
     },
 
     // WHEN condition
@@ -39,7 +40,18 @@ const AttributeRuleSchema = new mongoose.Schema(
         defaultValue: String,    // for SET_DEFAULT
         minQuantity: Number,     // for QUANTITY
         maxQuantity: Number,     // for QUANTITY
-        stepQuantity: Number     // for QUANTITY (multiples)
+        stepQuantity: Number,
+        pricingSignal: {
+          pricingKey: String,
+          scope: {
+            type: String,
+            enum: ["GLOBAL", "ZONE", "SEGMENT", "PRODUCT", "ATTRIBUTE"],
+          },
+          priority: {
+            type: Number,
+            default: 0,
+          },
+        },    
       }
     ],
 
@@ -55,6 +67,19 @@ const AttributeRuleSchema = new mongoose.Schema(
       required: false,
     },
 
+    applicableUserSegments: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "UserSegment",
+      },
+    ],
+    applicableGeoZones: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "GeoZone",
+      },
+    ],
+
     priority: {
       type: Number,
       default: 0,
@@ -67,5 +92,10 @@ const AttributeRuleSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
-
+AttributeRuleSchema.index({ priority: -1 });
+AttributeRuleSchema.index({ applicableCategory: 1 });
+AttributeRuleSchema.index({ applicableProduct: 1 });
+AttributeRuleSchema.index({ applicableUserSegments: 1 });
+AttributeRuleSchema.index({ applicableGeoZones: 1 });
+AttributeRuleSchema.index({ isActive: 1 });
 export default mongoose.model("AttributeRule", AttributeRuleSchema);

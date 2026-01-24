@@ -2,7 +2,7 @@
 import { getAuthHeaders } from "../utils/auth";
 import { useClientOnly } from "../hooks/useClientOnly";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import BackButton from "../components/BackButton";
+
 import toast from "react-hot-toast";
 import {
   Package,
@@ -64,6 +64,17 @@ import ManageSubAttributes from "./admin/components/attributes/ManageSubAttribut
 import AboutManagement from "./admin/components/AboutManagement";
 import ServiceManagement from "./admin/components/services/ServiceManagement";
 import SiteSettingsManagement from "./admin/components/SiteSettingsManagement";
+import CorporatePartnerRequestsAdmin from "../components/CorporatePartnerRequestsAdmin";
+import PrintPartnerRequestsAdmin from "../components/PrintPartnerRequestsAdmin";
+
+// Pricing Management
+import GeoZoneManager from "../components/admin/pricing/GeoZoneManager";
+import PriceBookManager from "../components/admin/pricing/PriceBookManager";
+import UserSegmentManager from "../components/admin/pricing/UserSegmentManager";
+import ProductAvailabilityManager from "../components/admin/pricing/ProductAvailabilityManager";
+import PricingAuditLog from "../components/admin/pricing/PricingAuditLog";
+import SmartViewMatrix from "../src/components/admin/SmartViewMatrix";
+import { ModifierRuleBuilder } from "../components/admin/pricing/ModifierRuleBuilder";
 
 // Simple placeholder image as data URI (1x1 transparent pixel)
 const PLACEHOLDER_IMAGE = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150'%3E%3Crect width='150' height='150' fill='%23f5f5f5'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='%23999' font-family='sans-serif' font-size='14'%3ENo Image%3C/text%3E%3C/svg%3E";
@@ -529,32 +540,10 @@ const AdminDashboard: React.FC = () => {
 
   // Users state moved to ManageUsers component
 
-  // Print Partner Requests state
-  interface PrintPartnerRequest {
-    _id: string;
-    businessName: string;
-    ownerName: string;
-    mobileNumber: string;
-    whatsappNumber: string;
-    emailAddress: string;
-    gstNumber?: string;
-    fullBusinessAddress: string;
-    city: string;
-    state: string;
-    pincode: string;
-    proofFileUrl: string;
-    status: "pending" | "approved" | "rejected";
-    approvedBy?: { _id: string; name: string; email: string };
-    approvedAt?: string;
-    rejectionReason?: string;
-    userId?: { _id: string; name: string; email: string; mobileNumber: string };
-    createdAt: string;
-    updatedAt: string;
-  }
-  const [printPartnerRequests, setPrintPartnerRequests] = useState<PrintPartnerRequest[]>([]);
-  const [printPartnerRequestFilter, setPrintPartnerRequestFilter] = useState<"all" | "pending" | "approved" | "rejected">("all");
-  const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
-  const [rejectionReason, setRejectionReason] = useState("");
+
+
+
+  // Uploads state
   const [uploads, setUploads] = useState<Upload[]>([]);
   const [selectedUpload, setSelectedUpload] = useState<Upload | null>(null);
   const [showUploadModal, setShowUploadModal] = useState(false);
@@ -2630,88 +2619,7 @@ const AdminDashboard: React.FC = () => {
 
   // fetchUsers moved to ManageUsers component
 
-  const fetchPrintPartnerRequests = async () => {
-    try {
-      const statusParam = printPartnerRequestFilter !== "all" ? `?status=${printPartnerRequestFilter}` : "";
-      const response = await fetch(`${API_BASE_URL}/auth/print-partner-requests${statusParam}`, {
-        headers: getAuthHeaders(),
-      });
 
-      if (!response.ok) {
-        throw new Error("Failed to fetch print partner requests");
-      }
-
-      const data = await response.json();
-      if (data.success) {
-        setPrintPartnerRequests(data.requests || []);
-      }
-    } catch (err) {
-      console.error("Error fetching print partner requests:", err);
-      setError(err instanceof Error ? err.message : "Failed to fetch print partner requests");
-    }
-  };
-
-  const handleApprovePrintPartnerRequest = async (requestId: string) => {
-    if (!confirm("Are you sure you want to approve this print partner request? A user account will be created.")) {
-      return;
-    }
-
-    try {
-      const response = await fetch(`${API_BASE_URL}/auth/print-partner-requests/${requestId}/approve`, {
-        method: "POST",
-        headers: getAuthHeaders(),
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.message || "Failed to approve request");
-      }
-
-      const data = await response.json();
-      toast.success(data.message || "Request approved successfully");
-      fetchPrintPartnerRequests();
-      setSelectedRequestId(null);
-    } catch (err) {
-      console.error("Error approving request:", err);
-      toast.error(err instanceof Error ? err.message : "Failed to approve request");
-    }
-  };
-
-  const handleRejectPrintPartnerRequest = async (requestId: string) => {
-    if (!rejectionReason.trim()) {
-      toast.error("Please provide a reason for rejection");
-      return;
-    }
-
-    if (!confirm("Are you sure you want to reject this print partner request?")) {
-      return;
-    }
-
-    try {
-      const response = await fetch(`${API_BASE_URL}/auth/print-partner-requests/${requestId}/reject`, {
-        method: "POST",
-        headers: {
-          ...getAuthHeaders(),
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ rejectionReason }),
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.message || "Failed to reject request");
-      }
-
-      const data = await response.json();
-      toast.success(data.message || "Request rejected successfully");
-      fetchPrintPartnerRequests();
-      setSelectedRequestId(null);
-      setRejectionReason("");
-    } catch (err) {
-      console.error("Error rejecting request:", err);
-      toast.error(err instanceof Error ? err.message : "Failed to reject request");
-    }
-  };
 
   const fetchEmployees = async () => {
     try {
@@ -5718,8 +5626,7 @@ const AdminDashboard: React.FC = () => {
           fetchCategories();
           fetchSubCategories();
 
-        } else if (tab === "print-partner-requests") {
-          fetchPrintPartnerRequests();
+
         } else if (tab === "orders") {
           fetchOrders();
         } else if (tab === "attribute-types") {
@@ -5742,18 +5649,8 @@ const AdminDashboard: React.FC = () => {
 
       {/* Main Content Area - Adjusted for Sidebar */}
       <div className="ml-64 min-h-screen py-8">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="mb-6">
-            <BackButton fallbackPath="/" label="Back" className="text-cream-600 hover:text-cream-900 mb-4" />
-          </div>
-          <div className="mb-6 sm:mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-              <h1 className="font-serif text-2xl sm:text-3xl md:text-4xl font-bold text-cream-900 mb-2">
-              </h1>
-              <p className="text-sm sm:text-base text-cream-600">
-              </p>
-            </div>
-          </div>
+        <div className={`${["print-partner-requests", "corporate-requests", "services", "site-settings"].includes(activeTab) ? "w-full px-4 sm:px-6 lg:px-10" : "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"}`}>
+
 
           {/* 
             OLD TABS NAVIGATION - Moved to separate file for reference
@@ -5788,7 +5685,7 @@ const AdminDashboard: React.FC = () => {
           </AnimatePresence>
 
           {/* Tab Content */}
-          <div className="bg-white rounded-2xl shadow-lg p-6">
+          <div className={["services", "site-settings", "print-partner-requests", "corporate-requests"].includes(activeTab) ? "w-full" : "bg-white rounded-2xl shadow-lg p-6"}>
 
             {activeTab === "products" && (
               <AddProductForm
@@ -6460,229 +6357,9 @@ const AdminDashboard: React.FC = () => {
               )
             }
 
-            {/* Print Partner Requests Tab */}
-            {
-              activeTab === "print-partner-requests" && (
-                <div className="bg-white rounded-xl shadow-md border border-cream-200 p-6">
-                  <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                    <div>
-                      <h2 className="text-2xl font-bold text-cream-900 mb-2">
-                        Print Partner Requests
-                      </h2>
-                      <p className="text-sm text-cream-600">
-                        Review and approve print partner registration requests
-                      </p>
-                    </div>
-                    <div className="flex gap-2">
-                      <select
-                        value={printPartnerRequestFilter}
-                        onChange={(e) => {
-                          setPrintPartnerRequestFilter(e.target.value as typeof printPartnerRequestFilter);
-                          fetchPrintPartnerRequests();
-                        }}
-                        className="px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500 text-sm"
-                      >
-                        <option value="all">All Requests</option>
-                        <option value="pending">Pending</option>
-                        <option value="approved">Approved</option>
-                        <option value="rejected">Rejected</option>
-                      </select>
-                      <button
-                        onClick={fetchPrintPartnerRequests}
-                        className="px-4 py-2 bg-cream-200 text-cream-900 rounded-lg hover:bg-cream-300 transition-colors text-sm"
-                      >
-                        Refresh
-                      </button>
-                    </div>
-                  </div>
 
-                  {printPartnerRequests.length === 0 ? (
-                    <div className="text-center py-12 text-cream-600">
-                      <Briefcase size={48} className="mx-auto mb-4 opacity-50" />
-                      <p>No print partner requests found</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      {printPartnerRequests.map((request) => (
-                        <div
-                          key={request._id}
-                          className={`border - 2 rounded - lg p - 5 transition - all ${request.status === "pending"
-                            ? "border-yellow-300 bg-yellow-50"
-                            : request.status === "approved"
-                              ? "border-green-300 bg-green-50"
-                              : "border-red-300 bg-red-50"
-                            } `}
-                        >
-                          <div className="flex flex-col lg:flex-row gap-4">
-                            <div className="flex-1">
-                              <div className="flex items-start justify-between mb-3">
-                                <div>
-                                  <h3 className="text-lg font-bold text-cream-900 mb-1">
-                                    {request.businessName}
-                                  </h3>
-                                  <p className="text-sm text-cream-600">
-                                    Owner: {request.ownerName}
-                                  </p>
-                                </div>
-                                <span
-                                  className={`px - 3 py - 1 rounded - full text - xs font - semibold ${request.status === "pending"
-                                    ? "bg-yellow-200 text-yellow-800"
-                                    : request.status === "approved"
-                                      ? "bg-green-200 text-green-800"
-                                      : "bg-red-200 text-red-800"
-                                    } `}
-                                >
-                                  {request.status.toUpperCase()}
-                                </span>
-                              </div>
 
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-                                <div>
-                                  <p className="text-xs text-cream-600 mb-1">Email</p>
-                                  <p className="text-sm font-medium text-cream-900">{request.emailAddress}</p>
-                                </div>
-                                <div>
-                                  <p className="text-xs text-cream-600 mb-1">Mobile</p>
-                                  <p className="text-sm font-medium text-cream-900">+91 {request.mobileNumber}</p>
-                                </div>
-                                <div>
-                                  <p className="text-xs text-cream-600 mb-1">WhatsApp</p>
-                                  <p className="text-sm font-medium text-cream-900">+91 {request.whatsappNumber}</p>
-                                </div>
-                                {request.gstNumber && (
-                                  <div>
-                                    <p className="text-xs text-cream-600 mb-1">GST Number</p>
-                                    <p className="text-sm font-medium text-cream-900">{request.gstNumber}</p>
-                                  </div>
-                                )}
-                              </div>
 
-                              <div className="mb-3">
-                                <p className="text-xs text-cream-600 mb-1">Business Address</p>
-                                <p className="text-sm text-cream-900">
-                                  {request.fullBusinessAddress}, {request.city}, {request.state} - {request.pincode}
-                                </p>
-                              </div>
-
-                              {request.proofFileUrl && (
-                                <div className="mb-3">
-                                  <p className="text-xs text-cream-600 mb-2">Proof Document</p>
-                                  <img
-                                    src={request.proofFileUrl}
-                                    alt="Proof"
-                                    className="max-w-xs h-auto rounded-lg border border-cream-200 cursor-pointer hover:opacity-80 transition-opacity"
-                                    onClick={() => window.open(request.proofFileUrl, "_blank")}
-                                  />
-                                </div>
-                              )}
-
-                              {request.status === "approved" && request.userId && (
-                                <div className="mt-3 p-3 bg-green-100 rounded-lg">
-                                  <p className="text-xs text-green-700 mb-1">User Account Created</p>
-                                  <p className="text-sm font-medium text-green-900">
-                                    {request.userId.name} ({request.userId.email})
-                                  </p>
-                                </div>
-                              )}
-
-                              {request.status === "rejected" && request.rejectionReason && (
-                                <div className="mt-3 p-3 bg-red-100 rounded-lg">
-                                  <p className="text-xs text-red-700 mb-1">Rejection Reason</p>
-                                  <p className="text-sm text-red-900">{request.rejectionReason}</p>
-                                </div>
-                              )}
-
-                              <div className="text-xs text-cream-500 mt-3">
-                                Submitted: {new Date(request.createdAt).toLocaleString()}
-                                {request.approvedAt && (
-                                  <> | {request.status === "approved" ? "Approved" : "Rejected"}: {new Date(request.approvedAt).toLocaleString()}</>
-                                )}
-                              </div>
-                            </div>
-
-                            {request.status === "pending" && (
-                              <div className="flex flex-col gap-2 lg:w-48">
-                                <button
-                                  onClick={() => handleApprovePrintPartnerRequest(request._id)}
-                                  className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium flex items-center justify-center gap-2"
-                                >
-                                  <CheckCircle size={18} />
-                                  Approve
-                                </button>
-                                <button
-                                  onClick={() => setSelectedRequestId(request._id)}
-                                  className="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium flex items-center justify-center gap-2"
-                                >
-                                  <XCircle size={18} />
-                                  Reject
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )
-            }
-
-            {/* Rejection Modal */}
-            <AnimatePresence>
-              {selectedRequestId && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
-                  onClick={() => {
-                    setSelectedRequestId(null);
-                    setRejectionReason("");
-                  }}
-                >
-                  <motion.div
-                    initial={{ scale: 0.9, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    exit={{ scale: 0.9, opacity: 0 }}
-                    onClick={(e) => e.stopPropagation()}
-                    className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6"
-                  >
-                    <h3 className="text-xl font-bold text-cream-900 mb-4">
-                      Reject Print Partner Request
-                    </h3>
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium text-cream-700 mb-2">
-                        Reason for Rejection <span className="text-red-500">*</span>
-                      </label>
-                      <textarea
-                        value={rejectionReason}
-                        onChange={(e) => setRejectionReason(e.target.value)}
-                        rows={4}
-                        className="w-full px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500 resize-none"
-                        placeholder="Please provide a reason for rejection..."
-                      />
-                    </div>
-                    <div className="flex gap-3">
-                      <button
-                        onClick={() => {
-                          setSelectedRequestId(null);
-                          setRejectionReason("");
-                        }}
-                        className="flex-1 px-4 py-2 border border-cream-300 text-cream-900 rounded-lg hover:bg-cream-50 transition-colors"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={() => handleRejectPrintPartnerRequest(selectedRequestId)}
-                        className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
-                      >
-                        Confirm Rejection
-                      </button>
-                    </div>
-                  </motion.div>
-                </motion.div>
-              )}
-            </AnimatePresence>
           </div >
         </div >
 
@@ -7873,6 +7550,36 @@ const AdminDashboard: React.FC = () => {
         {/* Site Settings Management */}
         {activeTab === "site-settings" && (
           <SiteSettingsManagement />
+        )}
+
+        {activeTab === "corporate-requests" && (
+          <CorporatePartnerRequestsAdmin />
+        )}
+        {activeTab === "print-partner-requests" && (
+          <PrintPartnerRequestsAdmin />
+        )}
+
+        {/* Pricing Management */}
+        {activeTab === "price-books" && (
+          <PriceBookManager />
+        )}
+        {activeTab === "geo-zones" && (
+          <GeoZoneManager />
+        )}
+        {activeTab === "user-segments" && (
+          <UserSegmentManager />
+        )}
+        {activeTab === "product-availability" && (
+          <ProductAvailabilityManager />
+        )}
+        {activeTab === "pricing-audit-log" && (
+          <PricingAuditLog />
+        )}
+        {activeTab === "smart-view" && (
+          <SmartViewMatrix />
+        )}
+        {activeTab === "price-modifiers" && (
+          <ModifierRuleBuilder />
         )}
 
         {/* Create Employee Modal (for Department Section) */}

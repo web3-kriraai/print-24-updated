@@ -1,14 +1,5 @@
 // API Configuration
-// Frontend is on Cloud Storage, Backend is on Cloud Run
-
-// Detect if we're in production
-const isProduction = (import.meta as any).env.PROD;
-
-// Use VITE_API_BASE_URL from environment
-// In production: set via .env.production
-// In development: defaults to localhost:5000
 export const API_BASE_URL = (import.meta as any).env.VITE_API_BASE_URL || "http://localhost:5000";
-
 export const API_BASE_URL_WITH_API = `${API_BASE_URL}/api`;
 
 // Helper function to get base headers

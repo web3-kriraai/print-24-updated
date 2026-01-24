@@ -324,6 +324,10 @@ export const deleteUserSegment = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Cannot delete default user segment' });
         }
 
+        if (userSegment.isSystem) {
+            return res.status(403).json({ success: false, message: 'Cannot delete system-protected user segment' });
+        }
+
         await UserSegment.findByIdAndDelete(id);
         res.json({ success: true, message: 'User segment deleted' });
     } catch (error) {

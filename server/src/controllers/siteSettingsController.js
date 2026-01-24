@@ -13,7 +13,7 @@ const upload = multer({
         const allowedTypes = /jpeg|jpg|png|gif|webp|svg\+xml|svg/;
         const mimetype = allowedTypes.test(file.mimetype);
         const extname = file.originalname.match(/\.(jpeg|jpg|png|gif|webp|svg)$/i);
-        
+
         if (mimetype || extname) {
             return cb(null, true);
         } else {
@@ -28,6 +28,7 @@ const upload = multer({
 
 // Get site settings (public)
 export const getSiteSettings = async (req, res) => {
+    console.log('[Controller] getSiteSettings hit');
     try {
         const settings = await SiteSettings.getSettings();
         res.status(200).json(settings);
@@ -44,16 +45,16 @@ export const getSiteSettings = async (req, res) => {
 export const updateSiteSettings = async (req, res) => {
     try {
         const { siteName, tagline, logo, scrollSettings, fontSettings } = req.body;
-        
+
         let settings = await SiteSettings.findOne();
         if (!settings) {
             settings = new SiteSettings({});
         }
-        
+
         if (siteName !== undefined) settings.siteName = siteName;
         if (tagline !== undefined) settings.tagline = tagline;
         if (logo !== undefined) settings.logo = logo;
-        
+
         // Handle scroll settings
         if (scrollSettings !== undefined) {
             console.log('[DEBUG] Received scrollSettings:', JSON.stringify(scrollSettings, null, 2));
@@ -95,7 +96,7 @@ export const updateSiteSettings = async (req, res) => {
             // Mark the nested object as modified so Mongoose saves it
             settings.markModified('scrollSettings');
         }
-        
+
         // Handle font settings
         if (fontSettings !== undefined) {
             if (!settings.fontSettings) {
@@ -128,9 +129,9 @@ export const updateSiteSettings = async (req, res) => {
             // Mark the nested object as modified so Mongoose saves it
             settings.markModified('fontSettings');
         }
-        
+
         await settings.save();
-        
+
         res.status(200).json({
             message: 'Site settings updated successfully',
             settings
@@ -166,8 +167,8 @@ export const uploadLogo = (req, res) => {
             }
 
             // Check if it's an SVG file
-            const isSvg = req.file.mimetype.includes('svg') || 
-                         req.file.originalname.toLowerCase().endsWith('.svg');
+            const isSvg = req.file.mimetype.includes('svg') ||
+                req.file.originalname.toLowerCase().endsWith('.svg');
 
             // Upload to Cloudinary
             const uploadPromise = new Promise((resolve, reject) => {

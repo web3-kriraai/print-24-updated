@@ -160,6 +160,78 @@ const ProductSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Department",
     }],
+
+    /* =======================
+       NEW FIELDS - Zoho Integration
+    ======================= */
+    suggestedBaseCost: {
+      type: Number,
+      // From Zoho integration
+    },
+
+    /* =======================
+       BILL OF MATERIALS
+    ======================= */
+    bom: [
+      {
+        material: String,
+        quantity: Number,
+        unit: String,
+      },
+    ],
+
+    /* =======================
+       CROSS-SELL & UP-SELL
+    ======================= */
+    relatedProducts: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Product",
+      },
+    ],
+
+    frequentlyBoughtTogether: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Product",
+      },
+    ],
+
+    keywords: [
+      {
+        type: String,
+        trim: true,
+        // For SEO and up-sell
+      },
+    ],
+
+    /* =======================
+       VIEW CONFIGURATION
+    ======================= */
+    views: {
+      defaultView: {
+        type: String,
+        default: "ATTRIBUTE_BASED",
+      },
+      alternativeView: {
+        type: String,
+        default: "EXPANDABLE_SECTION",
+      },
+    },
+
+    /* =======================
+       AVAILABILITY RULES
+    ======================= */
+    availabilityRules: [
+      {
+        geoZoneId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "GeoZone",
+        },
+        isSellable: Boolean,
+        reason: String,
+      },
+    ],
   },
   { timestamps: true }
 );

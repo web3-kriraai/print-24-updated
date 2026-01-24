@@ -24,6 +24,7 @@ export const createAttributeType = async (req, res) => {
       stepQuantities,
       rangeQuantities,
       systemName,
+      pricingBehavior, // ✅ ADDED
     } = req.body;
 
     // Debug log to check if effectDescription is received
@@ -44,6 +45,29 @@ export const createAttributeType = async (req, res) => {
 
     if (!primaryEffectType) {
       return res.status(400).json({ error: "Primary effect type is required." });
+    }
+
+    // ✅ CRITICAL: Validate pricingKey for pricing attributes
+    // When pricingBehavior ≠ NONE, every attributeValue must have pricingKey
+    const effectivePricingBehavior = pricingBehavior || "NONE";
+    if (effectivePricingBehavior !== "NONE" && attributeValues) {
+      let valuesToCheck = [];
+      try {
+        valuesToCheck = typeof attributeValues === 'string'
+          ? JSON.parse(attributeValues)
+          : attributeValues;
+      } catch (e) {
+        // parse error handled below
+      }
+
+      if (Array.isArray(valuesToCheck) && valuesToCheck.length > 0) {
+        const missingPricingKey = valuesToCheck.filter(av => !av.pricingKey);
+        if (missingPricingKey.length > 0) {
+          return res.status(400).json({
+            error: `When pricingBehavior is "${effectivePricingBehavior}", all attribute values must have a pricingKey. Missing pricingKey for: ${missingPricingKey.map(av => av.label).join(', ')}`
+          });
+        }
+      }
     }
 
     // Parse attributeValues if it's a string
@@ -142,6 +166,7 @@ export const createAttributeType = async (req, res) => {
       attributeName,
       functionType,
       isPricingAttribute: isPricingAttribute === true || isPricingAttribute === 'true',
+      pricingBehavior: pricingBehavior || "NONE", // ✅ ADDED
       inputStyle,
       isFixedQuantityNeeded: isFixedQuantityNeeded === true || isFixedQuantityNeeded === 'true',
       primaryEffectType,
@@ -305,9 +330,7 @@ export const updateAttributeType = async (req, res) => {
   try {
     const { id } = req.params;
     const {
-      attributeName,
-      functionType,
-      isPricingAttribute,
+      pricingBehavior, // ✅ ADDED
       inputStyle,
       isFixedQuantityNeeded,
       primaryEffectType,
@@ -328,12 +351,32 @@ export const updateAttributeType = async (req, res) => {
     } = req.body;
 
     // Debug log to check if effectDescription is received
-    console.log("UPDATE AttributeType - Received effectDescription:", effectDescription);
     console.log("UPDATE AttributeType - ID:", id);
 
     const attributeType = await AttributeType.findById(id);
     if (!attributeType) {
       return res.status(404).json({ error: "Attribute type not found" });
+    }
+
+    // ✅ CRITICAL: Validate pricingKey for pricing attributes
+    const finalPricingBehavior = pricingBehavior !== undefined ? pricingBehavior : attributeType.pricingBehavior;
+    // We need to check the values being updated OR existing values if not updated
+    let finalAttributeValues = attributeType.attributeValues;
+    if (attributeValues !== undefined) {
+      try {
+        finalAttributeValues = typeof attributeValues === 'string'
+          ? JSON.parse(attributeValues)
+          : attributeValues;
+      } catch (e) { }
+    }
+
+    if ((finalPricingBehavior && finalPricingBehavior !== "NONE") && Array.isArray(finalAttributeValues) && finalAttributeValues.length > 0) {
+      const missingPricingKey = finalAttributeValues.filter(av => !av.pricingKey);
+      if (missingPricingKey.length > 0) {
+        return res.status(400).json({
+          error: `When pricingBehavior is "${finalPricingBehavior}", all attribute values must have a pricingKey. Missing pricingKey for: ${missingPricingKey.map(av => av.label).join(', ')}`
+        });
+      }
     }
 
     // Parse attributeValues if it's a string
@@ -428,6 +471,7 @@ export const updateAttributeType = async (req, res) => {
     if (attributeName !== undefined) attributeType.attributeName = attributeName;
     if (functionType !== undefined) attributeType.functionType = functionType;
     if (isPricingAttribute !== undefined) attributeType.isPricingAttribute = isPricingAttribute === true || isPricingAttribute === 'true';
+    if (pricingBehavior !== undefined) attributeType.pricingBehavior = pricingBehavior; // ✅ ADDED
     if (inputStyle !== undefined) attributeType.inputStyle = inputStyle;
     if (isFixedQuantityNeeded !== undefined) attributeType.isFixedQuantityNeeded = isFixedQuantityNeeded === true || isFixedQuantityNeeded === 'true';
     if (primaryEffectType !== undefined) attributeType.primaryEffectType = primaryEffectType;
@@ -537,6 +581,24 @@ export const deleteAttributeType = async (req, res) => {
 
       return res.status(400).json({
         error: `Cannot delete attribute type "${attributeType.attributeName}". It is being used in ${sequencesUsingAttribute.length} production sequence(s): ${sequenceNames}${moreSequences}. Please remove this attribute from all sequences before deleting it.`
+      });
+    }
+
+    // ✅ CRITICAL: Check if attribute type is being used in any AttributeRules
+    const AttributeRule = (await import("../models/AttributeRuleSchema.js")).default;
+    const rulesUsingAttribute = await AttributeRule.find({
+      $or: [
+        { "when.attribute": attributeObjectId },
+        { "then.targetAttribute": attributeObjectId }
+      ]
+    });
+
+    if (rulesUsingAttribute.length > 0) {
+      const ruleNames = rulesUsingAttribute.slice(0, 5).map(r => r.name).join(", ");
+      const moreRules = rulesUsingAttribute.length > 5 ? ` and ${rulesUsingAttribute.length - 5} more` : "";
+
+      return res.status(400).json({
+        error: `Cannot delete attribute type "${attributeType.attributeName}". It is used in ${rulesUsingAttribute.length} attribute rule(s): ${ruleNames}${moreRules}. Please remove this attribute from all rules before deleting it.`
       });
     }
 

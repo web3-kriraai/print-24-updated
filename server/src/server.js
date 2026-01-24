@@ -4,13 +4,16 @@ import dotenv from "dotenv";
 import cors from "cors";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
-import { existsSync } from "fs";
+import { existsSync, mkdirSync } from "fs";
 import authRoutes from "./routes/authRoutes.js";
 import apiRoutes from "./routes/index.js";
 import uploadRoutes from "./routes/uploadRoutes.js";
 import timelineRoutes from "./routes/timeline.js";
 import aboutRoutes from "./routes/aboutRoutes.js";
 import featureRoutes from "./routes/featureRoutes.js";
+import pricingRoutes from "./routes/pricingRoutes.js";
+import pricingAdminRoutes from "./routes/admin/pricingAdminRoutes.js";
+import pricingAdvancedRoutes from "./routes/admin/pricingAdvancedRoutes.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -44,6 +47,7 @@ app.use(
         "http://localhost:3001",
         "http://localhost:5173",
         "http://127.0.0.1:5000",
+        "http://127.0.0.1:5001",
         "http://127.0.0.1:3000",
         "http://127.0.0.1:5173",
         "https://prints24.in",
@@ -61,10 +65,11 @@ app.use(
         origin.startsWith("http://127.0.0.1:") ||
         origin.includes("ngrok-free.dev") ||
         origin.includes("ngrok.io") ||
-        origin.includes(".run.app") ||
         origin.includes("prints24")) {
+        console.log(`[CORS] Allowed origin: ${origin}`);
         callback(null, true);
       } else {
+        console.log(`[CORS] Allowed origin (development fallback): ${origin}`);
         // For development, allow all origins
         callback(null, true);
       }
@@ -106,11 +111,22 @@ app.get("/api/health", (req, res) => {
 });
 
 app.use("/api/auth", authRoutes);
-app.use("/api", apiRoutes);
-app.use("/api", uploadRoutes);
 app.use("/api/timeline", timelineRoutes);
 app.use("/api/about", aboutRoutes);
 app.use("/api/features", featureRoutes);
+
+// Direct Ping Route for Debugging
+app.get("/api/ping", (req, res) => {
+  res.json({ message: "pong", origin: req.headers.origin });
+});
+
+app.use("/api", apiRoutes);
+app.use("/api", uploadRoutes);
+
+// Pricing routes
+app.use("/api/pricing", pricingRoutes);          // Public pricing API
+app.use("/api/admin", pricingAdminRoutes);       // Admin pricing CRUD
+app.use("/api/admin", pricingAdvancedRoutes);    // Advanced pricing features
 
 // Error handler to ensure CORS headers are set even on errors
 app.use((err, req, res, next) => {
@@ -126,23 +142,18 @@ app.use((err, req, res, next) => {
 // Serve uploads folder
 const uploadsPath = join(__dirname, "../uploads");
 
-if (existsSync(uploadsPath)) {
-  app.use("/uploads", express.static(uploadsPath));
-  console.log(`[Server] ✅ Serving uploads from: ${uploadsPath}`);
-} else {
+if (!existsSync(uploadsPath)) {
   // Create uploads directory if it doesn't exist
-  const fs = await import('fs');
-  if (!fs.existsSync(uploadsPath)) {
-    try {
-      fs.mkdirSync(uploadsPath, { recursive: true });
-      console.log(`[Server] Created uploads directory at: ${uploadsPath}`);
-    } catch (err) {
-      console.error(`[Server] ❌ Failed to create uploads directory: ${err.message}`);
-    }
+  try {
+    mkdirSync(uploadsPath, { recursive: true });
+    console.log(`[Server] Created uploads directory at: ${uploadsPath}`);
+  } catch (err) {
+    console.error(`[Server] ❌ Failed to create uploads directory: ${err.message}`);
   }
-  app.use("/uploads", express.static(uploadsPath));
-  console.log(`[Server] ✅ Serving uploads from: ${uploadsPath}`);
 }
+
+app.use("/uploads", express.static(uploadsPath));
+console.log(`[Server] ✅ Serving uploads from: ${uploadsPath}`);
 
 // For local development with client dist
 const clientDistPath = process.env.NODE_ENV === 'production'
@@ -177,19 +188,25 @@ if (existsSync(clientDistPath)) {
 }
 
 // 404 handler for API routes
+// 404 handler for API routes
 app.use((req, res) => {
+  const origin = req.headers.origin;
+  if (origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+  }
   res.status(404).json({ error: "Not found" });
 });
 
 // DB + SERVER
-if (!process.env.MONGO_URI) {
-  console.error("❌ ERROR: MONGO_URI environment variable is not set!");
-  console.error("Please check your .env file and ensure MONGO_URI is configured.");
+if (!process.env.MONGO_TEST_URI) {
+  console.error("❌ ERROR: MONGO_TEST_URI environment variable is not set!");
+  console.error("Please check your .env file and ensure MONGO_TEST_URI is configured.");
   process.exit(1);
 }
 
 mongoose
-  .connect(process.env.MONGO_URI, {
+  .connect(process.env.MONGO_TEST_URI, {
     serverSelectionTimeoutMS: 5000,
     socketTimeoutMS: 45000,
     retryWrites: true,
