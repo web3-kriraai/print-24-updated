@@ -299,7 +299,16 @@ const OrderSchema = new mongoose.Schema(
     },
     courierStatus: {
       type: String,
-      enum: ["in_transit", "out_for_delivery", "delivered"],
+      enum: [
+        "pickup_scheduled",
+        "pickup_pending",
+        "in_transit",
+        "out_for_delivery",
+        "delivered",
+        "return_to_origin",
+        "rto_delivered",
+        "cancelled"
+      ],
       default: null,
     },
     deliveredAt: {
@@ -308,6 +317,26 @@ const OrderSchema = new mongoose.Schema(
     },
     courierTrackingUrl: {
       type: String,
+      default: null,
+    },
+    // Shiprocket Integration Fields
+    shiprocketOrderId: {
+      type: String,
+      default: null,
+      index: true,
+    },
+    shiprocketShipmentId: {
+      type: String,
+      default: null,
+    },
+    awbCode: {
+      type: String,
+      default: null,
+      index: true,
+    },
+    logisticsProvider: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "LogisticsProvider",
       default: null,
     },
     courierTimeline: [

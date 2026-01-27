@@ -211,22 +211,235 @@ class GeolocationService {
     getZipCodeFromGeo(geo) {
         const { city, region, country } = geo;
 
-        // For India
+        // For India - comprehensive city mapping
         if (country === 'IN') {
             const cityToZip = {
+                // Metro Cities
                 'Mumbai': '400001',
                 'Delhi': '110001',
+                'New Delhi': '110001',
                 'Bangalore': '560001',
                 'Bengaluru': '560001',
                 'Chennai': '600001',
                 'Kolkata': '700001',
                 'Hyderabad': '500001',
+                // Major Cities
                 'Pune': '411001',
                 'Ahmedabad': '380001',
-                'Surat': '395006',  // Added Surat mapping
+                'Surat': '395006',
+                'Jaipur': '302001',
+                'Lucknow': '226001',
+                'Kanpur': '208001',
+                'Nagpur': '440001',
+                'Indore': '452001',
+                'Thane': '400601',
+                'Bhopal': '462001',
+                'Visakhapatnam': '530001',
+                'Patna': '800001',
+                'Vadodara': '390001',
+                'Ghaziabad': '201001',
+                'Ludhiana': '141001',
+                'Agra': '282001',
+                'Nashik': '422001',
+                'Faridabad': '121001',
+                'Meerut': '250001',
+                'Rajkot': '360001',
+                'Varanasi': '221001',
+                'Srinagar': '190001',
+                'Aurangabad': '431001',
+                'Dhanbad': '826001',
+                'Amritsar': '143001',
+                'Navi Mumbai': '400701',
+                'Allahabad': '211001',
+                'Prayagraj': '211001',
+                'Ranchi': '834001',
+                'Howrah': '711101',
+                'Coimbatore': '641001',
+                'Jabalpur': '482001',
+                'Gwalior': '474001',
+                'Vijayawada': '520001',
+                'Jodhpur': '342001',
+                'Madurai': '625001',
+                'Raipur': '492001',
+                'Kota': '324001',
+                'Chandigarh': '160001',
+                'Guwahati': '781001',
+                'Solapur': '413001',
+                'Hubli': '580001',
+                'Tiruchirappalli': '620001',
+                'Trichy': '620001',
+                'Bareilly': '243001',
+                'Moradabad': '244001',
+                'Mysore': '570001',
+                'Mysuru': '570001',
+                'Gurgaon': '122001',
+                'Gurugram': '122001',
+                'Aligarh': '202001',
+                'Jalandhar': '144001',
+                'Tiruvanthapuram': '695001',
+                'Thiruvananthapuram': '695001',
+                'Bhubaneswar': '751001',
+                'Salem': '636001',
+                'Warangal': '506001',
+                'Guntur': '522001',
+                'Bhiwandi': '421302',
+                'Saharanpur': '247001',
+                'Gorakhpur': '273001',
+                'Bikaner': '334001',
+                'Amravati': '444601',
+                'Noida': '201301',
+                'Jamshedpur': '831001',
+                'Bhilai': '490001',
+                'Cuttack': '753001',
+                'Firozabad': '283203',
+                'Kochi': '682001',
+                'Cochin': '682001',
+                'Nellore': '524001',
+                'Bhavnagar': '364001',
+                'Dehradun': '248001',
+                'Durgapur': '713201',
+                'Asansol': '713301',
+                'Rourkela': '769001',
+                'Nanded': '431601',
+                'Kolhapur': '416001',
+                'Ajmer': '305001',
+                'Akola': '444001',
+                'Gulbarga': '585101',
+                'Jamnagar': '361001',
+                'Ujjain': '456001',
+                'Loni': '201102',
+                'Siliguri': '734001',
+                'Jhansi': '284001',
+                'Ulhasnagar': '421001',
+                'Jammu': '180001',
+                'Sangli': '416416',
+                'Mangalore': '575001',
+                'Mangaluru': '575001',
+                'Erode': '638001',
+                'Belgaum': '590001',
+                'Belagavi': '590001',
+                'Ambattur': '600053',
+                'Tirunelveli': '627001',
+                'Malegaon': '423203',
+                'Gaya': '823001',
+                'Jalgaon': '425001',
+                'Udaipur': '313001',
+                'Maheshtala': '700141',
             };
 
-            return cityToZip[city] || null;
+            if (city && cityToZip[city]) {
+                return cityToZip[city];
+            }
+
+            // State/Region fallback for India
+            const regionToZip = {
+                'MH': '400001', // Maharashtra → Mumbai
+                'DL': '110001', // Delhi
+                'KA': '560001', // Karnataka → Bangalore
+                'TN': '600001', // Tamil Nadu → Chennai
+                'WB': '700001', // West Bengal → Kolkata
+                'TG': '500001', // Telangana → Hyderabad
+                'GJ': '380001', // Gujarat → Ahmedabad
+                'RJ': '302001', // Rajasthan → Jaipur
+                'UP': '226001', // Uttar Pradesh → Lucknow
+                'MP': '462001', // Madhya Pradesh → Bhopal
+                'AP': '520001', // Andhra Pradesh → Vijayawada
+                'BR': '800001', // Bihar → Patna
+                'OR': '751001', // Odisha → Bhubaneswar
+                'PB': '160001', // Punjab → Chandigarh
+                'HR': '122001', // Haryana → Gurgaon
+                'JH': '834001', // Jharkhand → Ranchi
+                'AS': '781001', // Assam → Guwahati
+                'UK': '248001', // Uttarakhand → Dehradun
+                'CT': '492001', // Chhattisgarh → Raipur
+                'HP': '171001', // Himachal Pradesh → Shimla
+                'JK': '180001', // Jammu & Kashmir → Jammu
+                'GA': '403001', // Goa → Panaji
+                'KL': '695001', // Kerala → Thiruvananthapuram
+            };
+
+            if (region && regionToZip[region]) {
+                return regionToZip[region];
+            }
+
+            // Default for India if nothing else matches
+            return '395006'; // Surat as default
+        }
+
+        // For US - use approximate based on region
+        if (country === 'US') {
+            const stateToZip = {
+                'CA': '90001', // California → Los Angeles
+                'TX': '75001', // Texas → Dallas
+                'NY': '10001', // New York
+                'FL': '33101', // Florida → Miami
+                'IL': '60601', // Illinois → Chicago
+                'PA': '19101', // Pennsylvania → Philadelphia
+                'OH': '43201', // Ohio → Columbus
+                'GA': '30301', // Georgia → Atlanta
+                'NC': '27601', // North Carolina → Raleigh
+                'MI': '48201', // Michigan → Detroit
+                'NJ': '07001', // New Jersey
+                'VA': '22301', // Virginia → Alexandria
+                'WA': '98101', // Washington → Seattle
+                'AZ': '85001', // Arizona → Phoenix
+                'MA': '02101', // Massachusetts → Boston
+                'TN': '37201', // Tennessee → Nashville
+                'IN': '46201', // Indiana → Indianapolis
+                'MO': '63101', // Missouri → St. Louis
+                'MD': '21201', // Maryland → Baltimore
+                'WI': '53201', // Wisconsin → Milwaukee
+                'CO': '80201', // Colorado → Denver
+                'MN': '55401', // Minnesota → Minneapolis
+                'SC': '29201', // South Carolina → Columbia
+                'AL': '35201', // Alabama → Birmingham
+                'LA': '70112', // Louisiana → New Orleans
+                'KY': '40201', // Kentucky → Louisville
+                'OR': '97201', // Oregon → Portland
+                'OK': '73101', // Oklahoma → Oklahoma City
+                'CT': '06101', // Connecticut → Hartford
+                'UT': '84101', // Utah → Salt Lake City
+                'IA': '50301', // Iowa → Des Moines
+                'NV': '89101', // Nevada → Las Vegas
+                'AR': '72201', // Arkansas → Little Rock
+                'MS': '39201', // Mississippi → Jackson
+                'KS': '66101', // Kansas → Topeka
+                'NM': '87101', // New Mexico → Albuquerque
+                'NE': '68101', // Nebraska → Omaha
+                'ID': '83701', // Idaho → Boise
+                'WV': '25301', // West Virginia → Charleston
+                'HI': '96801', // Hawaii → Honolulu
+                'NH': '03101', // New Hampshire → Manchester
+                'ME': '04101', // Maine → Portland
+                'RI': '02901', // Rhode Island → Providence
+                'MT': '59601', // Montana → Helena
+                'DE': '19901', // Delaware → Dover
+                'SD': '57101', // South Dakota → Pierre
+                'ND': '58501', // North Dakota → Bismarck
+                'AK': '99501', // Alaska → Anchorage
+                'DC': '20001', // Washington DC
+                'VT': '05401', // Vermont → Burlington
+                'WY': '82001', // Wyoming → Cheyenne
+            };
+
+            if (region && stateToZip[region]) {
+                return stateToZip[region];
+            }
+        }
+
+        // For UK - use approximate based on region
+        if (country === 'GB') {
+            const regionToPostcode = {
+                'ENG': 'SW1A 1AA', // England → London
+                'SCT': 'EH1 1RE',  // Scotland → Edinburgh
+                'WLS': 'CF10 1EP', // Wales → Cardiff
+                'NIR': 'BT1 1AA',  // Northern Ireland → Belfast
+            };
+
+            if (region && regionToPostcode[region]) {
+                return regionToPostcode[region];
+            }
+            return 'SW1A 1AA'; // Default London
         }
 
         return null;
@@ -289,10 +502,10 @@ class GeolocationService {
             }
 
             return {
-                pincode: locationData.zipCode || '395006',
-                city: locationData.city || 'Surat',
-                state: locationData.regionName || 'Gujarat',
-                country: locationData.countryName || 'India',
+                pincode: locationData.zipCode || null,
+                city: locationData.city || null,
+                state: locationData.regionName || null,
+                country: locationData.countryName || null,
                 source: locationData.source || 'ip-geolocation'
             };
         } catch (error) {

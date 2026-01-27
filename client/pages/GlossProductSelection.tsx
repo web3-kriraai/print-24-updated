@@ -1,12 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useParams, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowRight, Check, Truck, Upload as UploadIcon, FileImage, CreditCard, X, Loader, Info, Lock, AlertCircle, MapPin, Zap, Square, Circle } from 'lucide-react';
+import {
+  ArrowRight, Check, Truck, Upload as UploadIcon, FileImage, CreditCard, X, Loader, Info, Lock, AlertCircle, MapPin, Zap, Square, Circle,
+  ChevronRight, Star, Shield, Upload, ChevronDown, ChevronUp, AlertTriangle, FileText, Image as ImageIcon,
+  RotateCcw, Maximize2, ZoomIn, Download, Share2, HelpCircle
+} from 'lucide-react';
 import { Select, SelectOption } from '@/components/ui/select';
 import { API_BASE_URL_WITH_API as API_BASE_URL } from '../lib/apiConfig';
 import { applyAttributeRules, type AttributeRule, type Attribute } from '../utils/attributeRuleEngine';
 import { useDynamicPricing } from '../src/hooks/useDynamicPricing';
 import ProductPriceBox from '../components/ProductPriceBox';
+import courierService from '../src/services/courierService';
+import ShippingEstimate from '../src/components/shipping/ShippingEstimate';
 
 interface SubCategory {
   _id: string;
@@ -198,6 +204,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
   const [perUnitPriceExcludingGst, setPerUnitPriceExcludingGst] = useState(0); // Store per unit price excluding GST
   const [isImageModalOpen, setIsImageModalOpen] = useState(false);
   const [isInstructionsOpen, setIsInstructionsOpen] = useState(false);
+  const [isDeliveryOpen, setIsDeliveryOpen] = useState(false);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
@@ -2465,9 +2472,14 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
   const firstErrorField = useRef<HTMLElement | null>(null);
 
   const handlePlaceOrder = async () => {
+    console.log('[handlePlaceOrder] Button clicked - starting order placement flow');
+
     // Check if user is logged in
     const token = localStorage.getItem("token");
+    console.log('[handlePlaceOrder] Token found:', !!token);
+
     if (!token) {
+      console.log('[handlePlaceOrder] No token - redirecting to login');
       setValidationError("Please login to place an order. Redirecting to login page...");
       setTimeout(() => {
         navigate("/login");
@@ -2589,6 +2601,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
     }
 
     if (validationErrors.length > 0) {
+      console.log('[handlePlaceOrder] Validation errors found:', validationErrors);
       // Set validation error message with clear formatting
       setValidationError(validationErrors.join('\n'));
 
@@ -2651,6 +2664,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
     setValidationError(null);
 
     // All product/design validations passed - show payment modal with customer information form
+    console.log('[handlePlaceOrder] All validations passed - showing payment modal');
     setShowPaymentModal(true);
     setPaymentError(null);
   };
@@ -3060,89 +3074,40 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
         specialEffects: orderDynamicAttributes.specialEffects ? [orderDynamicAttributes.specialEffects] : [],
       };
 
-      // Check if user is authenticated
+      // IMPORTANT: Only logged-in users can place orders
       const token = localStorage.getItem("token");
-      let response: Response;
-
       if (!token) {
-        // User is not authenticated - use the create-with-account endpoint
-        const orderDataWithAccount = {
-          ...orderData,
-          name: customerName.trim(),
-          email: customerEmail.trim(),
-          mobileNumber: mobileNumber.trim(),
-        };
-
-        response = await fetch(`${API_BASE_URL}/orders/create-with-account`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(orderDataWithAccount),
-        });
-      } else {
-        // User is authenticated - use regular endpoint
-        response = await fetch(`${API_BASE_URL}/orders`, {
-          method: "POST",
-          headers: getAuthHeaders(),
-          body: JSON.stringify(orderData),
-        });
+        setPaymentError("You must be logged in to place an order. Redirecting to login...");
+        setIsProcessingPayment(false);
+        setTimeout(() => {
+          navigate("/login");
+        }, 2000);
+        return;
       }
+
+      // Create order using authenticated endpoint only
+      const response = await fetch(`${API_BASE_URL}/orders`, {
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: JSON.stringify(orderData),
+      });
 
       if (!response.ok) {
         let errorMessage = "Failed to create order. Please try again.";
-        let errorDetails: any = null;
         try {
           const errorData = await response.json();
           errorMessage = errorData.error || errorMessage;
-          errorDetails = errorData.details;
 
-          // Check if it's a "No token provided" error (shouldn't happen with new flow, but handle it)
-          if (errorMessage.includes("No token provided") || errorMessage.includes("token")) {
-            // This shouldn't happen with the new endpoint, but if it does, try the create-with-account endpoint
-            const orderDataWithAccount = {
-              ...orderData,
-              name: customerName.trim(),
-              email: customerEmail.trim(),
-              mobileNumber: mobileNumber.trim(),
-            };
-
-            const retryResponse = await fetch(`${API_BASE_URL}/orders/create-with-account`, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify(orderDataWithAccount),
-            });
-
-            if (retryResponse.ok) {
-              const retryData = await retryResponse.json();
-              // Store token and user info
-              if (retryData.token) {
-                localStorage.setItem("token", retryData.token);
-                if (retryData.user) {
-                  localStorage.setItem("user", JSON.stringify(retryData.user));
-                }
-              }
-              // Continue with success flow
-              const order = retryData.order;
-              setShowPaymentModal(false);
-              setIsProcessingPayment(false);
-
-              if (retryData.isNewUser && retryData.tempPassword) {
-                // Email service temporarily disabled - show password in alert instead
-                alert(`Account created successfully!\n\nYour temporary password: ${retryData.tempPassword}\n\nPlease save this password. You can change it after logging in.\n\nOrder placed successfully! Order Number: ${order.orderNumber || order.order?.orderNumber || "N/A"}`);
-              } else {
-                alert(`Order placed successfully! Order Number: ${order.orderNumber || order.order?.orderNumber || "N/A"}`);
-              }
-
-              if (order._id || order.order?._id) {
-                navigate(`/order/${order._id || order.order._id}`);
-              } else {
-                navigate("/profile");
-              }
-              return;
-            }
+          // Check for authentication errors
+          if (errorMessage.includes("No token") || errorMessage.includes("token") || response.status === 401) {
+            setPaymentError("Your session has expired. Please login again.");
+            setIsProcessingPayment(false);
+            setTimeout(() => {
+              localStorage.removeItem("token");
+              localStorage.removeItem("user");
+              navigate("/login");
+            }, 2000);
+            return;
           }
 
           if (errorData.details) {
@@ -3154,7 +3119,6 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
             }
           }
         } catch (parseError) {
-          const responseText = await response.text().catch(() => "");
           errorMessage += `\n\nServer returned: ${response.status} ${response.statusText}`;
         }
         throw new Error(errorMessage);
@@ -3163,25 +3127,45 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
       const responseData = await response.json();
       const order = responseData.order || responseData;
 
-      // If account was created, store token and user info
-      if (responseData.token) {
-        localStorage.setItem("token", responseData.token);
-        if (responseData.user) {
-          localStorage.setItem("user", JSON.stringify(responseData.user));
+      // Step 4: Trigger external delivery shipment creation (awaited for proper feedback)
+      const orderId = order._id || order.order?._id;
+      let shipmentStatus = '';
+      let shipmentDetails: any = null;
+
+      if (orderId && pincode) {
+        try {
+          // Create shipment and wait for result
+          const shipmentResult = await courierService.createShipment(orderId);
+          shipmentDetails = shipmentResult;
+
+          if (shipmentResult.success) {
+            console.log('[GlossProductSelection] External shipment created:', shipmentResult);
+            shipmentStatus = `\n\n📦 Shipment created with ${shipmentResult.courierPartner || 'external courier'}`;
+            if (shipmentResult.awbCode) {
+              shipmentStatus += `\nTracking ID: ${shipmentResult.awbCode}`;
+            }
+          } else if (shipmentResult.deliveryType === 'INTERNAL') {
+            console.log('[GlossProductSelection] Using internal delivery:', shipmentResult.message);
+            shipmentStatus = '\n\n🚚 Order will be delivered by our internal team.';
+          } else {
+            console.warn('[GlossProductSelection] Shipment creation issue:', shipmentResult.error || shipmentResult.message);
+            // Don't show error - order is still created, shipment can be created later
+            shipmentStatus = '\n\n📦 Delivery will be updated shortly.';
+          }
+        } catch (err) {
+          console.error('[GlossProductSelection] Error creating shipment:', err);
+          // Don't fail the order - just note that shipment will be processed later
+          shipmentStatus = '\n\n📦 Delivery arrangement in progress.';
         }
       }
 
-      // Step 4: Close payment modal and redirect to order details
+      // Step 5: Close payment modal and redirect to order details
       setShowPaymentModal(false);
       setIsProcessingPayment(false);
 
-      // Show success message
-      if (responseData.isNewUser && responseData.tempPassword) {
-        // Email service temporarily disabled - show password in alert instead
-        alert(`Account created successfully!\n\nYour temporary password: ${responseData.tempPassword}\n\nPlease save this password. You can change it after logging in.\n\nOrder placed successfully! Order Number: ${order.orderNumber || order.order?.orderNumber || "N/A"}`);
-      } else {
-        alert(`Order placed successfully! Order Number: ${order.orderNumber || order.order?.orderNumber || "N/A"}`);
-      }
+      // Show success message with shipment status
+      const orderNumber = order.orderNumber || order.order?.orderNumber || "N/A";
+      alert(`✅ Order placed successfully!\n\nOrder Number: ${orderNumber}${shipmentStatus}`);
 
       // Redirect to order details page
       if (order._id || order.order?._id) {
@@ -3808,95 +3792,19 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                     </div>
                   </motion.div>
 
-                  {/* Compact Order Summary - shown when a product is selected */}
+                  {/* Price Breakdown Section - Under Product Image */}
                   {selectedProduct && (
-                    <div className="bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-gray-100 p-4 sm:p-5 md:p-6">
-                      <div className="flex items-center justify-between mb-3">
-                        <h2 className="text-sm sm:text-base font-semibold text-gray-900">
-                          Order Summary
-                        </h2>
-                        <span className="text-xs text-white0">
-                          Live estimate
-                        </span>
-                      </div>
-
-                      <div className="space-y-2 text-xs sm:text-sm text-gray-800">
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Product</span>
-                          <span className="font-medium text-right line-clamp-1 ml-2">
-                            {selectedProduct.name}
-                          </span>
-                        </div>
-
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Quantity</span>
-                          <span className="font-medium">
-                            {(quantity || 0).toLocaleString()}
-                          </span>
-                        </div>
-
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Base price</span>
-                          <span className="font-medium">
-                            ₹{(baseSubtotalBeforeDiscount || 0).toFixed(2)}
-                          </span>
-                        </div>
-
-                        {dynamicAttributesCharges.length > 0 && (
-                          <>
-                            {dynamicAttributesCharges.map((attrCharge, idx) => (
-                              <div key={idx} className="flex justify-between">
-                                <span className="text-gray-600 text-[11px]">
-                                  {attrCharge.name}: {attrCharge.label}
-                                </span>
-                                <span className="font-medium text-[11px]">
-                                  ₹{attrCharge.charge.toFixed(2)}
-                                </span>
-                              </div>
-                            ))}
-                          </>
-                        )}
-
-                        {additionalDesignCharge > 0 && (
-                          <div className="flex justify-between">
-                            <span className="text-gray-600">Design charge</span>
-                            <span className="font-medium">
-                              ₹{additionalDesignCharge.toFixed(2)}
-                            </span>
-                          </div>
-                        )}
-
-                        {gstAmount > 0 && (
-                          <div className="flex justify-between">
-                            <span className="text-gray-600">
-                              GST ({selectedProduct.gstPercentage || 18}%)
-                            </span>
-                            <span className="font-medium">
-                              ₹{gstAmount.toFixed(2)}
-                            </span>
-                          </div>
-                        )}
-
-                        {appliedDiscount !== null && appliedDiscount > 0 && (
-                          <div className="flex justify-between text-green-700">
-                            <span>Discount</span>
-                            <span>-{appliedDiscount.toFixed(1)}%</span>
-                          </div>
-                        )}
-
-                        <div className="border-t border-gray-200 mt-3 pt-3 flex justify-between items-center">
-                          <span className="text-xs sm:text-sm font-semibold text-gray-700">
-                            Estimated total
-                          </span>
-                          <span className="text-base sm:text-lg font-bold text-gray-900">
-                            ₹{(price + gstAmount).toFixed(2)}
-                          </span>
-                        </div>
-
-                        <p className="text-[11px] text-white0 mt-1">
-                          Final price may adjust slightly based on selected options and taxes at checkout.
-                        </p>
-                      </div>
+                    <div className="mt-4 bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+                      <ProductPriceBox
+                        productId={selectedProduct._id}
+                        quantity={quantity}
+                        selectedDynamicAttributes={Object.entries(selectedDynamicAttributes || {}).map(([key, value]) => ({
+                          attributeType: key,
+                          value: value
+                        }))}
+                        showBreakdown={true}
+                        priceData={dynamicPriceData}
+                      />
                     </div>
                   )}
                 </div>
@@ -4172,171 +4080,219 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                           <div className="mb-6 sm:mb-8 border-b border-gray-100 pb-4 sm:pb-6 relative">
                             <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
                               <div className="flex-1">
-                                {/* Product Header with Price */}
-                                <div className="border-b border-gray-100 flex flex-row justify-between items-start pb-4 mb-4">
-                                  <h1 className="font-serif text-xl sm:text-2xl md:text-3xl font-bold text-gray-900 mb-1 flex-1">
-                                    {selectedProduct.name}
-                                  </h1>
-                                  <div className="flex-shrink-0 ml-4 w-[280px]">
-                                    <ProductPriceBox
-                                      productId={selectedProduct._id}
-                                      quantity={quantity}
-                                      selectedDynamicAttributes={Object.entries(selectedDynamicAttributes || {}).map(([key, value]) => ({
-                                        attributeType: key,
-                                        value: value
-                                      }))}
-                                      showBreakdown={false}
-                                      priceData={dynamicPriceData}
-                                    />
-                                  </div>
-                                </div>
-
-                                {/* Product Variants Filter - Only shown when nested subcategories exist */}
-                                {availableNestedSubcategories.length > 0 && (
-                                  <div className="mb-4 bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-                                    <h3 className="text-xs font-bold text-gray-900 mb-3 tracking-wide uppercase">PRODUCT VARIANTS</h3>
-                                    <div className="flex flex-wrap gap-2">
-                                      {availableNestedSubcategories.map((nestedSub) => {
-                                        const isSelected = selectedNestedSubcategoryId === nestedSub._id;
-                                        return (
-                                          <button
-                                            key={nestedSub._id}
-                                            onClick={() => handleNestedSubcategorySwitch(nestedSub._id)}
-                                            disabled={loading}
-                                            className={`px-4 py-2 rounded-lg border-2 transition-all text-sm font-medium ${isSelected
-                                              ? 'border-gray-900 bg-gray-900 text-white font-bold shadow-md'
-                                              : 'border-gray-300 bg-white text-gray-900 hover:border-gray-600 hover:bg-gray-50'
-                                              } ${loading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                                          >
-                                            {nestedSub.name}
-                                          </button>
-                                        );
-                                      })}
-                                    </div>
-                                  </div>
+                                {/* Product Name */}
+                                <h1 className="font-serif text-xl sm:text-2xl md:text-3xl font-bold text-gray-900 mb-2">
+                                  {selectedProduct.name}
+                                </h1>
+                                {(selectedProduct as any).shortDescription && (
+                                  <p className="text-sm text-gray-600 line-clamp-2">{(selectedProduct as any).shortDescription}</p>
                                 )}
+                              </div>
+                            </div>
+                          </div>
 
-                                {/* Instructions Button */}
-                                <button
-                                  onClick={() => setIsInstructionsOpen(!isInstructionsOpen)}
-                                  className="mt-2 mb-4 px-4 py-2 bg-gray-100 hover:bg-purple-200 text-gray-900 rounded-lg border border-gray-300 text-sm font-medium transition-all flex items-center gap-2"
-                                >
-                                  <Info size={16} />
-                                  Instructions
-                                </button>
-
-                                {/* Instructions Modal/Expanded Section with Smooth Transition */}
-                                <AnimatePresence>
-                                  {isInstructionsOpen && (
-                                    <motion.div
-                                      initial={{ opacity: 0, height: 0 }}
-                                      animate={{ opacity: 1, height: "auto" }}
-                                      exit={{ opacity: 0, height: 0 }}
-                                      transition={{ duration: 0.3, ease: "easeInOut" }}
-                                      className="overflow-hidden"
+                          {/* Product Variants Filter - Only shown when nested subcategories exist */}
+                          {availableNestedSubcategories.length > 0 && (
+                            <div className="mb-4 bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+                              <h3 className="text-xs font-bold text-gray-900 mb-3 tracking-wide uppercase">PRODUCT VARIANTS</h3>
+                              <div className="flex flex-wrap gap-2">
+                                {availableNestedSubcategories.map((nestedSub) => {
+                                  const isSelected = selectedNestedSubcategoryId === nestedSub._id;
+                                  return (
+                                    <button
+                                      key={nestedSub._id}
+                                      onClick={() => handleNestedSubcategorySwitch(nestedSub._id)}
+                                      disabled={loading}
+                                      className={`px-4 py-2 rounded-lg border-2 transition-all text-sm font-medium ${isSelected
+                                        ? 'border-gray-900 bg-gray-900 text-white font-bold shadow-md'
+                                        : 'border-gray-300 bg-white text-gray-900 hover:border-gray-600 hover:bg-gray-50'
+                                        } ${loading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
                                     >
-                                      <div className="mt-4 mb-6 p-4 sm:p-6 bg-yellow-50 border border-yellow-200 rounded-lg">
-                                        <h4 className="text-sm font-bold text-yellow-900 mb-3 flex items-center gap-2">
-                                          <Info size={16} />
-                                          Important Instructions - Please Read Carefully
-                                        </h4>
+                                      {nestedSub.name}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
 
-                                        {/* Custom Instructions from Admin */}
-                                        {selectedProduct.instructions && (
-                                          <div className="mb-4 p-3 bg-red-50 border-2 border-red-300 rounded-lg">
-                                            <p className="text-xs font-bold text-red-900 mb-2 flex items-center gap-2">
-                                              <X size={14} className="text-red-600" />
-                                              CRITICAL: Company Not Responsible If Instructions Not Followed
-                                            </p>
-                                            <div className="text-xs sm:text-sm text-red-800 whitespace-pre-line">
-                                              {selectedProduct.instructions}
-                                            </div>
-                                          </div>
-                                        )}
+                          {/* Instructions Button */}
+                          <div className="flex flex-wrap gap-3 mt-2 mb-4">
+                            <button
+                              onClick={() => setIsInstructionsOpen(!isInstructionsOpen)}
+                              className="px-4 py-2 bg-gray-100 hover:bg-purple-200 text-gray-900 rounded-lg border border-gray-300 text-sm font-medium transition-all flex items-center gap-2"
+                            >
+                              <Info size={16} />
+                              Instructions
+                            </button>
+                          </div>
 
-                                        <div className="space-y-3 text-xs sm:text-sm text-yellow-800">
-                                          {/* File Upload Constraints */}
-                                          {(selectedProduct.maxFileSizeMB || selectedProduct.minFileWidth || selectedProduct.maxFileWidth || selectedProduct.minFileHeight || selectedProduct.maxFileHeight || selectedProduct.blockCDRandJPG) && (
+                          {/* Price & Delivery Section - Enhanced Layout */}
+                          <div className="bg-gradient-to-br from-gray-50 to-white rounded-2xl border border-gray-200 shadow-lg p-4 sm:p-6 mb-6">
+                            {/* Price Box - Full Width */}
+                            <div className="mb-4">
+                              <ProductPriceBox
+                                productId={selectedProduct._id}
+                                quantity={quantity}
+                                selectedDynamicAttributes={Object.entries(selectedDynamicAttributes || {}).map(([key, value]) => ({
+                                  attributeType: key,
+                                  value: value
+                                }))}
+                                showBreakdown={false}
+                                priceData={dynamicPriceData}
+                              />
+                            </div>
+
+                            {/* Delivery Check Button */}
+                            <button
+                              onClick={() => setIsDeliveryOpen(!isDeliveryOpen)}
+                              className={`w-full px-4 py-3 rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-2 ${isDeliveryOpen
+                                ? 'bg-blue-600 text-white shadow-md'
+                                : 'bg-blue-50 hover:bg-blue-100 text-blue-900 border border-blue-200'
+                                }`}
+                            >
+                              <Truck size={18} />
+                              {isDeliveryOpen ? 'Hide Delivery Options' : '🚚 Check Delivery Options'}
+                            </button>
+                          </div>
+
+                          {/* Delivery Estimate Section */}
+                          <AnimatePresence>
+                            {isDeliveryOpen && (
+                              <motion.div
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: "auto" }}
+                                exit={{ opacity: 0, height: 0 }}
+                                transition={{ duration: 0.3, ease: "easeInOut" }}
+                                className="overflow-hidden"
+                              >
+                                <div className="mt-4 mb-6">
+                                  <ShippingEstimate
+                                    deliveryPincode={pincode || "395006"}
+                                    pickupPincode="395006"
+                                    weight={0.5} // Estimate weight or calculate based on quantity
+                                    className="shadow-sm"
+                                  />
+                                  <p className="text-xs text-gray-500 mt-2 italic">
+                                    * Enter your delivery pincode in the address section below for accurate estimates.
+                                  </p>
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+
+                          {/* Instructions Modal/Expanded Section with Smooth Transition */}
+                          <AnimatePresence>
+                            {isInstructionsOpen && (
+                              <motion.div
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: "auto" }}
+                                exit={{ opacity: 0, height: 0 }}
+                                transition={{ duration: 0.3, ease: "easeInOut" }}
+                                className="overflow-hidden"
+                              >
+                                <div className="mt-4 mb-6 p-4 sm:p-6 bg-yellow-50 border border-yellow-200 rounded-lg">
+                                  <h4 className="text-sm font-bold text-yellow-900 mb-3 flex items-center gap-2">
+                                    <Info size={16} />
+                                    Important Instructions - Please Read Carefully
+                                  </h4>
+
+                                  {/* Custom Instructions from Admin */}
+                                  {selectedProduct.instructions && (
+                                    <div className="mb-4 p-3 bg-red-50 border-2 border-red-300 rounded-lg">
+                                      <p className="text-xs font-bold text-red-900 mb-2 flex items-center gap-2">
+                                        <X size={14} className="text-red-600" />
+                                        CRITICAL: Company Not Responsible If Instructions Not Followed
+                                      </p>
+                                      <div className="text-xs sm:text-sm text-red-800 whitespace-pre-line">
+                                        {selectedProduct.instructions}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  <div className="space-y-3 text-xs sm:text-sm text-yellow-800">
+                                    {/* File Upload Constraints */}
+                                    {(selectedProduct.maxFileSizeMB || selectedProduct.minFileWidth || selectedProduct.maxFileWidth || selectedProduct.minFileHeight || selectedProduct.maxFileHeight || selectedProduct.blockCDRandJPG) && (
+                                      <div>
+                                        <p className="font-semibold text-yellow-900 mb-2">File Upload Requirements:</p>
+                                        <div className="space-y-1 ml-4">
+                                          {selectedProduct.maxFileSizeMB && (
+                                            <p>• Maximum file size: <strong>{selectedProduct.maxFileSizeMB} MB</strong></p>
+                                          )}
+                                          {(selectedProduct.minFileWidth || selectedProduct.maxFileWidth || selectedProduct.minFileHeight || selectedProduct.maxFileHeight) && (
                                             <div>
-                                              <p className="font-semibold text-yellow-900 mb-2">File Upload Requirements:</p>
-                                              <div className="space-y-1 ml-4">
-                                                {selectedProduct.maxFileSizeMB && (
-                                                  <p>• Maximum file size: <strong>{selectedProduct.maxFileSizeMB} MB</strong></p>
+                                              <p>• File dimensions:</p>
+                                              <div className="ml-4 space-y-1">
+                                                {(selectedProduct.minFileWidth || selectedProduct.maxFileWidth) && (
+                                                  <p>
+                                                    - Width: <strong>
+                                                      {selectedProduct.minFileWidth && selectedProduct.maxFileWidth
+                                                        ? `${selectedProduct.minFileWidth} - ${selectedProduct.maxFileWidth} pixels`
+                                                        : selectedProduct.minFileWidth
+                                                          ? `Minimum ${selectedProduct.minFileWidth} pixels`
+                                                          : selectedProduct.maxFileWidth
+                                                            ? `Maximum ${selectedProduct.maxFileWidth} pixels`
+                                                            : "Any"}
+                                                    </strong>
+                                                  </p>
                                                 )}
-                                                {(selectedProduct.minFileWidth || selectedProduct.maxFileWidth || selectedProduct.minFileHeight || selectedProduct.maxFileHeight) && (
-                                                  <div>
-                                                    <p>• File dimensions:</p>
-                                                    <div className="ml-4 space-y-1">
-                                                      {(selectedProduct.minFileWidth || selectedProduct.maxFileWidth) && (
-                                                        <p>
-                                                          - Width: <strong>
-                                                            {selectedProduct.minFileWidth && selectedProduct.maxFileWidth
-                                                              ? `${selectedProduct.minFileWidth} - ${selectedProduct.maxFileWidth} pixels`
-                                                              : selectedProduct.minFileWidth
-                                                                ? `Minimum ${selectedProduct.minFileWidth} pixels`
-                                                                : selectedProduct.maxFileWidth
-                                                                  ? `Maximum ${selectedProduct.maxFileWidth} pixels`
-                                                                  : "Any"}
-                                                          </strong>
-                                                        </p>
-                                                      )}
-                                                      {(selectedProduct.minFileHeight || selectedProduct.maxFileHeight) && (
-                                                        <p>
-                                                          - Height: <strong>
-                                                            {selectedProduct.minFileHeight && selectedProduct.maxFileHeight
-                                                              ? `${selectedProduct.minFileHeight} - ${selectedProduct.maxFileHeight} pixels`
-                                                              : selectedProduct.minFileHeight
-                                                                ? `Minimum ${selectedProduct.minFileHeight} pixels`
-                                                                : selectedProduct.maxFileHeight
-                                                                  ? `Maximum ${selectedProduct.maxFileHeight} pixels`
-                                                                  : "Any"}
-                                                          </strong>
-                                                        </p>
-                                                      )}
-                                                    </div>
-                                                  </div>
-                                                )}
-                                                {selectedProduct.blockCDRandJPG && (
-                                                  <p>• <strong>CDR and JPG files are not accepted</strong> for this product</p>
+                                                {(selectedProduct.minFileHeight || selectedProduct.maxFileHeight) && (
+                                                  <p>
+                                                    - Height: <strong>
+                                                      {selectedProduct.minFileHeight && selectedProduct.maxFileHeight
+                                                        ? `${selectedProduct.minFileHeight} - ${selectedProduct.maxFileHeight} pixels`
+                                                        : selectedProduct.minFileHeight
+                                                          ? `Minimum ${selectedProduct.minFileHeight} pixels`
+                                                          : selectedProduct.maxFileHeight
+                                                            ? `Maximum ${selectedProduct.maxFileHeight} pixels`
+                                                            : "Any"}
+                                                    </strong>
+                                                  </p>
                                                 )}
                                               </div>
                                             </div>
                                           )}
-
-                                          {/* Additional Settings */}
-                                          {(selectedProduct.additionalDesignCharge || selectedProduct.gstPercentage) && (
-                                            <div>
-                                              <p className="font-semibold text-yellow-900 mb-2">Additional Charges:</p>
-                                              <div className="space-y-1 ml-4">
-                                                {selectedProduct.additionalDesignCharge && selectedProduct.additionalDesignCharge > 0 && (
-                                                  <p>• Additional Design Charge: <strong>₹{selectedProduct.additionalDesignCharge.toFixed(2)}</strong> (applied if design help is needed)</p>
-                                                )}
-                                                {selectedProduct.gstPercentage && selectedProduct.gstPercentage > 0 && (
-                                                  <p>• GST: <strong>{selectedProduct.gstPercentage}%</strong> (applied on subtotal + design charge)</p>
-                                                )}
-                                              </div>
-                                            </div>
-                                          )}
-
-                                          {!selectedProduct.instructions && !selectedProduct.maxFileSizeMB && !selectedProduct.minFileWidth && !selectedProduct.maxFileWidth && !selectedProduct.minFileHeight && !selectedProduct.maxFileHeight && !selectedProduct.blockCDRandJPG && !selectedProduct.additionalDesignCharge && !selectedProduct.gstPercentage && (
-                                            <p className="text-yellow-700 italic">No special instructions for this product.</p>
+                                          {selectedProduct.blockCDRandJPG && (
+                                            <p>• <strong>CDR and JPG files are not accepted</strong> for this product</p>
                                           )}
                                         </div>
                                       </div>
-                                    </motion.div>
-                                  )}
-                                </AnimatePresence>
+                                    )}
 
-                                <div className="text-sm sm:text-base text-gray-600 space-y-2">
-                                  {(() => {
-                                    // First check if description contains HTML (prioritize description field)
-                                    if (selectedProduct.description) {
-                                      const hasHTML = /<[a-z][\s\S]*>/i.test(selectedProduct.description);
-                                      if (hasHTML) {
-                                        // Render HTML description exactly as provided by admin
-                                        return (
-                                          <>
-                                            <style>{`
+                                    {/* Additional Settings */}
+                                    {(selectedProduct.additionalDesignCharge || selectedProduct.gstPercentage) && (
+                                      <div>
+                                        <p className="font-semibold text-yellow-900 mb-2">Additional Charges:</p>
+                                        <div className="space-y-1 ml-4">
+                                          {selectedProduct.additionalDesignCharge && selectedProduct.additionalDesignCharge > 0 && (
+                                            <p>• Additional Design Charge: <strong>₹{selectedProduct.additionalDesignCharge.toFixed(2)}</strong> (applied if design help is needed)</p>
+                                          )}
+                                          {selectedProduct.gstPercentage && selectedProduct.gstPercentage > 0 && (
+                                            <p>• GST: <strong>{selectedProduct.gstPercentage}%</strong> (applied on subtotal + design charge)</p>
+                                          )}
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {!selectedProduct.instructions && !selectedProduct.maxFileSizeMB && !selectedProduct.minFileWidth && !selectedProduct.maxFileWidth && !selectedProduct.minFileHeight && !selectedProduct.maxFileHeight && !selectedProduct.blockCDRandJPG && !selectedProduct.additionalDesignCharge && !selectedProduct.gstPercentage && (
+                                      <p className="text-yellow-700 italic">No special instructions for this product.</p>
+                                    )}
+                                  </div>
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+
+                          <div className="text-sm sm:text-base text-gray-600 space-y-2">
+                            {(() => {
+                              // First check if description contains HTML (prioritize description field)
+                              if (selectedProduct.description) {
+                                const hasHTML = /<[a-z][\s\S]*>/i.test(selectedProduct.description);
+                                if (hasHTML) {
+                                  // Render HTML description exactly as provided by admin
+                                  return (
+                                    <>
+                                      <style>{`
                                         .product-description-html {
                                           color: #92400e;
                                           line-height: 1.6;
@@ -4376,105 +4332,101 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                           margin-bottom: 0.25rem;
                                         }
                                       `}</style>
-                                            <div
-                                              className="product-description-html text-gray-600"
-                                              dangerouslySetInnerHTML={{ __html: selectedProduct.description }}
-                                            />
-                                          </>
-                                        );
-                                      }
+                                      <div
+                                        className="product-description-html text-gray-600"
+                                        dangerouslySetInnerHTML={{ __html: selectedProduct.description }}
+                                      />
+                                    </>
+                                  );
+                                }
+                              }
+
+                              // Use descriptionArray if available, otherwise use description
+                              if (selectedProduct.descriptionArray && Array.isArray(selectedProduct.descriptionArray) && selectedProduct.descriptionArray.length > 0) {
+                                // Render descriptionArray with formatting
+                                const renderTextWithBold = (text: string) => {
+                                  const parts = text.split(/(\*\*.*?\*\*)/g);
+                                  return parts.map((part, idx) => {
+                                    if (part.startsWith('**') && part.endsWith('**')) {
+                                      const boldText = part.slice(2, -2);
+                                      return <strong key={idx} className="font-bold text-gray-800">{boldText}</strong>;
                                     }
+                                    return <span key={idx}>{part}</span>;
+                                  });
+                                };
 
-                                    // Use descriptionArray if available, otherwise use description
-                                    if (selectedProduct.descriptionArray && Array.isArray(selectedProduct.descriptionArray) && selectedProduct.descriptionArray.length > 0) {
-                                      // Render descriptionArray with formatting
-                                      const renderTextWithBold = (text: string) => {
-                                        const parts = text.split(/(\*\*.*?\*\*)/g);
-                                        return parts.map((part, idx) => {
-                                          if (part.startsWith('**') && part.endsWith('**')) {
-                                            const boldText = part.slice(2, -2);
-                                            return <strong key={idx} className="font-bold text-gray-800">{boldText}</strong>;
-                                          }
-                                          return <span key={idx}>{part}</span>;
-                                        });
-                                      };
-
-                                      // Ensure descriptionArray is displayed left to right (correct order)
-                                      // Reverse the array if it's stored in reverse order
-                                      const descriptionLines = [...selectedProduct.descriptionArray].reverse();
-                                      return descriptionLines.map((desc, i) => {
-                                        if (desc.includes(':')) {
-                                          return (
-                                            <div key={i} className="mt-3 first:mt-0">
-                                              <p className="font-semibold text-gray-700 mb-1.5">
-                                                {renderTextWithBold(desc)}
-                                              </p>
-                                            </div>
-                                          );
-                                        } else if (desc.startsWith('→') || desc.startsWith('->') || desc.startsWith('•')) {
-                                          const cleanDesc = desc.replace(/^[→•\-]+\s*/, '').trim();
-                                          return (
-                                            <p key={i} className="flex items-start">
-                                              <span className="mr-2 text-gray-500 mt-1">→</span>
-                                              <span>{renderTextWithBold(cleanDesc)}</span>
-                                            </p>
-                                          );
-                                        } else {
-                                          return (
-                                            <p key={i} className="flex items-start">
-                                              <span className="mr-2 text-gray-500 mt-1">→</span>
-                                              <span>{renderTextWithBold(desc)}</span>
-                                            </p>
-                                          );
-                                        }
-                                      });
-                                    } else if (selectedProduct.description) {
-                                      // Render plain text description with formatting (HTML already handled above)
-                                      const descriptionLines = selectedProduct.description.split('\n').map(line => line.trim()).filter(line => line.length > 0);
-                                      const renderTextWithBold = (text: string) => {
-                                        const parts = text.split(/(\*\*.*?\*\*)/g);
-                                        return parts.map((part, idx) => {
-                                          if (part.startsWith('**') && part.endsWith('**')) {
-                                            const boldText = part.slice(2, -2);
-                                            return <strong key={idx} className="font-bold text-gray-800">{boldText}</strong>;
-                                          }
-                                          return <span key={idx}>{part}</span>;
-                                        });
-                                      };
-                                      return descriptionLines.map((desc, i) => {
-                                        if (desc.includes(':')) {
-                                          return (
-                                            <div key={i} className="mt-3 first:mt-0">
-                                              <p className="font-semibold text-gray-700 mb-1.5">
-                                                {renderTextWithBold(desc)}
-                                              </p>
-                                            </div>
-                                          );
-                                        } else if (desc.startsWith('→') || desc.startsWith('->') || desc.startsWith('•')) {
-                                          const cleanDesc = desc.replace(/^[→•\-]+\s*/, '').trim();
-                                          return (
-                                            <p key={i} className="flex items-start">
-                                              <span className="mr-2 text-gray-500 mt-1">→</span>
-                                              <span>{renderTextWithBold(cleanDesc)}</span>
-                                            </p>
-                                          );
-                                        } else {
-                                          return (
-                                            <p key={i} className="flex items-start">
-                                              <span className="mr-2 text-gray-500 mt-1">→</span>
-                                              <span>{renderTextWithBold(desc)}</span>
-                                            </p>
-                                          );
-                                        }
-                                      });
-                                    } else {
-                                      return <p className="text-gray-500 italic">No description available</p>;
+                                // Ensure descriptionArray is displayed left to right (correct order)
+                                // Reverse the array if it's stored in reverse order
+                                const descriptionLines = [...selectedProduct.descriptionArray].reverse();
+                                return descriptionLines.map((desc, i) => {
+                                  if (desc.includes(':')) {
+                                    return (
+                                      <div key={i} className="mt-3 first:mt-0">
+                                        <p className="font-semibold text-gray-700 mb-1.5">
+                                          {renderTextWithBold(desc)}
+                                        </p>
+                                      </div>
+                                    );
+                                  } else if (desc.startsWith('→') || desc.startsWith('->') || desc.startsWith('•')) {
+                                    const cleanDesc = desc.replace(/^[→•\-]+\s*/, '').trim();
+                                    return (
+                                      <p key={i} className="flex items-start">
+                                        <span className="mr-2 text-gray-500 mt-1">→</span>
+                                        <span>{renderTextWithBold(cleanDesc)}</span>
+                                      </p>
+                                    );
+                                  } else {
+                                    return (
+                                      <p key={i} className="flex items-start">
+                                        <span className="mr-2 text-gray-500 mt-1">→</span>
+                                        <span>{renderTextWithBold(desc)}</span>
+                                      </p>
+                                    );
+                                  }
+                                });
+                              } else if (selectedProduct.description) {
+                                // Render plain text description with formatting (HTML already handled above)
+                                const descriptionLines = selectedProduct.description.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+                                const renderTextWithBold = (text: string) => {
+                                  const parts = text.split(/(\*\*.*?\*\*)/g);
+                                  return parts.map((part, idx) => {
+                                    if (part.startsWith('**') && part.endsWith('**')) {
+                                      const boldText = part.slice(2, -2);
+                                      return <strong key={idx} className="font-bold text-gray-800">{boldText}</strong>;
                                     }
-                                  })()}
-                                </div>
-                              </div>
-
-                            </div>
+                                    return <span key={idx}>{part}</span>;
+                                  });
+                                };
+                                return descriptionLines.map((desc, i) => {
+                                  if (desc.includes(':')) {
+                                    return (
+                                      <div key={i} className="mt-3 first:mt-0">
+                                        <p className="font-semibold text-gray-700 mb-1.5">
+                                          {renderTextWithBold(desc)}
+                                        </p>
+                                      </div>
+                                    );
+                                  } else if (desc.startsWith('→') || desc.startsWith('->') || desc.startsWith('•')) {
+                                    const cleanDesc = desc.replace(/^[→•\-]+\s*/, '').trim();
+                                    return (
+                                      <p key={i} className="flex items-start">
+                                        <span className="mr-2 text-gray-500 mt-1">→</span>
+                                        <span>{renderTextWithBold(cleanDesc)}</span>
+                                      </p>
+                                    );
+                                  } else {
+                                    return (
+                                      <p key={i} className="flex items-start">
+                                        <span className="mr-2 text-gray-500 mt-1">→</span>
+                                        <span>{renderTextWithBold(desc)}</span>
+                                      </p>
+                                    );
+                                  }
+                                });
+                              } else {
+                                return <p className="text-gray-500 italic">No description available</p>;
+                              }
+                            })()}
                           </div>
 
                           {(() => {
@@ -5657,7 +5609,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                               </>
                             ) : (
                               <>
-                                <span>Customize Design</span>
+                                <span>Place Order</span>
                                 <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
                               </>
                             )}
@@ -5676,629 +5628,637 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
             </div>
           </>
         )}
-      </div>
+      </div >
 
       {/* Payment Confirmation Modal */}
       <AnimatePresence>
-        {showPaymentModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
-            onClick={() => !isProcessingPayment && setShowPaymentModal(false)}
-          >
+        {
+          showPaymentModal && (
             <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-xl shadow-2xl max-w-md w-full p-4 sm:p-6 max-h-[90vh] overflow-y-auto"
-              data-payment-modal
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
+              onClick={() => !isProcessingPayment && setShowPaymentModal(false)}
             >
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg sm:text-xl font-bold text-gray-900 flex items-center gap-2">
-                  <CreditCard size={20} className="sm:w-6 sm:h-6" />
-                  <span className="text-base sm:text-xl">Payment Confirmation</span>
-                </h3>
-                {!isProcessingPayment && (
-                  <button
-                    onClick={() => setShowPaymentModal(false)}
-                    className="text-gray-600 hover:text-gray-900"
-                  >
-                    <X size={24} />
-                  </button>
-                )}
-              </div>
-
-              <div className="mb-6">
-                <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-700 font-medium">Subtotal (Excluding GST):</span>
-                      <span className="text-lg font-bold text-gray-900">₹{price.toFixed(2)}</span>
-                    </div>
-                    {gstAmount > 0 && (
-                      <>
-                        <div className="flex justify-between items-center text-sm">
-                          <span className="text-gray-600">GST ({selectedProduct?.gstPercentage || 18}%):</span>
-                          <span className="text-gray-700">+₹{gstAmount.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between items-center pt-2 border-t border-gray-300">
-                          <span className="text-gray-700 font-medium">Total Amount (Including GST):</span>
-                          <span className="text-2xl font-bold text-gray-900">₹{(price + gstAmount).toFixed(2)}</span>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                  <p className="text-xs text-gray-600 mt-2">
-                    Your order will be placed and you can pay later.
-                  </p>
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                onClick={(e) => e.stopPropagation()}
+                className="bg-white rounded-xl shadow-2xl max-w-md w-full p-4 sm:p-6 max-h-[90vh] overflow-y-auto"
+                data-payment-modal
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg sm:text-xl font-bold text-gray-900 flex items-center gap-2">
+                    <CreditCard size={20} className="sm:w-6 sm:h-6" />
+                    <span className="text-base sm:text-xl">Payment Confirmation</span>
+                  </h3>
+                  {!isProcessingPayment && (
+                    <button
+                      onClick={() => setShowPaymentModal(false)}
+                      className="text-gray-600 hover:text-gray-900"
+                    >
+                      <X size={24} />
+                    </button>
+                  )}
                 </div>
 
-                {paymentError && (
-                  <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 flex items-start gap-2">
-                    <AlertCircle size={20} className="text-red-600 flex-shrink-0 mt-0.5" />
-                    <p className="text-sm text-red-800">{paymentError}</p>
-                  </div>
-                )}
-
-                {/* Delivery Information Form */}
-                <div className="mb-6 space-y-4">
-                  <h4 className="font-semibold text-gray-900 text-sm mb-3 flex items-center gap-2">
-                    <Truck size={18} />
-                    Delivery Information
-                  </h4>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Full Name <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      name="customerName"
-                      id="customerName"
-                      value={customerName}
-                      onChange={(e) => {
-                        setCustomerName(e.target.value);
-                        if (paymentError) setPaymentError(null);
-                      }}
-                      placeholder="Enter your full name"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none text-sm"
-                      required
-                    />
+                <div className="mb-6">
+                  <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-700 font-medium">Subtotal (Excluding GST):</span>
+                        <span className="text-lg font-bold text-gray-900">₹{price.toFixed(2)}</span>
+                      </div>
+                      {gstAmount > 0 && (
+                        <>
+                          <div className="flex justify-between items-center text-sm">
+                            <span className="text-gray-600">GST ({selectedProduct?.gstPercentage || 18}%):</span>
+                            <span className="text-gray-700">+₹{gstAmount.toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between items-center pt-2 border-t border-gray-300">
+                            <span className="text-gray-700 font-medium">Total Amount (Including GST):</span>
+                            <span className="text-2xl font-bold text-gray-900">₹{(price + gstAmount).toFixed(2)}</span>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-600 mt-2">
+                      Your order will be placed and you can pay later.
+                    </p>
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Email <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="email"
-                      name="customerEmail"
-                      id="customerEmail"
-                      value={customerEmail}
-                      onChange={(e) => {
-                        setCustomerEmail(e.target.value);
-                        if (paymentError) setPaymentError(null);
-                      }}
-                      placeholder="Enter your email address"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none text-sm"
-                      required
-                    />
-                  </div>
+                  {paymentError && (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 flex items-start gap-2">
+                      <AlertCircle size={20} className="text-red-600 flex-shrink-0 mt-0.5" />
+                      <p className="text-sm text-red-800">{paymentError}</p>
+                    </div>
+                  )}
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Pincode <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      name="pincode"
-                      id="pincode"
-                      value={pincode}
-                      onChange={(e) => {
-                        const value = e.target.value.replace(/\D/g, '').slice(0, 6);
-                        setPincode(value);
-                        if (paymentError) setPaymentError(null);
-                      }}
-                      placeholder="Enter 6-digit pincode"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none text-sm"
-                      maxLength={6}
-                    />
-                  </div>
+                  {/* Delivery Information Form */}
+                  <div className="mb-6 space-y-4">
+                    <h4 className="font-semibold text-gray-900 text-sm mb-3 flex items-center gap-2">
+                      <Truck size={18} />
+                      Delivery Information
+                    </h4>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Complete Address <span className="text-red-500">*</span>
-                    </label>
-                    <div className="flex gap-2">
-                      <textarea
-                        name="address"
-                        id="address"
-                        value={address}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Full Name <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        name="customerName"
+                        id="customerName"
+                        value={customerName}
                         onChange={(e) => {
-                          setAddress(e.target.value);
+                          setCustomerName(e.target.value);
                           if (paymentError) setPaymentError(null);
                         }}
-                        placeholder="Enter your complete delivery address"
-                        rows={3}
-                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none text-sm resize-none"
+                        placeholder="Enter your full name"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none text-sm"
+                        required
                       />
-                      <button
-                        type="button"
-                        onClick={handleGetLocation}
-                        disabled={isGettingLocation}
-                        className="px-3 py-2 bg-purple-200 text-gray-900 rounded-lg hover:bg-indigo-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-                        title="Get location automatically"
-                      >
-                        {isGettingLocation ? (
-                          <Loader className="animate-spin" size={18} />
-                        ) : (
-                          <MapPin size={18} />
-                        )}
-                      </button>
                     </div>
-                    <p className="text-xs text-white0 mt-1">You can enter address manually or use location button</p>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Email <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="email"
+                        name="customerEmail"
+                        id="customerEmail"
+                        value={customerEmail}
+                        onChange={(e) => {
+                          setCustomerEmail(e.target.value);
+                          if (paymentError) setPaymentError(null);
+                        }}
+                        placeholder="Enter your email address"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none text-sm"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Pincode <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        name="pincode"
+                        id="pincode"
+                        value={pincode}
+                        onChange={(e) => {
+                          const value = e.target.value.replace(/\D/g, '').slice(0, 6);
+                          setPincode(value);
+                          if (paymentError) setPaymentError(null);
+                        }}
+                        placeholder="Enter 6-digit pincode"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none text-sm"
+                        maxLength={6}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Complete Address <span className="text-red-500">*</span>
+                      </label>
+                      <div className="flex gap-2">
+                        <textarea
+                          name="address"
+                          id="address"
+                          value={address}
+                          onChange={(e) => {
+                            setAddress(e.target.value);
+                            if (paymentError) setPaymentError(null);
+                          }}
+                          placeholder="Enter your complete delivery address"
+                          rows={3}
+                          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none text-sm resize-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleGetLocation}
+                          disabled={isGettingLocation}
+                          className="px-3 py-2 bg-purple-200 text-gray-900 rounded-lg hover:bg-indigo-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                          title="Get location automatically"
+                        >
+                          {isGettingLocation ? (
+                            <Loader className="animate-spin" size={18} />
+                          ) : (
+                            <MapPin size={18} />
+                          )}
+                        </button>
+                      </div>
+                      <p className="text-xs text-white0 mt-1">You can enter address manually or use location button</p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Mobile Number <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        name="mobileNumber"
+                        id="mobileNumber"
+                        value={mobileNumber}
+                        onChange={(e) => {
+                          const value = e.target.value.replace(/\D/g, '').slice(0, 10);
+                          setMobileNumber(value);
+                          if (paymentError) setPaymentError(null);
+                        }}
+                        placeholder="Enter 10-digit mobile number"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none text-sm"
+                        maxLength={10}
+                      />
+                    </div>
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Mobile Number <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      name="mobileNumber"
-                      id="mobileNumber"
-                      value={mobileNumber}
-                      onChange={(e) => {
-                        const value = e.target.value.replace(/\D/g, '').slice(0, 10);
-                        setMobileNumber(value);
-                        if (paymentError) setPaymentError(null);
-                      }}
-                      placeholder="Enter 10-digit mobile number"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none text-sm"
-                      maxLength={10}
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2 text-sm text-gray-700">
-                  <p className="font-semibold mb-2">Order Summary:</p>
-                  <div className="space-y-1 ml-4">
-                    <p>• Product: <strong>{selectedProduct?.name}</strong></p>
-                    <p>• Quantity: <strong>{quantity.toLocaleString()}</strong></p>
-                    <p>• Printing Option: <strong>{selectedPrintingOption}</strong></p>
-                    <p>• Delivery Speed: <strong>{selectedDeliverySpeed}</strong></p>
-                    {selectedTextureType && (
-                      <p>• Texture Type: <strong>{selectedTextureType}</strong></p>
-                    )}
-                  </div>
-                </div>
-
-                {/* Estimated Delivery Information - Show at checkout */}
-                {estimatedDeliveryDate && (
-                  <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-                    <h3 className="font-bold text-sm text-gray-900 mb-2 flex items-center gap-2">
-                      <Truck size={16} /> Estimated Delivery
-                    </h3>
-                    <div className="text-green-700 text-sm">
-                      <div className="font-semibold mb-1">Estimated Delivery by <strong>{estimatedDeliveryDate}</strong></div>
-                      {deliveryLocationSource && (
-                        <div className="text-xs text-green-600 mt-1">
-                          {deliveryLocationSource}
-                        </div>
+                  <div className="space-y-2 text-sm text-gray-700">
+                    <p className="font-semibold mb-2">Order Summary:</p>
+                    <div className="space-y-1 ml-4">
+                      <p>• Product: <strong>{selectedProduct?.name}</strong></p>
+                      <p>• Quantity: <strong>{quantity.toLocaleString()}</strong></p>
+                      <p>• Printing Option: <strong>{selectedPrintingOption}</strong></p>
+                      <p>• Delivery Speed: <strong>{selectedDeliverySpeed}</strong></p>
+                      {selectedTextureType && (
+                        <p>• Texture Type: <strong>{selectedTextureType}</strong></p>
                       )}
                     </div>
                   </div>
-                )}
-              </div>
 
-              <div className="flex gap-3">
-                {!isProcessingPayment && (
-                  <button
-                    onClick={() => setShowPaymentModal(false)}
-                    className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                )}
-                <button
-                  onClick={handlePaymentAndOrder}
-                  disabled={isProcessingPayment}
-                  className="flex-1 px-4 py-3 bg-gray-900 text-white rounded-lg font-semibold hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                >
-                  {isProcessingPayment ? (
-                    <>
-                      <Loader className="animate-spin" size={18} />
-                      Processing...
-                    </>
-                  ) : (
-                    <>
-                      <Check size={18} />
-                      Confirm Order ₹{(price + gstAmount).toFixed(2)}
-                    </>
+                  {/* Estimated Delivery Information - Show at checkout */}
+                  {estimatedDeliveryDate && (
+                    <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                      <h3 className="font-bold text-sm text-gray-900 mb-2 flex items-center gap-2">
+                        <Truck size={16} /> Estimated Delivery
+                      </h3>
+                      <div className="text-green-700 text-sm">
+                        <div className="font-semibold mb-1">Estimated Delivery by <strong>{estimatedDeliveryDate}</strong></div>
+                        {deliveryLocationSource && (
+                          <div className="text-xs text-green-600 mt-1">
+                            {deliveryLocationSource}
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   )}
-                </button>
-              </div>
+                </div>
+
+                <div className="flex gap-3">
+                  {!isProcessingPayment && (
+                    <button
+                      onClick={() => setShowPaymentModal(false)}
+                      className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  )}
+                  <button
+                    onClick={handlePaymentAndOrder}
+                    disabled={isProcessingPayment}
+                    className="flex-1 px-4 py-3 bg-gray-900 text-white rounded-lg font-semibold hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {isProcessingPayment ? (
+                      <>
+                        <Loader className="animate-spin" size={18} />
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        <Check size={18} />
+                        Confirm Order ₹{(price + gstAmount).toFixed(2)}
+                      </>
+                    )}
+                  </button>
+                </div>
+              </motion.div>
             </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          )
+        }
+      </AnimatePresence >
 
       {/* Full Size Image Modal */}
       <AnimatePresence>
-        {isImageModalOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
-            onClick={() => setIsImageModalOpen(false)}
-          >
+        {
+          isImageModalOpen && (
             <motion.div
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.8, opacity: 0 }}
-              className="relative max-w-7xl max-h-[90vh] w-full h-full flex items-center justify-center p-4"
-              onClick={(e) => e.stopPropagation()}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
+              onClick={() => setIsImageModalOpen(false)}
             >
-              <div
-                style={{
-                  maxWidth: '90%',
-                  maxHeight: '90%',
-                  width: 'auto',
-                  height: 'auto',
-                  position: 'relative',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}
+              <motion.div
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.8, opacity: 0 }}
+                className="relative max-w-7xl max-h-[90vh] w-full h-full flex items-center justify-center p-4"
+                onClick={(e) => e.stopPropagation()}
               >
-                <img
-                  src={selectedSubCategory?.image || "/Glossy.png"}
-                  alt={selectedSubCategory?.name || "Product Preview"}
-                  className="w-full h-full object-contain"
+                <div
                   style={{
-                    maxWidth: '100%',
-                    maxHeight: '90vh',
+                    maxWidth: '90%',
+                    maxHeight: '90%',
                     width: 'auto',
                     height: 'auto',
+                    position: 'relative',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
                   }}
-                />
-              </div>
-              <button
-                onClick={() => setIsImageModalOpen(false)}
-                className="absolute top-4 right-4 bg-white/10 hover:bg-white/20 text-white rounded-full p-2 backdrop-blur-sm transition-colors z-50"
-                aria-label="Close image"
-              >
-                <X size={24} />
-              </button>
+                >
+                  <img
+                    src={selectedSubCategory?.image || "/Glossy.png"}
+                    alt={selectedSubCategory?.name || "Product Preview"}
+                    className="w-full h-full object-contain"
+                    style={{
+                      maxWidth: '100%',
+                      maxHeight: '90vh',
+                      width: 'auto',
+                      height: 'auto',
+                    }}
+                  />
+                </div>
+                <button
+                  onClick={() => setIsImageModalOpen(false)}
+                  className="absolute top-4 right-4 bg-white/10 hover:bg-white/20 text-white rounded-full p-2 backdrop-blur-sm transition-colors z-50"
+                  aria-label="Close image"
+                >
+                  <X size={24} />
+                </button>
+              </motion.div>
             </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          )
+        }
+      </AnimatePresence >
 
       {/* RADIO Attribute Selection Modal */}
       <AnimatePresence>
-        {radioModalOpen && radioModalData && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
-            onClick={() => setRadioModalOpen(false)}
-          >
+        {
+          radioModalOpen && radioModalData && (
             <motion.div
-              initial={{ scale: 0.95, opacity: 0, y: 20 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.95, opacity: 0, y: 20 }}
-              transition={{ type: "spring", duration: 0.3 }}
-              className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col"
-              onClick={(e) => e.stopPropagation()}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+              onClick={() => setRadioModalOpen(false)}
             >
-              {/* Modal Header */}
-              <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100 flex items-center justify-between">
-                <div>
-                  <h2 className="text-xl font-bold text-gray-900">
-                    Select {radioModalData.attributeName}
-                  </h2>
-                  {radioModalData.isRequired && (
-                    <p className="text-xs text-red-500 mt-1">Required field</p>
-                  )}
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0, y: 20 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.95, opacity: 0, y: 20 }}
+                transition={{ type: "spring", duration: 0.3 }}
+                className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Modal Header */}
+                <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100 flex items-center justify-between">
+                  <div>
+                    <h2 className="text-xl font-bold text-gray-900">
+                      Select {radioModalData.attributeName}
+                    </h2>
+                    {radioModalData.isRequired && (
+                      <p className="text-xs text-red-500 mt-1">Required field</p>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => setRadioModalOpen(false)}
+                    className="p-2 hover:bg-purple-200 rounded-full transition-colors"
+                    aria-label="Close modal"
+                  >
+                    <X size={20} className="text-gray-700" />
+                  </button>
                 </div>
-                <button
-                  onClick={() => setRadioModalOpen(false)}
-                  className="p-2 hover:bg-purple-200 rounded-full transition-colors"
-                  aria-label="Close modal"
-                >
-                  <X size={20} className="text-gray-700" />
-                </button>
-              </div>
 
-              {/* Modal Content - Scrollable */}
-              <div className="flex-1 overflow-y-auto p-4">
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 justify-items-center">
-                  {radioModalData.attributeValues.map((av) => {
-                    // Format price display as per unit price
-                    const getPriceDisplay = () => {
-                      // Check for priceImpact first (new format with option usage)
-                      if (av.description) {
-                        const priceImpactMatch = av.description.match(/Price Impact: ₹([\d.]+)/);
-                        if (priceImpactMatch) {
-                          const priceImpact = parseFloat(priceImpactMatch[1]) || 0;
-                          if (priceImpact > 0) {
-                            return `+₹${priceImpact.toFixed(2)}/unit`;
+                {/* Modal Content - Scrollable */}
+                <div className="flex-1 overflow-y-auto p-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 justify-items-center">
+                    {radioModalData.attributeValues.map((av) => {
+                      // Format price display as per unit price
+                      const getPriceDisplay = () => {
+                        // Check for priceImpact first (new format with option usage)
+                        if (av.description) {
+                          const priceImpactMatch = av.description.match(/Price Impact: ₹([\d.]+)/);
+                          if (priceImpactMatch) {
+                            const priceImpact = parseFloat(priceImpactMatch[1]) || 0;
+                            if (priceImpact > 0) {
+                              return `+₹${priceImpact.toFixed(2)}/unit`;
+                            }
                           }
                         }
-                      }
-                      // Fall back to priceMultiplier calculation
-                      if (!av.priceMultiplier || av.priceMultiplier === 1 || !selectedProduct) return null;
-                      const basePrice = selectedProduct.basePrice || 0;
-                      const pricePerUnit = basePrice * (av.priceMultiplier - 1);
-                      if (Math.abs(pricePerUnit) < 0.01) return null;
-                      return `+₹${pricePerUnit.toFixed(2)}/unit`;
-                    };
+                        // Fall back to priceMultiplier calculation
+                        if (!av.priceMultiplier || av.priceMultiplier === 1 || !selectedProduct) return null;
+                        const basePrice = selectedProduct.basePrice || 0;
+                        const pricePerUnit = basePrice * (av.priceMultiplier - 1);
+                        if (Math.abs(pricePerUnit) < 0.01) return null;
+                        return `+₹${pricePerUnit.toFixed(2)}/unit`;
+                      };
 
-                    const isSelected = radioModalData.selectedValue === av.value;
+                      const isSelected = radioModalData.selectedValue === av.value;
 
-                    // Check if this value has sub-attributes available in PDP data
-                    const valueSubAttributesKey = `${radioModalData.attributeId}:${av.value}`;
-                    const valueSubAttributes = pdpSubAttributes[valueSubAttributesKey] || [];
+                      // Check if this value has sub-attributes available in PDP data
+                      const valueSubAttributesKey = `${radioModalData.attributeId}:${av.value}`;
+                      const valueSubAttributes = pdpSubAttributes[valueSubAttributesKey] || [];
 
-                    return (
-                      <motion.button
-                        key={av.value}
-                        type="button"
-                        onClick={() => {
-                          // Select main attribute value
-                          const newSelected = {
-                            ...selectedDynamicAttributes,
-                            [radioModalData.attributeId]: av.value
-                          };
-                          setSelectedDynamicAttributes(newSelected);
+                      return (
+                        <motion.button
+                          key={av.value}
+                          type="button"
+                          onClick={() => {
+                            // Select main attribute value
+                            const newSelected = {
+                              ...selectedDynamicAttributes,
+                              [radioModalData.attributeId]: av.value
+                            };
+                            setSelectedDynamicAttributes(newSelected);
 
-                          // Mark this attribute as user-selected for image updates (preserved order)
-                          setUserSelectedAttributes(prev => {
-                            const next = new Set(prev);
-                            next.delete(radioModalData.attributeId);
-                            next.add(radioModalData.attributeId);
-                            return next;
-                          });
-
-                          // If this value has sub-attributes, open sub-attribute modal
-                          if (valueSubAttributes.length > 0) {
-                            const subAttrKey = `${radioModalData.attributeId}__${av.value}`;
-                            const existingSubValue = (newSelected[subAttrKey] as string) || null;
-                            setSubAttrModalData({
-                              attributeId: radioModalData.attributeId,
-                              parentValue: av.value,
-                              parentLabel: av.label,
-                              subAttributes: valueSubAttributes,
-                              selectedValue: existingSubValue,
+                            // Mark this attribute as user-selected for image updates (preserved order)
+                            setUserSelectedAttributes(prev => {
+                              const next = new Set(prev);
+                              next.delete(radioModalData.attributeId);
+                              next.add(radioModalData.attributeId);
+                              return next;
                             });
-                            setSubAttrModalOpen(true);
-                          }
 
-                          // Close main radio modal
-                          setRadioModalOpen(false);
-                        }}
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        className={`relative p-2 rounded-lg border-2 text-left transition-all duration-200 flex flex-col w-[140px] h-[140px] overflow-hidden ${isSelected
-                          ? "border-gray-900 bg-gray-50 text-gray-900 ring-2 ring-gray-900 ring-offset-1"
-                          : "border-gray-200 text-gray-700 hover:border-gray-400 hover:bg-gray-50 hover:shadow-md"
-                          }`}
-                      >
-                        {isSelected && (
-                          <motion.div
-                            initial={{ scale: 0 }}
-                            animate={{ scale: 1 }}
-                            className="absolute top-1.5 right-1.5 bg-gray-900 text-white rounded-full p-1 shadow-lg z-10"
-                          >
-                            <Check size={12} />
-                          </motion.div>
-                        )}
+                            // If this value has sub-attributes, open sub-attribute modal
+                            if (valueSubAttributes.length > 0) {
+                              const subAttrKey = `${radioModalData.attributeId}__${av.value}`;
+                              const existingSubValue = (newSelected[subAttrKey] as string) || null;
+                              setSubAttrModalData({
+                                attributeId: radioModalData.attributeId,
+                                parentValue: av.value,
+                                parentLabel: av.label,
+                                subAttributes: valueSubAttributes,
+                                selectedValue: existingSubValue,
+                              });
+                              setSubAttrModalOpen(true);
+                            }
 
-                        {av.image && (
-                          <div className="mb-1.5 overflow-hidden rounded border border-gray-200 bg-gray-50 flex-shrink-0">
-                            <img
-                              src={av.image}
-                              alt={av.label}
-                              className="w-full h-[70px] object-cover transition-transform duration-200 hover:scale-105"
-                            />
-                          </div>
-                        )}
-
-                        <div className="space-y-1 flex-1 flex flex-col min-h-0">
-                          <div className="font-semibold text-xs text-gray-900 leading-tight line-clamp-2">
-                            {av.label}
-                          </div>
-
-                          {av.description && (
-                            <p className="text-[10px] text-gray-600 line-clamp-2 leading-tight">
-                              {av.description}
-                            </p>
+                            // Close main radio modal
+                            setRadioModalOpen(false);
+                          }}
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                          className={`relative p-2 rounded-lg border-2 text-left transition-all duration-200 flex flex-col w-[140px] h-[140px] overflow-hidden ${isSelected
+                            ? "border-gray-900 bg-gray-50 text-gray-900 ring-2 ring-gray-900 ring-offset-1"
+                            : "border-gray-200 text-gray-700 hover:border-gray-400 hover:bg-gray-50 hover:shadow-md"
+                            }`}
+                        >
+                          {isSelected && (
+                            <motion.div
+                              initial={{ scale: 0 }}
+                              animate={{ scale: 1 }}
+                              className="absolute top-1.5 right-1.5 bg-gray-900 text-white rounded-full p-1 shadow-lg z-10"
+                            >
+                              <Check size={12} />
+                            </motion.div>
                           )}
 
-                          {getPriceDisplay() && (
-                            <div className="mt-auto pt-1 border-t border-gray-200 text-[10px] font-semibold text-gray-700 leading-tight">
-                              {getPriceDisplay()}
+                          {av.image && (
+                            <div className="mb-1.5 overflow-hidden rounded border border-gray-200 bg-gray-50 flex-shrink-0">
+                              <img
+                                src={av.image}
+                                alt={av.label}
+                                className="w-full h-[70px] object-cover transition-transform duration-200 hover:scale-105"
+                              />
                             </div>
                           )}
-                        </div>
-                      </motion.button>
-                    );
-                  })}
-                </div>
-              </div>
 
-              {/* Modal Footer */}
-              <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
-                <div className="text-sm text-gray-600">
-                  {radioModalData.selectedValue ? (
-                    <span>
-                      Selected: <span className="font-semibold text-gray-900">
-                        {radioModalData.attributeValues.find(av => av.value === radioModalData.selectedValue)?.label}
-                      </span>
-                    </span>
-                  ) : (
-                    <span>Please select an option</span>
-                  )}
+                          <div className="space-y-1 flex-1 flex flex-col min-h-0">
+                            <div className="font-semibold text-xs text-gray-900 leading-tight line-clamp-2">
+                              {av.label}
+                            </div>
+
+                            {av.description && (
+                              <p className="text-[10px] text-gray-600 line-clamp-2 leading-tight">
+                                {av.description}
+                              </p>
+                            )}
+
+                            {getPriceDisplay() && (
+                              <div className="mt-auto pt-1 border-t border-gray-200 text-[10px] font-semibold text-gray-700 leading-tight">
+                                {getPriceDisplay()}
+                              </div>
+                            )}
+                          </div>
+                        </motion.button>
+                      );
+                    })}
+                  </div>
                 </div>
-                <button
-                  onClick={() => setRadioModalOpen(false)}
-                  className="px-6 py-2 bg-gray-900 text-white rounded-lg font-semibold hover:bg-gray-800 transition-colors"
-                >
-                  {radioModalData.selectedValue ? 'Done' : 'Cancel'}
-                </button>
-              </div>
+
+                {/* Modal Footer */}
+                <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
+                  <div className="text-sm text-gray-600">
+                    {radioModalData.selectedValue ? (
+                      <span>
+                        Selected: <span className="font-semibold text-gray-900">
+                          {radioModalData.attributeValues.find(av => av.value === radioModalData.selectedValue)?.label}
+                        </span>
+                      </span>
+                    ) : (
+                      <span>Please select an option</span>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => setRadioModalOpen(false)}
+                    className="px-6 py-2 bg-gray-900 text-white rounded-lg font-semibold hover:bg-gray-800 transition-colors"
+                  >
+                    {radioModalData.selectedValue ? 'Done' : 'Cancel'}
+                  </button>
+                </div>
+              </motion.div>
             </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          )
+        }
+      </AnimatePresence >
 
       {/* Sub-Attribute Selection Modal (for RADIO values with sub-attributes) */}
       <AnimatePresence>
-        {subAttrModalOpen && subAttrModalData && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
-            onClick={() => setSubAttrModalOpen(false)}
-          >
+        {
+          subAttrModalOpen && subAttrModalData && (
             <motion.div
-              initial={{ scale: 0.95, opacity: 0, y: 20 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.95, opacity: 0, y: 20 }}
-              transition={{ type: "spring", duration: 0.3 }}
-              className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[80vh] overflow-hidden flex flex-col"
-              onClick={(e) => e.stopPropagation()}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+              onClick={() => setSubAttrModalOpen(false)}
             >
-              {/* Header */}
-              <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100 flex items-center justify-between">
-                <div>
-                  <h2 className="text-lg font-bold text-gray-900">
-                    Select {subAttrModalData.parentLabel} Option
-                  </h2>
-                  <p className="text-xs text-gray-600 mt-1">
-                    Additional options related to {subAttrModalData.parentLabel}
-                  </p>
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0, y: 20 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.95, opacity: 0, y: 20 }}
+                transition={{ type: "spring", duration: 0.3 }}
+                className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[80vh] overflow-hidden flex flex-col"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Header */}
+                <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100 flex items-center justify-between">
+                  <div>
+                    <h2 className="text-lg font-bold text-gray-900">
+                      Select {subAttrModalData.parentLabel} Option
+                    </h2>
+                    <p className="text-xs text-gray-600 mt-1">
+                      Additional options related to {subAttrModalData.parentLabel}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setSubAttrModalOpen(false)}
+                    className="p-2 hover:bg-purple-200 rounded-full transition-colors"
+                    aria-label="Close sub-attribute modal"
+                  >
+                    <X size={18} className="text-gray-700" />
+                  </button>
                 </div>
-                <button
-                  onClick={() => setSubAttrModalOpen(false)}
-                  className="p-2 hover:bg-purple-200 rounded-full transition-colors"
-                  aria-label="Close sub-attribute modal"
-                >
-                  <X size={18} className="text-gray-700" />
-                </button>
-              </div>
 
-              {/* Content */}
-              <div className="flex-1 overflow-y-auto p-4">
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 justify-items-center">
-                  {subAttrModalData.subAttributes.map((subAttr) => {
-                    const getSubAttrPriceDisplay = () => {
-                      if (!subAttr.priceAdd || subAttr.priceAdd === 0) return null;
-                      return `+₹${subAttr.priceAdd.toFixed(2)}/piece`;
-                    };
+                {/* Content */}
+                <div className="flex-1 overflow-y-auto p-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 justify-items-center">
+                    {subAttrModalData.subAttributes.map((subAttr) => {
+                      const getSubAttrPriceDisplay = () => {
+                        if (!subAttr.priceAdd || subAttr.priceAdd === 0) return null;
+                        return `+₹${subAttr.priceAdd.toFixed(2)}/piece`;
+                      };
 
-                    const subAttrKey = `${subAttrModalData.attributeId}__${subAttrModalData.parentValue}`;
-                    const isSelected = selectedDynamicAttributes[subAttrKey] === subAttr.value;
+                      const subAttrKey = `${subAttrModalData.attributeId}__${subAttrModalData.parentValue}`;
+                      const isSelected = selectedDynamicAttributes[subAttrKey] === subAttr.value;
 
-                    return (
-                      <motion.button
-                        key={subAttr._id}
-                        type="button"
-                        onClick={() => {
-                          setSelectedDynamicAttributes((prev) => ({
-                            ...prev,
-                            [subAttrKey]: subAttr.value,
-                          }));
-                          setSubAttrModalData({
-                            ...subAttrModalData,
-                            selectedValue: subAttr.value,
-                          });
-                          // Mark the parent attribute as user-selected for image updates (preserved order)
-                          setUserSelectedAttributes(prev => {
-                            const next = new Set(prev);
-                            next.delete(subAttrModalData.attributeId);
-                            next.add(subAttrModalData.attributeId);
-                            return next;
-                          });
-                        }}
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        className={`relative p-2 rounded-lg border-2 text-left transition-all duration-200 flex flex-col w-[140px] h-[140px] overflow-hidden ${isSelected
-                          ? "border-gray-900 bg-gray-50 text-gray-900 ring-2 ring-gray-900 ring-offset-1"
-                          : "border-gray-200 text-gray-700 hover:border-gray-400 hover:bg-gray-50 hover:shadow-md"
-                          }`}
-                      >
-                        {isSelected && (
-                          <motion.div
-                            initial={{ scale: 0 }}
-                            animate={{ scale: 1 }}
-                            className="absolute top-1.5 right-1.5 bg-gray-900 text-white rounded-full p-1 shadow-lg z-10"
-                          >
-                            <Check size={12} />
-                          </motion.div>
-                        )}
+                      return (
+                        <motion.button
+                          key={subAttr._id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedDynamicAttributes((prev) => ({
+                              ...prev,
+                              [subAttrKey]: subAttr.value,
+                            }));
+                            setSubAttrModalData({
+                              ...subAttrModalData,
+                              selectedValue: subAttr.value,
+                            });
+                            // Mark the parent attribute as user-selected for image updates (preserved order)
+                            setUserSelectedAttributes(prev => {
+                              const next = new Set(prev);
+                              next.delete(subAttrModalData.attributeId);
+                              next.add(subAttrModalData.attributeId);
+                              return next;
+                            });
+                          }}
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                          className={`relative p-2 rounded-lg border-2 text-left transition-all duration-200 flex flex-col w-[140px] h-[140px] overflow-hidden ${isSelected
+                            ? "border-gray-900 bg-gray-50 text-gray-900 ring-2 ring-gray-900 ring-offset-1"
+                            : "border-gray-200 text-gray-700 hover:border-gray-400 hover:bg-gray-50 hover:shadow-md"
+                            }`}
+                        >
+                          {isSelected && (
+                            <motion.div
+                              initial={{ scale: 0 }}
+                              animate={{ scale: 1 }}
+                              className="absolute top-1.5 right-1.5 bg-gray-900 text-white rounded-full p-1 shadow-lg z-10"
+                            >
+                              <Check size={12} />
+                            </motion.div>
+                          )}
 
-                        {subAttr.image && (
-                          <div className="mb-1.5 overflow-hidden rounded border border-gray-200 bg-gray-50 flex-shrink-0">
-                            <img
-                              src={subAttr.image}
-                              alt={subAttr.label}
-                              className="w-full h-[70px] object-cover transition-transform duration-200 hover:scale-105"
-                            />
-                          </div>
-                        )}
-
-                        <div className="space-y-1 flex-1 flex flex-col min-h-0">
-                          <div className="font-semibold text-xs text-gray-900 leading-tight line-clamp-2">
-                            {subAttr.label}
-                          </div>
-
-                          {getSubAttrPriceDisplay() && (
-                            <div className="mt-auto pt-1 border-t border-gray-200 text-[10px] font-semibold text-gray-700 leading-tight">
-                              {getSubAttrPriceDisplay()}
+                          {subAttr.image && (
+                            <div className="mb-1.5 overflow-hidden rounded border border-gray-200 bg-gray-50 flex-shrink-0">
+                              <img
+                                src={subAttr.image}
+                                alt={subAttr.label}
+                                className="w-full h-[70px] object-cover transition-transform duration-200 hover:scale-105"
+                              />
                             </div>
                           )}
-                        </div>
-                      </motion.button>
-                    );
-                  })}
-                </div>
-              </div>
 
-              {/* Footer */}
-              <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
-                <div className="text-sm text-gray-600">
-                  {subAttrModalData.selectedValue ? (
-                    <span>
-                      Selected:{" "}
-                      <span className="font-semibold text-gray-900">
-                        {subAttrModalData.subAttributes.find(
-                          (s) => s.value === subAttrModalData.selectedValue
-                        )?.label}
-                      </span>
-                    </span>
-                  ) : (
-                    <span>Sub-option is optional</span>
-                  )}
+                          <div className="space-y-1 flex-1 flex flex-col min-h-0">
+                            <div className="font-semibold text-xs text-gray-900 leading-tight line-clamp-2">
+                              {subAttr.label}
+                            </div>
+
+                            {getSubAttrPriceDisplay() && (
+                              <div className="mt-auto pt-1 border-t border-gray-200 text-[10px] font-semibold text-gray-700 leading-tight">
+                                {getSubAttrPriceDisplay()}
+                              </div>
+                            )}
+                          </div>
+                        </motion.button>
+                      );
+                    })}
+                  </div>
                 </div>
-                <button
-                  onClick={() => setSubAttrModalOpen(false)}
-                  className="px-6 py-2 bg-gray-900 text-white rounded-lg font-semibold hover:bg-gray-800 transition-colors"
-                >
-                  Done
-                </button>
-              </div>
+
+                {/* Footer */}
+                <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
+                  <div className="text-sm text-gray-600">
+                    {subAttrModalData.selectedValue ? (
+                      <span>
+                        Selected:{" "}
+                        <span className="font-semibold text-gray-900">
+                          {subAttrModalData.subAttributes.find(
+                            (s) => s.value === subAttrModalData.selectedValue
+                          )?.label}
+                        </span>
+                      </span>
+                    ) : (
+                      <span>Sub-option is optional</span>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => setSubAttrModalOpen(false)}
+                    className="px-6 py-2 bg-gray-900 text-white rounded-lg font-semibold hover:bg-gray-800 transition-colors"
+                  >
+                    Done
+                  </button>
+                </div>
+              </motion.div>
             </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          )
+        }
+      </AnimatePresence >
     </div >
   );
 };

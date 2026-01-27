@@ -5685,7 +5685,7 @@ const AdminDashboard: React.FC = () => {
           </AnimatePresence>
 
           {/* Tab Content */}
-          <div className={["services", "site-settings", "print-partner-requests", "corporate-requests"].includes(activeTab) ? "w-full" : "bg-white rounded-2xl shadow-lg p-6"}>
+          <div className={["services", "site-settings", "print-partner-requests", "corporate-requests","price-books","user-segments","product-availability","pricing-audit-log","geo-zones","smart-view","price-modifiers"].includes(activeTab) ? "w-full" : "bg-white rounded-2xl shadow-lg p-6"}>
 
             {activeTab === "products" && (
               <AddProductForm

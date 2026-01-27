@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Building2, User, Phone, Mail, MapPin, FileImage, CheckCircle, Loader, X, AlertCircle, ChevronDown, Lock as LockIcon } from "lucide-react";
+import { Building2, User, Phone, Mail, MapPin, FileImage, CheckCircle, Loader, X, AlertCircle, ChevronDown, Lock as LockIcon, Briefcase } from "lucide-react";
 import { API_BASE_URL_WITH_API } from "../lib/apiConfig";
 
 interface PrintPartnerFormProps {
@@ -590,25 +590,37 @@ const PrintPartnerForm: React.FC<PrintPartnerFormProps> = ({ onBack }) => {
   return (
     <>
       <div className="text-center mb-6">
-        <h2 className="font-serif text-2xl sm:text-3xl md:text-4xl font-bold text-cream-900">
+        <motion.div
+          initial={{ scale: 0.8, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ duration: 0.5 }}
+          className="mx-auto w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-600 rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-purple-500/25"
+        >
+          <Briefcase className="h-8 w-8 text-white" />
+        </motion.div>
+        <h2 className="font-serif text-2xl sm:text-3xl md:text-4xl font-bold text-white">
           Print Partner
         </h2>
-        <p className="mt-2 text-sm sm:text-base text-cream-600">
+        <p className="mt-2 text-sm sm:text-base text-slate-400">
           Register as a print partner to start your business journey
         </p>
       </div>
       <form className="mt-8 space-y-4" onSubmit={handleSubmit}>
         {/* Business Name */}
-        <div>
+        <motion.div
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.1 }}
+        >
           <label
             htmlFor="businessName"
-            className="block text-sm font-medium text-cream-700 mb-1"
+            className="block text-sm font-medium text-slate-300 mb-2"
           >
-            Business Name <span className="text-red-500">*</span>
+            Business Name <span className="text-red-400">*</span>
           </label>
-          <div className="relative">
+          <div className="relative group">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Building2 className="h-5 w-5 text-cream-400" />
+              <Building2 className="h-5 w-5 text-slate-500 group-focus-within:text-cyan-400 transition-colors" />
             </div>
             <input
               id="businessName"
@@ -616,29 +628,33 @@ const PrintPartnerForm: React.FC<PrintPartnerFormProps> = ({ onBack }) => {
               type="text"
               value={formData.businessName}
               onChange={handleChange}
-              className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${errors.businessName
-                  ? "border-red-300 focus:ring-red-500"
-                  : "border-cream-200 focus:ring-cream-900"
-                } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
+              className={`appearance-none relative block w-full px-3 py-3.5 pl-10 border-2 ${errors.businessName
+                ? "border-red-500/50 focus:border-red-500 focus:ring-red-500/20"
+                : "border-slate-600 focus:border-cyan-500 focus:ring-cyan-500/20"
+                } placeholder-slate-500 text-white bg-slate-900/50 rounded-xl focus:outline-none focus:ring-4 sm:text-sm transition-all duration-300`}
               placeholder="Enter business name"
             />
           </div>
           {errors.businessName && (
-            <p className="mt-1 text-xs text-red-500">{errors.businessName}</p>
+            <p className="mt-1.5 text-xs text-red-400">{errors.businessName}</p>
           )}
-        </div>
+        </motion.div>
 
         {/* Owner Name */}
-        <div>
+        <motion.div
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.15 }}
+        >
           <label
             htmlFor="ownerName"
-            className="block text-sm font-medium text-cream-700 mb-1"
+            className="block text-sm font-medium text-slate-300 mb-2"
           >
-            Owner Name <span className="text-red-500">*</span>
+            Owner Name <span className="text-red-400">*</span>
           </label>
-          <div className="relative">
+          <div className="relative group">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <User className="h-5 w-5 text-cream-400" />
+              <User className="h-5 w-5 text-slate-500 group-focus-within:text-cyan-400 transition-colors" />
             </div>
             <input
               id="ownerName"
@@ -646,17 +662,17 @@ const PrintPartnerForm: React.FC<PrintPartnerFormProps> = ({ onBack }) => {
               type="text"
               value={formData.ownerName}
               onChange={handleChange}
-              className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${errors.ownerName
-                  ? "border-red-300 focus:ring-red-500"
-                  : "border-cream-200 focus:ring-cream-900"
-                } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
+              className={`appearance-none relative block w-full px-3 py-3.5 pl-10 border-2 ${errors.ownerName
+                ? "border-red-500/50 focus:border-red-500 focus:ring-red-500/20"
+                : "border-slate-600 focus:border-cyan-500 focus:ring-cyan-500/20"
+                } placeholder-slate-500 text-white bg-slate-900/50 rounded-xl focus:outline-none focus:ring-4 sm:text-sm transition-all duration-300`}
               placeholder="Enter owner name"
             />
           </div>
           {errors.ownerName && (
-            <p className="mt-1 text-xs text-red-500">{errors.ownerName}</p>
+            <p className="mt-1.5 text-xs text-red-400">{errors.ownerName}</p>
           )}
-        </div>
+        </motion.div>
 
         {/* Mobile Number */}
         <div>
@@ -682,8 +698,8 @@ const PrintPartnerForm: React.FC<PrintPartnerFormProps> = ({ onBack }) => {
                   }
                 }}
                 className={`flex items-center gap-2 px-3 py-3 border ${errors.mobileCountryCode
-                    ? "border-red-300 focus:ring-red-500"
-                    : "border-cream-200 focus:ring-cream-900"
+                  ? "border-red-300 focus:ring-red-500"
+                  : "border-cream-200 focus:ring-cream-900"
                   } text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all bg-white min-w-[140px] justify-between hover:bg-cream-50`}
               >
                 <span className="flex items-center gap-2">
@@ -775,8 +791,8 @@ const PrintPartnerForm: React.FC<PrintPartnerFormProps> = ({ onBack }) => {
                                 type="button"
                                 onClick={() => handleMobileCountryCodeChange(country.code)}
                                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-cream-50 transition-colors text-left ${formData.mobileCountryCode === country.code
-                                    ? "bg-cream-100 border border-cream-300"
-                                    : ""
+                                  ? "bg-cream-100 border border-cream-300"
+                                  : ""
                                   }`}
                               >
                                 <img
@@ -819,8 +835,8 @@ const PrintPartnerForm: React.FC<PrintPartnerFormProps> = ({ onBack }) => {
                 value={formData.mobileNumber}
                 onChange={handleChange}
                 className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${errors.mobileNumber
-                    ? "border-red-300 focus:ring-red-500"
-                    : "border-cream-200 focus:ring-cream-900"
+                  ? "border-red-300 focus:ring-red-500"
+                  : "border-cream-200 focus:ring-cream-900"
                   } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
                 placeholder={
                   getCountryByCode(formData.mobileCountryCode, countryCodes)?.example || "1234567890"
@@ -879,8 +895,8 @@ const PrintPartnerForm: React.FC<PrintPartnerFormProps> = ({ onBack }) => {
                 }}
                 disabled={sameAsMobile}
                 className={`flex items-center gap-2 px-3 py-3 border ${errors.whatsappCountryCode
-                    ? "border-red-300 focus:ring-red-500"
-                    : "border-cream-200 focus:ring-cream-900"
+                  ? "border-red-300 focus:ring-red-500"
+                  : "border-cream-200 focus:ring-cream-900"
                   } text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all bg-white min-w-[140px] justify-between hover:bg-cream-50 ${sameAsMobile ? "bg-cream-100 cursor-not-allowed opacity-75" : ""
                   }`}
               >
@@ -973,8 +989,8 @@ const PrintPartnerForm: React.FC<PrintPartnerFormProps> = ({ onBack }) => {
                                 type="button"
                                 onClick={() => handleWhatsappCountryCodeChange(country.code)}
                                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-cream-50 transition-colors text-left ${formData.whatsappCountryCode === country.code
-                                    ? "bg-cream-100 border border-cream-300"
-                                    : ""
+                                  ? "bg-cream-100 border border-cream-300"
+                                  : ""
                                   }`}
                               >
                                 <img
@@ -1018,8 +1034,8 @@ const PrintPartnerForm: React.FC<PrintPartnerFormProps> = ({ onBack }) => {
                 onChange={handleChange}
                 disabled={sameAsMobile}
                 className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${errors.whatsappNumber
-                    ? "border-red-300 focus:ring-red-500"
-                    : "border-cream-200 focus:ring-cream-900"
+                  ? "border-red-300 focus:ring-red-500"
+                  : "border-cream-200 focus:ring-cream-900"
                   } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all ${sameAsMobile ? "bg-cream-100 cursor-not-allowed opacity-75" : ""
                   }`}
                 placeholder={
@@ -1030,24 +1046,28 @@ const PrintPartnerForm: React.FC<PrintPartnerFormProps> = ({ onBack }) => {
             </div>
           </div>
           {errors.whatsappNumber && (
-            <p className="mt-1 text-xs text-red-500">{errors.whatsappNumber}</p>
+            <p className="mt-1.5 text-xs text-red-400">{errors.whatsappNumber}</p>
           )}
           {errors.whatsappCountryCode && (
-            <p className="mt-1 text-xs text-red-500">{errors.whatsappCountryCode}</p>
+            <p className="mt-1.5 text-xs text-red-400">{errors.whatsappCountryCode}</p>
           )}
         </div>
 
         {/* Email Address */}
-        <div>
+        <motion.div
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.3 }}
+        >
           <label
             htmlFor="emailAddress"
-            className="block text-sm font-medium text-cream-700 mb-1"
+            className="block text-sm font-medium text-slate-300 mb-2"
           >
-            Email Address <span className="text-red-500">*</span>
+            Email Address <span className="text-red-400">*</span>
           </label>
-          <div className="relative">
+          <div className="relative group">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Mail className="h-5 w-5 text-cream-400" />
+              <Mail className="h-5 w-5 text-slate-500 group-focus-within:text-cyan-400 transition-colors" />
             </div>
             <input
               id="emailAddress"
@@ -1055,30 +1075,34 @@ const PrintPartnerForm: React.FC<PrintPartnerFormProps> = ({ onBack }) => {
               type="email"
               value={formData.emailAddress}
               onChange={handleChange}
-              className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${errors.emailAddress
-                  ? "border-red-300 focus:ring-red-500"
-                  : "border-cream-200 focus:ring-cream-900"
-                } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
+              className={`appearance-none relative block w-full px-3 py-3.5 pl-10 border-2 ${errors.emailAddress
+                ? "border-red-500/50 focus:border-red-500 focus:ring-red-500/20"
+                : "border-slate-600 focus:border-cyan-500 focus:ring-cyan-500/20"
+                } placeholder-slate-500 text-white bg-slate-900/50 rounded-xl focus:outline-none focus:ring-4 sm:text-sm transition-all duration-300`}
               placeholder="business@example.com"
             />
           </div>
           {errors.emailAddress && (
-            <p className="mt-1 text-xs text-red-500">{errors.emailAddress}</p>
+            <p className="mt-1.5 text-xs text-red-400">{errors.emailAddress}</p>
           )}
-        </div>
+        </motion.div>
 
         {/* Password and Confirm Password */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.35 }}
+          >
             <label
               htmlFor="password"
-              className="block text-sm font-medium text-cream-700 mb-1"
+              className="block text-sm font-medium text-slate-300 mb-2"
             >
-              Password <span className="text-red-500">*</span>
+              Password <span className="text-red-400">*</span>
             </label>
-            <div className="relative">
+            <div className="relative group">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <LockIcon className="h-5 w-5 text-cream-400" />
+                <LockIcon className="h-5 w-5 text-slate-500 group-focus-within:text-cyan-400 transition-colors" />
               </div>
               <input
                 id="password"
@@ -1086,28 +1110,32 @@ const PrintPartnerForm: React.FC<PrintPartnerFormProps> = ({ onBack }) => {
                 type="password"
                 value={formData.password}
                 onChange={handleChange}
-                className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${errors.password
-                    ? "border-red-300 focus:ring-red-500"
-                    : "border-cream-200 focus:ring-cream-900"
-                  } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
+                className={`appearance-none relative block w-full px-3 py-3.5 pl-10 border-2 ${errors.password
+                  ? "border-red-500/50 focus:border-red-500 focus:ring-red-500/20"
+                  : "border-slate-600 focus:border-cyan-500 focus:ring-cyan-500/20"
+                  } placeholder-slate-500 text-white bg-slate-900/50 rounded-xl focus:outline-none focus:ring-4 sm:text-sm transition-all duration-300`}
                 placeholder="******"
               />
             </div>
             {errors.password && (
-              <p className="mt-1 text-xs text-red-500">{errors.password}</p>
+              <p className="mt-1.5 text-xs text-red-400">{errors.password}</p>
             )}
-          </div>
+          </motion.div>
 
-          <div>
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.4 }}
+          >
             <label
               htmlFor="confirmPassword"
-              className="block text-sm font-medium text-cream-700 mb-1"
+              className="block text-sm font-medium text-slate-300 mb-2"
             >
-              Confirm Password <span className="text-red-500">*</span>
+              Confirm Password <span className="text-red-400">*</span>
             </label>
-            <div className="relative">
+            <div className="relative group">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <LockIcon className="h-5 w-5 text-cream-400" />
+                <LockIcon className="h-5 w-5 text-slate-500 group-focus-within:text-cyan-400 transition-colors" />
               </div>
               <input
                 id="confirmPassword"
@@ -1115,17 +1143,17 @@ const PrintPartnerForm: React.FC<PrintPartnerFormProps> = ({ onBack }) => {
                 type="password"
                 value={formData.confirmPassword}
                 onChange={handleChange}
-                className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${errors.confirmPassword
-                    ? "border-red-300 focus:ring-red-500"
-                    : "border-cream-200 focus:ring-cream-900"
-                  } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
+                className={`appearance-none relative block w-full px-3 py-3.5 pl-10 border-2 ${errors.confirmPassword
+                  ? "border-red-500/50 focus:border-red-500 focus:ring-red-500/20"
+                  : "border-slate-600 focus:border-cyan-500 focus:ring-cyan-500/20"
+                  } placeholder-slate-500 text-white bg-slate-900/50 rounded-xl focus:outline-none focus:ring-4 sm:text-sm transition-all duration-300`}
                 placeholder="******"
               />
             </div>
             {errors.confirmPassword && (
-              <p className="mt-1 text-xs text-red-500">{errors.confirmPassword}</p>
+              <p className="mt-1.5 text-xs text-red-400">{errors.confirmPassword}</p>
             )}
-          </div>
+          </motion.div>
         </div>
 
         {/* GST Number (Optional) */}
@@ -1148,8 +1176,8 @@ const PrintPartnerForm: React.FC<PrintPartnerFormProps> = ({ onBack }) => {
               onChange={handleChange}
               maxLength={15}
               className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${errors.gstNumber
-                  ? "border-red-300 focus:ring-red-500"
-                  : "border-cream-200 focus:ring-cream-900"
+                ? "border-red-300 focus:ring-red-500"
+                : "border-cream-200 focus:ring-cream-900"
                 } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
               placeholder="15-character GST number"
             />
@@ -1178,8 +1206,8 @@ const PrintPartnerForm: React.FC<PrintPartnerFormProps> = ({ onBack }) => {
               onChange={handleChange}
               rows={3}
               className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${errors.fullBusinessAddress
-                  ? "border-red-300 focus:ring-red-500"
-                  : "border-cream-200 focus:ring-cream-900"
+                ? "border-red-300 focus:ring-red-500"
+                : "border-cream-200 focus:ring-cream-900"
                 } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all resize-none`}
               placeholder="Enter complete business address"
             />
@@ -1205,8 +1233,8 @@ const PrintPartnerForm: React.FC<PrintPartnerFormProps> = ({ onBack }) => {
               value={formData.city}
               onChange={handleChange}
               className={`appearance-none relative block w-full px-3 py-3 border ${errors.city
-                  ? "border-red-300 focus:ring-red-500"
-                  : "border-cream-200 focus:ring-cream-900"
+                ? "border-red-300 focus:ring-red-500"
+                : "border-cream-200 focus:ring-cream-900"
                 } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
               placeholder="City"
             />
@@ -1229,8 +1257,8 @@ const PrintPartnerForm: React.FC<PrintPartnerFormProps> = ({ onBack }) => {
               value={formData.state}
               onChange={handleChange}
               className={`appearance-none relative block w-full px-3 py-3 border ${errors.state
-                  ? "border-red-300 focus:ring-red-500"
-                  : "border-cream-200 focus:ring-cream-900"
+                ? "border-red-300 focus:ring-red-500"
+                : "border-cream-200 focus:ring-cream-900"
                 } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
               placeholder="State"
             />
@@ -1254,8 +1282,8 @@ const PrintPartnerForm: React.FC<PrintPartnerFormProps> = ({ onBack }) => {
               onChange={handleChange}
               maxLength={6}
               className={`appearance-none relative block w-full px-3 py-3 border ${errors.pincode
-                  ? "border-red-300 focus:ring-red-500"
-                  : "border-cream-200 focus:ring-cream-900"
+                ? "border-red-300 focus:ring-red-500"
+                : "border-cream-200 focus:ring-cream-900"
                 } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
               placeholder="123456"
             />
@@ -1287,24 +1315,24 @@ const PrintPartnerForm: React.FC<PrintPartnerFormProps> = ({ onBack }) => {
               type="button"
               onClick={() => fileInputRef.current?.click()}
               className={`w-full px-4 py-3 border-2 border-dashed rounded-xl transition-all ${errors.proofFile
-                  ? "border-red-300 bg-red-50"
-                  : formData.proofFile
-                    ? "border-green-300 bg-green-50"
-                    : "border-cream-300 bg-cream-50 hover:border-cream-900 hover:bg-cream-100"
+                ? "border-red-300 bg-red-50"
+                : formData.proofFile
+                  ? "border-green-300 bg-green-50"
+                  : "border-cream-300 bg-cream-50 hover:border-cream-900 hover:bg-cream-100"
                 }`}
             >
               <div className="flex flex-col items-center justify-center gap-2">
                 <FileImage className={`h-8 w-8 ${errors.proofFile
-                    ? "text-red-400"
-                    : formData.proofFile
-                      ? "text-green-600"
-                      : "text-cream-400"
+                  ? "text-red-400"
+                  : formData.proofFile
+                    ? "text-green-600"
+                    : "text-cream-400"
                   }`} />
                 <span className={`text-sm ${errors.proofFile
-                    ? "text-red-600"
-                    : formData.proofFile
-                      ? "text-green-700"
-                      : "text-cream-600"
+                  ? "text-red-600"
+                  : formData.proofFile
+                    ? "text-green-700"
+                    : "text-cream-600"
                   }`}>
                   {formData.proofFile
                     ? formData.proofFile.name
@@ -1336,11 +1364,16 @@ const PrintPartnerForm: React.FC<PrintPartnerFormProps> = ({ onBack }) => {
         </div>
 
         {/* Submit Button */}
-        <div className="pt-4">
+        <motion.div
+          className="pt-4"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.6 }}
+        >
           <button
             type="submit"
             disabled={isSubmitting}
-            className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-bold rounded-xl text-cream-50 bg-cream-900 hover:bg-cream-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cream-500 transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 disabled:opacity-70 disabled:cursor-not-allowed"
+            className="group relative w-full flex justify-center py-3.5 px-4 border border-transparent text-sm font-bold rounded-xl text-white bg-gradient-to-r from-cyan-500 to-teal-600 hover:from-cyan-400 hover:to-teal-500 focus:outline-none focus:ring-4 focus:ring-cyan-500/30 transition-all duration-300 shadow-lg shadow-cyan-500/25 hover:shadow-xl hover:shadow-cyan-500/40 hover:-translate-y-0.5 disabled:opacity-70 disabled:cursor-not-allowed"
           >
             {isSubmitting ? (
               <>
@@ -1351,7 +1384,7 @@ const PrintPartnerForm: React.FC<PrintPartnerFormProps> = ({ onBack }) => {
               "Submit Request"
             )}
           </button>
-        </div>
+        </motion.div>
       </form>
 
       {/* Success Message Modal */}
@@ -1361,34 +1394,39 @@ const PrintPartnerForm: React.FC<PrintPartnerFormProps> = ({ onBack }) => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
+            className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
           >
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 relative text-center"
+              className="bg-slate-800/95 backdrop-blur-xl rounded-2xl shadow-2xl max-w-md w-full p-8 relative text-center border border-slate-700/50"
             >
-              <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
-                <CheckCircle className="h-8 w-8 text-green-600" />
-              </div>
-              <h3 className="text-2xl font-bold text-cream-900 mb-4">
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
+                className="mx-auto w-20 h-20 bg-gradient-to-br from-emerald-500 to-green-600 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-emerald-500/25"
+              >
+                <CheckCircle className="h-10 w-10 text-white" />
+              </motion.div>
+              <h3 className="text-2xl font-bold text-white mb-4">
                 Request Submitted Successfully!
               </h3>
               <div className="space-y-3 text-left mb-6">
-                <p className="text-sm text-cream-700">
+                <p className="text-sm text-slate-300">
                   Your request has been submitted successfully.
                 </p>
-                <p className="text-sm text-cream-700">
+                <p className="text-sm text-slate-300">
                   Our verification team will review your details.
                 </p>
-                <p className="text-sm text-cream-700">
+                <p className="text-sm text-slate-300">
                   You will receive an update within one working day via Call, WhatsApp, SMS, or Email.
                 </p>
               </div>
               <button
                 onClick={onBack}
-                className="w-full bg-cream-900 text-cream-50 py-3 px-4 rounded-xl font-medium hover:bg-cream-800 transition-colors"
+                className="w-full bg-gradient-to-r from-cyan-500 to-teal-600 text-white py-3.5 px-4 rounded-xl font-medium hover:from-cyan-400 hover:to-teal-500 transition-all duration-300 shadow-lg shadow-cyan-500/25"
               >
                 Back to Login
               </button>

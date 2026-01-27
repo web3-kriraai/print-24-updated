@@ -14,6 +14,8 @@ import featureRoutes from "./routes/featureRoutes.js";
 import pricingRoutes from "./routes/pricingRoutes.js";
 import pricingAdminRoutes from "./routes/admin/pricingAdminRoutes.js";
 import pricingAdvancedRoutes from "./routes/admin/pricingAdvancedRoutes.js";
+import courierRoutes from "./routes/courierRoutes.js";
+import logisticsAdminRoutes from "./routes/logisticsAdmin.routes.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -120,13 +122,21 @@ app.get("/api/ping", (req, res) => {
   res.json({ message: "pong", origin: req.headers.origin });
 });
 
-app.use("/api", apiRoutes);
-app.use("/api", uploadRoutes);
+// Courier routes (Shiprocket integration) - must be before generic /api routes
+app.use("/api/courier", courierRoutes);          // Courier operations
+app.use("/api/webhooks", courierRoutes);         // Webhook endpoint (/api/webhooks/courier-update)
+console.log("[Server] ✅ Courier routes registered");
 
 // Pricing routes
 app.use("/api/pricing", pricingRoutes);          // Public pricing API
 app.use("/api/admin", pricingAdminRoutes);       // Admin pricing CRUD
 app.use("/api/admin", pricingAdvancedRoutes);    // Advanced pricing features
+app.use("/api/admin", logisticsAdminRoutes);     // Logistics provider management
+console.log("[Server] ✅ Logistics admin routes registered");
+
+// Generic API routes (must be after specific routes)
+app.use("/api", apiRoutes);
+app.use("/api", uploadRoutes);
 
 // Error handler to ensure CORS headers are set even on errors
 app.use((err, req, res, next) => {

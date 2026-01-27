@@ -100,6 +100,10 @@ interface Order {
   handedOverToCourierAt?: string | null;
   courierPartner?: string | null;
   trackingId?: string | null;
+  awbCode?: string;
+  shiprocketOrderId?: string;
+  courierStatus?: string;
+  courierTrackingUrl?: string;
   uploadedDesign?: {
     frontImage?: {
       data: string;
@@ -547,8 +551,8 @@ const ProductSpecsPanel: React.FC<{ order: Order }> = ({ order }) => {
                                     }
                                     return imageUrl ? (
                                       <div key={imgIdx} className="relative group">
-                                        <img 
-                                          src={imageUrl} 
+                                        <img
+                                          src={imageUrl}
                                           alt={img.filename || `Image ${imgIdx + 1}`}
                                           className="w-full h-24 object-cover rounded-lg border border-slate-200 cursor-pointer hover:border-brand-400 transition-colors"
                                           onClick={() => setExpandedImage({ src: imageUrl, alt: img.filename || `Image ${imgIdx + 1}` })}
@@ -787,6 +791,135 @@ const PriceBreakdownPanel: React.FC<{ order: Order }> = ({ order }) => {
           <span className="text-xl font-bold text-brand-600">{formatCurrency(storedTotal)}</span>
         </div>
       </div>
+    </div>
+  );
+};
+
+const OrderTrackingPanel: React.FC<{ order: Order }> = ({ order }) => {
+  const [trackingInfo, setTrackingInfo] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  const [showTimeline, setShowTimeline] = useState(false);
+  // Import dynamically to avoid circular dependencies if any, or just use axios
+  // utilizing the courierService we created
+
+  useEffect(() => {
+    const fetchTracking = async () => {
+      if (!order._id || (!order.awbCode && !order.shiprocketOrderId)) return;
+
+      setLoading(true);
+      try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${API_BASE_URL}/courier/tracking/order/${order._id}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setTrackingInfo(data);
+        }
+      } catch (err) {
+        console.error('Error fetching tracking:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (order.status === 'processing' || order.status === 'completed') {
+      fetchTracking();
+    }
+  }, [order._id, order.awbCode, order.shiprocketOrderId, order.status]);
+
+  if (!trackingInfo && !order.courierTrackingUrl) return null;
+
+  return (
+    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
+      <div className="flex items-center justify-between mb-6 border-b border-slate-100 pb-4">
+        <div className="flex items-center gap-2">
+          <Truck className="w-5 h-5 text-brand-600" />
+          <h3 className="text-lg font-bold text-slate-900">Shipment Tracking</h3>
+        </div>
+        {trackingInfo?.courierName && (
+          <span className="px-3 py-1 bg-brand-50 text-brand-700 text-xs font-bold rounded-full border border-brand-100 uppercase">
+            {trackingInfo.courierName}
+          </span>
+        )}
+      </div>
+
+      <div className="mb-6">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
+          <div>
+            <p className="text-xs text-slate-500 uppercase font-bold mb-1">Current Status</p>
+            <p className="text-lg font-bold text-slate-900">
+              {trackingInfo?.currentStatus || order.courierStatus?.replace('_', ' ').toUpperCase() || 'Processing'}
+            </p>
+            {trackingInfo?.etd && (
+              <p className="text-sm text-slate-600 mt-1">
+                Expected Delivery: <span className="font-semibold">{new Date(trackingInfo.etd).toLocaleDateString()}</span>
+              </p>
+            )}
+          </div>
+
+          <div className="flex flex-col items-end gap-2">
+            {order.awbCode && (
+              <div className="text-sm text-slate-600">
+                AWB: <span className="font-mono font-medium">{order.awbCode}</span>
+              </div>
+            )}
+            {order.courierTrackingUrl ? (
+              <a
+                href={order.courierTrackingUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-2 px-4 py-2 bg-white text-brand-600 border border-brand-200 rounded-lg hover:bg-brand-50 hover:border-brand-300 transition-colors text-sm font-semibold shadow-sm"
+              >
+                Track on Courier Website
+                <Truck className="w-4 h-4" />
+              </a>
+            ) : null}
+          </div>
+        </div>
+      </div>
+
+      {/* Internal Timeline */}
+      {trackingInfo?.activities && trackingInfo.activities.length > 0 && (
+        <div className="mt-4">
+          <button
+            onClick={() => setShowTimeline(!showTimeline)}
+            className="flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-brand-600 transition-colors mb-4"
+          >
+            {showTimeline ? 'Hide Tracking History' : 'Show Tracking History'}
+          </button>
+
+          {showTimeline && (
+            <div className="border-l-2 border-slate-200 pl-4 space-y-6 ml-2">
+              {trackingInfo.activities.map((activity: any, idx: number) => (
+                <div key={idx} className="relative">
+                  <div className={`absolute -left-[21px] top-1 w-3 h-3 rounded-full border-2 border-white ${idx === 0 ? 'bg-brand-500 ring-2 ring-brand-100' : 'bg-slate-300'}`} />
+                  <div>
+                    <p className={`text-sm font-semibold ${idx === 0 ? 'text-slate-900' : 'text-slate-600'}`}>
+                      {activity.status}
+                    </p>
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 mt-1">
+                      <p className="text-xs text-slate-500">
+                        {activity.location}
+                      </p>
+                      <p className="text-xs text-slate-400">
+                        {new Date(activity.date).toLocaleDateString()} {activity.time}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {!trackingInfo && loading && (
+        <div className="text-center py-4 text-slate-500">
+          Loading tracking information...
+        </div>
+      )}
     </div>
   );
 };
