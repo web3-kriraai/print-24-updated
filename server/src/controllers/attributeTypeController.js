@@ -540,12 +540,21 @@ export const deleteAttributeType = async (req, res) => {
       });
     }
 
-    // Safe to delete - no related data
+    // Delete all sub-attributes connected to this attribute type (cascade delete)
+    const SubAttribute = (await import("../models/subAttributeSchema.js")).default;
+    const deletedSubAttributes = await SubAttribute.deleteMany({
+      parentAttribute: attributeObjectId
+    });
+
+    console.log(`DELETE AttributeType - Cascade deleted ${deletedSubAttributes.deletedCount} sub-attributes for "${attributeType.attributeName}"`);
+
+    // Safe to delete - no related products/sequences, sub-attributes already cleaned up
     await AttributeType.findByIdAndDelete(id);
 
     return res.json({
       success: true,
-      message: "Attribute type deleted successfully",
+      message: `Attribute type deleted successfully${deletedSubAttributes.deletedCount > 0 ? ` (${deletedSubAttributes.deletedCount} sub-attributes also removed)` : ''}`,
+      subAttributesDeleted: deletedSubAttributes.deletedCount
     });
   } catch (err) {
     console.log("DELETE ATTRIBUTE TYPE ERROR ===>", err);
@@ -553,3 +562,109 @@ export const deleteAttributeType = async (req, res) => {
   }
 };
 
+// Duplicate attribute type with its sub-attributes
+export const duplicateAttributeType = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const mongoose = (await import("mongoose")).default;
+
+    // Debug log to see what's being received
+    console.log("DUPLICATE AttributeType - Request body:", req.body);
+    console.log("DUPLICATE AttributeType - newName value:", req.body?.newName);
+
+    // Get newName from body (handle both string and undefined cases)
+    const newName = req.body && req.body.newName ? req.body.newName : null;
+
+    // Validate that id is a valid ObjectId
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ error: "Invalid attribute type ID" });
+    }
+
+    // Find the source attribute type
+    const sourceAttribute = await AttributeType.findById(id);
+    if (!sourceAttribute) {
+      return res.status(404).json({ error: "Attribute type not found" });
+    }
+
+    // Convert to plain object and remove _id and timestamps
+    const sourceData = sourceAttribute.toObject();
+    delete sourceData._id;
+    delete sourceData.createdAt;
+    delete sourceData.updatedAt;
+    delete sourceData.__v;
+
+    // Use custom name if provided and not empty, otherwise add (Copy) suffix
+    const attributeName = newName && typeof newName === 'string' && newName.trim().length > 0
+      ? newName.trim() 
+      : `${sourceData.attributeName} (Copy)`;
+    
+    console.log("DUPLICATE AttributeType - Using attributeName:", attributeName);
+    sourceData.attributeName = attributeName;
+
+    // Generate unique systemName based on the new name
+    if (sourceData.systemName) {
+      const baseSystemName = attributeName.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+      sourceData.systemName = baseSystemName + '_' + Date.now();
+    }
+
+    // Create the duplicate attribute type
+    const duplicatedAttribute = await AttributeType.create(sourceData);
+
+    console.log(`DUPLICATE AttributeType - Created "${attributeName}" from "${sourceAttribute.attributeName}"`);
+
+    // Now duplicate all sub-attributes if they exist
+    const SubAttribute = (await import("../models/subAttributeSchema.js")).default;
+    
+    // Find all sub-attributes linked to the source attribute
+    const sourceSubAttributes = await SubAttribute.find({
+      parentAttribute: id
+    });
+
+    let duplicatedSubAttributesCount = 0;
+
+    if (sourceSubAttributes.length > 0) {
+      console.log(`DUPLICATE AttributeType - Found ${sourceSubAttributes.length} sub-attributes to duplicate`);
+
+      for (const subAttr of sourceSubAttributes) {
+        const subAttrData = subAttr.toObject();
+        delete subAttrData._id;
+        delete subAttrData.createdAt;
+        delete subAttrData.updatedAt;
+        delete subAttrData.__v;
+
+        // Link to the new parent attribute
+        subAttrData.parentAttribute = duplicatedAttribute._id;
+
+        // Update systemName if it exists
+        if (subAttrData.systemName) {
+          subAttrData.systemName = `${subAttrData.systemName}_copy`;
+        }
+
+        await SubAttribute.create(subAttrData);
+        duplicatedSubAttributesCount++;
+      }
+
+      console.log(`DUPLICATE AttributeType - Duplicated ${duplicatedSubAttributesCount} sub-attributes`);
+    }
+
+    // Fetch the complete duplicated attribute with populated fields
+    const responseAttribute = await AttributeType.findById(duplicatedAttribute._id)
+      .populate('applicableCategories', 'name')
+      .populate('applicableSubCategories', 'name');
+
+    const responseData = responseAttribute.toObject();
+    if (!responseData.effectDescription) {
+      responseData.effectDescription = "";
+    }
+
+    return res.json({
+      success: true,
+      message: `Attribute type duplicated successfully${duplicatedSubAttributesCount > 0 ? ` with ${duplicatedSubAttributesCount} sub-attributes` : ''}`,
+      data: responseData,
+      subAttributesCopied: duplicatedSubAttributesCount
+    });
+  } catch (err) {
+    console.log("DUPLICATE ATTRIBUTE TYPE ERROR ===>", err);
+    return res.status(500).json({ error: err.message });
+  }
+};

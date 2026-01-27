@@ -1,5 +1,5 @@
 import * as React from "react"
-import { ChevronDown, Check } from "lucide-react"
+import { ChevronDown, Check, Search } from "lucide-react"
 import { cn } from "../../lib/utils"
 
 export { cn }
@@ -19,6 +19,7 @@ export interface SelectProps {
     disabled?: boolean
     className?: string
     colorTheme?: SelectTheme
+    searchable?: boolean
 }
 
 const getThemeClasses = (theme: SelectTheme = 'slate') => {
@@ -91,11 +92,21 @@ const getThemeClasses = (theme: SelectTheme = 'slate') => {
 };
 
 const Select = React.forwardRef<HTMLButtonElement, SelectProps>(
-    ({ options, value, onValueChange, placeholder = "Select...", disabled, className, colorTheme = 'slate' }, ref) => {
+    ({ options, value, onValueChange, placeholder = "Select...", disabled, className, colorTheme = 'slate', searchable = false }, ref) => {
         const [isOpen, setIsOpen] = React.useState(false)
         const [scrollTop, setScrollTop] = React.useState(0)
+        const [searchTerm, setSearchTerm] = React.useState("")
         const selectRef = React.useRef<HTMLDivElement>(null)
         const dropdownRef = React.useRef<HTMLDivElement>(null)
+        const searchInputRef = React.useRef<HTMLInputElement>(null)
+
+        // Filter options based on search term
+        const filteredOptions = React.useMemo(() => {
+            if (!searchable || !searchTerm) return options;
+            return options.filter(opt => 
+                opt.label.toLowerCase().includes(searchTerm.toLowerCase())
+            );
+        }, [options, searchTerm, searchable]);
 
         // Virtual scrolling constants
         const ITEM_HEIGHT = 32 // px - height of each option
@@ -104,19 +115,19 @@ const Select = React.forwardRef<HTMLButtonElement, SelectProps>(
         const containerHeight = VISIBLE_ITEMS * ITEM_HEIGHT
 
         // Only use virtual scrolling for large lists
-        const useVirtualScrolling = options.length > 50
+        const useVirtualScrolling = filteredOptions.length > 50
 
         // Calculate visible range for virtual scrolling
         const startIndex = useVirtualScrolling
             ? Math.max(0, Math.floor(scrollTop / ITEM_HEIGHT) - BUFFER)
             : 0
         const endIndex = useVirtualScrolling
-            ? Math.min(options.length, startIndex + VISIBLE_ITEMS + (BUFFER * 2))
-            : options.length
+            ? Math.min(filteredOptions.length, startIndex + VISIBLE_ITEMS + (BUFFER * 2))
+            : filteredOptions.length
 
-        const visibleOptions = options.slice(startIndex, endIndex)
+        const visibleOptions = filteredOptions.slice(startIndex, endIndex)
         const offsetY = startIndex * ITEM_HEIGHT
-        const totalHeight = options.length * ITEM_HEIGHT
+        const totalHeight = filteredOptions.length * ITEM_HEIGHT
 
         // Handle scroll
         const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
@@ -125,17 +136,27 @@ const Select = React.forwardRef<HTMLButtonElement, SelectProps>(
             }
         }
 
+        // Clear search when closing
+        React.useEffect(() => {
+            if (!isOpen) {
+                setSearchTerm("");
+            } else if (searchable && searchInputRef.current) {
+                // Focus search input when opening
+                setTimeout(() => searchInputRef.current?.focus(), 50);
+            }
+        }, [isOpen, searchable]);
+
         // Scroll to selected option when opening
         React.useEffect(() => {
             if (isOpen && dropdownRef.current && value !== undefined) {
-                const selectedIndex = options.findIndex(opt => opt.value === value)
+                const selectedIndex = filteredOptions.findIndex(opt => opt.value === value)
                 if (selectedIndex !== -1) {
                     const scrollPosition = selectedIndex * ITEM_HEIGHT - (containerHeight / 2)
                     dropdownRef.current.scrollTop = Math.max(0, scrollPosition)
                     setScrollTop(dropdownRef.current.scrollTop)
                 }
             }
-        }, [isOpen, value, options, containerHeight])
+        }, [isOpen, value, filteredOptions, containerHeight])
 
         // Close dropdown when clicking outside
         React.useEffect(() => {
@@ -183,8 +204,30 @@ const Select = React.forwardRef<HTMLButtonElement, SelectProps>(
                         "absolute z-50 mt-2 w-full overflow-hidden rounded-xl border bg-white shadow-xl ring-1 ring-black ring-opacity-5 animate-in fade-in zoom-in-95 duration-100",
                         themeClasses.dropdown
                     )}>
-                        {options.length === 0 ? (
-                            <div className="px-4 py-3 text-sm text-gray-400 italic text-center">No options available</div>
+                        {/* Search Input */}
+                        {searchable && (
+                            <div className="p-2 border-b border-gray-100">
+                                <div className="relative">
+                                    <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                                    <input
+                                        ref={searchInputRef}
+                                        type="text"
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                        onInput={(e) => setSearchTerm((e.target as HTMLInputElement).value)}
+                                        onKeyDown={(e) => e.stopPropagation()}
+                                        placeholder="Search..."
+                                        className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400"
+                                        onClick={(e) => e.stopPropagation()}
+                                        autoComplete="off"
+                                    />
+                                </div>
+                            </div>
+                        )}
+                        {filteredOptions.length === 0 ? (
+                            <div className="px-4 py-3 text-sm text-gray-400 italic text-center">
+                                {searchTerm ? "No matching options" : "No options available"}
+                            </div>
                         ) : (
                             <div
                                 ref={dropdownRef}

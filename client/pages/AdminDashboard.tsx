@@ -3558,8 +3558,8 @@ const AdminDashboard: React.FC = () => {
     const attributeType = attributeTypes.find(at => at._id === attributeTypeId);
     if (!attributeType) return;
 
-    // Show confirmation dialog
-    if (!window.confirm(`Are you sure you want to delete the attribute type "${attributeType.attributeName}"?\n\nNote: This action cannot be undone. If this attribute is being used in any products, the deletion will be prevented.`)) {
+    // Show confirmation dialog with sub-attributes warning
+    if (!window.confirm(`Are you sure you want to delete the attribute type "${attributeType.attributeName}"?\n\n⚠️ WARNING: This will also delete ALL sub-attributes connected to this attribute.\n\nThis action cannot be undone. If this attribute is being used in any products, the deletion will be prevented.`)) {
       return;
     }
 
@@ -3605,11 +3605,11 @@ const AdminDashboard: React.FC = () => {
         if (isInUseError) {
           toast.error(
             <div>
-              <div className="font-semibold">Attribute is in use</div>
-              {/* <div className="text-sm mt-1">{errorMessage}</div> */}
+              <div className="font-semibold">✗ Attribute is in use</div>
+              <div className="text-sm mt-1">{errorMessage}</div>
             </div>,
             {
-              duration: 5000,
+              duration: 6000,
               position: "bottom-right",
             }
           );
@@ -3628,11 +3628,20 @@ const AdminDashboard: React.FC = () => {
       // Parse successful response
       const data = await response.json();
 
-      // Show success toast
-      toast.success("Attribute deleted successfully", {
-        duration: 3000,
-        position: "bottom-right",
-      });
+      // Show success toast with sub-attributes count
+      const subAttrMsg = data.subAttributesDeleted > 0 
+        ? ` (${data.subAttributesDeleted} sub-attributes also removed)` 
+        : '';
+      toast.success(
+        <div>
+          <div className="font-semibold">✓ Attribute deleted successfully</div>
+          {subAttrMsg && <div className="text-sm mt-1">{subAttrMsg}</div>}
+        </div>,
+        {
+          duration: 4000,
+          position: "bottom-right",
+        }
+      );
 
       fetchAttributeTypes();
     } catch (err) {
@@ -3663,6 +3672,75 @@ const AdminDashboard: React.FC = () => {
       }
 
       setError(errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDuplicateAttributeType = async (attributeTypeId: string, customName?: string) => {
+    const attributeType = attributeTypes.find(at => at._id === attributeTypeId);
+    if (!attributeType) return;
+
+    // Debug: log what we're sending
+    console.log("DUPLICATE Frontend - Sending request with:");
+    console.log("  - attributeTypeId:", attributeTypeId);
+    console.log("  - customName:", customName);
+    console.log("  - body:", JSON.stringify({ newName: customName }));
+
+    try {
+      setLoading(true);
+      setError(null);
+      setSuccess(null);
+
+      const response = await fetch(`${API_BASE_URL}/attribute-types/${attributeTypeId}/duplicate`, {
+        method: "POST",
+        headers: {
+          ...getAuthHeaders(),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ newName: customName }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || errorData.message || "Failed to duplicate attribute type");
+      }
+
+      const data = await response.json();
+
+      // Show success toast with sub-attribute count
+      const subAttrMsg = data.subAttributesCopied > 0 
+        ? ` with ${data.subAttributesCopied} sub-attributes` 
+        : '';
+      toast.success(
+        <div>
+          <div className="font-semibold">✓ Attribute duplicated successfully</div>
+          <div className="text-sm mt-1">Created "{data.data?.attributeName}"{subAttrMsg}</div>
+        </div>,
+        {
+          duration: 5000,
+          position: "bottom-right",
+        }
+      );
+
+      // Refresh attribute types list
+      fetchAttributeTypes();
+      return true; // Return success for modal handling
+    } catch (err) {
+      console.error("Error duplicating attribute type:", err);
+      const errorMessage = err instanceof Error ? err.message : "Failed to duplicate attribute type";
+      toast.error(
+        <div>
+          <div className="font-semibold">✗ Duplication failed</div>
+          <div className="text-sm mt-1">{errorMessage}</div>
+        </div>,
+        {
+          duration: 5000,
+          position: "bottom-right",
+        }
+      );
+      setError(errorMessage);
+      return false; // Return failure for modal handling
     } finally {
       setLoading(false);
     }
@@ -6491,6 +6569,7 @@ const AdminDashboard: React.FC = () => {
                 handleAttributeTypeSubmit={handleAttributeTypeSubmit}
                 handleEditAttributeType={handleEditAttributeType}
                 handleDeleteAttributeType={handleDeleteAttributeType}
+                handleDuplicateAttributeType={handleDuplicateAttributeType}
                 error={error}
                 setError={setError}
                 success={success}
@@ -6501,6 +6580,7 @@ const AdminDashboard: React.FC = () => {
                 attributeTypes={attributeTypes}
                 loadingAttributeTypes={loadingAttributeTypes}
                 getAuthHeaders={getAuthHeaders}
+                products={products}
               />
             )}
 

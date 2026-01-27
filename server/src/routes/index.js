@@ -99,6 +99,7 @@ import {
   getSingleAttributeType,
   updateAttributeType,
   deleteAttributeType,
+  duplicateAttributeType,
 } from "../controllers/attributeTypeController.js";
 
 /* ATTRIBUTE RULE CONTROLLERS */
@@ -369,6 +370,12 @@ router.delete(
   authMiddleware,
   adminAuth,
   deleteAttributeType
+);
+router.post(
+  "/attribute-types/:id/duplicate",
+  authMiddleware,
+  adminAuth,
+  duplicateAttributeType
 );
 
 /* =====================================

@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { Edit, Trash2, Plus, Search, Loader, Sparkles, ChevronRight, Palette, Settings, Layers } from "lucide-react";
+import { Edit, Trash2, Plus, Search, Loader, Sparkles, ChevronRight, Palette, Settings, Layers, Copy } from "lucide-react";
 import { API_BASE_URL_WITH_API as API_BASE_URL } from "../../../../lib/apiConfig";
 import { Select } from "../../../../components/ui/select";
 
@@ -78,6 +78,7 @@ interface ManageAttributeTypesProps {
     handleAttributeTypeSubmit: (e: React.FormEvent) => Promise<void>;
     handleEditAttributeType: (id: string) => void;
     handleDeleteAttributeType: (id: string) => Promise<void>;
+    handleDuplicateAttributeType: (id: string, customName?: string) => Promise<boolean | void>;
     error: string | null;
     setError: (error: string | null) => void;
     success: string | null;
@@ -88,6 +89,7 @@ interface ManageAttributeTypesProps {
     attributeTypes: any[];
     loadingAttributeTypes: boolean;
     getAuthHeaders: () => HeadersInit;
+    products: any[];
 }
 
 const ManageAttributeTypes: React.FC<ManageAttributeTypesProps> = ({
@@ -100,6 +102,7 @@ const ManageAttributeTypes: React.FC<ManageAttributeTypesProps> = ({
     handleAttributeTypeSubmit,
     handleEditAttributeType,
     handleDeleteAttributeType,
+    handleDuplicateAttributeType,
     error,
     setError,
     success,
@@ -110,20 +113,44 @@ const ManageAttributeTypes: React.FC<ManageAttributeTypesProps> = ({
     attributeTypes,
     loadingAttributeTypes,
     getAuthHeaders,
+    products,
 }) => {
     const [imageLoading, setImageLoading] = useState<{ [key: string]: boolean }>({});
     const [currentPage, setCurrentPage] = useState(1);
+    const [productFilter, setProductFilter] = useState<string>("");
+    
+    // Duplicate modal state
+    const [showDuplicateModal, setShowDuplicateModal] = useState(false);
+    const [duplicateAttrId, setDuplicateAttrId] = useState<string | null>(null);
+    const [duplicateName, setDuplicateName] = useState("");
+    const [duplicating, setDuplicating] = useState(false);
+    
     const ITEMS_PER_PAGE = 10;
+
+    // Get attribute IDs used by selected product
+    const productAttributeIds = useMemo(() => {
+        if (!productFilter || !products) return null;
+        const selectedProduct = products.find((p: any) => p._id === productFilter);
+        if (!selectedProduct?.dynamicAttributes) return null;
+        return selectedProduct.dynamicAttributes
+            .filter((da: any) => da.attributeType)
+            .map((da: any) => typeof da.attributeType === 'object' ? da.attributeType._id : da.attributeType);
+    }, [productFilter, products]);
 
     // Calculate filtered data and pagination
     const { filteredAttributeTypes, totalPages, paginatedData } = useMemo(() => {
-        const filtered = attributeTypes.filter((at) =>
+        let filtered = attributeTypes.filter((at) =>
             !attributeTypeSearch ||
             at.attributeName?.toLowerCase().includes(attributeTypeSearch.toLowerCase()) ||
             at.systemName?.toLowerCase().includes(attributeTypeSearch.toLowerCase()) ||
             at.inputStyle?.toLowerCase().includes(attributeTypeSearch.toLowerCase()) ||
             at.primaryEffectType?.toLowerCase().includes(attributeTypeSearch.toLowerCase())
         );
+
+        // Apply product filter
+        if (productAttributeIds) {
+            filtered = filtered.filter((at) => productAttributeIds.includes(at._id));
+        }
 
         const total = Math.ceil(filtered.length / ITEMS_PER_PAGE);
         const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -135,12 +162,12 @@ const ManageAttributeTypes: React.FC<ManageAttributeTypesProps> = ({
             totalPages: total,
             paginatedData: paginated
         };
-    }, [attributeTypes, attributeTypeSearch, currentPage]);
+    }, [attributeTypes, attributeTypeSearch, currentPage, productAttributeIds]);
 
-    // Reset to page 1 when search changes
+    // Reset to page 1 when search or filter changes
     useEffect(() => {
         setCurrentPage(1);
-    }, [attributeTypeSearch]);
+    }, [attributeTypeSearch, productFilter]);
 
     return (
         <div className="space-y-8 animate-fadeIn">
@@ -1043,17 +1070,26 @@ const ManageAttributeTypes: React.FC<ManageAttributeTypesProps> = ({
                                 <div className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                             </div>
                         </div>
+                        {/* Product Filter Dropdown */}
+                        <div className="w-56">
+                            <Select
+                                options={[
+                                    { value: "", label: "All Products" },
+                                    ...(products || []).map((p: any) => ({
+                                        value: p._id,
+                                        label: p.name
+                                    }))
+                                ]}
+                                value={productFilter}
+                                onValueChange={(val) => setProductFilter(val as string)}
+                                placeholder="Filter by product..."
+                                colorTheme="purple"
+                                searchable={true}
+                            />
+                        </div>
                         <div className="px-4 py-2 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-lg">
                             <span className="text-sm font-medium text-indigo-700">
-                                {(() => {
-                                    const filtered = attributeTypes.filter((at) =>
-                                        !attributeTypeSearch ||
-                                        at.attributeName?.toLowerCase().includes(attributeTypeSearch.toLowerCase()) ||
-                                        at.inputStyle?.toLowerCase().includes(attributeTypeSearch.toLowerCase()) ||
-                                        at.primaryEffectType?.toLowerCase().includes(attributeTypeSearch.toLowerCase())
-                                    );
-                                    return `${filtered.length} Types`;
-                                })()}
+                                {filteredAttributeTypes.length} Types
                             </span>
                         </div>
                     </div>
@@ -1126,12 +1162,26 @@ const ManageAttributeTypes: React.FC<ManageAttributeTypesProps> = ({
                                                     <button
                                                         onClick={() => handleEditAttributeType(at._id)}
                                                         className="p-2 bg-gradient-to-r from-blue-50 to-cyan-50 text-blue-600 rounded-lg hover:from-blue-100 hover:to-cyan-100 hover:scale-110 transition-all duration-300 group/btn"
+                                                        title="Edit attribute"
                                                     >
                                                         <Edit size={16} className="group-hover/btn:rotate-12 transition-transform duration-300" />
                                                     </button>
                                                     <button
+                                                        onClick={() => {
+                                                            const attr = attributeTypes.find(a => a._id === at._id);
+                                                            setDuplicateAttrId(at._id);
+                                                            setDuplicateName(attr ? `${attr.attributeName} (Copy)` : '');
+                                                            setShowDuplicateModal(true);
+                                                        }}
+                                                        className="p-2 bg-gradient-to-r from-emerald-50 to-teal-50 text-emerald-600 rounded-lg hover:from-emerald-100 hover:to-teal-100 hover:scale-110 transition-all duration-300 group/btn"
+                                                        title="Duplicate attribute with sub-attributes"
+                                                    >
+                                                        <Copy size={16} className="group-hover/btn:scale-110 transition-transform duration-300" />
+                                                    </button>
+                                                    <button
                                                         onClick={() => handleDeleteAttributeType(at._id)}
                                                         className="p-2 bg-gradient-to-r from-red-50 to-pink-50 text-red-500 rounded-lg hover:from-red-100 hover:to-pink-100 hover:scale-110 transition-all duration-300 group/btn"
+                                                        title="Delete attribute"
                                                     >
                                                         <Trash2 size={16} className="group-hover/btn:shake-animation" />
                                                     </button>
@@ -1205,6 +1255,111 @@ const ManageAttributeTypes: React.FC<ManageAttributeTypesProps> = ({
                     </div>
                 )}
             </div>
+
+            {/* Duplicate Attribute Modal */}
+            {showDuplicateModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fadeIn">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden animate-slideUp">
+                        {/* Modal Header */}
+                        <div className="bg-gradient-to-r from-emerald-500 to-teal-500 p-6 text-white">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-white/20 rounded-lg">
+                                    <Copy size={24} />
+                                </div>
+                                <div>
+                                    <h3 className="text-xl font-bold">Duplicate Attribute</h3>
+                                    <p className="text-emerald-100 text-sm">Create a copy with a new name</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Modal Body */}
+                        <div className="p-6 space-y-4">
+                            {/* Original Attribute Info */}
+                            <div className="bg-gray-50 rounded-lg p-4">
+                                <div className="text-sm text-gray-500 mb-1">Duplicating from:</div>
+                                <div className="font-medium text-gray-800">
+                                    {attributeTypes.find(at => at._id === duplicateAttrId)?.attributeName || 'Unknown'}
+                                </div>
+                            </div>
+
+                            {/* New Name Input */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    New Attribute Name <span className="text-red-500">*</span>
+                                </label>
+                                <input
+                                    type="text"
+                                    value={duplicateName}
+                                    onChange={(e) => {
+                                        console.log("DUPLICATE Modal - onChange:", e.target.value);
+                                        setDuplicateName(e.target.value);
+                                    }}
+                                    onInput={(e) => {
+                                        const val = (e.target as HTMLInputElement).value;
+                                        console.log("DUPLICATE Modal - onInput:", val);
+                                        setDuplicateName(val);
+                                    }}
+                                    placeholder="Enter name for the duplicate..."
+                                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-400 transition-all duration-300"
+                                    autoFocus
+                                />
+                                <p className="text-sm text-gray-500 mt-2">
+                                    All sub-attributes will also be duplicated
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div className="bg-gray-50 px-6 py-4 flex gap-3 justify-end">
+                            <button
+                                onClick={() => {
+                                    setShowDuplicateModal(false);
+                                    setDuplicateAttrId(null);
+                                    setDuplicateName("");
+                                }}
+                                className="px-5 py-2.5 text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-all duration-300"
+                                disabled={duplicating}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={async () => {
+                                    if (!duplicateName.trim()) {
+                                        alert("Please enter a name for the duplicate");
+                                        return;
+                                    }
+                                    if (!duplicateAttrId) return;
+                                    
+                                    setDuplicating(true);
+                                    const success = await handleDuplicateAttributeType(duplicateAttrId, duplicateName.trim());
+                                    setDuplicating(false);
+                                    
+                                    if (success) {
+                                        setShowDuplicateModal(false);
+                                        setDuplicateAttrId(null);
+                                        setDuplicateName("");
+                                    }
+                                }}
+                                disabled={duplicating || !duplicateName.trim()}
+                                className="px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl hover:from-emerald-600 hover:to-teal-600 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                            >
+                                {duplicating ? (
+                                    <>
+                                        <Loader size={16} className="animate-spin" />
+                                        <span>Duplicating...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Copy size={16} />
+                                        <span>Create Duplicate</span>
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div >
     );
 };
