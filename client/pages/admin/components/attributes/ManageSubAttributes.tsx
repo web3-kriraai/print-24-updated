@@ -24,6 +24,7 @@ import { API_BASE_URL_WITH_API as API_BASE_URL } from "../../../../lib/apiConfig
 import { getAuthHeaders } from "../../../../utils/auth";
 import { Pagination } from "../../../../components/Pagination";
 import { SearchableDropdown } from "../../../../components/SearchableDropdown";
+import { AdminSearchableDropdown } from "../../../../components/AdminSearchableDropdown";
 
 interface AttributeValue {
     value: string;
@@ -164,9 +165,9 @@ const ManageSubAttributes: React.FC<ManageSubAttributesProps> = ({
             // 2. Filter by Attribute
             if (subAttributeFilter.attributeId) {
                 const parentId = typeof subAttr.parentAttribute === 'object' && subAttr.parentAttribute !== null
-                    ? subAttr.parentAttribute._id
-                    : subAttr.parentAttribute;
-                if (parentId !== subAttributeFilter.attributeId) return false;
+                    ? String((subAttr.parentAttribute as any)._id)
+                    : String(subAttr.parentAttribute);
+                if (parentId !== String(subAttributeFilter.attributeId)) return false;
             }
 
             // 3. Filter by Parent Value
@@ -415,9 +416,9 @@ const ManageSubAttributes: React.FC<ManageSubAttributesProps> = ({
             {/* Filters Bar */}
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 flex-1">
+                    <div className="flex flex-col  lg:flex-row items-start lg:items-center lg:justify-between gap-4 flex-1">
                         {/* Search */}
-                        <div className="relative flex-1 min-w-[280px]">
+                        <div className="relative w-full lg:w-[35%]">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
                             <input
                                 type="text"
@@ -429,57 +430,50 @@ const ManageSubAttributes: React.FC<ManageSubAttributesProps> = ({
                         </div>
 
                         {/* Filters */}
-                        <div className="flex flex-wrap gap-3">
-                            <div className="relative">
-                                <select
-                                    value={subAttributeFilter.attributeId}
-                                    onChange={(e) => setSubAttributeFilter({ ...subAttributeFilter, attributeId: e.target.value })}
-                                    className="appearance-none bg-gray-50 border border-gray-200 rounded-xl pl-4 pr-10 py-2.5 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all cursor-pointer"
-                                >
-                                    <option value="">All Attributes</option>
-                                    {attributeTypes.map((attr) => (
-                                        <option key={attr._id} value={attr._id}>
-                                            {attr.systemName || attr.attributeName}
-                                        </option>
-                                    ))}
-                                </select>
-                                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={18} />
-                            </div>
+                        <div className="flex-1 flex flex-wrap gap-5">
+                            <AdminSearchableDropdown
+                                label="All Attributes"
+                                value={subAttributeFilter.attributeId}
+                                onChange={(value) => setSubAttributeFilter({ ...subAttributeFilter, attributeId: value as string })}
+                                options={[
+                                    { value: '', label: 'All Attributes' },
+                                    ...attributeTypes.map((attr) => ({
+                                        value: attr._id,
+                                        label: attr.systemName || attr.attributeName
+                                    }))
+                                ]}
+                                searchPlaceholder="Search attributes..."
+                                enableSearch={true}
+                                className="w-full lg:w-[45%]"
+                            />
 
-                            <div className="relative">
-                                <select
-                                    value={subAttributeFilter.parentValue}
-                                    onChange={(e) => setSubAttributeFilter({ ...subAttributeFilter, parentValue: e.target.value })}
-                                    className="appearance-none bg-gray-50 border border-gray-200 rounded-xl pl-4 pr-10 py-2.5 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all cursor-pointer"
-                                >
-                                    <option value="">All Parent Values</option>
-                                    {(() => {
-                                        if (subAttributeFilter.attributeId) {
-                                            const attr = attributeTypes.find(a => a._id === subAttributeFilter.attributeId);
-                                            return attr?.attributeValues?.map(av => (
-                                                <option key={av.value} value={av.value}>{av.label}</option>
-                                            )) || [];
-                                        }
-                                        return Array.from(new Set(subAttributes.map(sa => sa.parentValue).filter(Boolean)))
+                            <AdminSearchableDropdown
+                                label="All Parent Values"
+                                value={subAttributeFilter.parentValue}
+                                onChange={(value) => setSubAttributeFilter({ ...subAttributeFilter, parentValue: value as string })}
+                                options={(() => {
+                                    const baseOption = { value: '', label: 'All Parent Values' };
+                                    if (subAttributeFilter.attributeId) {
+                                        const attr = attributeTypes.find(a => a._id === subAttributeFilter.attributeId);
+                                        return [
+                                            baseOption,
+                                            ...(attr?.attributeValues?.map(av => ({
+                                                value: av.value,
+                                                label: av.label
+                                            })) || [])
+                                        ];
+                                    }
+                                    return [
+                                        baseOption,
+                                        ...Array.from(new Set(subAttributes.map(sa => sa.parentValue).filter(Boolean)))
                                             .sort()
-                                            .map((pv) => <option key={pv} value={pv}>{pv}</option>);
-                                    })()}
-                                </select>
-                                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={18} />
-                            </div>
-
-                            <div className="relative">
-                                <select
-                                    value={subAttributeStatusFilter}
-                                    onChange={(e) => setSubAttributeStatusFilter(e.target.value as any)}
-                                    className="appearance-none bg-gray-50 border border-gray-200 rounded-xl pl-4 pr-10 py-2.5 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all cursor-pointer"
-                                >
-                                    <option value="all">All Status</option>
-                                    <option value="enabled">Enabled Only</option>
-                                    <option value="disabled">Disabled Only</option>
-                                </select>
-                                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={18} />
-                            </div>
+                                            .map((pv) => ({ value: pv, label: pv }))
+                                    ];
+                                })()}
+                                searchPlaceholder="Search parent values..."
+                                enableSearch={true}
+                                className="w-full lg:w-[20%]"
+                            />
                         </div>
                     </div>
 
@@ -724,40 +718,44 @@ const ManageSubAttributes: React.FC<ManageSubAttributesProps> = ({
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div className="space-y-2">
                                     <label className="block text-sm font-medium text-gray-700">Parent Attribute *</label>
-                                    <select
+                                    <AdminSearchableDropdown
+                                        label="Select Parent Attribute"
                                         value={subAttributeForm.parentAttribute}
-                                        onChange={(e) => setSubAttributeForm({ ...subAttributeForm, parentAttribute: e.target.value, parentValue: "" })}
-                                        className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all"
-                                        required
-                                    >
-                                        <option value="">Select Parent Attribute</option>
-                                        {attributeTypes.map((attr) => (
-                                            <option key={attr._id} value={attr._id}>
-                                                {attr.systemName ? `${attr.systemName} (${attr.attributeName})` : attr.attributeName}
-                                            </option>
-                                        ))}
-                                    </select>
+                                        onChange={(value) => setSubAttributeForm({ ...subAttributeForm, parentAttribute: value as string, parentValue: "" })}
+                                        options={[
+                                            { value: '', label: 'Select Parent Attribute' },
+                                            ...attributeTypes.map((attr) => ({
+                                                value: attr._id,
+                                                label: attr.systemName ? `${attr.systemName} (${attr.attributeName})` : attr.attributeName
+                                            }))
+                                        ]}
+                                        searchPlaceholder="Search attributes..."
+                                        enableSearch={true}
+                                        required={true}
+                                    />
                                 </div>
 
                                 <div className="space-y-2">
                                     <label className="block text-sm font-medium text-gray-700">Parent Value *</label>
-                                    <select
+                                    <AdminSearchableDropdown
+                                        label="Select Parent Value"
                                         value={subAttributeForm.parentValue}
-                                        onChange={(e) => setSubAttributeForm({ ...subAttributeForm, parentValue: e.target.value })}
-                                        className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all"
-                                        required
-                                        disabled={!subAttributeForm.parentAttribute}
-                                    >
-                                        <option value="">Select Parent Value</option>
-                                        {(() => {
+                                        onChange={(value) => setSubAttributeForm({ ...subAttributeForm, parentValue: value as string })}
+                                        options={(() => {
                                             const selectedAttr = attributeTypes.find(attr => attr._id === subAttributeForm.parentAttribute);
-                                            return selectedAttr?.attributeValues?.map((av: any) => (
-                                                <option key={av.value} value={av.value}>
-                                                    {av.label}
-                                                </option>
-                                            )) || [];
+                                            return [
+                                                { value: '', label: 'Select Parent Value' },
+                                                ...(selectedAttr?.attributeValues?.map((av: any) => ({
+                                                    value: av.value,
+                                                    label: av.label
+                                                })) || [])
+                                            ];
                                         })()}
-                                    </select>
+                                        searchPlaceholder="Search parent values..."
+                                        enableSearch={!!subAttributeForm.parentAttribute}
+                                        disabled={!subAttributeForm.parentAttribute}
+                                        required={true}
+                                    />
                                 </div>
                             </div>
 

@@ -4849,13 +4849,12 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
                                         // Get sub-attributes for this attribute if available
                                         const selectedValue = selectedDynamicAttributes[attrId];
-                                        // Check if selected value has sub-attributes flag
                                         const selectedValueObj = attributeValues.find((av: any) => av.value === selectedValue);
-                                        const hasSubAttributes = selectedValueObj?.hasSubAttributes === true;
 
                                         // Filter sub-attributes: parentAttribute matches attrId, parentValue matches selectedValue
+                                        // Check if sub-attributes actually exist in the fetched data (don't rely solely on hasSubAttributes flag)
                                         const subAttributesKey = `${attrId}:${selectedValue || ''}`;
-                                        const availableSubAttributes = (hasSubAttributes && selectedValue)
+                                        const availableSubAttributes = selectedValue
                                           ? (pdpSubAttributes[subAttributesKey] || [])
                                           : [];
 

@@ -31,6 +31,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { API_BASE_URL_WITH_API as API_BASE_URL } from "../../../../lib/apiConfig";
 import { getAuthHeaders } from "../../../../utils/auth";
 import { Product } from "../products/ManageProductsView";
+import { AdminSearchableDropdown } from "../../../../components/AdminSearchableDropdown";
 
 // Interface Definitions
 interface AttributeType {
@@ -1221,19 +1222,19 @@ const ManageAttributeRules: React.FC<ManageAttributeRulesProps> = ({
                                                     {action.action !== 'QUANTITY' && (
                                                         <div>
                                                             <label className="block text-xs font-medium text-gray-600 mb-2">Target Attribute</label>
-                                                            <select
+                                                            <AdminSearchableDropdown
+                                                                label="Select Attribute..."
                                                                 value={action.targetAttribute}
-                                                                onChange={(e) => handleActionChange(index, "targetAttribute", e.target.value)}
-                                                                className="w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500/30 focus:border-indigo-400 transition-all duration-300 text-sm"
-                                                                required
-                                                            >
-                                                                <option value="">Select Attribute...</option>
-                                                                {attributeTypes
+                                                                onChange={(value) => handleActionChange(index, "targetAttribute", value)}
+                                                                options={attributeTypes
                                                                     .filter(a => a._id !== ruleForm.when.attribute)
-                                                                    .map((attr) => (
-                                                                        <option key={attr._id} value={attr._id}>{attr.systemName || attr.attributeName}</option>
-                                                                    ))}
-                                                            </select>
+                                                                    .map((attr) => ({
+                                                                        value: attr._id,
+                                                                        label: attr.systemName || attr.attributeName
+                                                                    }))}
+                                                                searchPlaceholder="Search attributes..."
+                                                                required
+                                                            />
                                                         </div>
                                                     )}
 

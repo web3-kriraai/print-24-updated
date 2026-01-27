@@ -21,7 +21,7 @@ import {
     Tag,
     Layers
 } from 'lucide-react';
-import { ReviewFilterDropdown } from '../../../../components/ReviewFilterDropdown';
+import { SearchableDropdown } from '../../../../components/SearchableDropdown';
 import { formatCurrency } from '../../../../utils/pricing';
 
 export interface Product {
@@ -643,8 +643,8 @@ const ManageProductsView: React.FC<ManageProductsViewProps> = ({
                         {/* Category Filter */}
                         <div>
                             <label className="block text-sm font-medium text-gray-900 mb-2">Category</label>
-                            <ReviewFilterDropdown
-                                label="Category"
+                            <SearchableDropdown
+                                label="All Categories"
                                 value={selectedCategoryFilter}
                                 onChange={(value) => {
                                     setSelectedCategoryFilter(value as string);
@@ -652,19 +652,22 @@ const ManageProductsView: React.FC<ManageProductsViewProps> = ({
                                 }}
                                 options={categoryOptions}
                                 className="w-full"
+                                searchPlaceholder="Search categories..."
+                                enableSearch={true}
                             />
                         </div>
 
                         {/* Subcategory Filter */}
                         <div>
                             <label className="block text-sm font-medium text-gray-900 mb-2">Subcategory</label>
-                            <ReviewFilterDropdown
-                                label="Subcategory"
+                            <SearchableDropdown
+                                label="All Subcategories"
                                 value={selectedSubCategoryFilter}
                                 onChange={(value) => setSelectedSubCategoryFilter(value as string)}
                                 options={subCategoryOptions}
-                                disabled={!selectedCategoryFilter}
                                 className="w-full"
+                                searchPlaceholder="Search subcategories..."
+                                enableSearch={!selectedCategoryFilter ? false : true}
                             />
                         </div>
                     </div>
