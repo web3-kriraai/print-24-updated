@@ -572,8 +572,9 @@ export const duplicateAttributeType = async (req, res) => {
     console.log("DUPLICATE AttributeType - Request body:", req.body);
     console.log("DUPLICATE AttributeType - newName value:", req.body?.newName);
 
-    // Get newName from body (handle both string and undefined cases)
+    // Get newName and newSystemName from body
     const newName = req.body && req.body.newName ? req.body.newName : null;
+    const newSystemName = req.body && req.body.newSystemName ? req.body.newSystemName : null;
 
     // Validate that id is a valid ObjectId
     if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -601,10 +602,16 @@ export const duplicateAttributeType = async (req, res) => {
     console.log("DUPLICATE AttributeType - Using attributeName:", attributeName);
     sourceData.attributeName = attributeName;
 
-    // Generate unique systemName based on the new name
-    if (sourceData.systemName) {
+    // Generate or use custom systemName
+    if (newSystemName && typeof newSystemName === 'string' && newSystemName.trim().length > 0) {
+      // Use custom system name provided by user
+      sourceData.systemName = newSystemName.trim();
+      console.log("DUPLICATE AttributeType - Using custom systemName:", sourceData.systemName);
+    } else if (sourceData.systemName) {
+      // Auto-generate from attribute name + timestamp
       const baseSystemName = attributeName.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
       sourceData.systemName = baseSystemName + '_' + Date.now();
+      console.log("DUPLICATE AttributeType - Auto-generated systemName:", sourceData.systemName);
     }
 
     // Create the duplicate attribute type

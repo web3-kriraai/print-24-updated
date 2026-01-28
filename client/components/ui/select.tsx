@@ -275,7 +275,7 @@ const Select = React.forwardRef<HTMLButtonElement, SelectProps>(
                                     </div>
                                 ) : (
                                     // Regular rendering for small lists
-                                    options.map((option) => (
+                                    filteredOptions.map((option) => (
                                         <button
                                             key={option.value}
                                             type="button"

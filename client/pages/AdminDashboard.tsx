@@ -3012,8 +3012,8 @@ const AdminDashboard: React.FC = () => {
       isRequired: attributeTypeForm.isRequired !== undefined ? attributeTypeForm.isRequired : (finalPrimaryEffectType === "FILE" || finalPrimaryEffectType === "PRICE" || attributeTypeForm.isPriceEffect),
       displayOrder: 0,
       isCommonAttribute: attributeTypeForm.isCommonAttribute !== undefined ? attributeTypeForm.isCommonAttribute : true,
-      applicableCategories: [],
-      applicableSubCategories: [],
+      applicableCategories: attributeTypeForm.applicableCategories || [],
+      applicableSubCategories: attributeTypeForm.applicableSubCategories || [],
       // Cascading attributes support
       parentAttribute: attributeTypeForm.parentAttribute || null,
       showWhenParentValue: attributeTypeForm.showWhenParentValue || [],
@@ -3040,7 +3040,7 @@ const AdminDashboard: React.FC = () => {
     };
   };
 
-  const handleAttributeTypeSubmit = async (e: React.FormEvent) => {
+  const handleAttributeTypeSubmit = async (e: React.FormEvent): Promise<boolean> => {
     e.preventDefault();
     e.stopPropagation();
     setLoading(true);
@@ -3116,7 +3116,7 @@ const AdminDashboard: React.FC = () => {
             optionsTable.scrollIntoView({ behavior: 'smooth', block: 'center' });
           }
         }
-        return;
+        return false; // Validation failed, keep modal open
       }
 
       // Ensure effectDescription is always included in payload - prioritize form value
@@ -3244,9 +3244,11 @@ const AdminDashboard: React.FC = () => {
           },
         ]);
       }
+      return true; // Success, allow modal to close
     } catch (err) {
       console.error("Error saving attribute type:", err);
       setError(err instanceof Error ? err.message : "Failed to save attribute type");
+      return false; // Error occurred, keep modal open
     } finally {
       setLoading(false);
     }
@@ -3677,7 +3679,7 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
-  const handleDuplicateAttributeType = async (attributeTypeId: string, customName?: string) => {
+  const handleDuplicateAttributeType = async (attributeTypeId: string, customName?: string, customSystemName?: string) => {
     const attributeType = attributeTypes.find(at => at._id === attributeTypeId);
     if (!attributeType) return;
 
@@ -3685,7 +3687,7 @@ const AdminDashboard: React.FC = () => {
     console.log("DUPLICATE Frontend - Sending request with:");
     console.log("  - attributeTypeId:", attributeTypeId);
     console.log("  - customName:", customName);
-    console.log("  - body:", JSON.stringify({ newName: customName }));
+    console.log("  - customSystemName:", customSystemName);
 
     try {
       setLoading(true);
@@ -3698,7 +3700,10 @@ const AdminDashboard: React.FC = () => {
           ...getAuthHeaders(),
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ newName: customName }),
+        body: JSON.stringify({ 
+        newName: customName,
+        newSystemName: customSystemName 
+      }),
       });
 
       if (!response.ok) {
@@ -5933,8 +5938,9 @@ const AdminDashboard: React.FC = () => {
           */}
 
           {/* Messages */}
+          {/* Don't show global error/success for attribute-types tab - they use modal with internal error display and toast notifications */}
           <AnimatePresence>
-            {error && (
+            {error && activeTab !== "attribute-types" && (
               <motion.div
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -5945,7 +5951,7 @@ const AdminDashboard: React.FC = () => {
                 {error}
               </motion.div>
             )}
-            {success && (
+            {success && activeTab !== "attribute-types" && (
               <motion.div
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
