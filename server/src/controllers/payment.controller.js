@@ -34,15 +34,21 @@ export const initializePayment = async (req, res) => {
             return res.status(400).json({ error: 'Order already paid' });
         }
 
-        // Check for existing pending transaction
-        const existingTransaction = await PaymentTransaction.findOne({
-            order: orderId,
-            status: 'CREATED',
-            expires_at: { $gt: new Date() }
-        });
+        // Check for existing CREATED transaction for this order
+        // Skip this check for redirect-based gateways (PayU, PhonePe) as they need fresh hashes
+        const isRedirectGateway = preferredGateway && ['PAYU', 'PHONEPE'].includes(preferredGateway.toUpperCase());
+
+        let existingTransaction = null;
+        if (!isRedirectGateway) {
+            existingTransaction = await PaymentTransaction.findOne({
+                order: orderId,
+                status: 'CREATED',
+                expires_at: { $gt: new Date() }
+            });
+        }
 
         if (existingTransaction) {
-            // Return existing transaction data
+            // Return existing transaction data (for popup gateways like Razorpay)
             const provider = await paymentRouter.getProvider(existingTransaction.gateway_name);
             return res.json({
                 success: true,
@@ -53,7 +59,8 @@ export const initializePayment = async (req, res) => {
                     key: provider?.config?.getPublicKey(),
                     order_id: existingTransaction.gateway_order_id,
                     amount: existingTransaction.amount * 100 // Convert to paise for frontend
-                }
+                },
+                redirect_required: false // Existing transactions are only for non-redirect gateways
             });
         }
 
@@ -89,31 +96,55 @@ export const initializePayment = async (req, res) => {
  */
 export const verifyPayment = async (req, res) => {
     try {
+        // Support both snake_case and camelCase field names
         const {
             transaction_id,
+            transactionId,
             gateway_order_id,
+            gatewayOrderId,
             razorpay_payment_id,
             razorpay_order_id,
             razorpay_signature,
-            session_id // For Stripe
+            session_id,
+            gateway,
+            payuResponse  // PayU response object from client
         } = req.body;
+
+        // Normalize field names
+        const txnId = transaction_id || transactionId;
+        const gwOrderId = gateway_order_id || gatewayOrderId;
+
+        console.log('[Payment Verify] Received:', {
+            txnId,
+            gateway,
+            hasPayuResponse: !!payuResponse,
+            hasRazorpaySignature: !!razorpay_signature
+        });
 
         // Find transaction
         let transaction;
 
-        if (transaction_id) {
-            transaction = await PaymentTransaction.findById(transaction_id);
+        if (txnId) {
+            transaction = await PaymentTransaction.findById(txnId);
         } else if (razorpay_order_id) {
-            transaction = await PaymentTransaction.findByGatewayOrder(razorpay_order_id, 'RAZORPAY');
+            transaction = await PaymentTransaction.findOne({
+                $or: [
+                    { gateway_order_id: razorpay_order_id },
+                    { 'metadata.razorpay_order_id': razorpay_order_id }
+                ]
+            });
         } else if (session_id) {
-            transaction = await PaymentTransaction.findByGatewayOrder(session_id, 'STRIPE');
-        } else if (gateway_order_id) {
-            transaction = await PaymentTransaction.findOne({ gateway_order_id });
+            transaction = await PaymentTransaction.findOne({ gateway_order_id: session_id });
+        } else if (gwOrderId) {
+            transaction = await PaymentTransaction.findOne({ gateway_order_id: gwOrderId });
         }
 
         if (!transaction) {
+            console.error('[Payment Verify] Transaction not found:', { txnId, gwOrderId, razorpay_order_id });
             return res.status(404).json({ error: 'Transaction not found' });
         }
+
+        console.log('[Payment Verify] Found transaction:', transaction._id, 'Gateway:', transaction.gateway_name);
 
         // Get provider
         const provider = await paymentRouter.getProvider(transaction.gateway_name);
@@ -136,7 +167,56 @@ export const verifyPayment = async (req, res) => {
             }
         }
 
-        // Check status with gateway
+        // Handle PayU Bolt response directly (PayU sends client-side response)
+        if (gateway === 'PAYU' && payuResponse) {
+            console.log('[Payment Verify] Processing PayU response:', payuResponse.txnStatus);
+
+            const txnStatus = payuResponse.txnStatus || payuResponse.status;
+
+            if (txnStatus === 'SUCCESS') {
+                // Mark transaction as successful
+                await transaction.markSuccess({
+                    payment_id: payuResponse.payuMoneyId || payuResponse.mihpayid,
+                    transaction_id: payuResponse.txnid || payuResponse.mihpayid,
+                    method: payuResponse.mode || 'PAYU',
+                    method_details: { payuResponse },
+                    raw_response: payuResponse
+                });
+
+                // Update order
+                await Order.findByIdAndUpdate(transaction.order, {
+                    paymentStatus: 'COMPLETED',
+                    'payment_details.transaction_id': transaction._id,
+                    'payment_details.gateway_used': 'PAYU',
+                    'payment_details.payment_method': payuResponse.mode || 'PAYU',
+                    'payment_details.captured_at': new Date(),
+                    'payment_details.amount_paid': transaction.amount
+                });
+
+                return res.json({
+                    success: true,
+                    status: 'SUCCESS',
+                    transaction_id: transaction._id,
+                    order_id: transaction.order
+                });
+            } else {
+                // Payment failed
+                await transaction.markFailed({
+                    code: payuResponse.error_code || 'PAYU_FAILED',
+                    message: payuResponse.error_Message || payuResponse.txnMessage || 'Payment failed',
+                    raw_response: payuResponse
+                });
+
+                return res.json({
+                    success: false,
+                    status: 'FAILED',
+                    transaction_id: transaction._id,
+                    error: payuResponse.error_Message || payuResponse.txnMessage
+                });
+            }
+        }
+
+        // Check status with gateway (for Razorpay, Stripe, etc.)
         const transactionIdToCheck = razorpay_payment_id ||
             session_id ||
             transaction.gateway_order_id;
@@ -278,6 +358,94 @@ export const getPaymentHealth = async (req, res) => {
         res.status(500).json({
             overall: 'ERROR',
             error: error.message
+        });
+    }
+};
+/**
+ * Initialize a test payment (Admin only - for testing payment UI)
+ * POST /api/payment/test-initialize
+ */
+export const initializeTestPayment = async (req, res) => {
+    try {
+        const { amount, currency = 'INR', preferredGateway, paymentMethod } = req.body;
+        const userId = req.user?._id;
+
+        // Validate amount
+        if (!amount || amount < 100) {
+            return res.status(400).json({
+                success: false,
+                error: 'Amount must be at least ₹1 (100 paise)'
+            });
+        }
+
+        // Get user info
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(401).json({
+                success: false,
+                error: 'User not authenticated'
+            });
+        }
+
+        // Select gateway (either preferred or by priority)
+        let selectedGateway;
+        if (preferredGateway) {
+            selectedGateway = await paymentRouter.getProvider(preferredGateway);
+            if (!selectedGateway) {
+                return res.status(400).json({
+                    success: false,
+                    error: `Gateway ${preferredGateway} not found or not active`
+                });
+            }
+        } else {
+            // Auto-select based on priority
+            selectedGateway = await paymentRouter.selectGateway({
+                amount,
+                currency,
+                paymentMethod: paymentMethod || 'CARD',
+                country: 'IN'
+            });
+        }
+
+        if (!selectedGateway) {
+            return res.status(503).json({
+                success: false,
+                error: 'No payment gateway available'
+            });
+        }
+
+        // Initialize payment directly with provider (skip transaction creation)
+        const providerResult = await selectedGateway.instance.initializeTransaction({
+            amount,
+            currency,
+            customer: {
+                id: user._id.toString(),
+                name: user.name || 'Test User',
+                email: user.email,
+                phone: user.phone || '9999999999'
+            },
+            orderId: `TEST_${Date.now()}`,
+            callbackUrl: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/payment/verify`,
+            metadata: {
+                test_payment: true,
+                purpose: 'UI Testing'
+            }
+        });
+
+        return res.json({
+            success: true,
+            gateway: selectedGateway.name,
+            checkout_url: providerResult.checkoutUrl,
+            checkout_data: providerResult.checkoutData,
+            gateway_order_id: providerResult.gatewayOrderId,
+            redirect_required: providerResult.redirectRequired
+        });
+
+    } catch (error) {
+        console.error('Test payment initialization failed:', error);
+        return res.status(500).json({
+            success: false,
+            error: error.message || 'Failed to initialize test payment'
         });
     }
 };

@@ -9,6 +9,7 @@ import { applyAttributeRules, type AttributeRule, type Attribute } from '../util
 import ProductPriceBox from '../components/ProductPriceBox';
 import LocationDetector from '../components/LocationDetector';
 import { formatPrice } from '../src/utils/currencyUtils';
+import PaymentConfirmationModal from '../src/components/PaymentConfirmationModal';
 
 interface SubCategory {
   _id: string;
@@ -2014,32 +2015,6 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
         }
       }
     }
-    if (!selectedPrintingOption) {
-      validationErrors.push('Please select a printing option');
-      if (!firstErrorField.current) {
-        const printingOptionField = document.querySelector('[data-field="printingOption"]') as HTMLElement;
-        if (printingOptionField) {
-          firstErrorField.current = printingOptionField;
-        } else {
-          // Find the printing option section
-          const section = document.querySelector('[data-section="printingOption"]') as HTMLElement;
-          if (section) firstErrorField.current = section;
-        }
-      }
-    }
-    if (!selectedDeliverySpeed) {
-      validationErrors.push('Please select a delivery speed');
-      if (!firstErrorField.current) {
-        const deliverySpeedField = document.querySelector('[data-field="deliverySpeed"]') as HTMLElement;
-        if (deliverySpeedField) {
-          firstErrorField.current = deliverySpeedField;
-        } else {
-          // Find the delivery speed section
-          const section = document.querySelector('[data-section="deliverySpeed"]') as HTMLElement;
-          if (section) firstErrorField.current = section;
-        }
-      }
-    }
 
     // Validate required dynamic attributes
     if (selectedProduct?.dynamicAttributes) {
@@ -2182,14 +2157,6 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
       setPaymentError("Please upload a reference image.");
       return;
     }
-    if (!selectedPrintingOption) {
-      setPaymentError("Please select a printing option.");
-      return;
-    }
-    if (!selectedDeliverySpeed) {
-      setPaymentError("Please select a delivery speed.");
-      return;
-    }
     if (!quantity || quantity <= 0) {
       setPaymentError("Please enter a valid quantity (must be greater than 0).");
       return;
@@ -2267,11 +2234,18 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
       }
 
       try {
-        // Handle base64 data - remove data:image/... prefix if present
-        let frontImageData = frontDesignPreview;
-        if (frontImageData.includes(',')) {
-          frontImageData = frontImageData.split(',')[1];
-        }
+        // Read file directly to ensure valid base64 data
+        const reader = new FileReader();
+        const frontImageData = await new Promise<string>((resolve, reject) => {
+          reader.onload = () => {
+            const result = reader.result as string;
+            // Remove data:image/... prefix
+            const base64 = result.includes(',') ? result.split(',')[1] : result;
+            resolve(base64);
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(frontDesignFile);
+        });
 
         if (!frontImageData || frontImageData.trim().length === 0) {
           throw new Error("Invalid front image data. Please upload the image again.");
@@ -2553,8 +2527,8 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
       const orderData = {
         productId: selectedProduct._id,
         quantity: quantity,
-        finish: selectedPrintingOption,
-        shape: selectedDeliverySpeed,
+        finish: selectedPrintingOption || "Standard", // Legacy field fallback
+        shape: selectedDeliverySpeed || "Rectangular", // Legacy field fallback
         selectedOptions: selectedOptions,
         selectedDynamicAttributes: selectedDynamicAttributesArray, // Send complete attribute information
         // ✅ MANDATORY FIX: Remove client-calculated price, add promoCodes
@@ -2687,24 +2661,190 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
         }
       }
 
-      // Step 4: Close payment modal and redirect to order details
-      setShowPaymentModal(false);
-      setIsProcessingPayment(false);
+      // Store temp password info for display after payment
+      const newUserInfo = responseData.isNewUser && responseData.tempPassword
+        ? { tempPassword: responseData.tempPassword }
+        : null;
 
-      // Show success message
-      if (responseData.isNewUser && responseData.tempPassword) {
-        // Email service temporarily disabled - show password in alert instead
-        alert(`Account created successfully!\n\nYour temporary password: ${responseData.tempPassword}\n\nPlease save this password. You can change it after logging in.\n\nOrder placed successfully! Order Number: ${order.orderNumber || order.order?.orderNumber || "N/A"}`);
-      } else {
-        alert(`Order placed successfully! Order Number: ${order.orderNumber || order.order?.orderNumber || "N/A"}`);
-      }
+      // Step 4: Initialize Payment via Payment Gateway API
+      const paymentToken = localStorage.getItem("token") || responseData.token;
+      console.log("🔄 Step 4: Initializing payment...");
+      console.log("📦 Order ID:", order._id || order.order?._id);
+      console.log("💰 Amount:", order.totalPrice || order.priceSnapshot?.finalTotal);
+      console.log("🔑 Token available:", !!paymentToken);
 
-      // Redirect to order details page
-      if (order._id || order.order?._id) {
-        navigate(`/order/${order._id || order.order._id}`);
-      } else {
-        // Fallback to profile page
-        navigate("/profile");
+      try {
+        const paymentResponse = await fetch(`${API_BASE_URL}/payment/initialize`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${paymentToken}`,
+          },
+          body: JSON.stringify({
+            orderId: order._id || order.order?._id,
+            amount: Math.round((order.totalPrice || order.priceSnapshot?.finalTotal || 0) * 100), // Convert to paise
+            currency: "INR",
+            customerInfo: {
+              name: customerName.trim(),
+              email: customerEmail.trim(),
+              phone: mobileNumber.trim(),
+            },
+          }),
+        });
+
+        if (!paymentResponse.ok) {
+          const paymentError = await paymentResponse.json().catch(() => ({}));
+          throw new Error(paymentError.message || "Failed to initialize payment");
+        }
+
+        const paymentData = await paymentResponse.json();
+
+        // Normalize response - server uses snake_case, client uses camelCase
+        const checkoutData = paymentData.checkout_data || paymentData.checkoutData;
+        const transactionId = paymentData.transaction_id || paymentData.transactionId;
+
+        console.log("✅ Payment initialized successfully:", paymentData);
+        console.log("📊 checkoutData available:", !!checkoutData);
+        console.log("🌐 Razorpay SDK loaded:", typeof window !== 'undefined' && !!(window as any).Razorpay);
+        console.log("🌐 PayU Bolt SDK loaded:", typeof window !== 'undefined' && !!(window as any).bolt);
+
+        // Determine which gateway was selected by the server
+        const selectedGateway = paymentData.gateway || 'RAZORPAY';
+        console.log(`💳 Payment gateway selected: ${selectedGateway}`);
+
+        // Handle payment based on selected gateway and redirect requirement
+        const isRedirectRequired = paymentData.redirect_required || false;
+
+        console.log(`🔍 Redirect required: ${isRedirectRequired}`);
+        console.log(`🔍 Checkout URL: ${paymentData.checkout_url}`);
+
+        if (isRedirectRequired && paymentData.checkout_url && checkoutData) {
+          // =========== REDIRECT-BASED PAYMENT (PayU, PhonePe) ===========
+          console.log('🔄 Using redirect-based payment flow');
+          console.log('📝 Checkout data:', checkoutData);
+
+          // Create form and submit to payment gateway
+          const form = document.createElement('form');
+          form.method = 'POST';
+          form.action = paymentData.checkout_url;
+
+          // Add all checkout data as hidden form fields
+          Object.keys(checkoutData).forEach(key => {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = key;
+            input.value = checkoutData[key];
+            form.appendChild(input);
+          });
+
+          document.body.appendChild(form);
+          console.log('✅ Redirect form created, submitting to:', paymentData.checkout_url);
+          form.submit();
+
+        } else if (selectedGateway === 'RAZORPAY' && typeof window !== 'undefined' && (window as any).Razorpay && checkoutData) {
+          // =========== RAZORPAY POPUP CHECKOUT ===========
+          const rzp = new (window as any).Razorpay({
+            key: checkoutData.key,
+            amount: checkoutData.amount,
+            currency: checkoutData.currency,
+            name: "Print24",
+            description: `Order #${order.orderNumber || ""}`,
+            order_id: checkoutData.order_id,
+            prefill: {
+              name: customerName.trim(),
+              email: customerEmail.trim(),
+              contact: mobileNumber.trim(),
+            },
+            notes: {
+              orderId: order._id || order.order?._id,
+            },
+            theme: {
+              color: "#3B82F6",
+            },
+            handler: async (razorpayResponse: any) => {
+              // Payment successful - verify with backend
+              try {
+                const verifyResponse = await fetch(`${API_BASE_URL}/payment/verify`, {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${paymentToken}`,
+                  },
+                  body: JSON.stringify({
+                    razorpay_payment_id: razorpayResponse.razorpay_payment_id,
+                    razorpay_order_id: razorpayResponse.razorpay_order_id,
+                    razorpay_signature: razorpayResponse.razorpay_signature,
+                    transactionId: transactionId,
+                  }),
+                });
+
+                if (verifyResponse.ok) {
+                  setShowPaymentModal(false);
+                  setIsProcessingPayment(false);
+
+                  // Show success message
+                  if (newUserInfo?.tempPassword) {
+                    alert(`Account created successfully!\n\nYour temporary password: ${newUserInfo.tempPassword}\n\nPlease save this password. You can change it after logging in.\n\nPayment successful! Order Number: ${order.orderNumber || order.order?.orderNumber || "N/A"}`);
+                  } else {
+                    alert(`Payment successful! Order Number: ${order.orderNumber || order.order?.orderNumber || "N/A"}`);
+                  }
+
+                  // Redirect to order details page
+                  navigate(`/order/${order._id || order.order?._id}`);
+                } else {
+                  throw new Error("Payment verification failed");
+                }
+              } catch (verifyError) {
+                console.error('Payment verification failed:', verifyError);
+                setShowPaymentModal(false);
+                setIsProcessingPayment(false);
+                alert(`Payment verification failed.\n\nOrder Number: ${order.orderNumber || order.order?.orderNumber || "N/A"}\n\nPlease contact support or retry payment from order details.`);
+                navigate(`/order/${order._id || order.order?._id}`);
+              }
+            },
+            modal: {
+              ondismiss: () => {
+                console.log('Payment modal dismissed by user');
+                setShowPaymentModal(false);
+                setIsProcessingPayment(false);
+                alert(`Payment cancelled.\n\nOrder Number: ${order.orderNumber || order.order?.orderNumber || "N/A"}\n\nYour order is saved. You can complete payment from order details page.`);
+                navigate(`/order/${order._id || order.order?._id}`);
+              },
+            },
+          });
+
+          rzp.on("payment.failed", (response: any) => {
+            console.error('Razorpay payment failed:', response.error);
+            setShowPaymentModal(false);
+            setIsProcessingPayment(false);
+            alert(`Payment failed: ${response.error.description || "Unknown error"}\n\nOrder Number: ${order.orderNumber || order.order?.orderNumber || "N/A"}\n\nYou can retry payment from order details page.`);
+            navigate(`/order/${order._id || order.order?._id}`);
+          });
+
+          // Open Razorpay checkout
+          rzp.open();
+
+        } else if ((selectedGateway === 'STRIPE' || selectedGateway === 'PHONEPE') && (paymentData.checkout_url || paymentData.checkoutUrl)) {
+          // =========== OTHER REDIRECT-BASED CHECKOUT (Stripe/PhonePe) ===========
+          const redirectUrl = paymentData.checkout_url || paymentData.checkoutUrl;
+          console.log(`🔗 Redirecting to ${selectedGateway} checkout:`, redirectUrl);
+          window.location.href = redirectUrl;
+
+        } else {
+          // Fallback - no SDK loaded or unknown gateway
+          console.warn(`Payment SDK not loaded for ${selectedGateway}, showing order success`);
+          setShowPaymentModal(false);
+          setIsProcessingPayment(false);
+          alert(`Order placed successfully! Order Number: ${order.orderNumber || "N/A"}\n\nPayment will be processed offline.`);
+          navigate(`/order/${order._id || order.order?._id}`);
+        }
+      } catch (paymentError) {
+        // Payment initialization failed - order is created but not paid
+        console.error("Payment initialization failed:", paymentError);
+        setShowPaymentModal(false);
+        setIsProcessingPayment(false);
+        alert(`Order created but payment could not be initialized.\n\nOrder Number: ${order.orderNumber || "N/A"}\n\nPlease complete payment from your order details page.`);
+        navigate(`/order/${order._id || order.order?._id}`);
       }
     } catch (err) {
       setPaymentError(err instanceof Error ? err.message : "Failed to process payment and create order. Please try again.");
@@ -3207,14 +3347,14 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                             // Find the attribute definition to get readable name
                             const attr = pdpAttributes.find(a => a._id === key);
                             const attrName = attr?.attributeName || key;
-                            
+
                             // Find the selected value's label
                             let displayValue = value;
                             if (attr?.attributeValues) {
                               const selectedVal = attr.attributeValues.find(v => v.value === value);
                               displayValue = selectedVal?.label || value;
                             }
-                            
+
                             return {
                               attributeType: key,
                               value: typeof value === 'object' && !Array.isArray(value) && !(value instanceof File)
@@ -3365,7 +3505,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                     </h3>
                                     <div className="text-right shrink-0">
                                       <div className="text-lg sm:text-xl font-bold text-cream-900">
-                                        {formatPrice(displayPrice, 'INR')}
+                                        {formatPrice(parseFloat(displayPrice), 'INR')}
                                       </div>
                                       {priceLabel && (
                                         <div className="text-xs text-cream-500 mt-0.5">
@@ -4861,252 +5001,52 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
       </div>
 
       {/* Payment Confirmation Modal */}
-      <AnimatePresence>
-        {showPaymentModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
-            onClick={() => !isProcessingPayment && setShowPaymentModal(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-xl shadow-2xl max-w-md w-full p-4 sm:p-6 max-h-[90vh] overflow-y-auto"
-              data-payment-modal
-            >
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg sm:text-xl font-bold text-cream-900 flex items-center gap-2">
-                  <CreditCard size={20} className="sm:w-6 sm:h-6" />
-                  <span className="text-base sm:text-xl">Payment Confirmation</span>
-                </h3>
-                {!isProcessingPayment && (
-                  <button
-                    onClick={() => setShowPaymentModal(false)}
-                    className="text-cream-600 hover:text-cream-900"
-                  >
-                    <X size={24} />
-                  </button>
-                )}
-              </div>
+      <PaymentConfirmationModal
+        isOpen={showPaymentModal}
+        onClose={() => setShowPaymentModal(false)}
+        onConfirm={handlePaymentAndOrder}
+        productId={selectedProduct?._id || ''}
+        productName={selectedProduct?.name || ''}
+        quantity={quantity}
+        selectedDynamicAttributes={Object.entries(selectedDynamicAttributes)
+          .filter(([_, value]) => value !== null && value !== undefined && value !== '')
+          .map(([key, value]) => {
+            // Find the attribute definition to get readable name
+            const attr = pdpAttributes.find(a => a._id === key);
+            const attrName = attr?.attributeName || key;
 
-              <div className="mb-6">
-                <div className="bg-cream-50 rounded-lg p-4 mb-4">
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center">
-                      <span className="text-cream-700 font-medium">Subtotal (Excluding GST):</span>
-                      <span className="text-lg font-bold text-cream-900">{formatPrice(price, 'INR')}</span>
-                    </div>
-                    {gstAmount > 0 && (
-                      <>
-                        <div className="flex justify-between items-center text-sm">
-                          <span className="text-cream-600">GST ({selectedProduct?.gstPercentage || 18}%):</span>
-                          <span className="text-cream-700">+{formatPrice(gstAmount, 'INR')}</span>
-                        </div>
-                        <div className="flex justify-between items-center pt-2 border-t border-cream-300">
-                          <span className="text-cream-700 font-medium">Total Amount (Including GST):</span>
-                          <span className="text-2xl font-bold text-cream-900">{formatPrice(price + gstAmount, 'INR')}</span>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                  <p className="text-xs text-cream-600 mt-2">
-                    Your order will be placed and you can pay later.
-                  </p>
-                </div>
+            // Find the selected value's label
+            let displayValue = value;
+            if (attr?.attributeValues) {
+              const selectedVal = attr.attributeValues.find(v => v.value === value);
+              displayValue = selectedVal?.label || value;
+            }
 
-                {paymentError && (
-                  <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 flex items-start gap-2">
-                    <AlertCircle size={20} className="text-red-600 shrink-0 mt-0.5" />
-                    <p className="text-sm text-red-800">{paymentError}</p>
-                  </div>
-                )}
-
-                {/* Delivery Information Form */}
-                <div className="mb-6 space-y-4">
-                  <h4 className="font-semibold text-cream-900 text-sm mb-3 flex items-center gap-2">
-                    <Truck size={18} />
-                    Delivery Information
-                  </h4>
-
-                  <div>
-                    <label className="block text-sm font-medium text-cream-700 mb-1">
-                      Full Name <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      name="customerName"
-                      id="customerName"
-                      value={customerName}
-                      onChange={(e) => {
-                        setCustomerName(e.target.value);
-                        if (paymentError) setPaymentError(null);
-                      }}
-                      placeholder="Enter your full name"
-                      className="w-full px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-900 focus:border-transparent outline-none text-sm"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-cream-700 mb-1">
-                      Email <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="email"
-                      name="customerEmail"
-                      id="customerEmail"
-                      value={customerEmail}
-                      onChange={(e) => {
-                        setCustomerEmail(e.target.value);
-                        if (paymentError) setPaymentError(null);
-                      }}
-                      placeholder="Enter your email address"
-                      className="w-full px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-900 focus:border-transparent outline-none text-sm"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-cream-700 mb-1">
-                      Pincode <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      name="pincode"
-                      id="pincode"
-                      value={pincode}
-                      onChange={(e) => {
-                        const value = e.target.value.replace(/\D/g, '').slice(0, 6);
-                        setPincode(value);
-                        if (paymentError) setPaymentError(null);
-                      }}
-                      placeholder="Enter 6-digit pincode"
-                      className="w-full px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-900 focus:border-transparent outline-none text-sm"
-                      maxLength={6}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-cream-700 mb-1">
-                      Complete Address <span className="text-red-500">*</span>
-                    </label>
-                    <div className="flex gap-2">
-                      <textarea
-                        name="address"
-                        id="address"
-                        value={address}
-                        onChange={(e) => {
-                          setAddress(e.target.value);
-                          if (paymentError) setPaymentError(null);
-                        }}
-                        placeholder="Enter your complete delivery address"
-                        rows={3}
-                        className="flex-1 px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-900 focus:border-transparent outline-none text-sm resize-none"
-                      />
-                      <button
-                        type="button"
-                        onClick={handleGetLocation}
-                        disabled={isGettingLocation}
-                        className="px-3 py-2 bg-cream-200 text-cream-900 rounded-lg hover:bg-cream-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-                        title="Get location automatically"
-                      >
-                        {isGettingLocation ? (
-                          <Loader className="animate-spin" size={18} />
-                        ) : (
-                          <MapPin size={18} />
-                        )}
-                      </button>
-                    </div>
-                    <p className="text-xs text-cream-500 mt-1">You can enter address manually or use location button</p>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-cream-700 mb-1">
-                      Mobile Number <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      name="mobileNumber"
-                      id="mobileNumber"
-                      value={mobileNumber}
-                      onChange={(e) => {
-                        const value = e.target.value.replace(/\D/g, '').slice(0, 10);
-                        setMobileNumber(value);
-                        if (paymentError) setPaymentError(null);
-                      }}
-                      placeholder="Enter 10-digit mobile number"
-                      className="w-full px-3 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-900 focus:border-transparent outline-none text-sm"
-                      maxLength={10}
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2 text-sm text-cream-700">
-                  <p className="font-semibold mb-2">Order Summary:</p>
-                  <div className="space-y-1 ml-4">
-                    <p>• Product: <strong>{selectedProduct?.name}</strong></p>
-                    <p>• Quantity: <strong>{quantity.toLocaleString()}</strong></p>
-                    <p>• Printing Option: <strong>{selectedPrintingOption}</strong></p>
-                    <p>• Delivery Speed: <strong>{selectedDeliverySpeed}</strong></p>
-                    {selectedTextureType && (
-                      <p>• Texture Type: <strong>{selectedTextureType}</strong></p>
-                    )}
-                  </div>
-                </div>
-
-                {/* Estimated Delivery Information - Show at checkout */}
-                {estimatedDeliveryDate && (
-                  <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-                    <h3 className="font-bold text-sm text-cream-900 mb-2 flex items-center gap-2">
-                      <Truck size={16} /> Estimated Delivery
-                    </h3>
-                    <div className="text-green-700 text-sm">
-                      <div className="font-semibold mb-1">Estimated Delivery by <strong>{estimatedDeliveryDate}</strong></div>
-                      {deliveryLocationSource && (
-                        <div className="text-xs text-green-600 mt-1">
-                          {deliveryLocationSource}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex gap-3">
-                {!isProcessingPayment && (
-                  <button
-                    onClick={() => setShowPaymentModal(false)}
-                    className="flex-1 px-4 py-2 border border-cream-300 text-cream-700 rounded-lg hover:bg-cream-50 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                )}
-                <button
-                  onClick={handlePaymentAndOrder}
-                  disabled={isProcessingPayment}
-                  className="flex-1 px-4 py-3 bg-cream-900 text-cream-50 rounded-lg font-semibold hover:bg-cream-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                >
-                  {isProcessingPayment ? (
-                    <>
-                      <Loader className="animate-spin" size={18} />
-                      Processing...
-                    </>
-                  ) : (
-                    <>
-                      <Check size={18} />
-                      Confirm Order {formatPrice(price + gstAmount, 'INR')}
-                    </>
-                  )}
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            return {
+              attributeType: key,
+              value: typeof value === 'object' && !Array.isArray(value) && !(value instanceof File)
+                ? JSON.stringify(value)
+                : value,
+              name: attrName,
+              label: displayValue
+            };
+          })}
+        customerName={customerName}
+        setCustomerName={setCustomerName}
+        customerEmail={customerEmail}
+        setCustomerEmail={setCustomerEmail}
+        pincode={pincode}
+        setPincode={setPincode}
+        address={address}
+        setAddress={setAddress}
+        mobileNumber={mobileNumber}
+        setMobileNumber={setMobileNumber}
+        estimatedDeliveryDate={estimatedDeliveryDate}
+        deliveryLocationSource={deliveryLocationSource}
+        onGetLocation={handleGetLocation}
+        isGettingLocation={isGettingLocation}
+        gstPercentage={selectedProduct?.gstPercentage || 18}
+      />
 
       {/* Full Size Image Modal */}
       <AnimatePresence>

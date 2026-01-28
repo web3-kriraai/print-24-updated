@@ -192,11 +192,22 @@ export const createOrder = async (req, res) => {
             }
           }
         }
+        // Get the attribute type ID (support both formats)
+        const attrTypeId = attr.attributeTypeId || attr.attributeType?._id || attr.attributeType || null;
+        const attrValue = attr.attributeValue !== undefined ? attr.attributeValue : (attr.value !== undefined ? attr.value : null);
+        const attrName = attr.attributeName || attr.attributeType?.attributeName || "Attribute";
+
         processedDynamicAttributes.push({
-          attributeTypeId: attr.attributeTypeId || attr.attributeType?._id || null,
-          attributeName: attr.attributeName || attr.attributeType?.attributeName || "Attribute",
-          attributeValue: attr.attributeValue !== undefined ? attr.attributeValue : null,
-          label: attr.label || attr.attributeValue?.toString() || null,
+          // Support both ObjectId and String formats
+          attributeType: attrTypeId,
+          attributeTypeId: attrTypeId,
+          attributeName: attrName,
+          // Auto-generate pricingKey for pricing engine
+          pricingKey: attr.pricingKey || `${attrName}_${attrValue}`,
+          // Support both field names
+          value: attrValue,
+          attributeValue: attrValue,
+          label: attr.label || attrValue?.toString() || null,
           priceMultiplier: attr.priceMultiplier || null,
           priceAdd: attr.priceAdd || 0,
           description: attr.description || null,
@@ -374,10 +385,10 @@ export const createOrder = async (req, res) => {
       mobileNumber,
       uploadedDesign: processedDesign,
       notes: notes || "",
-      status: "request",
+      status: "REQUESTED",
       departmentStatuses: departmentStatuses,
       advancePaid: req.body.advancePaid ? parseFloat(req.body.advancePaid) : 0,
-      paymentStatus: req.body.paymentStatus || "pending",
+      paymentStatus: req.body.paymentStatus?.toUpperCase() || "PENDING",
       paymentGatewayInvoiceId: req.body.paymentGatewayInvoiceId || null,
       paperGSM: req.body.paperGSM || null,
       paperQuality: req.body.paperQuality || null,
@@ -387,6 +398,43 @@ export const createOrder = async (req, res) => {
 
     const order = new Order(orderData);
     await order.save();
+
+    // Create pricing calculation logs for audit trail
+    if (pricingResult.appliedModifiers && pricingResult.appliedModifiers.length > 0) {
+      try {
+        const PricingCalculationLog = (await import("../models/PricingCalculationLogschema.js")).default;
+
+        for (const modifier of pricingResult.appliedModifiers) {
+          // Map the modifier source to valid scope enum
+          const scopeMap = {
+            'GLOBAL': 'GLOBAL',
+            'ZONE': 'ZONE',
+            'ZONE_BOOK': 'ZONE',
+            'SEGMENT': 'SEGMENT',
+            'PRODUCT': 'PRODUCT',
+            'ATTRIBUTE': 'ATTRIBUTE',
+            'PROMO_CODE': 'GLOBAL',
+            'FIXED': 'GLOBAL',
+          };
+          const scope = scopeMap[modifier.source] || 'GLOBAL';
+
+          await PricingCalculationLog.create({
+            order: order._id,
+            pricingKey: modifier.pricingKey || `${modifier.source}_${modifier.modifierType}`,
+            modifier: modifier.modifierId || null,
+            scope: scope,
+            beforeAmount: modifier.beforeAmount || pricingResult.basePrice,
+            afterAmount: modifier.afterAmount || pricingResult.subtotal,
+            reason: modifier.reason || `${modifier.modifierType} modifier applied`,
+            appliedAt: new Date(),
+          });
+        }
+        console.log(`📝 Created ${pricingResult.appliedModifiers.length} pricing audit logs for order ${order.orderNumber}`);
+      } catch (logError) {
+        console.error("Failed to create pricing logs:", logError);
+        // Don't fail the order creation if logging fails
+      }
+    }
 
     // FIX 4: Increment promo usage count (CRITICAL)
     const promoModifierIds = pricingResult.appliedModifiers
@@ -405,10 +453,10 @@ export const createOrder = async (req, res) => {
       ]
     });
     await order.populate("user", "name email");
-    await order.populate({
-      path: "departmentStatuses.department",
-      select: "name sequence",
-    });
+    // Populate currentDepartment if it exists
+    if (order.currentDepartment) {
+      await order.populate("currentDepartment", "name sequence");
+    }
 
     res.status(201).json({
       message: "Order created successfully",
@@ -782,10 +830,10 @@ export const createOrderWithAccount = async (req, res) => {
       mobileNumber,
       uploadedDesign: processedDesign,
       notes: notes || "",
-      status: "request",
+      status: "REQUESTED",
       departmentStatuses: departmentStatuses,
       advancePaid: advancePaid ? parseFloat(advancePaid) : 0,
-      paymentStatus: paymentStatus || "pending",
+      paymentStatus: paymentStatus?.toUpperCase() || "PENDING",
       paymentGatewayInvoiceId: paymentGatewayInvoiceId || null,
       paperGSM: paperGSM || null,
       paperQuality: paperQuality || null,
@@ -795,6 +843,43 @@ export const createOrderWithAccount = async (req, res) => {
 
     const order = new Order(orderData);
     await order.save();
+
+    // Create pricing calculation logs for audit trail
+    if (pricingResult.appliedModifiers && pricingResult.appliedModifiers.length > 0) {
+      try {
+        const PricingCalculationLog = (await import("../models/PricingCalculationLogschema.js")).default;
+
+        for (const modifier of pricingResult.appliedModifiers) {
+          // Map the modifier source to valid scope enum
+          const scopeMap = {
+            'GLOBAL': 'GLOBAL',
+            'ZONE': 'ZONE',
+            'ZONE_BOOK': 'ZONE',
+            'SEGMENT': 'SEGMENT',
+            'PRODUCT': 'PRODUCT',
+            'ATTRIBUTE': 'ATTRIBUTE',
+            'PROMO_CODE': 'GLOBAL',
+            'FIXED': 'GLOBAL',
+          };
+          const scope = scopeMap[modifier.source] || 'GLOBAL';
+
+          await PricingCalculationLog.create({
+            order: order._id,
+            pricingKey: modifier.pricingKey || `${modifier.source}_${modifier.modifierType}`,
+            modifier: modifier.modifierId || null,
+            scope: scope,
+            beforeAmount: modifier.beforeAmount || pricingResult.basePrice,
+            afterAmount: modifier.afterAmount || pricingResult.subtotal,
+            reason: modifier.reason || `${modifier.modifierType} modifier applied`,
+            appliedAt: new Date(),
+          });
+        }
+        console.log(`📝 Created ${pricingResult.appliedModifiers.length} pricing audit logs for order ${order.orderNumber}`);
+      } catch (logError) {
+        console.error("Failed to create pricing logs:", logError);
+        // Don't fail the order creation if logging fails
+      }
+    }
 
     // FIX 4: Increment promo usage count (CRITICAL)
     const promoModifierIds = pricingResult.appliedModifiers
@@ -813,11 +898,10 @@ export const createOrderWithAccount = async (req, res) => {
         { path: "productionSequence", select: "name sequence" }
       ]
     });
-    await order.populate("user", "name email");
-    await order.populate({
-      path: "departmentStatuses.department",
-      select: "name sequence",
-    });
+    // Populate currentDepartment if it exists
+    if (order.currentDepartment) {
+      await order.populate("currentDepartment", "name sequence");
+    }
 
     // Email service temporarily disabled - uncomment when email configuration is ready
     // await sendOrderConfirmationEmail(
@@ -912,19 +996,11 @@ export const getSingleOrder = async (req, res) => {
         path: "currentDepartment",
         select: "name sequence",
       })
+      // designerSessionId is valid if using Designer Service
       .populate({
-        path: "designerAssigned",
-        select: "name email",
+        path: "designerSessionId",
+        select: "designerId status",
       })
-      .populate({
-        path: "packedBy",
-        select: "name email",
-      })
-      .populate({
-        path: "designTimeline.operator",
-        select: "name email",
-      })
-      // Note: departmentStatuses and productionTimeline fields removed from schema per user request
       .lean(); // Use lean() for faster queries - returns plain JavaScript objects
 
     if (!order) {
@@ -1201,14 +1277,10 @@ export const updateOrderStatus = async (req, res) => {
       ]
     });
     await order.populate("user", "name email");
-    await order.populate({
-      path: "departmentStatuses.department",
-      select: "name sequence",
-    });
-    await order.populate({
-      path: "departmentStatuses.operator",
-      select: "name email",
-    });
+    // Populate currentDepartment if it exists
+    if (order.currentDepartment) {
+      await order.populate("currentDepartment", "name sequence");
+    }
 
     // Convert uploaded design buffers to base64
     const orderObj = order.toObject();

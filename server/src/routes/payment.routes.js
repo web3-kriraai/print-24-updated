@@ -9,6 +9,7 @@ import { authMiddleware } from '../middlewares/authMiddleware.js';
 import { optionalAuthMiddleware } from '../middlewares/optionalAuthMiddleware.js';
 import {
     initializePayment,
+    initializeTestPayment,
     verifyPayment,
     getPaymentStatus,
     getPaymentHealth
@@ -23,6 +24,9 @@ const router = express.Router();
 
 // Initialize payment (requires auth)
 router.post('/initialize', authMiddleware, initializePayment);
+
+// Test payment initialization (for testing payment UI - requires auth)
+router.post('/test-initialize', authMiddleware, initializeTestPayment);
 
 // Verify payment callback (optional auth - may come from redirect)
 router.post('/verify', optionalAuthMiddleware, verifyPayment);

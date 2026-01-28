@@ -1,5 +1,8 @@
 // Format currency helper
-export const formatCurrency = (amount: number): string => {
+export const formatCurrency = (amount: number | undefined | null): string => {
+  if (amount === undefined || amount === null || isNaN(amount)) {
+    return '₹0.00';
+  }
   return `₹${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };
 
@@ -68,9 +71,9 @@ export const calculateOrderBreakdown = (order: OrderForCalculation): OrderBreakd
 
   // Step 1: Apply range-wise price multiplier if applicable
   let rangeWiseMultiplier = 1.0;
-  if (order.product.filters?.orderQuantity?.quantityType === "RANGE_WISE" && 
-      order.product.filters.orderQuantity.rangeWiseQuantities && 
-      order.product.filters.orderQuantity.rangeWiseQuantities.length > 0) {
+  if (order.product.filters?.orderQuantity?.quantityType === "RANGE_WISE" &&
+    order.product.filters.orderQuantity.rangeWiseQuantities &&
+    order.product.filters.orderQuantity.rangeWiseQuantities.length > 0) {
     const applicableRange = order.product.filters.orderQuantity.rangeWiseQuantities.find((range) => {
       return quantity >= range.min && (range.max === null || range.max === undefined || quantity <= range.max);
     });
@@ -78,10 +81,10 @@ export const calculateOrderBreakdown = (order: OrderForCalculation): OrderBreakd
       rangeWiseMultiplier = applicableRange.priceMultiplier || 1.0;
     }
   }
-  
+
   // Apply range-wise multiplier to base price
   const adjustedBasePrice = originalBasePrice * rangeWiseMultiplier;
-  
+
   // Step 1: Base Price = quantity * adjusted base price
   const rawBaseTotal = adjustedBasePrice * quantity;
 
@@ -97,7 +100,7 @@ export const calculateOrderBreakdown = (order: OrderForCalculation): OrderBreakd
   if (order.selectedOptions && order.selectedOptions.length > 0) {
     order.selectedOptions.forEach((opt) => {
       if (typeof opt === 'string') return;
-      
+
       const name = opt.name || opt.optionName || 'Option';
       const priceAdd = opt.priceAdd || 0;
       const isPerUnit = priceAdd < 10; // If price is less than 10, assume per unit
@@ -152,7 +155,7 @@ export const calculateOrderBreakdown = (order: OrderForCalculation): OrderBreakd
         const multiplierImpact = attr.priceMultiplier - 1;
         const pricePerUnit = originalBasePrice * multiplierImpact;
         const cost = pricePerUnit * quantity;
-        
+
         optionBreakdowns.push({
           name: `${attr.attributeName}: ${attr.label}`,
           priceAdd: pricePerUnit, // Show as per-unit price instead of multiplier
@@ -189,7 +192,7 @@ export const calculateOrderBreakdown = (order: OrderForCalculation): OrderBreakd
       const maxQty = discount.maxQuantity;
       return quantity >= minQty && (maxQty === null || maxQty === undefined || quantity <= maxQty);
     });
-    
+
     if (applicableDiscount) {
       // Use priceMultiplier if available, otherwise calculate from discountPercentage
       if (applicableDiscount.priceMultiplier) {

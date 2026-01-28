@@ -247,7 +247,12 @@ PaymentTransactionSchema.methods.markSuccess = function (paymentDetails) {
     this.status = 'SUCCESS';
     this.gateway_payment_id = paymentDetails.payment_id;
     this.gateway_transaction_id = paymentDetails.transaction_id || paymentDetails.payment_id;
-    this.payment_method = paymentDetails.method;
+
+    // Normalize payment method to uppercase (gateways return lowercase like 'netbanking')
+    if (paymentDetails.method) {
+        this.payment_method = paymentDetails.method.toUpperCase();
+    }
+
     this.payment_method_details = paymentDetails.method_details;
     this.captured_at = new Date();
     this.gateway_response = paymentDetails.raw_response;
