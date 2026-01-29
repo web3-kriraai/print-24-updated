@@ -76,7 +76,8 @@ app.use(
     ],
     exposedHeaders: [
       "Content-Type",
-      "Authorization"
+      "Authorization",
+      "x-rtb-fingerprint-id"
     ],
     preflightContinue: false,
     optionsSuccessStatus: 204

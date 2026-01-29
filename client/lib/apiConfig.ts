@@ -1,5 +1,8 @@
 // API Configuration
-export const API_BASE_URL = (import.meta as any).env.VITE_API_BASE_URL || "http://localhost:5000";
+// API Configuration
+const envBaseUrl = (import.meta as any).env.VITE_API_BASE_URL;
+// Use environment variable if defined (even if empty string for relative paths), otherwise default to localhost
+export const API_BASE_URL = envBaseUrl !== undefined ? envBaseUrl : "http://localhost:5000";
 export const API_BASE_URL_WITH_API = `${API_BASE_URL}/api`;
 
 // Helper function to get base headers
