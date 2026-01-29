@@ -9,6 +9,7 @@ import {
   Settings,
   User as UserIcon,
   Package,
+  CreditCard,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -294,16 +295,28 @@ const Navbar: React.FC = () => {
                               My Profile
                             </button>
                             {userData.role === "admin" && (
-                              <button
-                                onClick={() => {
-                                  navigate("/admin/dashboard");
-                                  setIsProfileDropdownOpen(false);
-                                }}
-                                className="w-full flex items-center gap-3 px-4 py-2 text-sm text-cream-700 hover:bg-cream-50 transition-colors" // Increased py-1.5 to py-2
-                              >
-                                <Settings size={16} />
-                                Admin Dashboard
-                              </button>
+                              <>
+                                <button
+                                  onClick={() => {
+                                    navigate("/admin/dashboard");
+                                    setIsProfileDropdownOpen(false);
+                                  }}
+                                  className="w-full flex items-center gap-3 px-4 py-2 text-sm text-cream-700 hover:bg-cream-50 transition-colors"
+                                >
+                                  <Settings size={16} />
+                                  Admin Dashboard
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    navigate("/admin/payment-gateways");
+                                    setIsProfileDropdownOpen(false);
+                                  }}
+                                  className="w-full flex items-center gap-3 px-4 py-2 text-sm text-cream-700 hover:bg-cream-50 transition-colors"
+                                >
+                                  <CreditCard size={16} />
+                                  Payment Gateways
+                                </button>
+                              </>
                             )}
                             {userData.role === "emp" && (
                               <button
@@ -444,16 +457,28 @@ const Navbar: React.FC = () => {
                       </button>
 
                       {userData.role === "admin" && (
-                        <button
-                          onClick={() => {
-                            navigate("/admin/dashboard");
-                            setIsMobileMenuOpen(false);
-                          }}
-                          className="w-full text-center text-cream-900 font-medium py-2 flex items-center justify-center gap-2" // Increased padding
-                        >
-                          <Settings size={16} />
-                          Admin Dashboard
-                        </button>
+                        <>
+                          <button
+                            onClick={() => {
+                              navigate("/admin/dashboard");
+                              setIsMobileMenuOpen(false);
+                            }}
+                            className="w-full text-center text-cream-900 font-medium py-2 flex items-center justify-center gap-2"
+                          >
+                            <Settings size={16} />
+                            Admin Dashboard
+                          </button>
+                          <button
+                            onClick={() => {
+                              navigate("/admin/payment-gateways");
+                              setIsMobileMenuOpen(false);
+                            }}
+                            className="w-full text-center text-cream-900 font-medium py-2 flex items-center justify-center gap-2"
+                          >
+                            <CreditCard size={16} />
+                            Payment Gateways
+                          </button>
+                        </>
                       )}
 
                       <button

@@ -64,6 +64,7 @@ import {
   getAllOrders,
   updateOrderStatus,
   cancelOrder,
+  generateInvoice,
 } from "../controllers/orderController.js";
 
 /* ORDER APPROVAL CONTROLLERS */
@@ -290,6 +291,7 @@ router.post("/orders", authMiddleware, createOrder);
 router.post("/orders/create-with-account", createOrderWithAccount); // No auth required - creates account if needed
 router.get("/orders/my-orders", authMiddleware, getMyOrders);
 router.get("/orders/:orderId", authMiddleware, getSingleOrder);
+router.get("/orders/:orderId/invoice", generateInvoice); // Download invoice PDF
 router.put("/orders/:orderId/cancel", authMiddleware, cancelOrder);
 
 // Admin order routes

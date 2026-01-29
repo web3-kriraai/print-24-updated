@@ -160,15 +160,44 @@ class ReconciliationService {
     }
 
     /**
+     * Map gateway-specific payment methods to our standard enum
+     */
+    _mapPaymentMethod(gatewayName, rawMethod) {
+        if (!rawMethod) return null;
+
+        // Normalize to uppercase
+        const method = rawMethod.toUpperCase();
+
+        // PayU-specific mappings
+        if (gatewayName === 'PAYU') {
+            const payuMap = {
+                'CC': 'CARD',
+                'DC': 'CARD',
+                'NB': 'NETBANKING',
+                'CASH': 'WALLET',
+                'UPI': 'UPI',
+                'EMI': 'EMI'
+            };
+            return payuMap[method] || method;
+        }
+
+        // Razorpay/Stripe already use standard values
+        return method;
+    }
+
+    /**
      * Handle successful payment discovered during reconciliation
      */
     async _handleSuccessfulPayment(transaction, gatewayStatus, job) {
+        // Map payment method to standard enum
+        const mappedMethod = this._mapPaymentMethod(transaction.gateway_name, gatewayStatus.paymentMethod);
+
         // Update transaction
         transaction.status = 'SUCCESS';
         transaction.reconciliation_status = 'MATCHED';
         transaction.reconciled_at = new Date();
         transaction.captured_at = gatewayStatus.capturedAt || new Date();
-        transaction.payment_method = gatewayStatus.paymentMethod;
+        transaction.payment_method = mappedMethod;
         transaction.payment_method_details = gatewayStatus.methodDetails;
         transaction.gateway_transaction_id = gatewayStatus.gatewayTransactionId;
         transaction.reconciliation_notes = 'Auto-reconciled: Payment captured';
@@ -179,7 +208,7 @@ class ReconciliationService {
             paymentStatus: 'COMPLETED',
             'payment_details.transaction_id': transaction._id,
             'payment_details.gateway_used': transaction.gateway_name,
-            'payment_details.payment_method': gatewayStatus.paymentMethod,
+            'payment_details.payment_method': mappedMethod,
             'payment_details.captured_at': transaction.captured_at,
             'payment_details.amount_paid': transaction.amount
         });

@@ -1,18 +1,48 @@
-/**
- * Payment Test Page
- * Allows admin to test actual payment checkout flow
- */
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import {
+    FiCreditCard,
+    FiPlayCircle,
+    FiInfo,
+    FiSettings,
+    FiRefreshCw,
+    FiExternalLink,
+    FiCheckCircle,
+    FiAlertCircle,
+    FiDollarSign,
+    FiShield,
+    FiBarChart,
+    FiArrowRight,
+    FiChevronRight,
+    FiActivity,
+    FiKey
+} from 'react-icons/fi';
+import {
+    FaRocket,
+    FaFlask,
+    FaStripe,
+    FaPaypal,
+    FaQrcode,
+    FaUniversity,
+    FaMobileAlt,
+    FaWallet,
+    FaPercentage
+} from 'react-icons/fa';
+import {
+    SiRazorpay
+} from 'react-icons/si';
+import { MdOutlineHealthAndSafety, MdOutlineTipsAndUpdates } from 'react-icons/md';
+import { TbArrowsSplit, TbDeviceAnalytics } from 'react-icons/tb';
 
 const PaymentTestPage = () => {
     const [selectedGateway, setSelectedGateway] = useState('');
-    const [amount, setAmount] = useState(500); // ₹500
+    const [amount, setAmount] = useState(5.00); // Store in rupees
     const [loading, setLoading] = useState(false);
     const [gateways, setGateways] = useState([]);
+    const [showTestCards, setShowTestCards] = useState(true);
+    const [showActiveGateways, setShowActiveGateways] = useState(true);
 
     // Fetch available gateways
-    React.useEffect(() => {
+    useEffect(() => {
         fetchGateways();
     }, []);
 
@@ -45,14 +75,32 @@ const PaymentTestPage = () => {
         });
     };
 
+    // Handle amount change with validation
+    const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const value = e.target.value;
+
+        // Allow empty input for user convenience
+        if (value === '' || value === '.') {
+            setAmount(1.00); // Set to minimum ₹1
+            return;
+        }
+
+        const numValue = parseFloat(value);
+
+        // Validate the number
+        if (!isNaN(numValue) && numValue >= 0) {
+            // Store directly in rupees (no conversion needed)
+            setAmount(numValue);
+        }
+    };
+
     const initializeTestPayment = async () => {
         setLoading(true);
 
         try {
             const token = localStorage.getItem('token');
 
-            // Directly initialize payment without creating order
-            // The payment API will create a test transaction internally
+            // Send amount directly in rupees - backend will handle paise conversion
             const paymentResponse = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/payment/test-initialize`, {
                 method: 'POST',
                 headers: {
@@ -60,7 +108,7 @@ const PaymentTestPage = () => {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    amount: amount,
+                    amount: amount, // Send rupees directly
                     currency: 'INR',
                     preferredGateway: selectedGateway || undefined,
                     testMode: true
@@ -180,177 +228,468 @@ const PaymentTestPage = () => {
         form.submit();
     };
 
-    const showStripeCheckout = (paymentData) => {
-        // For Stripe, you'd typically redirect to checkout URL
-        if (paymentData.checkout_url) {
-            window.location.href = paymentData.checkout_url;
-        } else {
-            alert('Stripe checkout URL not provided');
+    const getGatewayIcon = (gatewayName: string) => {
+        switch (gatewayName) {
+            case 'RAZORPAY':
+                return <SiRazorpay className="w-5 h-5" style={{ color: '#0C4B78' }} />;
+            case 'STRIPE':
+                return <FaStripe className="w-5 h-5" style={{ color: '#635BFF' }} />;
+            case 'PHONEPE':
+                return <FaMobileAlt className="w-5 h-5" style={{ color: '#5F259F' }} />;
+            case 'PAYU':
+                return <FiCreditCard className="w-5 h-5" style={{ color: '#FF5C00' }} />;
+            case 'CASHFREE':
+                return <FaWallet className="w-5 h-5" style={{ color: '#00C48C' }} />;
+            case 'PAYPAL':
+                return <FaPaypal className="w-5 h-5" style={{ color: '#003087' }} />;
+            default:
+                return <FiCreditCard className="w-5 h-5" />;
         }
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 py-8 px-4">
-            <div className="max-w-5xl mx-auto">
-                <h1 className="text-4xl font-bold text-center text-gray-900 mb-2">
-                    💳 Payment Gateway - Live Testing
-                </h1>
-                <p className="text-center text-gray-600 mb-8">
-                    Test the actual payment checkout experience
-                </p>
+        <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/30 p-4 md:p-8">
+            <div className="max-w-7xl mx-auto">
+                {/* Header Section */}
+                <div className="mb-8">
+                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-8">
+                        <div className="flex items-center space-x-4">
+                            <div className="p-3 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl shadow-lg">
+                                <FiPlayCircle className="w-10 h-10 text-white" />
+                            </div>
+                            <div>
+                                <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2">
+                                    Payment Gateway Tester
+                                </h1>
+                                <p className="text-gray-600">
+                                    Test real payment flows in sandbox environment
+                                </p>
+                            </div>
+                        </div>
 
-                <div className="bg-white rounded-2xl shadow-xl p-8 mb-8">
-                    <div className="mb-6">
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">
-                            Select Payment Gateway (Optional)
-                        </label>
-                        <select
-                            value={selectedGateway}
-                            onChange={(e) => setSelectedGateway(e.target.value)}
-                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
+                        <button
+                            onClick={() => window.location.href = '/admin/payment-gateways'}
+                            className="px-6 py-3 bg-white text-indigo-600 font-medium rounded-xl hover:bg-gray-50 transition-all shadow-lg hover:shadow-xl border border-indigo-200 flex items-center justify-center space-x-2 self-start"
                         >
-                            <option value="">Auto-select (based on priority)</option>
-                            {gateways.map(gateway => (
-                                <option key={gateway._id} value={gateway.name}>
-                                    {gateway.display_name} ({gateway.mode})
-                                </option>
-                            ))}
-                        </select>
-                        <small className="block mt-2 text-sm text-gray-500">
-                            {gateways.length === 0
-                                ? 'No gateways configured. Please add gateways first.'
-                                : 'Leave empty to let the system choose based on priority & traffic split'
-                            }
-                        </small>
+                            <FiSettings className="w-5 h-5" />
+                            <span>Manage Gateways</span>
+                        </button>
                     </div>
 
-                    <div className="mb-6">
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">
-                            Test Amount
-                        </label>
-                        <div className="relative">
-                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 font-semibold">
-                                ₹
-                            </span>
-                            <input
-                                type="number"
-                                value={amount / 100}
-                                onChange={(e) => setAmount(parseFloat(e.target.value) * 100)}
-                                className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
-                                min="1"
-                            />
-                        </div>
-                        <small className="block mt-2 text-sm text-gray-500">
-                            Enter amount in rupees (minimum ₹1)
-                        </small>
-                    </div>
-
-                    <button
-                        onClick={initializeTestPayment}
-                        disabled={loading || amount < 100}
-                        className={`w-full py-4 px-6 rounded-lg font-semibold text-lg transition-all ${loading || amount < 100
-                                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                                : 'bg-gradient-to-r from-blue-500 to-purple-600 text-white hover:from-blue-600 hover:to-purple-700 hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0'
-                            }`}
-                    >
-                        {loading ? '🔄 Initializing...' : '🚀 Start Test Payment'}
-                    </button>
-                </div>
-
-                <div className="grid md:grid-cols-2 gap-6 mb-8">
-                    <div className="bg-white rounded-2xl shadow-lg p-6">
-                        <h3 className="text-lg font-bold text-gray-900 mb-4">
-                            ℹ️ What Will Happen:
-                        </h3>
-                        <ul className="space-y-3 text-sm text-gray-700">
-                            <li className="flex items-start">
-                                <span className="font-semibold mr-2">Razorpay:</span>
-                                <span>Opens beautiful payment popup with UPI, Cards, Net Banking options</span>
-                            </li>
-                            <li className="flex items-start">
-                                <span className="font-semibold mr-2">PayU:</span>
-                                <span>Redirects to PayU's payment page in new tab/window</span>
-                            </li>
-                            <li className="flex items-start">
-                                <span className="font-semibold mr-2">Stripe:</span>
-                                <span>Redirects to Stripe Checkout page</span>
-                            </li>
-                            <li className="flex items-start">
-                                <span className="font-semibold mr-2">PhonePe:</span>
-                                <span>Shows QR code or redirects to PhonePe app</span>
-                            </li>
-                        </ul>
-                    </div>
-
-                    <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl shadow-lg p-6 border border-green-200">
-                        <h4 className="text-lg font-bold text-gray-900 mb-3">
-                            🧪 Razorpay Test Cards:
-                        </h4>
-                        <div className="space-y-2 text-sm">
-                            <div className="bg-white/70 rounded-lg p-3">
-                                <strong className="text-green-700">Success:</strong>
-                                <p className="text-gray-700 font-mono mt-1">4111 1111 1111 1111</p>
-                                <p className="text-gray-500 text-xs">CVV: Any | Expiry: Any future date</p>
-                            </div>
-                            <div className="bg-white/70 rounded-lg p-3">
-                                <strong className="text-red-700">Failure:</strong>
-                                <p className="text-gray-700 font-mono mt-1">4000 0000 0000 0002</p>
-                                <p className="text-gray-500 text-xs">CVV: Any | Expiry: Any future date</p>
+                    {/* Quick Stats */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+                        <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-200">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <p className="text-sm font-medium text-gray-600">Active Gateways</p>
+                                    <p className="text-2xl font-bold text-gray-900 mt-2">{gateways.length}</p>
+                                </div>
+                                <div className="p-3 bg-green-100 rounded-xl">
+                                    <FiActivity className="w-6 h-6 text-green-600" />
+                                </div>
                             </div>
                         </div>
 
-                        <h4 className="text-lg font-bold text-gray-900 mt-4 mb-3">
-                            💳 Test UPI:
-                        </h4>
-                        <div className="space-y-2 text-sm">
-                            <div className="bg-white/70 rounded-lg p-3">
-                                <strong className="text-green-700">Success:</strong>
-                                <span className="ml-2 font-mono text-gray-700">success@razorpay</span>
+                        <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-200">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <p className="text-sm font-medium text-gray-600">Test Amount</p>
+                                    <p className="text-2xl font-bold text-gray-900 mt-2">₹{amount.toFixed(2)}</p>
+                                </div>
+                                <div className="p-3 bg-blue-100 rounded-xl">
+                                    <FiDollarSign className="w-6 h-6 text-blue-600" />
+                                </div>
                             </div>
-                            <div className="bg-white/70 rounded-lg p-3">
-                                <strong className="text-red-700">Failure:</strong>
-                                <span className="ml-2 font-mono text-gray-700">failure@razorpay</span>
+                        </div>
+
+                        <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-200">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <p className="text-sm font-medium text-gray-600">Ready to Test</p>
+                                    <p className="text-2xl font-bold text-gray-900 mt-2">{(gateways.length > 0 && amount >= 1) ? 'Yes' : 'No'}</p>
+                                </div>
+                                <div className="p-3 bg-purple-100 rounded-xl">
+                                    <MdOutlineHealthAndSafety className="w-6 h-6 text-purple-600" />
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div className="bg-white rounded-2xl shadow-lg p-6">
-                    <h3 className="text-lg font-bold text-gray-900 mb-4">
-                        📊 Currently Active Gateways:
-                    </h3>
-                    {gateways.length === 0 ? (
-                        <p className="text-center text-gray-500 py-8">
-                            No active gateways configured
-                        </p>
-                    ) : (
-                        <div className="grid md:grid-cols-2 gap-4">
-                            {gateways.map((gateway) => (
-                                <div
-                                    key={gateway._id}
-                                    className="border-2 border-gray-200 rounded-xl p-4 hover:border-blue-300 hover:shadow-md transition-all"
-                                >
-                                    <div className="flex justify-between items-start mb-2">
-                                        <span className="font-semibold text-gray-900">
-                                            {gateway.display_name}
-                                        </span>
-                                        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
-                                            Priority: {gateway.priority}
-                                        </span>
+                {/* Main Content Grid */}
+                <div className="grid lg:grid-cols-3 gap-8">
+                    {/* Left Column - Test Configuration */}
+                    <div className="lg:col-span-2 space-y-8">
+                        {/* Test Configuration Card */}
+                        <div className="bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
+                            <div className="bg-gradient-to-r from-indigo-500 to-purple-600 px-8 py-6">
+                                <div className="flex items-center space-x-3">
+                                    <FiPlayCircle className="w-6 h-6 text-white" />
+                                    <h2 className="text-xl font-bold text-white">Test Configuration</h2>
+                                </div>
+                                <p className="text-indigo-100 mt-1">Configure your payment test parameters</p>
+                            </div>
+
+                            <div className="p-8">
+                                {/* Gateway Selection */}
+                                <div className="mb-8">
+                                    <label className="block text-sm font-semibold text-gray-700 mb-3 flex items-center space-x-2">
+                                        <FiKey className="w-4 h-4" />
+                                        <span>Select Payment Gateway</span>
+                                    </label>
+                                    <div className="relative">
+                                        <select
+                                            value={selectedGateway}
+                                            onChange={(e) => setSelectedGateway(e.target.value)}
+                                            className="w-full px-4 py-3.5 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all outline-none appearance-none"
+                                        >
+                                            <option value="">Auto-select (based on priority)</option>
+                                            {gateways.map(gateway => (
+                                                <option key={gateway._id} value={gateway.name}>
+                                                    {gateway.display_name} ({gateway.mode})
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <FiChevronRight className="absolute right-4 top-1/2 transform -translate-y-1/2 rotate-90 text-gray-400" />
                                     </div>
-                                    <div className="flex justify-between items-center text-sm">
-                                        <span className="text-gray-600">
-                                            {gateway.traffic_split_percent}% traffic
-                                        </span>
-                                        <span className={`font-semibold ${gateway.is_healthy ? 'text-green-600' : 'text-red-600'
-                                            }`}>
-                                            {gateway.is_healthy ? '✅ Healthy' : '⚠️ Unhealthy'}
-                                        </span>
+                                    <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                                        <div className="flex items-start space-x-2">
+                                            <FiInfo className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                                            <p className="text-sm text-blue-700">
+                                                {gateways.length === 0
+                                                    ? 'No gateways configured. Please add gateways first.'
+                                                    : 'Leave empty to let the system choose based on priority & traffic split'
+                                                }
+                                            </p>
+                                        </div>
                                     </div>
                                 </div>
-                            ))}
+
+                                {/* Amount Selection */}
+                                <div className="mb-8">
+                                    <label className="block text-sm font-semibold text-gray-700 mb-3 flex items-center space-x-2">
+                                        <FiDollarSign className="w-4 h-4" />
+                                        <span>Test Amount</span>
+                                    </label>
+                                    <div className="relative">
+                                        <div className="absolute left-4 top-1/2 transform -translate-y-1/2">
+                                            <span className="text-gray-900 font-bold text-lg">₹</span>
+                                        </div>
+                                        <input
+                                            type="number"
+                                            value={amount}
+                                            onChange={handleAmountChange}
+                                            className="w-full pl-12 pr-4 py-3.5 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all outline-none"
+                                            min="1"
+                                            step="0.01"
+                                        />
+                                        <div className="absolute right-4 top-1/2 transform -translate-y-1/2">
+                                            <span className="text-gray-500">INR</span>
+                                        </div>
+                                    </div>
+                                    <div className="mt-3">
+                                        <p className="text-sm text-gray-600">
+                                            Minimum amount: ₹1.00
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {/* Start Test Button */}
+                                <button
+                                    onClick={initializeTestPayment}
+                                    disabled={loading || amount < 1 || gateways.length === 0}
+                                    className={`w-full py-4 px-6 rounded-xl font-bold text-lg transition-all flex items-center justify-center space-x-3 ${loading || amount < 1 || gateways.length === 0
+                                        ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                                        : 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700 hover:shadow-2xl hover:-translate-y-0.5 active:translate-y-0 shadow-lg'
+                                        }`}
+                                >
+                                    {loading ? (
+                                        <>
+                                            <FiRefreshCw className="w-6 h-6 animate-spin" />
+                                            <span>Initializing Payment...</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <FaRocket className="w-6 h-6" />
+                                            <span>Launch Test Payment</span>
+                                        </>
+                                    )}
+                                </button>
+
+                                {/* Security Note */}
+                                <div className="mt-6 p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-200">
+                                    <div className="flex items-start space-x-3">
+                                        <FiShield className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
+                                        <div>
+                                            <p className="text-sm font-medium text-green-800">Safe Testing Environment</p>
+                                            <p className="text-sm text-green-700 mt-1">
+                                                All transactions are processed in sandbox mode. No real money will be transferred.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                    )}
+
+                        {/* Gateway Behavior Card */}
+                        <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6">
+                            <div className="flex items-center justify-between mb-6">
+                                <div className="flex items-center space-x-3">
+                                    <TbDeviceAnalytics className="w-6 h-6 text-indigo-600" />
+                                    <h3 className="text-lg font-bold text-gray-900">Gateway Behavior</h3>
+                                </div>
+                                <button
+                                    onClick={() => setShowTestCards(!showTestCards)}
+                                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                                >
+                                    <FiChevronRight className={`w-5 h-5 text-gray-500 transition-transform ${showTestCards ? 'rotate-90' : ''}`} />
+                                </button>
+                            </div>
+
+                            {showTestCards && (
+                                <div className="grid md:grid-cols-2 gap-6">
+                                    <div className="space-y-4">
+                                        <h4 className="font-semibold text-gray-800 flex items-center space-x-2">
+                                            <FiInfo className="w-4 h-4" />
+                                            <span>What Will Happen</span>
+                                        </h4>
+                                        <ul className="space-y-3">
+                                            <li className="flex items-start space-x-3">
+                                                <div className="p-1.5 bg-blue-100 rounded-lg">
+                                                    <SiRazorpay className="w-4 h-4 text-blue-600" />
+                                                </div>
+                                                <div>
+                                                    <p className="font-medium text-gray-900">Razorpay</p>
+                                                    <p className="text-sm text-gray-600">Opens payment popup with multiple options</p>
+                                                </div>
+                                            </li>
+                                            <li className="flex items-start space-x-3">
+                                                <div className="p-1.5 bg-purple-100 rounded-lg">
+                                                    <FiCreditCard className="w-4 h-4 text-purple-600" />
+                                                </div>
+                                                <div>
+                                                    <p className="font-medium text-gray-900">PayU</p>
+                                                    <p className="text-sm text-gray-600">Redirects to PayU's payment page</p>
+                                                </div>
+                                            </li>
+                                            <li className="flex items-start space-x-3">
+                                                <div className="p-1.5 bg-indigo-100 rounded-lg">
+                                                    <FaStripe className="w-4 h-4 text-indigo-600" />
+                                                </div>
+                                                <div>
+                                                    <p className="font-medium text-gray-900">Stripe</p>
+                                                    <p className="text-sm text-gray-600">Redirects to Stripe Checkout</p>
+                                                </div>
+                                            </li>
+                                            <li className="flex items-start space-x-3">
+                                                <div className="p-1.5 bg-pink-100 rounded-lg">
+                                                    <FaMobileAlt className="w-4 h-4 text-pink-600" />
+                                                </div>
+                                                <div>
+                                                    <p className="font-medium text-gray-900">PhonePe</p>
+                                                    <p className="text-sm text-gray-600">Shows QR code or app redirect</p>
+                                                </div>
+                                            </li>
+                                        </ul>
+                                    </div>
+
+                                    <div>
+                                        <h4 className="font-semibold text-gray-800 flex items-center space-x-2 mb-4">
+                                            <MdOutlineTipsAndUpdates className="w-4 h-4" />
+                                            <span>Test Cards & UPI</span>
+                                        </h4>
+                                        <div className="space-y-3">
+                                            <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4 border border-green-200">
+                                                <div className="flex items-center space-x-2 mb-2">
+                                                    <FiCheckCircle className="w-5 h-5 text-green-600" />
+                                                    <span className="font-semibold text-green-800">Success Card</span>
+                                                </div>
+                                                <p className="font-mono text-sm text-gray-800">4111 1111 1111 1111</p>
+                                                <p className="text-xs text-gray-600 mt-1">CVV: Any | Expiry: Any future date</p>
+                                            </div>
+                                            <div className="bg-gradient-to-r from-red-50 to-pink-50 rounded-xl p-4 border border-red-200">
+                                                <div className="flex items-center space-x-2 mb-2">
+                                                    <FiAlertCircle className="w-5 h-5 text-red-600" />
+                                                    <span className="font-semibold text-red-800">Failure Card</span>
+                                                </div>
+                                                <p className="font-mono text-sm text-gray-800">4000 0000 0000 0002</p>
+                                                <p className="text-xs text-gray-600 mt-1">CVV: Any | Expiry: Any future date</p>
+                                            </div>
+                                            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-200">
+                                                <div className="flex items-center space-x-2 mb-2">
+                                                    <FaUniversity className="w-5 h-5 text-blue-600" />
+                                                    <span className="font-semibold text-blue-800">Test UPI</span>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <p className="font-mono text-sm text-gray-800">success@razorpay</p>
+                                                    <p className="font-mono text-sm text-gray-800">failure@razorpay</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Right Column - Active Gateways */}
+                    <div className="space-y-8">
+                        {/* Active Gateways Card */}
+                        <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <div className="bg-gradient-to-r from-indigo-50 to-purple-50 px-6 py-4 border-b border-gray-200">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center space-x-3">
+                                        <FiActivity className="w-5 h-5 text-indigo-600" />
+                                        <h3 className="text-lg font-bold text-gray-900">Active Gateways</h3>
+                                    </div>
+                                    <span className="px-3 py-1 bg-indigo-100 text-indigo-700 text-sm font-medium rounded-full">
+                                        {gateways.length} Active
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div className="p-6">
+                                {gateways.length === 0 ? (
+                                    <div className="text-center py-8">
+                                        <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                            <FiCreditCard className="w-8 h-8 text-gray-400" />
+                                        </div>
+                                        <p className="text-gray-600">No active gateways</p>
+                                        <p className="text-sm text-gray-500 mt-1">Configure gateways to start testing</p>
+                                        <button
+                                            onClick={() => window.location.href = '/admin/payment-gateways'}
+                                            className="mt-4 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors"
+                                        >
+                                            Configure Now
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-4">
+                                        {gateways.map((gateway) => (
+                                            <div
+                                                key={gateway._id}
+                                                className="group border-2 border-gray-200 hover:border-indigo-300 rounded-xl p-4 transition-all hover:shadow-md cursor-pointer"
+                                                onClick={() => setSelectedGateway(gateway.name)}
+                                            >
+                                                <div className="flex items-center justify-between mb-3">
+                                                    <div className="flex items-center space-x-3">
+                                                        <div className="p-2 bg-gray-100 rounded-lg group-hover:bg-indigo-50 transition-colors">
+                                                            {getGatewayIcon(gateway.name)}
+                                                        </div>
+                                                        <div>
+                                                            <h4 className="font-semibold text-gray-900">{gateway.display_name}</h4>
+                                                            <div className="flex items-center space-x-2 mt-1">
+                                                                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${gateway.mode === 'SANDBOX'
+                                                                    ? 'bg-yellow-100 text-yellow-800'
+                                                                    : 'bg-green-100 text-green-800'
+                                                                    }`}>
+                                                                    {gateway.mode === 'SANDBOX' ? (
+                                                                        <span className="flex items-center space-x-1">
+                                                                            <FaFlask className="w-3 h-3" />
+                                                                            <span>Sandbox</span>
+                                                                        </span>
+                                                                    ) : (
+                                                                        <span className="flex items-center space-x-1">
+                                                                            <FaRocket className="w-3 h-3" />
+                                                                            <span>Production</span>
+                                                                        </span>
+                                                                    )}
+                                                                </span>
+                                                                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${gateway.is_healthy
+                                                                    ? 'bg-green-100 text-green-800'
+                                                                    : 'bg-red-100 text-red-800'
+                                                                    }`}>
+                                                                    {gateway.is_healthy ? 'Healthy' : 'Unhealthy'}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    {selectedGateway === gateway.name && (
+                                                        <div className="w-2 h-2 bg-indigo-600 rounded-full"></div>
+                                                    )}
+                                                </div>
+
+                                                <div className="flex items-center justify-between text-sm">
+                                                    <div className="flex items-center space-x-4">
+                                                        <div className="flex items-center space-x-1">
+                                                            <TbArrowsSplit className="w-4 h-4 text-gray-400" />
+                                                            <span className="text-gray-600">{gateway.traffic_split_percent}%</span>
+                                                        </div>
+                                                        <div className="flex items-center space-x-1">
+                                                            <FaPercentage className="w-4 h-4 text-gray-400" />
+                                                            <span className="text-gray-600">{gateway.tdr_rate}% TDR</span>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center space-x-1 text-gray-600">
+                                                        <FiBarChart className="w-4 h-4" />
+                                                        <span>P{gateway.priority}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Quick Tips Card */}
+                        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-6 border border-blue-200">
+                            <h4 className="font-semibold text-gray-900 mb-4 flex items-center space-x-2">
+                                <MdOutlineTipsAndUpdates className="w-5 h-5 text-blue-600" />
+                                <span>Quick Testing Tips</span>
+                            </h4>
+                            <ul className="space-y-3">
+                                <li className="flex items-start space-x-2">
+                                    <div className="w-2 h-2 bg-blue-600 rounded-full mt-2"></div>
+                                    <p className="text-sm text-gray-700">Test both successful and failed payments</p>
+                                </li>
+                                <li className="flex items-start space-x-2">
+                                    <div className="w-2 h-2 bg-blue-600 rounded-full mt-2"></div>
+                                    <p className="text-sm text-gray-700">Try different payment methods (Card, UPI, Net Banking)</p>
+                                </li>
+                                <li className="flex items-start space-x-2">
+                                    <div className="w-2 h-2 bg-blue-600 rounded-full mt-2"></div>
+                                    <p className="text-sm text-gray-700">Check mobile responsiveness of payment pages</p>
+                                </li>
+                                <li className="flex items-start space-x-2">
+                                    <div className="w-2 h-2 bg-blue-600 rounded-full mt-2"></div>
+                                    <p className="text-sm text-gray-700">Verify webhook delivery for completed payments</p>
+                                </li>
+                                <li className="flex items-start space-x-2">
+                                    <div className="w-2 h-2 bg-blue-600 rounded-full mt-2"></div>
+                                    <p className="text-sm text-gray-700">Monitor gateway health in real-time</p>
+                                </li>
+                            </ul>
+                        </div>
+
+                        {/* Ready Status Card */}
+                        <div className={`rounded-2xl p-6 ${gateways.length > 0 && amount >= 100
+                            ? 'bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200'
+                            : 'bg-gradient-to-r from-yellow-50 to-amber-50 border border-yellow-200'
+                            }`}>
+                            <div className="flex items-center space-x-3">
+                                <div className={`p-3 rounded-xl ${gateways.length > 0 && amount >= 100
+                                    ? 'bg-green-100 text-green-600'
+                                    : 'bg-yellow-100 text-yellow-600'
+                                    }`}>
+                                    {gateways.length > 0 && amount >= 100 ? (
+                                        <FiCheckCircle className="w-6 h-6" />
+                                    ) : (
+                                        <FiAlertCircle className="w-6 h-6" />
+                                    )}
+                                </div>
+                                <div>
+                                    <h4 className="font-bold text-gray-900">Testing Status</h4>
+                                    <p className="text-sm text-gray-700 mt-1">
+                                        {gateways.length > 0 && amount >= 100
+                                            ? 'Ready to launch payment test'
+                                            : 'Configure gateways and set amount to start testing'
+                                        }
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

@@ -7,6 +7,7 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import PricingService from "../services/pricing/PricingService.js";
 import ModifierEngine from "../services/ModifierEngine.js";
+import invoiceService from "../services/invoiceService.js";
 // Email service temporarily disabled - uncomment when email configuration is ready
 // import { sendAccountCreationEmail, sendOrderConfirmationEmail } from "../utils/emailService.js";
 
@@ -1329,6 +1330,43 @@ export const cancelOrder = async (req, res) => {
   } catch (error) {
     console.error("Cancel order error:", error);
     res.status(500).json({ error: "Failed to cancel order." });
+  }
+};
+
+/**
+ * Generate PDF invoice for an order
+ */
+export const generateInvoice = async (req, res) => {
+  try {
+    const orderId = req.params.orderId; // Changed from req.params.id to match route
+
+    // Fetch order with populated fields
+    const order = await Order.findById(orderId)
+      .populate('product')
+      .populate('user', 'name email');
+
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
+    // Optional: Check if user has access to this order
+    // if (req.user && req.user.id !== order.user._id.toString() && req.user.role !== 'admin') {
+    //   return res.status(403).json({ error: 'Unauthorized access to this order' });
+    // }
+
+    // Generate PDF
+    const pdfDoc = invoiceService.generateInvoice(order);
+
+    // Set response headers
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename=invoice-${order.orderNumber}.pdf`);
+
+    // Pipe the PDF document to response
+    pdfDoc.pipe(res);
+
+  } catch (error) {
+    console.error('Generate invoice error:', error);
+    res.status(500).json({ error: 'Failed to generate invoice' });
   }
 };
 

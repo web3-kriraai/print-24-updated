@@ -26,6 +26,7 @@ import {
   Truck as TruckIcon,
   Check,
   X,
+  Sparkles,
 } from 'lucide-react';
 import { formatCurrency, calculateOrderBreakdown, OrderForCalculation } from '../utils/pricing';
 import { API_BASE_URL_WITH_API as API_BASE_URL } from '../lib/apiConfig';
@@ -120,8 +121,39 @@ interface Order {
     };
   };
   advancePaid?: number;
-  paymentStatus?: 'pending' | 'partial' | 'completed';
+  paymentStatus?: 'PENDING' | 'PARTIAL' | 'COMPLETED' | 'FAILED' | 'REFUNDED' | 'PARTIALLY_REFUNDED';
   paymentGatewayInvoiceId?: string | null;
+
+  // Modern pricing structure
+  priceSnapshot?: {
+    basePrice: number;
+    unitPrice: number;
+    quantity: number;
+    appliedModifiers?: Array<{
+      modifierType: string;
+      value: number;
+      source: string;
+      beforeAmount: number;
+      afterAmount: number;
+      reason: string;
+    }>;
+    subtotal: number;
+    gstPercentage: number;
+    gstAmount: number;
+    totalPayable: number;
+    currency: string;
+    calculatedAt: string;
+  };
+
+  // Enhanced payment details
+  payment_details?: {
+    transaction_id?: string;
+    gateway_used?: 'RAZORPAY' | 'STRIPE' | 'PHONEPE' | 'PAYU' | 'CASHFREE';
+    payment_method?: 'UPI' | 'CARD' | 'NETBANKING' | 'WALLET' | 'QR' | 'BANK_TRANSFER' | 'EMI' | 'COD' | 'CREDIT';
+    captured_at?: string;
+    amount_paid?: number;
+  };
+
   shippingAddress?: {
     street: string;
     city: string;
@@ -209,10 +241,10 @@ const TimelineStep: React.FC<{
       <div className="flex md:flex-col items-center gap-4 md:gap-3">
         <div
           className={`relative z-10 w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all duration-300 ${isCompleted
-              ? 'bg-green-500 border-green-500 text-white shadow-lg shadow-green-200'
-              : isActive
-                ? 'bg-white border-blue-500 text-blue-500 shadow-lg shadow-blue-200 animate-pulse'
-                : 'bg-white border-gray-300 text-gray-300'
+            ? 'bg-green-500 border-green-500 text-white shadow-lg shadow-green-200'
+            : isActive
+              ? 'bg-white border-blue-500 text-blue-500 shadow-lg shadow-blue-200 animate-pulse'
+              : 'bg-white border-gray-300 text-gray-300'
             }`}
         >
           {isCompleted ? (
@@ -409,40 +441,61 @@ const PriceBreakdownPanel: React.FC<{ order: Order }> = ({ order }) => {
     );
   }
 
-  const orderForCalc: OrderForCalculation = {
-    quantity: order.quantity,
-    product: {
-      basePrice: order.product?.basePrice || 0,
-      gstPercentage: order.product?.gstPercentage || 18,
-      options: order.product?.options || [],
-      filters: order.product?.filters || {},
-      quantityDiscounts: (order.product as any)?.quantityDiscounts || [],
-    },
-    finish: order.finish,
-    shape: order.shape,
-    selectedOptions: (order.selectedOptions || []).map((opt) => ({
-      name: opt.optionName || opt.name,
-      optionName: opt.optionName || opt.name,
-      priceAdd: opt.priceAdd || 0,
-    })),
-    selectedDynamicAttributes: order.selectedDynamicAttributes?.map((attr) => ({
-      attributeName: attr.attributeName,
-      label: attr.label,
-      priceMultiplier: attr.priceMultiplier,
-      priceAdd: attr.priceAdd,
-    })),
-  };
+  // Use priceSnapshot if available (modern schema), otherwise calculate (legacy)
+  const usePriceSnapshot = Boolean(order.priceSnapshot);
 
-  const calculations = calculateOrderBreakdown(orderForCalc) as any;
-  const additionalDesignCharge = (order.product as any)?.additionalDesignCharge || 0;
+  let basePrice: number, quantity: number, subtotal: number, gstPercentage: number, gstAmount: number, finalTotal: number;
+  let appliedModifiers: any[] = [];
 
-  const subtotalBeforeDiscount = calculations.subtotalBeforeGst || calculations.rawBaseTotal + calculations.optionBreakdowns.reduce((sum: number, opt: any) => sum + opt.cost, 0);
-  const subtotalAfterDiscount = calculations.subtotalAfterDiscount || calculations.subtotal || subtotalBeforeDiscount;
-  const discountAmount = calculations.discountAmount || (subtotalBeforeDiscount - subtotalAfterDiscount);
-  const subtotalWithDesignCharge = subtotalAfterDiscount + additionalDesignCharge;
-  const gstAmount = (subtotalWithDesignCharge * (order.product?.gstPercentage || 18)) / 100;
-  const finalTotal = subtotalWithDesignCharge + gstAmount;
-  const storedTotal = order.totalPrice;
+  if (usePriceSnapshot && order.priceSnapshot) {
+    // Modern pricing structure - use snapshot
+    basePrice = order.priceSnapshot.unitPrice;
+    quantity = order.priceSnapshot.quantity;
+    subtotal = order.priceSnapshot.subtotal;
+    gstPercentage = order.priceSnapshot.gstPercentage;
+    gstAmount = order.priceSnapshot.gstAmount;
+    finalTotal = order.priceSnapshot.totalPayable;
+    appliedModifiers = order.priceSnapshot.appliedModifiers || [];
+  } else {
+    // Legacy calculation for old orders
+    const orderForCalc: OrderForCalculation = {
+      quantity: order.quantity,
+      product: {
+        basePrice: order.product?.basePrice || 0,
+        gstPercentage: order.product?.gstPercentage || 18,
+        options: order.product?.options || [],
+        filters: order.product?.filters || {},
+        quantityDiscounts: (order.product as any)?.quantityDiscounts || [],
+      },
+      finish: order.finish,
+      shape: order.shape,
+      selectedOptions: (order.selectedOptions || []).map((opt) => ({
+        name: opt.optionName || opt.name,
+        optionName: opt.optionName || opt.name,
+        priceAdd: opt.priceAdd || 0,
+      })),
+      selectedDynamicAttributes: order.selectedDynamicAttributes?.map((attr) => ({
+        attributeName: attr.attributeName,
+        label: attr.label,
+        priceMultiplier: attr.priceMultiplier,
+        priceAdd: attr.priceAdd,
+      })),
+    };
+
+    const calculations = calculateOrderBreakdown(orderForCalc) as any;
+    const additionalDesignCharge = (order.product as any)?.additionalDesignCharge || 0;
+
+    const subtotalBeforeDiscount = calculations.subtotalBeforeGst || calculations.rawBaseTotal + calculations.optionBreakdowns.reduce((sum: number, opt: any) => sum + opt.cost, 0);
+    const subtotalAfterDiscount = calculations.subtotalAfterDiscount || calculations.subtotal || subtotalBeforeDiscount;
+    const subtotalWithDesignCharge = subtotalAfterDiscount + additionalDesignCharge;
+
+    basePrice = order.product?.basePrice || 0;
+    quantity = order.quantity;
+    subtotal = subtotalWithDesignCharge;
+    gstPercentage = order.product?.gstPercentage || 18;
+    gstAmount = (subtotalWithDesignCharge * gstPercentage) / 100;
+    finalTotal = subtotalWithDesignCharge + gstAmount;
+  }
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
@@ -453,7 +506,9 @@ const PriceBreakdownPanel: React.FC<{ order: Order }> = ({ order }) => {
           </div>
           <div>
             <h3 className="text-lg font-bold text-gray-900">Price Breakdown</h3>
-            <p className="text-sm text-gray-600">Detailed cost calculation</p>
+            <p className="text-sm text-gray-600">
+              {usePriceSnapshot ? 'Dynamic pricing applied' : 'Detailed cost calculation'}
+            </p>
           </div>
         </div>
       </div>
@@ -464,89 +519,91 @@ const PriceBreakdownPanel: React.FC<{ order: Order }> = ({ order }) => {
           <div className="flex justify-between items-center mb-2">
             <div>
               <p className="text-sm text-gray-600">Quantity</p>
-              <p className="text-2xl font-bold text-gray-900">{order.quantity.toLocaleString()} units</p>
+              <p className="text-2xl font-bold text-gray-900">{quantity.toLocaleString()} units</p>
             </div>
             <div className="text-right">
-              <p className="text-sm text-gray-600">Base Price</p>
-              <p className="text-xl font-bold text-blue-600">{formatCurrency(order.product?.basePrice || 0)}/unit</p>
+              <p className="text-sm text-gray-600">Unit Price</p>
+              <p className="text-xl font-bold text-blue-600">{formatCurrency(basePrice)}</p>
             </div>
           </div>
         </div>
 
-        {/* Breakdown Items */}
+        {/* Applied Modifiers (if using priceSnapshot) */}
+        {appliedModifiers.length > 0 && (
+          <div className="mb-4 p-3 bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg border border-purple-200">
+            <p className="text-xs font-semibold text-purple-900 mb-2 flex items-center gap-1">
+              <Sparkles className="w-3 h-3" />
+              Applied Price Adjustments
+            </p>
+            {appliedModifiers.map((mod: any, idx: number) => (
+              <div key={idx} className="flex justify-between items-center text-xs py-1.5 px-2 bg-white/50 rounded mb-1">
+                <span className="text-purple-700 font-medium">{mod.source}</span>
+                <span className="text-purple-900 font-bold">
+                  {mod.modifierType === 'FIXED' ? formatCurrency(mod.value) : `${mod.value}%`}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Price Breakdown */}
         <div className="space-y-3 mb-6">
-          {/* Base Total */}
-          <div className="flex justify-between items-center py-2 border-b border-gray-100">
-            <span className="text-gray-600">Base Price ({order.quantity} × {formatCurrency(order.product?.basePrice || 0)})</span>
-            <span className="font-medium text-gray-900">{formatCurrency(calculations.rawBaseTotal)}</span>
+          <div className="flex justify-between items-center py-2">
+            <span className="text-gray-600">Subtotal</span>
+            <span className="font-semibold text-gray-900">{formatCurrency(subtotal)}</span>
           </div>
 
-          {/* Options */}
-          {calculations.optionBreakdowns.map((opt: any, idx: number) => (
-            <div key={idx} className="flex justify-between items-center py-2 border-b border-gray-100">
-              <span className="text-gray-600">
-                {opt.name} {opt.isPerUnit && `(×${order.quantity})`}
-              </span>
-              <span className="text-green-600 font-medium">+{formatCurrency(opt.cost)}</span>
-            </div>
-          ))}
-
-          {/* Discount */}
-          {calculations.discountPercentage > 0 && discountAmount > 0 && (
-            <div className="flex justify-between items-center py-3 bg-gradient-to-r from-green-50 to-white rounded-lg px-3 border border-green-100">
-              <div>
-                <span className="font-semibold text-green-700">
-                  Bulk Discount ({calculations.discountPercentage}%)
-                </span>
-                <p className="text-xs text-green-600">Applied for {order.quantity} units</p>
-              </div>
-              <span className="font-bold text-green-700">-{formatCurrency(discountAmount)}</span>
-            </div>
-          )}
-
-          {/* GST */}
           <div className="flex justify-between items-center py-3 border-t border-gray-200">
-            <span className="text-gray-600">GST ({order.product?.gstPercentage || 18}%)</span>
+            <span className="text-gray-600">GST ({gstPercentage}%)</span>
             <span className="text-purple-600 font-semibold">+{formatCurrency(gstAmount)}</span>
           </div>
         </div>
 
-        {/* Advance Payment & Total */}
+        {/* Total */}
         <div className="bg-gray-50 rounded-xl p-5 border border-gray-200">
-          {order.advancePaid !== undefined && order.advancePaid > 0 && (
-            <>
-              <div className="flex justify-between items-center mb-3">
-                <span className="text-gray-600">Advance Paid</span>
-                <span className="font-medium text-green-600">
-                  {formatCurrency(order.advancePaid || 0)}
-                </span>
-              </div>
-              <div className="flex justify-between items-center mb-4 pb-4 border-b border-gray-200">
-                <span className="text-gray-700 font-medium">Balance Due</span>
-                <span className="text-xl font-bold text-orange-600">
-                  {formatCurrency(order.totalPrice - (order.advancePaid || 0))}
-                </span>
-              </div>
-            </>
-          )}
-
           <div className="flex justify-between items-center">
             <div>
               <p className="text-sm text-gray-600">Total Amount</p>
               <p className="text-lg font-bold text-gray-900">Includes all taxes</p>
             </div>
             <p className="text-2xl font-bold text-blue-600">
-              {formatCurrency(storedTotal > 0 ? storedTotal : finalTotal)}
+              {formatCurrency(finalTotal)}
             </p>
           </div>
         </div>
 
-        {/* Payment Status */}
-        {order.paymentStatus === 'pending' && (
+        {/* Payment Status Badge */}
+        {order.paymentStatus === 'PENDING' && (
           <div className="mt-4 p-3 bg-gradient-to-r from-orange-50 to-yellow-50 rounded-lg border border-orange-100">
             <div className="flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 text-orange-600" />
               <p className="text-sm font-medium text-orange-700">Payment Required</p>
+            </div>
+          </div>
+        )}
+
+        {order.paymentStatus === 'COMPLETED' && order.payment_details && (
+          <div className="mt-4 p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg border border-green-200">
+            <div className="flex items-center gap-2 mb-2">
+              <CheckCircle2 className="w-5 h-5 text-green-600" />
+              <p className="text-sm font-bold text-green-700">Payment Completed</p>
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-xs text-green-700">
+              {order.payment_details.gateway_used && (
+                <div>
+                  <span className="font-medium">Gateway:</span> {order.payment_details.gateway_used}
+                </div>
+              )}
+              {order.payment_details.payment_method && (
+                <div>
+                  <span className="font-medium">Method:</span> {order.payment_details.payment_method}
+                </div>
+              )}
+              {order.payment_details.captured_at && (
+                <div className="col-span-2">
+                  <span className="font-medium">Paid on:</span> {new Date(order.payment_details.captured_at).toLocaleString()}
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -679,18 +736,18 @@ const DepartmentChip: React.FC<{ status: DepartmentStatus }> = ({ status }) => {
   return (
     <div
       className={`flex items-center gap-3 px-4 py-3 rounded-xl border transition-all duration-300 ${isCompleted
-          ? 'bg-gradient-to-r from-green-50 to-white border-green-200'
-          : isInProgress
-            ? 'bg-gradient-to-r from-blue-50 to-white border-blue-300 shadow-sm'
-            : 'bg-gray-50 border-gray-200'
+        ? 'bg-gradient-to-r from-green-50 to-white border-green-200'
+        : isInProgress
+          ? 'bg-gradient-to-r from-blue-50 to-white border-blue-300 shadow-sm'
+          : 'bg-gray-50 border-gray-200'
         }`}
     >
       <div
         className={`p-2 rounded-lg ${isCompleted
-            ? 'bg-green-100 text-green-600'
-            : isInProgress
-              ? 'bg-blue-100 text-blue-600 animate-pulse'
-              : 'bg-gray-100 text-gray-400'
+          ? 'bg-green-100 text-green-600'
+          : isInProgress
+            ? 'bg-blue-100 text-blue-600 animate-pulse'
+            : 'bg-gray-100 text-gray-400'
           }`}
       >
         {getIcon(status.departmentName)}
@@ -979,7 +1036,7 @@ const OrderDetails: React.FC = () => {
     );
   }
 
-  const isPaymentPending = order.paymentStatus !== 'completed';
+  const isPaymentPending = order.paymentStatus !== 'COMPLETED';
   const productionTimeline = getProductionTimeline();
   const departmentStatuses = getDepartmentStatuses();
   const categoryName: string =
@@ -1056,8 +1113,14 @@ const OrderDetails: React.FC = () => {
               </div>
 
               <div className="flex flex-col gap-3">
-                {order.paymentGatewayInvoiceId && (
-                  <button className="flex items-center justify-center gap-2 px-5 py-2.5 bg-white border border-gray-300 hover:border-blue-500 text-gray-700 hover:text-blue-600 rounded-lg font-medium transition-colors">
+                {order.paymentStatus === 'COMPLETED' && (
+                  <button
+                    onClick={() => {
+                      // Generate invoice download
+                      window.open(`${API_BASE_URL}/orders/${order._id}/invoice`, '_blank');
+                    }}
+                    className="flex items-center justify-center gap-2 px-5 py-2.5 bg-white border border-gray-300 hover:border-blue-500 text-gray-700 hover:text-blue-600 rounded-lg font-medium transition-colors"
+                  >
                     <Download className="w-4 h-4" />
                     Download Invoice
                   </button>
@@ -1071,69 +1134,118 @@ const OrderDetails: React.FC = () => {
           </div>
         </div>
 
-        {/* Payment Status Section */}
+        {/* Enhanced Payment Status Section */}
         {isPaymentPending && (
           <div className="mb-8">
-            <div className="bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-2xl shadow-lg overflow-hidden">
-              <div className="bg-gradient-to-r from-orange-500 to-amber-500 px-6 py-4">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center">
-                    <CreditCard className="w-6 h-6 text-white" />
+            <div className="bg-gradient-to-br from-orange-50 via-amber-50 to-orange-50 border-2 border-orange-300 rounded-2xl shadow-2xl overflow-hidden">
+              {/* Header with gradient */}
+              <div className="bg-gradient-to-r from-orange-500 to-amber-500 px-6 py-5">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                  <div className="flex items-center gap-4">
+                    <div className="w-14 h-14 bg-white/30 rounded-full flex items-center justify-center animate-pulse">
+                      <CreditCard className="w-7 h-7 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="text-2xl font-bold text-white">Payment Required</h3>
+                      <p className="text-orange-100 text-sm">Complete payment to start production</p>
+                    </div>
                   </div>
-                  <div className="flex-1">
-                    <h3 className="text-xl font-bold text-white">Payment Required</h3>
-                    <p className="text-orange-100">Complete payment to start production</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm text-orange-100">Amount Due</p>
-                    <p className="text-2xl font-bold text-white">
-                      {formatCurrency(order.totalPrice - (order.advancePaid || 0))}
+                  <div className="bg-white/20 backdrop-blur-sm rounded-xl px-6 py-3 border border-white/30">
+                    <p className="text-xs text-orange-100 font-medium uppercase tracking-wide">Amount Due</p>
+                    <p className="text-3xl font-bold text-white mt-1">
+                      {formatCurrency(
+                        order.priceSnapshot?.totalPayable || order.totalPrice - (order.advancePaid || 0)
+                      )}
                     </p>
                   </div>
                 </div>
               </div>
-              <div className="p-6">
-                <div className="grid md:grid-cols-2 gap-8 items-center">
-                  <div className="space-y-4">
-                    <div className="flex items-start gap-3">
+
+              {/* Body with price breakdown preview */}
+              <div className="p-6 md:p-8">
+                <div className="grid md:grid-cols-5 gap-6 items-center">
+                  {/* Left: Warning and Price Details */}
+                  <div className="md:col-span-3 space-y-4">
+                    <div className="flex items-start gap-3 p-4 bg-white/60 rounded-lg border border-orange-100">
                       <AlertTriangle className="w-5 h-5 text-orange-500 mt-0.5 flex-shrink-0" />
-                      <p className="text-gray-700">
+                      <p className="text-gray-700 text-sm">
                         Your order has been created but <span className="font-bold">production will not start</span> until payment is confirmed.
                       </p>
                     </div>
-                    <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
-                      <div className="space-y-2">
-                        <div className="flex justify-between items-center">
-                          <span className="text-gray-600">Order Total:</span>
-                          <span className="text-xl font-bold text-gray-900">{formatCurrency(order.totalPrice)}</span>
+
+                    {/* Inline Price Breakdown */}
+                    <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
+                      <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                        <Tag className="w-4 h-4" />
+                        Price Breakdown
+                      </h4>
+                      <div className="space-y-2.5">
+                        <div className="flex justify-between items-center text-sm">
+                          <span className="text-gray-600">Subtotal:</span>
+                          <span className="font-semibold text-gray-900">
+                            {formatCurrency(
+                              order.priceSnapshot?.subtotal ||
+                              (order.totalPrice / 1.18) // Rough estimate if no snapshot
+                            )}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center text-sm">
+                          <span className="text-gray-600">
+                            GST ({order.priceSnapshot?.gstPercentage || 18}%):
+                          </span>
+                          <span className="font-semibold text-purple-600">
+                            +{formatCurrency(
+                              order.priceSnapshot?.gstAmount ||
+                              (order.totalPrice - (order.totalPrice / 1.18))
+                            )}
+                          </span>
+                        </div>
+                        <div className="border-t border-gray-200 pt-2.5">
+                          <div className="flex justify-between items-center">
+                            <span className="text-base font-bold text-gray-900">Total Amount:</span>
+                            <span className="text-xl font-bold text-blue-600">
+                              {formatCurrency(order.priceSnapshot?.totalPayable || order.totalPrice)}
+                            </span>
+                          </div>
                         </div>
                         {order.advancePaid && order.advancePaid > 0 && (
                           <>
-                            <div className="flex justify-between items-center text-sm">
+                            <div className="flex justify-between items-center text-sm pt-2 border-t border-dashed">
                               <span className="text-gray-500">Advance Paid:</span>
                               <span className="text-green-600 font-semibold">-{formatCurrency(order.advancePaid)}</span>
                             </div>
-                            <div className="border-t border-gray-200 pt-2">
-                              <div className="flex justify-between items-center">
-                                <span className="font-semibold text-gray-700">Balance Due:</span>
-                                <span className="text-lg font-bold text-orange-600">
-                                  {formatCurrency(order.totalPrice - order.advancePaid)}
-                                </span>
-                              </div>
+                            <div className="flex justify-between items-center">
+                              <span className="font-bold text-gray-700">Balance Due:</span>
+                              <span className="text-lg font-bold text-orange-600">
+                                {formatCurrency((order.priceSnapshot?.totalPayable || order.totalPrice) - order.advancePaid)}
+                              </span>
                             </div>
                           </>
                         )}
                       </div>
                     </div>
                   </div>
-                  <div className="text-center">
-                    <button className="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white px-8 py-4 rounded-xl font-bold text-lg shadow-xl shadow-green-500/30 transition-all transform hover:scale-105">
-                      <CreditCard className="w-5 h-5 inline mr-2" />
-                      Pay Now
+
+                  {/* Right: Pay Now CTA */}
+                  <div className="md:col-span-2 flex flex-col items-center justify-center text-center space-y-4">
+                    <button className="group relative w-full bg-gradient-to-r from-green-500 via-emerald-500 to-green-600 hover:from-green-600 hover:via-emerald-600 hover:to-green-700 text-white px-8 py-5 rounded-xl font-bold text-lg shadow-2xl shadow-green-500/40 transition-all duration-300 transform hover:scale-105 hover:shadow-green-500/60 overflow-hidden">
+                      <span className="relative z-10 flex items-center justify-center gap-3">
+                        <CreditCard className="w-6 h-6" />
+                        Pay Now
+                      </span>
+                      {/* Animated shimmer effect */}
+                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent transform -skew-x-12 group-hover:translate-x-full transition-transform duration-1000"></div>
                     </button>
-                    <div className="flex items-center justify-center gap-2 mt-4 text-sm text-gray-600">
-                      <Shield className="w-4 h-4 text-green-500" />
-                      <span>Secure payment • SSL encrypted</span>
+
+                    <div className="flex flex-col items center text-xs text-gray-600 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Shield className="w-4 h-4 text-green-500" />
+                        <span>Secure payment • SSL encrypted</span>
+                      </div>
+                      <div className="flex items-center gap-1 text-gray-500">
+                        <Check className="w-3 h-3" />
+                        <span>Multiple payment options available</span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1293,7 +1405,18 @@ const OrderDetails: React.FC = () => {
                 <h3 className="text-lg font-bold text-gray-900">Quick Actions</h3>
               </div>
               <div className="p-4 space-y-3">
-                <button className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 transition-colors">
+                <button
+                  onClick={() => {
+                    if (order.paymentStatus === 'COMPLETED') {
+                      window.open(`${API_BASE_URL}/orders/${order._id}/invoice`, '_blank');
+                    }
+                  }}
+                  className={`w-full flex items-center justify-between p-3 rounded-lg border border-gray-200 transition-colors ${order.paymentStatus === 'COMPLETED'
+                    ? 'bg-gray-50 hover:bg-gray-100 cursor-pointer'
+                    : 'bg-gray-100 cursor-not-allowed opacity-50'
+                    }`}
+                  disabled={order.paymentStatus !== 'COMPLETED'}
+                >
                   <span className="font-medium text-gray-700">Download Invoice</span>
                   <Download className="w-4 h-4 text-gray-400" />
                 </button>
@@ -1328,8 +1451,8 @@ const OrderDetails: React.FC = () => {
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-gray-600">Payment</span>
-                  <span className={`font-medium ${order.paymentStatus === 'completed' ? 'text-green-600' : 'text-orange-600'}`}>
-                    {order.paymentStatus === 'completed' ? 'Paid' : 'Pending'}
+                  <span className={`font-medium ${order.paymentStatus === 'COMPLETED' ? 'text-green-600' : 'text-orange-600'}`}>
+                    {order.paymentStatus === 'COMPLETED' ? 'Paid' : 'Pending'}
                   </span>
                 </div>
               </div>

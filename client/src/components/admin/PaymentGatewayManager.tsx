@@ -790,13 +790,22 @@ const PaymentGatewayManager: React.FC = () => {
                         </div>
                     </div>
 
-                    <button
-                        onClick={() => setShowAddModal(true)}
-                        className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-medium rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl flex items-center justify-center space-x-2 self-start"
-                    >
-                        <FiPlus className="w-5 h-5" />
-                        <span>Add Gateway</span>
-                    </button>
+                    <div className="flex gap-3">
+                        <button
+                            onClick={() => window.location.href = '/admin/test-payment'}
+                            className="px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-medium rounded-xl hover:from-green-700 hover:to-emerald-700 transition-all shadow-lg hover:shadow-xl flex items-center justify-center space-x-2"
+                        >
+                            <FiActivity className="w-5 h-5" />
+                            <span>Test Payment</span>
+                        </button>
+                        <button
+                            onClick={() => setShowAddModal(true)}
+                            className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-medium rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl flex items-center justify-center space-x-2 self-start"
+                        >
+                            <FiPlus className="w-5 h-5" />
+                            <span>Add Gateway</span>
+                        </button>
+                    </div>
                 </div>
 
                 {/* Stats Overview */}

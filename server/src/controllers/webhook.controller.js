@@ -59,18 +59,13 @@ export const handleWebhook = async (req, res) => {
         // Verify signature
         const rawBody = req.rawBody || JSON.stringify(req.body);
 
-        // TEMPORARY: Skip signature verification for PayU to debug
-        let isValid = true;
-        if (gatewayName !== 'PAYU') {
-            isValid = await provider.instance.verifySignature(
-                gatewayName === 'STRIPE' ? rawBody : req.body,
-                signature
-            );
-        } else {
-            console.log('⚠️  TEMPORARILY BYPASSING PayU signature verification for debugging');
-            // Still call it to see the logs
-            await provider.instance.verifySignature(req.body, signature);
-        }
+        const isValid = await provider.instance.verifySignature(
+            gatewayName === 'STRIPE' ? rawBody : req.body,
+            signature
+        );
+
+        console.log(`🔐 Signature verification result for ${gatewayName}:`, isValid);
+
 
         webhookLog.signature_verified = isValid;
 
