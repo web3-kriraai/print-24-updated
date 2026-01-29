@@ -79,7 +79,6 @@ interface Gateway {
         live_secret_key: string | null;
         test_public_key: string | null;
         test_secret_key: string | null;
-        webhook_secret: string | null;
     };
 }
 
@@ -93,7 +92,6 @@ interface GatewayFormData {
     test_secret_key: string;
     live_public_key: string;
     live_secret_key: string;
-    webhook_secret: string;
     supported_methods: string[];
     tdr_rate: number;
 }
@@ -124,7 +122,6 @@ const initialFormData: GatewayFormData = {
     test_secret_key: '',
     live_public_key: '',
     live_secret_key: '',
-    webhook_secret: '',
     supported_methods: ['UPI', 'CARD', 'NETBANKING', 'WALLET'],
     tdr_rate: 2.0,
 };
@@ -377,7 +374,6 @@ const PaymentGatewayManager: React.FC = () => {
             test_secret_key: '',
             live_public_key: '',
             live_secret_key: '',
-            webhook_secret: '',
             supported_methods: gateway.supported_methods || [],
             tdr_rate: gateway.tdr_rate,
         });
@@ -677,20 +673,7 @@ const PaymentGatewayManager: React.FC = () => {
                                 </>
                             )}
 
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center space-x-2">
-                                    <FiLink className="w-4 h-4" />
-                                    <span>Webhook Secret</span>
-                                </label>
-                                <input
-                                    type="password"
-                                    name="webhook_secret"
-                                    value={formData.webhook_secret}
-                                    onChange={handleInputChange}
-                                    placeholder={isEdit ? '(unchanged if empty)' : 'whsec_...'}
-                                    className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-                                />
-                            </div>
+
                         </div>
                     </div>
 
