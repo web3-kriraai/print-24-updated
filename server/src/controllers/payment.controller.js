@@ -370,16 +370,13 @@ export const initializeTestPayment = async (req, res) => {
         const { amount, currency = 'INR', preferredGateway, paymentMethod } = req.body;
         const userId = req.user?._id;
 
-        // Validate amount (now expects rupees, minimum ₹1)
+        // Validate amount (expects rupees, minimum ₹1)
         if (!amount || amount < 1) {
             return res.status(400).json({
                 success: false,
                 error: 'Amount must be at least ₹1'
             });
         }
-
-        // Convert rupees to paise for payment gateway
-        const amountInPaise = Math.round(amount * 100);
 
         // Get user info
         const user = await User.findById(userId);
@@ -403,7 +400,7 @@ export const initializeTestPayment = async (req, res) => {
         } else {
             // Auto-select based on priority
             selectedGateway = await paymentRouter.selectGateway({
-                amount: amountInPaise, // Use paise for gateway selection
+                amount: amount, // Send rupees - provider will normalize
                 currency,
                 paymentMethod: paymentMethod || 'CARD',
                 country: 'IN'
@@ -417,9 +414,9 @@ export const initializeTestPayment = async (req, res) => {
             });
         }
 
-        // Initialize payment directly with provider (using paise)
+        // Initialize payment with provider (send rupees - provider normalizes to paise)
         const providerResult = await selectedGateway.instance.initializeTransaction({
-            amount: amountInPaise, // Send paise to payment provider
+            amount: amount, // Provider's normalizeAmount() will convert to paise
             currency,
             customer: {
                 id: user._id.toString(),
