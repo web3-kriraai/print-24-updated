@@ -118,8 +118,8 @@ class PayUProvider extends IPaymentProvider {
                 firstname: customer.name || customer.firstName || 'Customer',
                 email: customer.email,
                 phone: customer.phone || '',
-                surl: `${process.env.FRONTEND_URL}/order/${orderId}?payment=success`,
-                furl: `${process.env.FRONTEND_URL}/order/${orderId}?payment=failed`,
+                surl: `${process.env.BASE_URL || 'http://localhost:5000'}/api/payment/callback/payu`,
+                furl: `${process.env.BASE_URL || 'http://localhost:5000'}/api/payment/callback/payu`,
                 // Optional fields
                 lastname: customer.lastName || '',
                 address1: customer.address || '',
@@ -186,25 +186,43 @@ class PayUProvider extends IPaymentProvider {
      */
     async verifySignature(payload, signature) {
         try {
+            console.log('🔍 PayU verifySignature called with payload:', payload);
+            console.log('🔍 Received signature:', signature);
+
             const {
                 status,
                 txnid,
                 amount,
                 productinfo,
                 firstname,
-                email
+                email,
+                udf1,
+                udf2,
+                udf3,
+                udf4,
+                udf5,
+                key
             } = payload;
 
             // Generate expected hash
             const expectedHash = this._generateResponseHash({
                 status,
-                email,
-                firstname,
-                productinfo,
-                amount,
                 txnid,
-                key: this.config.publicKey
+                amount,
+                productinfo,
+                firstname,
+                email,
+                udf1,
+                udf2,
+                udf3,
+                udf4,
+                udf5,
+                key
             });
+
+            console.log('✅ Expected hash:', expectedHash);
+            console.log('✅ Received hash:', signature);
+            console.log('✅ Hashes match:', expectedHash === signature);
 
             return expectedHash === signature;
 
@@ -297,6 +315,56 @@ class PayUProvider extends IPaymentProvider {
             paymentMethod: 'CARD',
             capturedAt: new Date()
         };
+    }
+
+    /**
+     * Generate PayU response hash for verification
+     * PayU uses REVERSE hash for responses
+     * Formula: SALT|status||||||udf5|udf4|udf3|udf2|udf1|email|firstname|productinfo|amount|txnid|key
+     * NOTE: PayU includes empty additionalCharges fields (6 pipes after status)
+     */
+    _generateResponseHash(params) {
+        const {
+            status,
+            txnid,
+            amount,
+            productinfo,
+            firstname,
+            email,
+            udf1 = '',
+            udf2 = '',
+            udf3 = '',
+            udf4 = '',
+            udf5 = '',
+            key,
+            addedon = ''  // PayU sends this but we don't use it in hash
+        } = params;
+
+        console.log('🔐 Hash generation inputs:');
+        console.log('  - salt:', this.config.secretKey);
+        console.log('  - status:', status);
+        console.log('  - txnid:', txnid);
+        console.log('  - amount:', amount);
+        console.log('  - productinfo:', productinfo);
+        console.log('  - firstname:', firstname);
+        console.log('  - email:', email);
+        console.log('  - udf1:', udf1);
+        console.log('  - udf2:', udf2);
+        console.log('  - udf3:', udf3);
+        console.log('  - udf4:', udf4);
+        console.log('  - udf5:', udf5);
+        console.log('  - key:', key);
+
+        // PayU response hash (REVERSE order)
+        // Format: salt|status||||||udf5|udf4|udf3|udf2|udf1|email|firstname|productinfo|amount|txnid|key
+        // Note: 6 empty pipes after status represent additionalCharges fields (empty in most cases)
+        const hashString = `${this.config.secretKey}|${status}||||||${udf5}|${udf4}|${udf3}|${udf2}|${udf1}|${email}|${firstname}|${productinfo}|${amount}|${txnid}|${key}`;
+
+        console.log('🔐 Complete hash string:', hashString);
+        const hash = crypto.createHash('sha512').update(hashString).digest('hex');
+        console.log('🔐 Generated hash:', hash);
+
+        return hash;
     }
 
     /**

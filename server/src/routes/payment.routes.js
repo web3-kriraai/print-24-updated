@@ -31,6 +31,9 @@ router.post('/test-initialize', authMiddleware, initializeTestPayment);
 // Verify payment callback (optional auth - may come from redirect)
 router.post('/verify', optionalAuthMiddleware, verifyPayment);
 
+// PayU callback endpoint (no auth - comes from PayU redirect)
+router.post('/callback/payu', handleWebhook);
+
 // Get transaction status
 router.get('/status/:transactionId', optionalAuthMiddleware, getPaymentStatus);
 
