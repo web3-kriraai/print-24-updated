@@ -36,6 +36,10 @@
     }
   </script>
   <style>
+    html {
+      scroll-behavior: smooth;
+    }
+
     body {
       background-color: #f9fafb;
       /* gray-50 */
@@ -49,6 +53,36 @@
       border-color: #ef4444 !important;
       background-color: #fef2f2 !important;
       box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1) !important;
+    }
+
+    /* Mini scrollbar for compact areas */
+    .mini-scrollbar {
+      scrollbar-width: none;
+      scrollbar-color: #cbd5e1 transparent;
+      scroll-behavior: smooth;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .mini-scrollbar::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+
+    .mini-scrollbar::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .mini-scrollbar::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      /* slate-300 */
+      border-radius: 20px;
+      border: 1px solid transparent;
+      background-clip: content-box;
+    }
+
+    .mini-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+      /* slate-400 */
     }
 
     @keyframes validationPulse {

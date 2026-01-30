@@ -3925,9 +3925,9 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                         <div className="flex-1 overflow-y-auto pr-2">
                           {/* POP-OUT DECK VARIANT SELECTOR */}
                           {categoryProducts.length > 1 && (
-                            <div className="mb-6 relative z-10">
+                            <div className="mb-3 relative z-10">
                               {/* Header Row */}
-                              <div className="flex justify-between items-center mb-2">
+                              <div className="flex justify-between items-center ">
                                 <p className="text-[10px] font-bold text-red-500 bg-red-50 px-2 py-0.5 rounded uppercase tracking-widest">Select Product</p>
                               </div>
 
@@ -4017,11 +4017,11 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                           )}
 
                           {/* Product Header */}
-                          <div className="mb-6 sm:mb-8 border-b border-gray-100 pb-4 sm:pb-6 relative">
+                          <div className="mb-3 sm:mb-4 relative">
                             <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
                               <div className="flex-1">
                                 {/* Product Header with Price */}
-                                <div className="border-b border-gray-100 flex flex-row justify-between items-center pb-4 mb-4">
+                                <div className="border-b border-gray-100 flex flex-row justify-between items-center">
                                   <h1 className="font-serif text-xl sm:text-2xl md:text-3xl font-bold text-gray-900 mb-1">
                                     {selectedProduct.name}
                                   </h1>
@@ -4053,8 +4053,8 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                 )}
 
                                 {/* Info Sections Row - Buttons displayed in a single row */}
-                                <div className="mt-4 mb-6">
-                                  <div className="flex flex-wrap gap-2 mb-4">
+                                <div className="mt-4 mb-2">
+                                  <div className="flex flex-wrap gap-2 mb-2">
                                     {/* Product Description Button - Only show if description exists */}
                                     {(selectedProduct.description || (selectedProduct.descriptionArray && selectedProduct.descriptionArray.length > 0)) && (
                                       <button
@@ -4086,7 +4086,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                         animate={{ opacity: 1, height: "auto" }}
                                         exit={{ opacity: 0, height: 0 }}
                                         transition={{ duration: 0.3, ease: "easeInOut" }}
-                                        className="overflow-hidden mb-4"
+                                        className="overflow-hidden mb-2"
                                       >
                                         <div className="p-4 sm:p-6 bg-blue-50 border border-blue-200 rounded-lg">
                                           <h4 className="text-sm font-bold text-blue-900 mb-3 flex items-center gap-2">
@@ -4253,7 +4253,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                         transition={{ duration: 0.3, ease: "easeInOut" }}
                                         className="overflow-hidden"
                                       >
-                                        <div className="mb-6 p-4 sm:p-6 bg-yellow-50 border border-yellow-200 rounded-lg">
+                                        <div className="mb-2 p-4 sm:p-6 bg-yellow-50 border border-yellow-200 rounded-lg">
                                           <h4 className="text-sm font-bold text-yellow-900 mb-3 flex items-center gap-2">
                                             <Info size={16} />
                                             Important Instructions - Please Read Carefully
@@ -4362,7 +4362,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                               <>
                                 {/* Product Options (from options table) */}
                                 {hasOptions && (
-                                  <div className="mb-6 sm:mb-8">
+                                  <div className="mb-3 sm:mb-4">
                                     <label className="block text-xs sm:text-sm font-bold text-gray-900 mb-2 sm:mb-3 uppercase tracking-wider">
                                       {sectionNum++}. Product Options
                                     </label>
@@ -4417,7 +4417,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
                                 {/* Printing Option - Auto-skip if only one option */}
                                 {hasPrintingOption && selectedProduct.filters.printingOption.length > 1 && (
-                                  <div className="mb-6 sm:mb-8" data-section="printingOption">
+                                  <div className="mb-3 sm:mb-4" data-section="printingOption">
                                     <label className="block text-xs sm:text-sm font-bold text-gray-900 mb-2 sm:mb-3 uppercase tracking-wider">
                                       {sectionNum++}. Printing Option
                                     </label>
@@ -4463,7 +4463,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
                                 {/* Texture Type (if applicable) - Auto-skip if only one option */}
                                 {hasTextureType && selectedProduct.filters.textureType.length > 1 && (
-                                  <div className="mb-6 sm:mb-8">
+                                  <div className="mb-3 sm:mb-4">
                                     <label className="block text-xs sm:text-sm font-bold text-gray-900 mb-2 sm:mb-3 uppercase tracking-wider">
                                       {sectionNum++}. Texture Type
                                     </label>
@@ -4508,7 +4508,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
                                 {/* Delivery Speed - Auto-skip if only one option */}
                                 {hasDeliverySpeed && selectedProduct.filters.deliverySpeed.length > 1 && (
-                                  <div className="mb-6 sm:mb-8" data-section="deliverySpeed">
+                                  <div className="mb-3 sm:mb-4" data-section="deliverySpeed">
                                     <label className="block text-xs sm:text-sm font-bold text-gray-900 mb-2 sm:mb-3 uppercase tracking-wider">
                                       {sectionNum++}. Delivery Speed
                                     </label>
@@ -4553,7 +4553,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                 )}
 
                                 {/* Quantity Selection */}
-                                <div className="mb-6 sm:mb-8" data-section="quantity">
+                                <div className="mb-3 sm:mb-4" data-section="quantity">
                                   <label className="block text-xs sm:text-sm font-bold text-gray-900 mb-2 sm:mb-3 uppercase tracking-wider">
                                     {sectionNum++}. Select Quantity
                                   </label>
@@ -4716,9 +4716,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                       );
                                     } else {
                                       return (
-                                        <div className="text-xs sm:text-sm text-gray-600 mb-2">
-                                          Min: {orderQuantity.min.toLocaleString()}, Max: {orderQuantity.max.toLocaleString()}, Multiples of: {orderQuantity.multiples.toLocaleString()}
-                                        </div>
+                                       <></>
                                       );
                                     }
                                   })()}
@@ -4831,7 +4829,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                           // For dropdown/radio/popup, need at least 2 options
                                           if (attributeValues.length < 1) {
                                             return (
-                                              <div key={attrId} className="mb-6 sm:mb-8 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                                              <div key={attrId} className="mb-3 sm:mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                                                 <label className="block text-xs sm:text-sm font-bold text-gray-900 mb-2 sm:mb-3 uppercase tracking-wider">
                                                   {sectionNum++}. {attrType.attributeName}
                                                   {isRequired && <span className="text-red-500 ml-1">*</span>}
@@ -4859,7 +4857,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                           : [];
 
                                         return (
-                                          <div key={attrId} className="mb-6 sm:mb-8">
+                                          <div key={attrId} className="mb-3 sm:mb-4">
                                             <label className="block text-xs sm:text-sm font-bold text-gray-900 mb-2 sm:mb-3 uppercase tracking-wider">
                                               {sectionNum++}. {attrType.attributeName}
                                               {isRequired && <span className="text-red-500 ml-1">*</span>}
@@ -4926,58 +4924,60 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                         <label className="block text-xs font-semibold text-gray-700 mb-2">
                                                           Select {selectedValueObj?.label || attrType.attributeName} Option:
                                                         </label>
-                                                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                                                          {availableSubAttributes.map((subAttr) => {
-                                                            // Format price display for sub-attribute
-                                                            const getSubAttrPriceDisplay = () => {
-                                                              if (!subAttr.priceAdd || subAttr.priceAdd === 0) return null;
-                                                              return `+₹${subAttr.priceAdd.toFixed(2)}/piece`;
-                                                            };
+                                                         <div className="max-h-[400px] overflow-y-auto mini-scrollbar pr-2">
+                                                           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                                             {availableSubAttributes.map((subAttr) => {
+                                                               // Format price display for sub-attribute
+                                                               const getSubAttrPriceDisplay = () => {
+                                                                 if (!subAttr.priceAdd || subAttr.priceAdd === 0) return null;
+                                                                 return `+₹${subAttr.priceAdd.toFixed(2)}/piece`;
+                                                               };
 
-                                                            const subAttrKey = `${attrId}__${selectedValue}`;
-                                                            const isSubAttrSelected = selectedDynamicAttributes[subAttrKey] === subAttr.value;
+                                                               const subAttrKey = `${attrId}__${selectedValue}`;
+                                                               const isSubAttrSelected = selectedDynamicAttributes[subAttrKey] === subAttr.value;
 
-                                                            return (
-                                                              <button
-                                                                key={subAttr._id}
-                                                                type="button"
-                                                                onClick={() => {
-                                                                  setSelectedDynamicAttributes((prev) => ({
-                                                                    ...prev,
-                                                                    [subAttrKey]: subAttr.value,
-                                                                  }));
-                                                                  // Mark the parent attribute as user-selected for image updates (preserved order)
-                                                                  setUserSelectedAttributes(prev => {
-                                                                    const next = new Set(prev);
-                                                                    next.delete(attrId);
-                                                                    next.add(attrId);
-                                                                    return next;
-                                                                  });
-                                                                }}
-                                                                className={`p-3 rounded-lg border text-left transition-all ${isSubAttrSelected
-                                                                  ? "border-gray-900 bg-gray-50 ring-1 ring-gray-900"
-                                                                  : "border-gray-200 hover:border-gray-400"
-                                                                  }`}
-                                                              >
-                                                                {subAttr.image && (
-                                                                  <div className="mb-2">
-                                                                    <img
-                                                                      src={subAttr.image}
-                                                                      alt={subAttr.label}
-                                                                      className="w-full h-24 object-cover rounded"
-                                                                    />
-                                                                  </div>
-                                                                )}
-                                                                <div className="text-sm font-medium">{subAttr.label}</div>
-                                                                {getSubAttrPriceDisplay() && (
-                                                                  <div className="text-xs text-gray-600 mt-1">
-                                                                    {getSubAttrPriceDisplay()}
-                                                                  </div>
-                                                                )}
-                                                              </button>
-                                                            );
-                                                          })}
-                                                        </div>
+                                                               return (
+                                                                 <button
+                                                                   key={subAttr._id}
+                                                                   type="button"
+                                                                   onClick={() => {
+                                                                     setSelectedDynamicAttributes((prev) => ({
+                                                                       ...prev,
+                                                                       [subAttrKey]: subAttr.value,
+                                                                     }));
+                                                                     // Mark the parent attribute as user-selected for image updates (preserved order)
+                                                                     setUserSelectedAttributes(prev => {
+                                                                       const next = new Set(prev);
+                                                                       next.delete(attrId);
+                                                                       next.add(attrId);
+                                                                       return next;
+                                                                     });
+                                                                   }}
+                                                                   className={`p-3 rounded-lg border text-left transition-all ${isSubAttrSelected
+                                                                     ? "border-gray-900 bg-gray-50 ring-1 ring-gray-900"
+                                                                     : "border-gray-200 hover:border-gray-400"
+                                                                     }`}
+                                                                 >
+                                                                   {subAttr.image && (
+                                                                     <div className="mb-2">
+                                                                       <img
+                                                                         src={subAttr.image}
+                                                                         alt={subAttr.label}
+                                                                         className="w-full h-24 object-cover rounded"
+                                                                       />
+                                                                     </div>
+                                                                   )}
+                                                                   <div className="text-sm font-medium">{subAttr.label}</div>
+                                                                   {getSubAttrPriceDisplay() && (
+                                                                     <div className="text-xs text-gray-600 mt-1">
+                                                                       {getSubAttrPriceDisplay()}
+                                                                     </div>
+                                                                   )}
+                                                                 </button>
+                                                               );
+                                                             })}
+                                                           </div>
+                                                         </div>
                                                       </div>
                                                     )}
 
@@ -5280,7 +5280,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                             if (imageUploadsRequired.length === 0) return null;
 
                             return (
-                              <div className="mb-6 sm:mb-8 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                              <div className="mb-3 sm:mb-4 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                                 {/* Header Section */}
                                 <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-4 sm:px-5 py-3 sm:py-4 border-b border-gray-200">
                                   <div className="flex items-center gap-2.5">
@@ -5487,7 +5487,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                           })()}
 
                           {/* Upload Your Design Section - Redesigned */}
-                          <div className="mb-6 sm:mb-8 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                          <div className="mb-3 sm:mb-4 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                             {/* Header Section */}
                             <div className="bg-gradient-to-r from-purple-50 to-pink-50 px-4 sm:px-5 py-3 sm:py-4 border-b border-gray-200">
                               <div className="flex items-center gap-2.5">
@@ -5725,7 +5725,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                         </div>
 
                         {/* Premium Sticky Footer with Total Price + CTA */}
-                        <div className="mt-auto pt-6 border-t border-gray-100 bg-white sticky bottom-0 z-10">
+                        <div className="mt-auto pt-6 border-t border-gray-100 bg-white bottom-0 z-10">
                           <div className="flex justify-between items-end mb-4">
                             <div>
                               <p className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-1">Total Price</p>
@@ -6128,7 +6128,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
               </div>
 
               {/* Modal Content - Scrollable */}
-              <div className="flex-1 overflow-y-auto p-4">
+              <div className="flex-1 overflow-y-auto p-4 mini-scrollbar">
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 justify-items-center">
                   {radioModalData.attributeValues.map((av) => {
                     // Format price display as per unit price
