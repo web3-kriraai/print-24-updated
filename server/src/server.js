@@ -11,6 +11,7 @@ import uploadRoutes from "./routes/uploadRoutes.js";
 import timelineRoutes from "./routes/timeline.js";
 import aboutRoutes from "./routes/aboutRoutes.js";
 import featureRoutes from "./routes/featureRoutes.js";
+import productConfiguratorRoutes from "./routes/productConfigurator.routes.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -111,6 +112,7 @@ app.use("/api", uploadRoutes);
 app.use("/api/timeline", timelineRoutes);
 app.use("/api/about", aboutRoutes);
 app.use("/api/features", featureRoutes);
+app.use("/api/product-configurator", productConfiguratorRoutes);
 
 // Error handler to ensure CORS headers are set even on errors
 app.use((err, req, res, next) => {

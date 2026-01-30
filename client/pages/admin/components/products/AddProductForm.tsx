@@ -42,7 +42,9 @@ import {
     Briefcase,
     Filter,
     Globe,
+    Layers,
 } from "lucide-react";
+import ConfiguratorAssetMatrix from "./ConfiguratorAssetMatrix";
 import { Pagination } from "../../../../components/Pagination";
 import { motion, AnimatePresence } from "framer-motion";
 import { ReviewFilterDropdown } from "../../../../components/ReviewFilterDropdown";
@@ -241,6 +243,9 @@ const AddProductForm: React.FC<AddProductFormProps> = ({
     // Retry counter to prevent infinite loading - track fetch attempts per category
     const [fetchAttempts, setFetchAttempts] = React.useState<Record<string, number>>({});
     const MAX_FETCH_ATTEMPTS = 3;
+
+    // Visual Configurator modal state
+    const [showConfiguratorModal, setShowConfiguratorModal] = React.useState(false);
 
     // Helper functions
     const getAuthHeaders = (includeContentType = false) => {
@@ -2246,14 +2251,14 @@ const AddProductForm: React.FC<AddProductFormProps> = ({
                                 // Pre-populate categories from current product context
                                 const categoriesToApply = [];
                                 const subCategoriesToApply = [];
-                                
+
                                 if (productForm.category) {
                                     categoriesToApply.push(productForm.category);
                                 }
                                 if (productForm.subcategory) {
                                     subCategoriesToApply.push(productForm.subcategory);
                                 }
-                                
+
                                 // Update attribute form with current product's categories
                                 setAttributeTypeForm(prev => ({
                                     ...prev,
@@ -2262,7 +2267,7 @@ const AddProductForm: React.FC<AddProductFormProps> = ({
                                     // Set as common attribute by default, or category-specific if category is selected
                                     isCommonAttribute: categoriesToApply.length === 0
                                 }));
-                                
+
                                 // Open the create attribute modal
                                 setShowCreateAttributeModal(true);
                             }}
@@ -2436,7 +2441,42 @@ const AddProductForm: React.FC<AddProductFormProps> = ({
                     </div>
                 </div>
 
-
+                {/* Visual Configurator Section - Only for editing existing products */}
+                {editingProductId && selectedAttributeTypes.length > 0 && (
+                    <div className="bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 rounded-2xl p-6 border border-indigo-100 shadow-sm">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center text-white shadow-lg">
+                                    <Layers size={22} />
+                                </div>
+                                <div>
+                                    <h3 className="text-sm font-bold text-slate-800">Visual Configurator</h3>
+                                    <p className="text-xs text-slate-500">
+                                        Configure real-time product previews based on attribute selections
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setShowConfiguratorModal(true)}
+                                className="px-5 py-2.5 bg-gradient-to-r from-indigo-500 to-purple-600 text-white text-xs font-bold uppercase tracking-wider rounded-xl hover:from-indigo-600 hover:to-purple-700 transition-all shadow-lg shadow-indigo-200 hover:shadow-xl hover:shadow-indigo-300 hover:-translate-y-0.5"
+                            >
+                                Manage Assets
+                            </button>
+                        </div>
+                        <div className="mt-4 p-3 bg-white/60 rounded-xl border border-indigo-100">
+                            <p className="text-[10px] text-slate-500 leading-relaxed">
+                                <strong className="text-indigo-600">Matrix Strategy:</strong> Upload pre-rendered images for each attribute combination.
+                                Customers will see instant, photorealistic previews when they change options.
+                                {selectedAttributeTypes.length > 0 && (
+                                    <span className="ml-1">
+                                        You have <strong>{selectedAttributeTypes.length}</strong> attributes configured.
+                                    </span>
+                                )}
+                            </p>
+                        </div>
+                    </div>
+                )}
 
                 <button
                     type="submit"
@@ -2483,7 +2523,7 @@ const AddProductForm: React.FC<AddProductFormProps> = ({
                     // Refresh attribute types list after successful creation/update
                     console.log('CreateAttributeModal onSuccess: Refreshing attribute types list');
                     fetchAttributeTypes(productForm.category, productForm.subcategory);
-                    
+
                     // Show additional confirmation toast on the product page
                     toast.success('Attribute is now available in the list below!', {
                         duration: 3000,
@@ -2491,6 +2531,41 @@ const AddProductForm: React.FC<AddProductFormProps> = ({
                     });
                 }}
             />
+
+            {/* Visual Configurator Modal */}
+            <AnimatePresence>
+                {showConfiguratorModal && editingProductId && (
+                    <motion.div
+                        className="fixed inset-0 z-50 flex items-center justify-center p-4"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                    >
+                        {/* Backdrop */}
+                        <motion.div
+                            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+                            onClick={() => setShowConfiguratorModal(false)}
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                        />
+
+                        {/* Modal Content */}
+                        <motion.div
+                            className="relative w-full max-w-6xl max-h-[90vh] overflow-y-auto rounded-2xl"
+                            initial={{ scale: 0.9, y: 20 }}
+                            animate={{ scale: 1, y: 0 }}
+                            exit={{ scale: 0.9, y: 20 }}
+                        >
+                            <ConfiguratorAssetMatrix
+                                productId={editingProductId}
+                                productName={productForm.name || 'Product'}
+                                onClose={() => setShowConfiguratorModal(false)}
+                            />
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </>
     );
 };

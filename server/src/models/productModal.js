@@ -166,6 +166,52 @@ const ProductSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Department",
     }],
+
+    // ========================================================================
+    // CONFIGURATOR SETTINGS (Optional - for Matrix Strategy visual configurator)
+    // Products without this field work exactly as before
+    // ========================================================================
+    configuratorSettings: {
+      // Enable/disable visual configurator for this product
+      isConfiguratorEnabled: {
+        type: Boolean,
+        default: false,
+      },
+      // Attributes used for visual configurator (subset of dynamicAttributes)
+      // Only these attributes will drive the image matrix
+      configuratorAttributes: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "AttributeType",
+      }],
+      // Order of attributes for hash generation (important for consistency)
+      attributeOrder: [String],
+      // Naming pattern for images: "prod_{material}_{color}_{finish}.jpg"
+      imageNamingPattern: {
+        type: String,
+        default: "prod",
+      },
+      // Base folder path in Cloudinary for configurator images
+      configuratorImageFolder: {
+        type: String,
+        default: "configurator",
+      },
+      // Default/fallback image when specific combination not available
+      defaultConfiguratorImage: String,
+      // Enable preloading of adjacent combinations for faster UX
+      enablePreloading: {
+        type: Boolean,
+        default: true,
+      },
+      // Maximum combinations allowed (safety limit)
+      maxCombinations: {
+        type: Number,
+        default: 1000,
+      },
+      // Metadata about the matrix
+      totalCombinations: Number,
+      uploadedCombinations: Number,
+      lastMatrixGeneration: Date,
+    },
   },
   { timestamps: true }
 );
