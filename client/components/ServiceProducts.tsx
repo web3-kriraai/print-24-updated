@@ -13,8 +13,8 @@ interface ServiceProductsProps {
 
 // Helper function to get number of visible items based on screen width
 const getVisibleItems = (screenWidth: number): number => {
-    if (screenWidth >= 1536) return 8; // 2xl: 8 items (reduced from 9 for better spacing)
-    if (screenWidth >= 1280) return 7; // xl: 7 items
+    if (screenWidth >= 1536) return 9; // 2xl: 9 items
+    if (screenWidth >= 1280) return 8; // xl: 8 items
     if (screenWidth >= 1024) return 6; // lg: 6 items
     if (screenWidth >= 768) return 5; // md: 5 items
     if (screenWidth >= 640) return 4; // sm: 4 items
@@ -134,7 +134,7 @@ const ServiceProducts: React.FC<ServiceProductsProps> = ({ service }) => {
 
     return (
         <div className="w-full bg-white py-12">
-            <div className="max-w-7xl mx-auto px-1 sm:px-2 lg:px-3">
+            <div className="max-w-[1920px] mx-auto px-2 sm:px-3 lg:px-4">
 
                 {/* Main Header */}
                 <div className="text-center mb-12">
@@ -181,7 +181,7 @@ const ServiceProducts: React.FC<ServiceProductsProps> = ({ service }) => {
                                 const shouldShowTitleHeader = sortedTitles.length > 1;
 
                                 return (
-                                    <div key={title._id || index} className="mb-16 last:mb-0">
+                                    <div key={title._id || index} className="max-w-[1440px] mx-auto mb-16 last:mb-0">
 
                                         {/* Title Header - Only show when multiple titles exist */}
                                         {shouldShowTitleHeader && (
@@ -252,7 +252,7 @@ const ServiceProducts: React.FC<ServiceProductsProps> = ({ service }) => {
                                                 <div
                                                     id={`items-scroll-${title._id || index}`}
                                                     onScroll={() => checkScrollPosition(`items-scroll-${title._id || index}`)}
-                                                    className="flex overflow-x-auto overflow-y-hidden pb-2 sm:pb-3 md:pb-4 snap-x snap-mandatory scroll-smooth touch-pan-x gap-4"
+                                                    className="flex overflow-x-auto overflow-y-hidden pb-2 sm:pb-3 md:pb-4 snap-x snap-mandatory scroll-smooth touch-pan-x gap-4 max-w-[1440px] mx-auto"
                                                     style={{
                                                         scrollbarWidth: 'none',
                                                         msOverflowStyle: 'none',
