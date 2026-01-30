@@ -4980,98 +4980,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                         </div>
                                                       </div>
                                                     )}
-                                                    {/* Image upload fields if selected option requires images */}
-                                                    {(() => {
-                                                      const selectedValue = selectedDynamicAttributes[attrId];
-                                                      if (!selectedValue) return null;
 
-                                                      const selectedOption = attributeValues.find((av: any) => av.value === selectedValue);
-                                                      if (!selectedOption || !selectedOption.description) return null;
-
-                                                      // Parse numberOfImagesRequired from description
-                                                      const imagesRequiredMatch = selectedOption.description.match(/Images Required: (\d+)/);
-                                                      const numberOfImagesRequired = imagesRequiredMatch ? parseInt(imagesRequiredMatch[1]) : 0;
-
-                                                      if (numberOfImagesRequired <= 0) return null;
-
-                                                      // Get uploaded images for this attribute
-                                                      const imagesKey = `${attrId}_images`;
-                                                      const uploadedImages = Array.isArray(selectedDynamicAttributes[imagesKey])
-                                                        ? (selectedDynamicAttributes[imagesKey] as File[])
-                                                        : [];
-
-                                                      return (
-                                                        <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                                                          <label className="block text-sm font-semibold text-gray-900 mb-3">
-                                                            Upload Images for {selectedOption.label} ({numberOfImagesRequired} required) *
-                                                          </label>
-                                                          <div className="space-y-3">
-                                                            {Array.from({ length: numberOfImagesRequired }).map((_, index) => {
-                                                              const file = uploadedImages[index] || null;
-                                                              return (
-                                                                <div key={index} className="flex items-center gap-3">
-                                                                  <input
-                                                                    type="file"
-                                                                    accept="image/*"
-                                                                    data-image-index={index}
-                                                                    data-attr-id={attrId}
-                                                                    onChange={(e) => {
-                                                                      const newFile = e.target.files?.[0] || null;
-                                                                      if (newFile) {
-                                                                        const updatedImages = [...uploadedImages];
-                                                                        // Fill gaps with null if needed
-                                                                        while (updatedImages.length <= index) {
-                                                                          updatedImages.push(null as any);
-                                                                        }
-                                                                        updatedImages[index] = newFile;
-                                                                        setSelectedDynamicAttributes({
-                                                                          ...selectedDynamicAttributes,
-                                                                          [imagesKey]: updatedImages
-                                                                        });
-                                                                      }
-                                                                    }}
-                                                                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                                                                  />
-                                                                  {file && (
-                                                                    <div className="flex items-center gap-2">
-                                                                      <span className="text-xs text-gray-600 max-w-[150px] truncate">
-                                                                        {file.name}
-                                                                      </span>
-                                                                      <button
-                                                                        type="button"
-                                                                        onClick={() => {
-                                                                          const updatedImages = [...uploadedImages];
-                                                                          updatedImages[index] = null as any;
-                                                                          // Keep array structure but set this index to null
-                                                                          setSelectedDynamicAttributes({
-                                                                            ...selectedDynamicAttributes,
-                                                                            [imagesKey]: updatedImages
-                                                                          });
-                                                                          // Reset the file input
-                                                                          const fileInput = document.querySelector(`input[type="file"][data-image-index="${index}"][data-attr-id="${attrId}"]`) as HTMLInputElement;
-                                                                          if (fileInput) {
-                                                                            fileInput.value = '';
-                                                                          }
-                                                                        }}
-                                                                        className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
-                                                                        title="Remove image"
-                                                                      >
-                                                                        <X size={16} />
-                                                                      </button>
-                                                                    </div>
-                                                                  )}
-                                                                </div>
-                                                              );
-                                                            })}
-                                                          </div>
-                                                          {uploadedImages.length < numberOfImagesRequired && (
-                                                            <p className="text-xs text-red-600 mt-2">
-                                                              Please upload {numberOfImagesRequired - uploadedImages.length} more image(s)
-                                                            </p>
-                                                          )}
-                                                        </div>
-                                                      );
-                                                    })()}
                                                   </>
                                                 )}
                                               </div>
@@ -5117,98 +5026,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                       </div>
                                                       <ArrowRight size={18} className="text-gray-400 group-hover:text-gray-600 transition-colors" />
                                                     </button>
-                                                    {/* Image upload fields if selected option requires images */}
-                                                    {(() => {
-                                                      const selectedValue = selectedDynamicAttributes[attrId];
-                                                      if (!selectedValue) return null;
 
-                                                      const selectedOption = attributeValues.find((av: any) => av.value === selectedValue);
-                                                      if (!selectedOption || !selectedOption.description) return null;
-
-                                                      // Parse numberOfImagesRequired from description
-                                                      const imagesRequiredMatch = selectedOption.description.match(/Images Required: (\d+)/);
-                                                      const numberOfImagesRequired = imagesRequiredMatch ? parseInt(imagesRequiredMatch[1]) : 0;
-
-                                                      if (numberOfImagesRequired <= 0) return null;
-
-                                                      // Get uploaded images for this attribute
-                                                      const imagesKey = `${attrId}_images`;
-                                                      const uploadedImages = Array.isArray(selectedDynamicAttributes[imagesKey])
-                                                        ? (selectedDynamicAttributes[imagesKey] as File[])
-                                                        : [];
-
-                                                      return (
-                                                        <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                                                          <label className="block text-sm font-semibold text-gray-900 mb-3">
-                                                            Upload Images for {selectedOption.label} ({numberOfImagesRequired} required) *
-                                                          </label>
-                                                          <div className="space-y-3">
-                                                            {Array.from({ length: numberOfImagesRequired }).map((_, index) => {
-                                                              const file = uploadedImages[index] || null;
-                                                              return (
-                                                                <div key={index} className="flex items-center gap-3">
-                                                                  <input
-                                                                    type="file"
-                                                                    accept="image/*"
-                                                                    data-image-index={index}
-                                                                    data-attr-id={attrId}
-                                                                    onChange={(e) => {
-                                                                      const newFile = e.target.files?.[0] || null;
-                                                                      if (newFile) {
-                                                                        const updatedImages = [...uploadedImages];
-                                                                        // Fill gaps with null if needed
-                                                                        while (updatedImages.length <= index) {
-                                                                          updatedImages.push(null as any);
-                                                                        }
-                                                                        updatedImages[index] = newFile;
-                                                                        setSelectedDynamicAttributes({
-                                                                          ...selectedDynamicAttributes,
-                                                                          [imagesKey]: updatedImages
-                                                                        });
-                                                                      }
-                                                                    }}
-                                                                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                                                                  />
-                                                                  {file && (
-                                                                    <div className="flex items-center gap-2">
-                                                                      <span className="text-xs text-gray-600 max-w-[150px] truncate">
-                                                                        {file.name}
-                                                                      </span>
-                                                                      <button
-                                                                        type="button"
-                                                                        onClick={() => {
-                                                                          const updatedImages = [...uploadedImages];
-                                                                          updatedImages[index] = null as any;
-                                                                          // Keep array structure but set this index to null
-                                                                          setSelectedDynamicAttributes({
-                                                                            ...selectedDynamicAttributes,
-                                                                            [imagesKey]: updatedImages
-                                                                          });
-                                                                          // Reset the file input
-                                                                          const fileInput = document.querySelector(`input[type="file"][data-image-index="${index}"][data-attr-id="${attrId}"]`) as HTMLInputElement;
-                                                                          if (fileInput) {
-                                                                            fileInput.value = '';
-                                                                          }
-                                                                        }}
-                                                                        className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
-                                                                        title="Remove image"
-                                                                      >
-                                                                        <X size={16} />
-                                                                      </button>
-                                                                    </div>
-                                                                  )}
-                                                                </div>
-                                                              );
-                                                            })}
-                                                          </div>
-                                                          {uploadedImages.length < numberOfImagesRequired && (
-                                                            <p className="text-xs text-red-600 mt-2">
-                                                              Please upload {numberOfImagesRequired - uploadedImages.length} more image(s)
-                                                            </p>
-                                                          )}
-                                                        </div>
-                                                      );
-                                                    })()}
                                                   </>
                                                 )}
                                               </div>
@@ -5386,100 +5204,521 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                             );
                           })()}
 
-                          {/* Delivery information removed - will be shown at checkout only */}
 
-                          {/* Upload Design Section */}
-                          <div className="mb-6 sm:mb-8 bg-gray-50 p-4 sm:p-6 rounded-xl border border-gray-200" data-upload-section>
-                            <h3 className="font-bold text-sm sm:text-base text-gray-900 mb-3 sm:mb-4 flex items-center gap-2">
-                              <UploadIcon size={16} className="sm:w-[18px] sm:h-[18px]" /> Upload Your Design
-                            </h3>
 
-                            <div className="mb-4">
-                              <label className="block text-sm text-gray-700 mb-2">Upload Reference Image *</label>
-                              <label className="cursor-pointer">
-                                <input
-                                  type="file"
-                                  accept="image/*"
-                                  onChange={(e) => handleDesignFileChange(e, "front")}
-                                  className="hidden"
-                                  data-required-field
-                                />
-                                <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-gray-900 transition-colors">
-                                  {frontDesignPreview ? (
-                                    <div className="relative">
-                                      <img
-                                        src={frontDesignPreview}
-                                        alt="Reference image preview"
-                                        className="max-h-32 mx-auto rounded"
-                                      />
-                                      <button
-                                        onClick={(e) => {
-                                          e.preventDefault();
-                                          setFrontDesignFile(null);
-                                          setFrontDesignPreview("");
-                                        }}
-                                        className="absolute top-0 right-0 bg-red-500 text-white rounded-full p-1"
+                          {/* Consolidated Image Upload Section */}
+                          {(() => {
+                            // Collect all attributes that require images based on selected values
+                            const imageUploadsRequired: Array<{
+                              attrId: string;
+                              attrName: string;
+                              optionLabel: string;
+                              numberOfImages: number;
+                              imagesKey: string;
+                            }> = [];
+
+                            // Use PDP attributes if available, otherwise fallback to product attributes
+                            let attributesToCheck: any[] = [];
+                            
+                            if (isInitialized && pdpAttributes.length > 0) {
+                              const ruleResult = applyAttributeRules({
+                                attributes: pdpAttributes,
+                                rules: pdpRules,
+                                selectedValues: { ...selectedDynamicAttributes } as Record<string, string | number | boolean | File | any[] | null>,
+                              });
+                              attributesToCheck = ruleResult.attributes.filter((attr) => attr.isVisible);
+                            } else if (selectedProduct.dynamicAttributes) {
+                              attributesToCheck = selectedProduct.dynamicAttributes.filter((attr) => attr.isEnabled);
+                            }
+
+                            // Check each attribute for image requirements
+                            attributesToCheck.forEach((attr) => {
+                              let attrType: any = null;
+                              let attributeValues: any[] = [];
+                              let attrId: string = '';
+                              let attrName: string = '';
+
+                              if (isInitialized && pdpAttributes.length > 0) {
+                                attrId = attr._id;
+                                attrName = attr.attributeName;
+                                attributeValues = (attr.allowedValues && attr.allowedValues.length > 0)
+                                  ? (attr.attributeValues || []).filter((av: any) => attr.allowedValues!.includes(av.value))
+                                  : (attr.attributeValues || []);
+                              } else {
+                                if (typeof attr.attributeType === 'object' && attr.attributeType !== null) {
+                                  attrType = attr.attributeType;
+                                  attrId = attrType._id;
+                                  attrName = attrType.attributeName;
+                                  attributeValues = attr.customValues && attr.customValues.length > 0
+                                    ? attr.customValues
+                                    : attrType.attributeValues || [];
+                                }
+                              }
+
+                              if (!attrId) return;
+
+                              const selectedValue = selectedDynamicAttributes[attrId];
+                              if (!selectedValue) return;
+
+                              const selectedOption = attributeValues.find((av: any) => av.value === selectedValue);
+                              if (!selectedOption || !selectedOption.description) return;
+
+                              const imagesRequiredMatch = selectedOption.description.match(/Images Required: (\d+)/);
+                              const numberOfImagesRequired = imagesRequiredMatch ? parseInt(imagesRequiredMatch[1]) : 0;
+
+                              if (numberOfImagesRequired > 0) {
+                                imageUploadsRequired.push({
+                                  attrId,
+                                  attrName,
+                                  optionLabel: selectedOption.label,
+                                  numberOfImages: numberOfImagesRequired,
+                                  imagesKey: `${attrId}_images`,
+                                });
+                              }
+                            });
+
+                            if (imageUploadsRequired.length === 0) return null;
+
+                            return (
+                              <div className="mb-6 sm:mb-8 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                                {/* Header Section */}
+                                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-4 sm:px-5 py-3 sm:py-4 border-b border-gray-200">
+                                  <div className="flex items-center gap-2.5">
+                                    <div className="w-8 h-8 rounded-lg bg-white shadow-sm flex items-center justify-center">
+                                      <svg 
+                                        className="w-[18px] h-[18px] text-blue-600" 
+                                        fill="none" 
+                                        stroke="currentColor" 
+                                        viewBox="0 0 24 24"
                                       >
-                                        <X size={14} />
-                                      </button>
+                                        <path 
+                                          strokeLinecap="round" 
+                                          strokeLinejoin="round" 
+                                          strokeWidth={2} 
+                                          d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" 
+                                        />
+                                      </svg>
                                     </div>
-                                  ) : (
-                                    <div className="flex flex-col items-center gap-2">
-                                      <FileImage size={24} className="text-gray-600" />
-                                      <span className="text-sm text-gray-600">Click to upload reference image</span>
+                                    <div>
+                                      <h3 className="font-semibold text-sm sm:text-base text-gray-900">
+                                        Upload Required Images
+                                      </h3>
+                                      <p className="text-xs text-gray-500 mt-0.5">
+                                        {imageUploadsRequired.reduce((sum, req) => sum + req.numberOfImages, 0)} image{imageUploadsRequired.reduce((sum, req) => sum + req.numberOfImages, 0) > 1 ? 's' : ''} needed
+                                      </p>
                                     </div>
-                                  )}
+                                  </div>
                                 </div>
-                              </label>
+
+                                {/* Upload Items */}
+                                <div className="p-4 sm:p-5">
+                                  <div className="grid grid-cols-1 gap-4">
+                                  {imageUploadsRequired.map((uploadReq, reqIndex) => {
+                                    const uploadedImages = Array.isArray(selectedDynamicAttributes[uploadReq.imagesKey])
+                                      ? (selectedDynamicAttributes[uploadReq.imagesKey] as File[])
+                                      : [];
+                                    
+                                    const uploadedCount = uploadedImages.filter(f => f !== null).length;
+                                    const isComplete = uploadedCount === uploadReq.numberOfImages;
+
+                                    return (
+                                      <div 
+                                        key={uploadReq.attrId} 
+                                        className={`rounded-lg p-4 border-2 transition-all ${
+                                          isComplete 
+                                            ? 'bg-green-50 border-green-200' 
+                                            : 'bg-gray-50 border-gray-200'
+                                        }`}
+                                      >
+                                        {/* Attribute Header */}
+                                        <div className="mb-4">
+                                          <div className="flex items-start justify-between mb-2">
+                                            <div className="flex-1">
+                                              <div className="flex items-center gap-2 mb-1">
+                                                <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-100 text-blue-700 text-xs font-bold">
+                                                  {reqIndex + 1}
+                                                </span>
+                                                <h4 className="text-sm font-bold text-gray-900">
+                                                  {uploadReq.attrName}
+                                                </h4>
+                                              </div>
+                                              <p className="text-xs text-gray-600">
+                                                {uploadReq.optionLabel}
+                                              </p>
+                                            </div>
+                                            
+                                            {isComplete ? (
+                                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-100 text-green-700 text-xs font-semibold">
+                                                <Check size={12} strokeWidth={3} />
+                                                Complete
+                                              </span>
+                                            ) : (
+                                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-100 text-amber-700 text-xs font-semibold">
+                                                <AlertCircle size={12} />
+                                                {uploadReq.numberOfImages - uploadedCount} pending
+                                              </span>
+                                            )}
+                                          </div>
+                                        </div>
+
+                                        {/* Upload Grid - Responsive grid layout */}
+                                        <div className={`grid gap-3 ${
+                                          uploadReq.numberOfImages === 1 ? 'grid-cols-1' : 
+                                          uploadReq.numberOfImages === 2 ? 'grid-cols-2' : 
+                                          uploadReq.numberOfImages === 3 ? 'grid-cols-3' : 
+                                          'grid-cols-2 sm:grid-cols-3 md:grid-cols-4'
+                                        }`}>
+                                          {Array.from({ length: uploadReq.numberOfImages }).map((_, index) => {
+                                            const file = uploadedImages[index] || null;
+                                            const fileInputId = `file-${uploadReq.attrId}-${index}`;
+
+                                            return (
+                                              <div key={index} className="relative">
+                                                <input
+                                                  type="file"
+                                                  id={fileInputId}
+                                                  accept="image/*"
+                                                  data-image-index={index}
+                                                  data-attr-id={uploadReq.attrId}
+                                                  onChange={(e) => {
+                                                    const newFile = e.target.files?.[0] || null;
+                                                    if (newFile) {
+                                                      const updatedImages = [...uploadedImages];
+                                                      while (updatedImages.length <= index) {
+                                                        updatedImages.push(null as any);
+                                                      }
+                                                      updatedImages[index] = newFile;
+                                                      setSelectedDynamicAttributes({
+                                                        ...selectedDynamicAttributes,
+                                                        [uploadReq.imagesKey]: updatedImages
+                                                      });
+                                                    }
+                                                  }}
+                                                  className="hidden"
+                                                />
+                                                
+                                                {file ? (
+                                                  <div className="relative group">
+                                                    {/* Image Thumbnail */}
+                                                    <div className={`w-full rounded-xl overflow-hidden border-2 border-green-400 bg-white shadow-md hover:shadow-lg transition-all ${uploadReq.numberOfImages === 1 ? 'aspect-[4/1] sm:aspect-[5/1]' : 'aspect-[3/2]'}`}>
+                                                      <img
+                                                        src={URL.createObjectURL(file)}
+                                                        alt={`Upload ${index + 1}`}
+                                                        className="w-full h-full object-cover"
+                                                        onLoad={(e) => {
+                                                          URL.revokeObjectURL((e.target as HTMLImageElement).src);
+                                                        }}
+                                                      />
+                                                    </div>
+                                                    
+                                                    {/* Success Badge */}
+                                                    <div className="absolute -top-2 -left-2 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center shadow-md">
+                                                      <Check size={14} className="text-white" strokeWidth={3} />
+                                                    </div>
+                                                    
+                                                    {/* Remove Button */}
+                                                    <button
+                                                      type="button"
+                                                      onClick={() => {
+                                                        const updatedImages = [...uploadedImages];
+                                                        updatedImages[index] = null as any;
+                                                        setSelectedDynamicAttributes({
+                                                          ...selectedDynamicAttributes,
+                                                          [uploadReq.imagesKey]: updatedImages
+                                                        });
+                                                        const fileInput = document.getElementById(fileInputId) as HTMLInputElement;
+                                                        if (fileInput) {
+                                                          fileInput.value = '';
+                                                        }
+                                                      }}
+                                                      className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-md transition-all opacity-0 group-hover:opacity-100 hover:scale-110"
+                                                      title="Remove image"
+                                                    >
+                                                      <X size={14} strokeWidth={3} />
+                                                    </button>
+                                                    
+                                                    {/* Filename Overlay */}
+                                                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent text-white text-[10px] font-medium text-center px-1 py-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                      {file.name.length > 15 ? file.name.substring(0, 15) + '...' : file.name}
+                                                    </div>
+                                                  </div>
+                                                ) : (
+                                                  <label
+                                                    htmlFor={fileInputId}
+                                                    className={`w-full cursor-pointer border-2 border-dashed border-gray-300 rounded-xl hover:border-blue-400 hover:bg-blue-50 transition-all duration-200 flex flex-col items-center justify-center gap-2 bg-white group shadow-sm hover:shadow-md ${uploadReq.numberOfImages === 1 ? 'aspect-[4/1] sm:aspect-[5/1]' : 'aspect-[3/2]'}`}
+                                                  >
+                                                    {/* Upload Icon */}
+                                                    <svg 
+                                                      className="w-8 h-8 text-gray-400 group-hover:text-blue-500 transition-colors" 
+                                                      fill="none" 
+                                                      stroke="currentColor" 
+                                                      viewBox="0 0 24 24"
+                                                    >
+                                                      <path 
+                                                        strokeLinecap="round" 
+                                                        strokeLinejoin="round" 
+                                                        strokeWidth={2} 
+                                                        d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" 
+                                                      />
+                                                    </svg>
+                                                    
+                                                    {/* Upload Text */}
+                                                    <div className="text-center">
+                                                      <span className="block text-xs font-semibold text-gray-600 group-hover:text-blue-600">
+                                                        Upload
+                                                      </span>
+                                                      <span className="block text-[10px] text-gray-400 mt-0.5">
+                                                        Image {index + 1}
+                                                      </span>
+                                                    </div>
+                                                  </label>
+                                                )}
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })()}
+
+                          {/* Upload Your Design Section - Redesigned */}
+                          <div className="mb-6 sm:mb-8 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                            {/* Header Section */}
+                            <div className="bg-gradient-to-r from-purple-50 to-pink-50 px-4 sm:px-5 py-3 sm:py-4 border-b border-gray-200">
+                              <div className="flex items-center gap-2.5">
+                                <div className="w-8 h-8 rounded-lg bg-white shadow-sm flex items-center justify-center">
+                                  <svg 
+                                    className="w-[18px] h-[18px] text-purple-600" 
+                                    fill="none" 
+                                    stroke="currentColor" 
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <path 
+                                      strokeLinecap="round" 
+                                      strokeLinejoin="round" 
+                                      strokeWidth={2} 
+                                      d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" 
+                                    />
+                                  </svg>
+                                </div>
+                                <div>
+                                  <h3 className="font-semibold text-sm sm:text-base text-gray-900">
+                                    Upload Your Design
+                                  </h3>
+                                  <p className="text-xs text-gray-500 mt-0.5">
+                                    Reference image required • Back design optional
+                                  </p>
+                                </div>
+                              </div>
                             </div>
 
-                            <div className="mb-4">
-                              <label className="block text-sm text-gray-700 mb-2">Back Design (Optional)</label>
-                              <label className="cursor-pointer">
-                                <input
-                                  type="file"
-                                  accept="image/*"
-                                  onChange={(e) => handleDesignFileChange(e, "back")}
-                                  className="hidden"
-                                />
-                                <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-gray-900 transition-colors">
-                                  {backDesignPreview ? (
-                                    <div className="relative">
-                                      <img
-                                        src={backDesignPreview}
-                                        alt="Back design preview"
-                                        className="max-h-32 mx-auto rounded"
-                                      />
-                                      <button
-                                        onClick={(e) => {
-                                          e.preventDefault();
-                                          setBackDesignFile(null);
-                                          setBackDesignPreview("");
-                                        }}
-                                        className="absolute top-0 right-0 bg-red-500 text-white rounded-full p-1"
+                            {/* Upload Items */}
+                            <div className="p-4 sm:p-5">
+                              {/* Combined Reference and Back Design Upload */}
+                              <div className="rounded-lg p-4 border-2 border-gray-200 bg-gray-50 mb-4">
+                                {/* Upload Buttons Row */}
+                                <div className="grid grid-cols-2 gap-4 mb-4">
+                                  {/* Reference Image */}
+                                  <div>
+                                    <div className="flex items-center gap-2 mb-2">
+                                      <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-purple-100 text-purple-700 text-xs font-bold">
+                                        1
+                                      </span>
+                                      <h4 className="text-sm font-bold text-gray-900">
+                                        Reference Image
+                                      </h4>
+                                      <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[10px] font-semibold">
+                                        Required
+                                      </span>
+                                    </div>
+                                    <p className="text-xs text-gray-600 mb-3">
+                                      Upload your design file for the front side
+                                    </p>
+                                    
+                                    <input
+                                      type="file"
+                                      id="reference-image-upload"
+                                      accept="image/*"
+                                      onChange={(e) => handleDesignFileChange(e, "front")}
+                                      className="hidden"
+                                      data-required-field
+                                    />
+                                    
+                                    {frontDesignFile && frontDesignPreview ? (
+                                      <div className="relative group">
+                                        <div className="w-full aspect-[3/2] rounded-xl overflow-hidden border-2 border-green-400 bg-white shadow-md hover:shadow-lg transition-all">
+                                          <img
+                                            src={frontDesignPreview}
+                                            alt="Reference image preview"
+                                            className="w-full h-full object-cover"
+                                          />
+                                        </div>
+                                        
+                                        <div className="absolute -top-2 -left-2 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center shadow-md">
+                                          <Check size={14} className="text-white" strokeWidth={3} />
+                                        </div>
+                                        
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.preventDefault();
+                                            setFrontDesignFile(null);
+                                            setFrontDesignPreview("");
+                                          }}
+                                          className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-md transition-all opacity-0 group-hover:opacity-100 hover:scale-110"
+                                          title="Remove image"
+                                        >
+                                          <X size={14} strokeWidth={3} />
+                                        </button>
+                                        
+                                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent text-white text-[10px] font-medium text-center px-1 py-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                          {frontDesignFile.name.length > 20 ? frontDesignFile.name.substring(0, 20) + '...' : frontDesignFile.name}
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <label
+                                        htmlFor="reference-image-upload"
+                                        className="w-full aspect-[3/2] cursor-pointer border-2 border-dashed border-gray-300 rounded-xl hover:border-purple-400 hover:bg-purple-50 transition-all duration-200 flex flex-col items-center justify-center gap-2 bg-white group shadow-sm hover:shadow-md"
                                       >
-                                        <X size={14} />
-                                      </button>
-                                    </div>
-                                  ) : (
-                                    <div className="flex flex-col items-center gap-2">
-                                      <FileImage size={24} className="text-gray-600" />
-                                      <span className="text-sm text-gray-600">Click to upload back design</span>
-                                    </div>
-                                  )}
-                                </div>
-                              </label>
-                            </div>
+                                        <svg 
+                                          className="w-8 h-8 text-gray-400 group-hover:text-purple-500 transition-colors" 
+                                          fill="none" 
+                                          stroke="currentColor" 
+                                          viewBox="0 0 24 24"
+                                        >
+                                          <path 
+                                            strokeLinecap="round" 
+                                            strokeLinejoin="round" 
+                                            strokeWidth={2} 
+                                            d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" 
+                                          />
+                                        </svg>
+                                        <div className="text-center">
+                                          <span className="block text-sm font-semibold text-gray-600 group-hover:text-purple-600">
+                                            Upload Image
+                                          </span>
+                                          <span className="block text-xs text-gray-400 mt-0.5">
+                                            Image 1
+                                          </span>
+                                        </div>
+                                      </label>
+                                    )}
+                                  </div>
 
-                            <div className="mb-4">
-                              <label className="block text-sm text-gray-700 mb-2">Additional Notes (Optional)</label>
-                              <textarea
-                                value={orderNotes}
-                                onChange={(e) => setOrderNotes(e.target.value)}
-                                placeholder="Any special instructions or notes..."
-                                className="w-full p-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none text-sm resize-none"
-                                rows={3}
-                              />
+                                  {/* Back Design */}
+                                  <div>
+                                    <div className="flex items-center gap-2 mb-2">
+                                      <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-purple-100 text-purple-700 text-xs font-bold">
+                                        2
+                                      </span>
+                                      <h4 className="text-sm font-bold text-gray-900">
+                                        Back Design
+                                      </h4>
+                                      <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-200 text-gray-600 text-[10px] font-semibold">
+                                        Optional
+                                      </span>
+                                    </div>
+                                    <p className="text-xs text-gray-600 mb-3">
+                                      Upload design for the back side (if applicable)
+                                    </p>
+                                    
+                                    <input
+                                      type="file"
+                                      id="back-design-upload"
+                                      accept="image/*"
+                                      onChange={(e) => handleDesignFileChange(e, "back")}
+                                      className="hidden"
+                                    />
+                                    
+                                    {backDesignFile && backDesignPreview ? (
+                                      <div className="relative group">
+                                        <div className="w-full aspect-[3/2] rounded-xl overflow-hidden border-2 border-green-400 bg-white shadow-md hover:shadow-lg transition-all">
+                                          <img
+                                            src={backDesignPreview}
+                                            alt="Back design preview"
+                                            className="w-full h-full object-cover"
+                                          />
+                                        </div>
+                                        
+                                        <div className="absolute -top-2 -left-2 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center shadow-md">
+                                          <Check size={14} className="text-white" strokeWidth={3} />
+                                        </div>
+                                        
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.preventDefault();
+                                            setBackDesignFile(null);
+                                            setBackDesignPreview("");
+                                          }}
+                                          className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-md transition-all opacity-0 group-hover:opacity-100 hover:scale-110"
+                                          title="Remove image"
+                                        >
+                                          <X size={14} strokeWidth={3} />
+                                        </button>
+                                        
+                                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent text-white text-[10px] font-medium text-center px-1 py-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                          {backDesignFile.name.length > 20 ? backDesignFile.name.substring(0, 20) + '...' : backDesignFile.name}
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <label
+                                        htmlFor="back-design-upload"
+                                        className="w-full aspect-[3/2] cursor-pointer border-2 border-dashed border-gray-300 rounded-xl hover:border-purple-400 hover:bg-purple-50 transition-all duration-200 flex flex-col items-center justify-center gap-2 bg-white group shadow-sm hover:shadow-md"
+                                      >
+                                        <svg 
+                                          className="w-8 h-8 text-gray-400 group-hover:text-purple-500 transition-colors" 
+                                          fill="none" 
+                                          stroke="currentColor" 
+                                          viewBox="0 0 24 24"
+                                        >
+                                          <path 
+                                            strokeLinecap="round" 
+                                            strokeLinejoin="round" 
+                                            strokeWidth={2} 
+                                            d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" 
+                                          />
+                                        </svg>
+                                        <div className="text-center">
+                                          <span className="block text-sm font-semibold text-gray-600 group-hover:text-purple-600">
+                                            Upload Image
+                                          </span>
+                                          <span className="block text-xs text-gray-400 mt-0.5">
+                                            Image 2
+                                          </span>
+                                        </div>
+                                      </label>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Additional Notes */}
+                              <div className="rounded-lg p-4 border-2 border-gray-200 bg-gray-50">
+                                <div className="flex items-center gap-2 mb-3">
+                                  <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-purple-100 text-purple-700 text-xs font-bold">
+                                    3
+                                  </span>
+                                  <h4 className="text-sm font-bold text-gray-900">
+                                    Additional Notes
+                                  </h4>
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-200 text-gray-600 text-[10px] font-semibold">
+                                    Optional
+                                  </span>
+                                </div>
+                                <textarea
+                                  value={orderNotes}
+                                  onChange={(e) => setOrderNotes(e.target.value)}
+                                  placeholder="Any special instructions or notes for your order..."
+                                  className="w-full p-3 rounded-lg border-2 border-gray-200 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none text-sm resize-none bg-white transition-all"
+                                  rows={3}
+                                />
+                              </div>
                             </div>
                           </div>
 
