@@ -13,8 +13,8 @@ interface ServiceProductsProps {
 
 // Helper function to get number of visible items based on screen width
 const getVisibleItems = (screenWidth: number): number => {
-    if (screenWidth >= 1536) return 9; // 2xl: 9 items
-    if (screenWidth >= 1280) return 8; // xl: 8 items
+    if (screenWidth >= 1536) return 8; // 2xl: 8 items (reduced from 9 for better spacing)
+    if (screenWidth >= 1280) return 7; // xl: 7 items
     if (screenWidth >= 1024) return 6; // lg: 6 items
     if (screenWidth >= 768) return 5; // md: 5 items
     if (screenWidth >= 640) return 4; // sm: 4 items
