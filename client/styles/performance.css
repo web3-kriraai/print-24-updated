@@ -1,0 +1,74 @@
+/* ============================================
+   PERFORMANCE OPTIMIZATIONS
+   Using Tailwind CSS + minimal custom styles
+   ============================================ */
+
+/* Shimmer animation for skeleton wave effect */
+@keyframes shimmer {
+    0% {
+        transform: translateX(-100%);
+    }
+
+    100% {
+        transform: translateX(100%);
+    }
+}
+
+/* Mini scrollbar for sub-attributes (Tailwind doesn't support ::-webkit-scrollbar) */
+.mini-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(203 213 224) rgb(247 250 252);
+    scroll-behavior: smooth;
+}
+
+.mini-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+.mini-scrollbar::-webkit-scrollbar-track {
+    background: rgb(247 250 252);
+    border-radius: 5px;
+}
+
+.mini-scrollbar::-webkit-scrollbar-thumb {
+    background: rgb(203 213 224);
+    border-radius: 5px;
+    transition: background 0.2s ease;
+}
+
+.mini-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgb(160 174 192);
+}
+
+/* Dark mode scrollbar */
+@media (prefers-color-scheme: dark) {
+    .mini-scrollbar {
+        scrollbar-color: rgb(74 85 104) rgb(45 55 72);
+    }
+
+    .mini-scrollbar::-webkit-scrollbar-track {
+        background: rgb(45 55 72);
+    }
+
+    .mini-scrollbar::-webkit-scrollbar-thumb {
+        background: rgb(74 85 104);
+    }
+
+    .mini-scrollbar::-webkit-scrollbar-thumb:hover {
+        background: rgb(113 128 150);
+    }
+}
+
+/* Reduce motion for accessibility */
+@media (prefers-reduced-motion: reduce) {
+    * {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+
+    .mini-scrollbar {
+        scroll-behavior: auto;
+    }
+}

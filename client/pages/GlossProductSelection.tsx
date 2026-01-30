@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useParams, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowRight, Check, Truck, Upload as UploadIcon, FileImage, CreditCard, X, Loader, Info, Lock, AlertCircle, MapPin, Zap, Square, Circle, FileText } from 'lucide-react';
+import { ArrowRight, Check, Truck, Upload as UploadIcon, FileImage, CreditCard, X, Info, Lock, AlertCircle, MapPin, Zap, Square, Circle, FileText } from 'lucide-react';
 import { Select, SelectOption } from '@/components/ui/select';
+import { ProductDetailSkeleton, Skeleton } from '@/components/ui/Skeleton';
+import { LazyImage, CloudinaryLazyImage } from '@/components/ui/LazyImage';
 import { API_BASE_URL_WITH_API as API_BASE_URL } from '../lib/apiConfig';
 import { applyAttributeRules, type AttributeRule, type Attribute } from '../utils/attributeRuleEngine';
 
@@ -3655,8 +3657,8 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
         {/* Loading State */}
 
         {loading && (
-          <div className="flex items-center justify-center py-20">
-            <Loader className="animate-spin text-gray-900" size={48} />
+          <div className="py-8">
+            <ProductDetailSkeleton />
           </div>
         )}
 
@@ -3669,11 +3671,8 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
         {/* Loading state for PDP
         {pdpLoading && productId && (
-          <div className="min-h-screen flex items-center justify-center bg-gray-50">
-            <div className="text-center">
-              <Loader className="w-8 h-8 animate-spin text-gray-900 mx-auto mb-4" />
-              <p className="text-gray-700">Loading product details...</p>
-            </div>
+          <div className="py-8">
+            <ProductDetailSkeleton />
           </div>
         )} */}
 
@@ -3789,17 +3788,13 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                         }
 
                         return (
-                          <img
+                          <LazyImage
                             src={displayImage}
                             alt={displayAlt}
                             className="w-full h-full object-cover rounded-lg transition-transform duration-700 group-hover:scale-105"
-                            onError={(e) => {
-                              // Fallback to subcategory image or default if product image fails to load
-                              const target = e.target as HTMLImageElement;
-                              if (target.src !== selectedSubCategory?.image && target.src !== "/Glossy.png") {
-                                target.src = selectedSubCategory?.image || "/Glossy.png";
-                              }
-                            }}
+                            fallbackSrc={selectedSubCategory?.image || "/Glossy.png"}
+                            showSkeleton={true}
+                            skeletonVariant="image"
                           />
                         );
                       })()}
@@ -3906,8 +3901,8 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                   {!selectedProduct ? (
                     /* Loading state - auto-redirecting to first product */
                     <div className="flex items-center justify-center py-12 min-h-[400px]">
-                      <div className="text-center">
-                        <Loader className="animate-spin text-gray-600 mx-auto mb-4" size={40} />
+                      <div className="text-center space-y-4">
+                        <Skeleton variant="circular" className="w-10 h-10 mx-auto" animation="pulse" />
                         <p className="text-gray-600 text-lg">Loading product details...</p>
                       </div>
                     </div>
@@ -3984,16 +3979,13 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
                                         {/* Product Image */}
                                         <div className="w-14 h-14 rounded-lg overflow-hidden border border-gray-100 shadow-sm relative z-10 pointer-events-none bg-gray-50">
-                                          <img
+                                          <LazyImage
                                             src={productImage}
                                             alt={product.name}
                                             className="w-full h-full object-cover"
-                                            onError={(e) => {
-                                              const target = e.target as HTMLImageElement;
-                                              if (target.src !== '/Glossy.png') {
-                                                target.src = selectedSubCategory?.image || '/Glossy.png';
-                                              }
-                                            }}
+                                            fallbackSrc={selectedSubCategory?.image || '/Glossy.png'}
+                                            showSkeleton={true}
+                                            skeletonVariant="rectangular"
                                           />
                                         </div>
 
@@ -4924,8 +4916,13 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                         <label className="block text-xs font-semibold text-gray-700 mb-2">
                                                           Select {selectedValueObj?.label || attrType.attributeName} Option:
                                                         </label>
-                                                         <div className="max-h-[400px] overflow-y-auto mini-scrollbar pr-2">
-                                                           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                                        {/* Scrollable container with fade indicators */}
+                                                        <div className="relative">
+                                                          {/* Top fade gradient */}
+                                                          <div className="absolute top-0 left-0 right-0 h-5 bg-gradient-to-b from-white to-transparent pointer-events-none z-10" />
+                                                          
+                                                          <div className="max-h-[400px] overflow-y-auto mini-scrollbar pr-2">
+                                                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                                                              {availableSubAttributes.map((subAttr) => {
                                                                // Format price display for sub-attribute
                                                                const getSubAttrPriceDisplay = () => {
@@ -4953,31 +4950,37 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                                        return next;
                                                                      });
                                                                    }}
-                                                                   className={`p-3 rounded-lg border text-left transition-all ${isSubAttrSelected
+                                                                   className={`p-3 my-3 rounded-lg border text-left transition-all ${isSubAttrSelected
                                                                      ? "border-gray-900 bg-gray-50 ring-1 ring-gray-900"
                                                                      : "border-gray-200 hover:border-gray-400"
                                                                      }`}
                                                                  >
-                                                                   {subAttr.image && (
-                                                                     <div className="mb-2">
-                                                                       <img
-                                                                         src={subAttr.image}
-                                                                         alt={subAttr.label}
-                                                                         className="w-full h-24 object-cover rounded"
-                                                                       />
-                                                                     </div>
-                                                                   )}
+                                                                    {subAttr.image && (
+                                                                      <div className="mb-2">
+                                                                        <LazyImage
+                                                                          src={subAttr.image}
+                                                                          alt={subAttr.label}
+                                                                          className="w-full h-24 object-cover rounded"
+                                                                          showSkeleton={true}
+                                                                          skeletonVariant="image"
+                                                                        />
+                                                                      </div>
+                                                                    )}
                                                                    <div className="text-sm font-medium">{subAttr.label}</div>
-                                                                   {getSubAttrPriceDisplay() && (
-                                                                     <div className="text-xs text-gray-600 mt-1">
-                                                                       {getSubAttrPriceDisplay()}
-                                                                     </div>
-                                                                   )}
-                                                                 </button>
-                                                               );
-                                                             })}
-                                                           </div>
-                                                         </div>
+                                                                    {getSubAttrPriceDisplay() && (
+                                                                      <div className="text-xs text-gray-600 mt-1">
+                                                                        {getSubAttrPriceDisplay()}
+                                                                      </div>
+                                                                    )}
+                                                                  </button>
+                                                                );
+                                                              })}
+                                                            </div>
+                                                          </div>
+                                                          
+                                                          {/* Bottom fade gradient */}
+                                                          <div className="absolute bottom-0 left-0 right-0 h-5 bg-gradient-to-t from-white to-transparent pointer-events-none z-10" />
+                                                        </div>
                                                       </div>
                                                     )}
 
@@ -5763,7 +5766,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                           >
                             {isProcessingPayment ? (
                               <>
-                                <Loader className="animate-spin" size={20} />
+                                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                                 <span>Processing...</span>
                               </>
                             ) : (
@@ -5944,7 +5947,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                         title="Get location automatically"
                       >
                         {isGettingLocation ? (
-                          <Loader className="animate-spin" size={18} />
+                          <div className="w-4 h-4 border-2 border-gray-900 border-t-transparent rounded-full animate-spin" />
                         ) : (
                           <MapPin size={18} />
                         )}
@@ -6021,7 +6024,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                 >
                   {isProcessingPayment ? (
                     <>
-                      <Loader className="animate-spin" size={18} />
+                      <div className="w-4 h-4 border-2 border-gray-600 border-t-transparent rounded-full animate-spin" />
                       Processing...
                     </>
                   ) : (

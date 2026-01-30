@@ -4,11 +4,26 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  
+  <!-- SEO & Performance Meta Tags -->
+  <meta name="description" content="Premium digital printing services - Business cards, flyers, banners, and custom printing solutions" />
+  <meta name="theme-color" content="#111827" />
+  
   <title>Prints24 - Premium Digital Printing</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Preconnect to external domains for faster font loading -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="preconnect" href="https://cdn.tailwindcss.com" />
+  
+  <!-- Optimized Google Fonts with font-display swap for better performance -->
   <link
     href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap"
     rel="stylesheet">
+  
+  <!-- Tailwind CSS CDN (for development - replace with built CSS for production) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
   <script>
     tailwind.config = {
       theme: {
@@ -35,6 +50,7 @@
       }
     }
   </script>
+  
   <style>
     html {
       scroll-behavior: smooth;
@@ -55,38 +71,7 @@
       box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1) !important;
     }
 
-    /* Mini scrollbar for compact areas */
-    .mini-scrollbar {
-      scrollbar-width: none;
-      scrollbar-color: #cbd5e1 transparent;
-      scroll-behavior: smooth;
-      -webkit-overflow-scrolling: touch;
-    }
-
-    .mini-scrollbar::-webkit-scrollbar {
-      width: 6px;
-      height: 6px;
-    }
-
-    .mini-scrollbar::-webkit-scrollbar-track {
-      background: transparent;
-    }
-
-    .mini-scrollbar::-webkit-scrollbar-thumb {
-      background: #cbd5e1;
-      /* slate-300 */
-      border-radius: 20px;
-      border: 1px solid transparent;
-      background-clip: content-box;
-    }
-
-    .mini-scrollbar::-webkit-scrollbar-thumb:hover {
-      background: #94a3b8;
-      /* slate-400 */
-    }
-
     @keyframes validationPulse {
-
       0%,
       100% {
         transform: scale(1);
@@ -96,6 +81,8 @@
         transform: scale(1.02);
       }
     }
+    
+    /* Note: .mini-scrollbar styles are now in /client/styles/performance.css */
   </style>
 </head>
 
