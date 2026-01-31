@@ -88,6 +88,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ activeTab, onTabChange }) =
                 { id: 'attribute-types', label: 'Attribute Types' },
                 { id: 'attribute-rules', label: 'Attribute Rules' },
                 { id: 'sub-attributes', label: 'Sub-Attributes' },
+                { id: 'image-matrix', label: 'Image Matrix' },
             ],
         },
         {

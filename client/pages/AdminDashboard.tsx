@@ -62,6 +62,7 @@ import SortProductsView from "./admin/components/products/SortProductsView";
 import ManageAttributeTypes from "./admin/components/attributes/ManageAttributeTypes";
 import ManageAttributeRules from "./admin/components/attributes/ManageAttributeRules";
 import ManageSubAttributes from "./admin/components/attributes/ManageSubAttributes";
+import ManageImageMatrix from "./admin/components/attributes/ManageImageMatrix";
 import AboutManagement from "./admin/components/AboutManagement";
 import ServiceManagement from "./admin/components/services/ServiceManagement";
 import SiteSettingsManagement from "./admin/components/SiteSettingsManagement";
@@ -3289,12 +3290,12 @@ const AdminDashboard: React.FC = () => {
             // multiplier = 1 + (impact/1000), so impact = (multiplier - 1) * 1000
             const priceImpact = av.priceMultiplier ? ((av.priceMultiplier - 1) * 1000).toFixed(2) : "0";
             const hasPrice = parseFloat(priceImpact) > 0;
-            
+
             // Try to parse optionUsage from description if it was saved there
             let parsedUsage = { price: false, image: false, listing: false };
             let numberOfImagesRequired = 0;
             let listingFilters = "";
-            
+
             if (av.description) {
               // Parse the description which may contain: "Price Impact: ₹X | Images Required: Y | Filters: Z"
               if (av.description.includes("Price Impact:")) {
@@ -3315,7 +3316,7 @@ const AdminDashboard: React.FC = () => {
                 }
               }
             }
-            
+
             // If no usage was parsed from description, fallback to heuristics
             if (!parsedUsage.price && !parsedUsage.image && !parsedUsage.listing) {
               parsedUsage.price = hasPrice;
@@ -3325,7 +3326,7 @@ const AdminDashboard: React.FC = () => {
                 parsedUsage.price = true;
               }
             }
-            
+
             return {
               name: av.label || av.value || "",
               priceImpactPer1000: priceImpact,
@@ -3439,12 +3440,12 @@ const AdminDashboard: React.FC = () => {
           .map((av: any) => {
             const priceImpact = av.priceMultiplier ? ((av.priceMultiplier - 1) * 1000).toFixed(2) : "0";
             const hasPrice = parseFloat(priceImpact) > 0;
-            
+
             // Try to parse optionUsage from description if it was saved there
             let parsedUsage = { price: false, image: false, listing: false };
             let numberOfImagesRequired = 0;
             let listingFilters = "";
-            
+
             if (av.description) {
               if (av.description.includes("Price Impact:")) {
                 parsedUsage.price = true;
@@ -3464,7 +3465,7 @@ const AdminDashboard: React.FC = () => {
                 }
               }
             }
-            
+
             // If no usage was parsed from description, fallback to heuristics
             if (!parsedUsage.price && !parsedUsage.image && !parsedUsage.listing) {
               parsedUsage.price = hasPrice;
@@ -3473,7 +3474,7 @@ const AdminDashboard: React.FC = () => {
                 parsedUsage.price = true;
               }
             }
-            
+
             return {
               name: av.label || av.value || "",
               priceImpactPer1000: priceImpact,
@@ -3631,8 +3632,8 @@ const AdminDashboard: React.FC = () => {
       const data = await response.json();
 
       // Show success toast with sub-attributes count
-      const subAttrMsg = data.subAttributesDeleted > 0 
-        ? ` (${data.subAttributesDeleted} sub-attributes also removed)` 
+      const subAttrMsg = data.subAttributesDeleted > 0
+        ? ` (${data.subAttributesDeleted} sub-attributes also removed)`
         : '';
       toast.success(
         <div>
@@ -3700,10 +3701,10 @@ const AdminDashboard: React.FC = () => {
           ...getAuthHeaders(),
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ 
-        newName: customName,
-        newSystemName: customSystemName 
-      }),
+        body: JSON.stringify({
+          newName: customName,
+          newSystemName: customSystemName
+        }),
       });
 
       if (!response.ok) {
@@ -3714,8 +3715,8 @@ const AdminDashboard: React.FC = () => {
       const data = await response.json();
 
       // Show success toast with sub-attribute count
-      const subAttrMsg = data.subAttributesCopied > 0 
-        ? ` with ${data.subAttributesCopied} sub-attributes` 
+      const subAttrMsg = data.subAttributesCopied > 0
+        ? ` with ${data.subAttributesCopied} sub-attributes`
         : '';
       toast.success(
         <div>
@@ -6636,6 +6637,15 @@ const AdminDashboard: React.FC = () => {
                   setLoading={setLoading}
                   setError={setError}
                   setSuccess={setSuccess}
+                />
+              )
+            }
+
+            {
+              activeTab === "image-matrix" && (
+                <ManageImageMatrix
+                  products={products}
+                  getAuthHeaders={getAuthHeaders}
                 />
               )
             }

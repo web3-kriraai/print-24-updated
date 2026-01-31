@@ -118,6 +118,19 @@ import {
   deleteSubAttribute,
 } from "../controllers/subAttribute.controller.js";
 
+/* ATTRIBUTE IMAGE MATRIX CONTROLLERS */
+import {
+  getProductMatrix,
+  generateProductMatrix,
+  previewProductMatrix,
+  uploadMatrixImage,
+  bulkUploadMatrixImages,
+  resolveMatrixImage,
+  deleteMatrixEntry,
+  clearMatrixEntryImage,
+  clearProductMatrix,
+} from "../controllers/attributeImageMatrixController.js";
+
 /* DEPARTMENT CONTROLLERS */
 import {
   createDepartment,
@@ -399,6 +412,39 @@ router.post("/admin/sub-attributes", authMiddleware, adminAuth, upload.single("i
 router.get("/admin/sub-attributes", authMiddleware, adminAuth, getAllSubAttributes);
 router.put("/admin/sub-attributes/:id", authMiddleware, adminAuth, upload.single("image"), updateSubAttribute);
 router.delete("/admin/sub-attributes/:id", authMiddleware, adminAuth, deleteSubAttribute);
+
+/* =====================================
+   ATTRIBUTE IMAGE MATRIX ROUTES (Admin)
+   For managing pre-rendered product images
+   based on attribute combinations
+===================================== */
+
+// Preview matrix generation (get attributes + combination count)
+router.get("/products/:productId/image-matrix/preview", authMiddleware, adminAuth, previewProductMatrix);
+
+// Generate matrix entries (Cartesian product)
+router.post("/products/:productId/image-matrix/generate", authMiddleware, adminAuth, generateProductMatrix);
+
+// Get all matrix entries for a product (paginated)
+router.get("/products/:productId/image-matrix", authMiddleware, adminAuth, getProductMatrix);
+
+// Resolve image for current attribute selection (PUBLIC - used by frontend)
+router.get("/products/:productId/image-matrix/resolve", resolveMatrixImage);
+
+// Upload image for a specific matrix entry
+router.put("/products/:productId/image-matrix/:entryId", authMiddleware, adminAuth, upload.single("image"), uploadMatrixImage);
+
+// Bulk upload images (match by filename)
+router.post("/products/:productId/image-matrix/bulk-upload", authMiddleware, adminAuth, upload.array("images", 200), bulkUploadMatrixImages);
+
+// Clear image from an entry (keep entry, remove image)
+router.delete("/products/:productId/image-matrix/:entryId/image", authMiddleware, adminAuth, clearMatrixEntryImage);
+
+// Delete a single matrix entry
+router.delete("/products/:productId/image-matrix/:entryId", authMiddleware, adminAuth, deleteMatrixEntry);
+
+// Clear all matrix entries for a product
+router.delete("/products/:productId/image-matrix", authMiddleware, adminAuth, clearProductMatrix);
 
 /* =====================================
    DEPARTMENT ROUTES
