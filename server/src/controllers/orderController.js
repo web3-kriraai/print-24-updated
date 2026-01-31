@@ -5,6 +5,7 @@ import { User } from "../models/User.js";
 import sharp from "sharp";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+import { uploadBufferToCloudinary, uploadPdfToCloudinary, MAX_PDF_SIZE_BYTES } from "../utils/cloudinaryUploadHelper.js";
 // Email service temporarily disabled - uncomment when email configuration is ready
 // import { sendAccountCreationEmail, sendOrderConfirmationEmail } from "../utils/emailService.js";
 
@@ -39,11 +40,17 @@ export const createOrder = async (req, res) => {
       return res.status(404).json({ error: "Product not found" });
     }
 
-    // Process uploaded design - convert base64 to Buffer and convert to CMYK format
+    // Generate unique order number first (needed for Cloudinary folder structure)
+    const timestamp = Date.now();
+    const random = Math.floor(Math.random() * 10000);
+    const orderNumber = `ORD-${timestamp}-${String(random).padStart(4, "0")}`;
+    const cloudinaryFolder = `orders/${orderNumber}`;
+
+    // Process uploaded design - convert to CMYK and upload to Cloudinary
     let processedDesign = null;
     if (uploadedDesign) {
       processedDesign = {};
-      
+
       if (uploadedDesign.frontImage && uploadedDesign.frontImage.data) {
         try {
           // Handle both base64 string and data URL format
@@ -58,10 +65,10 @@ export const createOrder = async (req, res) => {
           if (!base64Data || base64Data.trim().length === 0) {
             return res.status(400).json({ error: "Front image data is empty." });
           }
-          
+
           // Convert base64 to Buffer
           const imageBuffer = Buffer.from(base64Data, "base64");
-          
+
           // Convert image to CMYK format using sharp
           const cmykBuffer = await sharp(imageBuffer)
             .toColourspace("cmyk")
@@ -70,24 +77,33 @@ export const createOrder = async (req, res) => {
               chromaSubsampling: '4:4:4'
             })
             .toBuffer();
-          
+
+          // Upload to Cloudinary
+          const filename = (uploadedDesign.frontImage.filename || "front-design.png").replace(/\.(png|gif|webp)$/i, ".jpg");
+          const cloudinaryResult = await uploadBufferToCloudinary(
+            cmykBuffer,
+            `${cloudinaryFolder}/designs`,
+            filename,
+            "image/jpeg"
+          );
+
           processedDesign.frontImage = {
-            data: cmykBuffer,
-            contentType: "image/jpeg", // CMYK images are stored as JPEG
-            filename: (uploadedDesign.frontImage.filename || "front-design.png").replace(/\.(png|gif|webp)$/i, ".jpg"),
+            url: cloudinaryResult.url,
+            publicId: cloudinaryResult.publicId,
+            filename: filename,
           };
         } catch (err) {
           console.error("Error processing front image:", err);
           console.error("Error details:", err.message);
-          return res.status(400).json({ 
-            error: "Invalid front image data format or conversion failed.",
+          return res.status(400).json({
+            error: "Invalid front image data format or upload failed.",
             details: process.env.NODE_ENV === 'development' ? err.message : undefined
           });
         }
       } else {
         return res.status(400).json({ error: "Front image is required." });
       }
-      
+
       if (uploadedDesign.backImage && uploadedDesign.backImage.data) {
         try {
           // Handle both base64 string and data URL format
@@ -101,7 +117,7 @@ export const createOrder = async (req, res) => {
             if (base64Data && base64Data.trim().length > 0) {
               // Convert base64 to Buffer
               const imageBuffer = Buffer.from(base64Data, "base64");
-              
+
               // Convert image to CMYK format using sharp
               const cmykBuffer = await sharp(imageBuffer)
                 .toColourspace("cmyk")
@@ -110,11 +126,20 @@ export const createOrder = async (req, res) => {
                   chromaSubsampling: '4:4:4'
                 })
                 .toBuffer();
-              
+
+              // Upload to Cloudinary
+              const filename = (uploadedDesign.backImage.filename || "back-design.png").replace(/\.(png|gif|webp)$/i, ".jpg");
+              const cloudinaryResult = await uploadBufferToCloudinary(
+                cmykBuffer,
+                `${cloudinaryFolder}/designs`,
+                filename,
+                "image/jpeg"
+              );
+
               processedDesign.backImage = {
-                data: cmykBuffer,
-                contentType: "image/jpeg", // CMYK images are stored as JPEG
-                filename: (uploadedDesign.backImage.filename || "back-design.png").replace(/\.(png|gif|webp)$/i, ".jpg"),
+                url: cloudinaryResult.url,
+                publicId: cloudinaryResult.publicId,
+                filename: filename,
               };
             }
           }
@@ -124,14 +149,44 @@ export const createOrder = async (req, res) => {
           console.warn("Skipping back image due to error:", err.message);
         }
       }
+
+      // Process PDF file if provided
+      if (uploadedDesign.pdfFile && uploadedDesign.pdfFile.data) {
+        try {
+          const pdfBase64 = uploadedDesign.pdfFile.data;
+
+          // Validate PDF size
+          const pdfSizeBytes = Buffer.from(pdfBase64, 'base64').length;
+          if (pdfSizeBytes > MAX_PDF_SIZE_BYTES) {
+            return res.status(400).json({
+              error: `PDF file is too large. Maximum size is ${MAX_PDF_SIZE_BYTES / (1024 * 1024)}MB.`
+            });
+          }
+
+          // Upload PDF to Cloudinary
+          const pdfFilename = uploadedDesign.pdfFile.filename || "design.pdf";
+          const pdfCloudinaryResult = await uploadPdfToCloudinary(
+            pdfBase64,
+            `${cloudinaryFolder}/pdf`,
+            pdfFilename
+          );
+
+          processedDesign.pdfFile = {
+            url: pdfCloudinaryResult.url,
+            publicId: pdfCloudinaryResult.publicId,
+            filename: pdfFilename,
+            pageCount: uploadedDesign.pdfFile.pageCount || 0,
+            pageMapping: uploadedDesign.pdfFile.pageMapping || [],
+          };
+        } catch (err) {
+          console.error("Error uploading PDF to Cloudinary:", err);
+          // PDF is supplementary, log error but continue
+          console.warn("Skipping PDF upload due to error:", err.message);
+        }
+      }
     } else {
       return res.status(400).json({ error: "Uploaded design is required." });
     }
-
-    // Generate unique order number
-    const timestamp = Date.now();
-    const random = Math.floor(Math.random() * 10000);
-    const orderNumber = `ORD-${timestamp}-${String(random).padStart(4, "0")}`;
 
     // DO NOT initialize department statuses at order creation
     // Department statuses will be created only after admin approval
@@ -164,6 +219,7 @@ export const createOrder = async (req, res) => {
         // Process uploaded images if any
         let processedUploadedImages = [];
         if (attr.uploadedImages && Array.isArray(attr.uploadedImages) && attr.uploadedImages.length > 0) {
+          let imgIndex = 0;
           for (const img of attr.uploadedImages) {
             try {
               let base64Data = img.data;
@@ -174,7 +230,7 @@ export const createOrder = async (req, res) => {
                 if (base64Data && base64Data.trim().length > 0) {
                   // Convert base64 to Buffer
                   const imageBuffer = Buffer.from(base64Data, "base64");
-                  
+
                   // Convert image to CMYK format using sharp (same as design images)
                   const cmykBuffer = await sharp(imageBuffer)
                     .toColourspace("cmyk")
@@ -183,12 +239,22 @@ export const createOrder = async (req, res) => {
                       chromaSubsampling: '4:4:4'
                     })
                     .toBuffer();
-                  
+
+                  // Upload to Cloudinary
+                  const filename = (img.filename || `attribute-image-${imgIndex}.png`).replace(/\.(png|gif|webp)$/i, ".jpg");
+                  const cloudinaryResult = await uploadBufferToCloudinary(
+                    cmykBuffer,
+                    `${cloudinaryFolder}/attributes`,
+                    filename,
+                    "image/jpeg"
+                  );
+
                   processedUploadedImages.push({
-                    data: cmykBuffer,
-                    contentType: "image/jpeg",
-                    filename: (img.filename || "attribute-image.png").replace(/\.(png|gif|webp)$/i, ".jpg"),
+                    url: cloudinaryResult.url,
+                    publicId: cloudinaryResult.publicId,
+                    filename: filename,
                   });
+                  imgIndex++;
                 }
               }
             } catch (err) {
@@ -197,7 +263,7 @@ export const createOrder = async (req, res) => {
             }
           }
         }
-        
+
         processedDynamicAttributes.push({
           attributeTypeId: attr.attributeTypeId || attr.attributeType?._id || null,
           attributeName: attr.attributeName || attr.attributeType?.attributeName || "Attribute",
@@ -227,17 +293,17 @@ export const createOrder = async (req, res) => {
           const value = req.body.selectedDynamicAttributes[attrTypeId];
           if (value !== null && value !== undefined && value !== "") {
             // Check if this is an object with uploadedImages (new format from frontend)
-            const attrData = typeof value === 'object' && value !== null && !Array.isArray(value) 
-              ? value 
+            const attrData = typeof value === 'object' && value !== null && !Array.isArray(value)
+              ? value
               : { attributeValue: value };
-            
+
             const actualValue = attrData.attributeValue !== undefined ? attrData.attributeValue : value;
-            
+
             // Find the attribute in product
             const productAttr = productWithAttrs.dynamicAttributes.find(
               (attr) => attr.attributeType?._id?.toString() === attrTypeId
             );
-            
+
             if (productAttr && productAttr.attributeType) {
               const attrType = productAttr.attributeType;
               const customValues = productAttr.customValues || [];
@@ -257,6 +323,7 @@ export const createOrder = async (req, res) => {
               // Process uploaded images if any
               let processedUploadedImages = [];
               if (attrData.uploadedImages && Array.isArray(attrData.uploadedImages) && attrData.uploadedImages.length > 0) {
+                let imgIndex = 0;
                 for (const img of attrData.uploadedImages) {
                   try {
                     let base64Data = img.data;
@@ -267,7 +334,7 @@ export const createOrder = async (req, res) => {
                       if (base64Data && base64Data.trim().length > 0) {
                         // Convert base64 to Buffer
                         const imageBuffer = Buffer.from(base64Data, "base64");
-                        
+
                         // Convert image to CMYK format using sharp (same as design images)
                         const cmykBuffer = await sharp(imageBuffer)
                           .toColourspace("cmyk")
@@ -276,12 +343,22 @@ export const createOrder = async (req, res) => {
                             chromaSubsampling: '4:4:4'
                           })
                           .toBuffer();
-                        
+
+                        // Upload to Cloudinary
+                        const filename = (img.filename || `attribute-image-${imgIndex}.png`).replace(/\.(png|gif|webp)$/i, ".jpg");
+                        const cloudinaryResult = await uploadBufferToCloudinary(
+                          cmykBuffer,
+                          `${cloudinaryFolder}/attributes`,
+                          filename,
+                          "image/jpeg"
+                        );
+
                         processedUploadedImages.push({
-                          data: cmykBuffer,
-                          contentType: "image/jpeg",
-                          filename: (img.filename || "attribute-image.png").replace(/\.(png|gif|webp)$/i, ".jpg"),
+                          url: cloudinaryResult.url,
+                          publicId: cloudinaryResult.publicId,
+                          filename: filename,
                         });
+                        imgIndex++;
                       }
                     }
                   } catch (err) {
@@ -396,7 +473,7 @@ export const createOrder = async (req, res) => {
     console.error("Error name:", error.name);
     console.error("Error message:", error.message);
     console.error("Error stack:", error.stack);
-    
+
     if (error.name === 'ValidationError') {
       console.error("Validation errors:", error.errors);
       const validationDetails = Object.keys(error.errors).map(key => ({
@@ -404,25 +481,25 @@ export const createOrder = async (req, res) => {
         message: error.errors[key].message
       }));
       console.error("Validation details:", validationDetails);
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: "Validation error",
         details: validationDetails
       });
     }
     if (error.name === 'MongoServerError' && error.code === 11000) {
       console.error("Duplicate key error:", error.keyValue);
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: "Duplicate order number. Please try again."
       });
     }
     if (error.name === 'CastError') {
       console.error("Cast error:", error.path, error.value);
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: `Invalid value for field: ${error.path}`,
         details: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
     }
-    res.status(500).json({ 
+    res.status(500).json({
       error: "Failed to create order.",
       details: process.env.NODE_ENV === 'development' ? error.message : undefined,
       errorType: error.name
@@ -482,7 +559,7 @@ export const createOrderWithAccount = async (req, res) => {
     if (!user) {
       // Generate a random password
       tempPassword = Math.random().toString(36).slice(-12) + Math.random().toString(36).slice(-12).toUpperCase() + "!@#";
-      
+
       // Hash password
       const hashed = await bcrypt.hash(tempPassword, 10);
 
@@ -505,11 +582,17 @@ export const createOrderWithAccount = async (req, res) => {
       return res.status(404).json({ error: "Product not found" });
     }
 
-    // Process uploaded design - convert base64 to Buffer and convert to CMYK format
+    // Generate unique order number first (needed for Cloudinary folder structure)
+    const timestamp = Date.now();
+    const random = Math.floor(Math.random() * 10000);
+    const orderNumber = `ORD-${timestamp}-${String(random).padStart(4, "0")}`;
+    const cloudinaryFolder = `orders/${orderNumber}`;
+
+    // Process uploaded design - convert to CMYK and upload to Cloudinary
     let processedDesign = null;
     if (uploadedDesign) {
       processedDesign = {};
-      
+
       if (uploadedDesign.frontImage && uploadedDesign.frontImage.data) {
         try {
           let base64Data = uploadedDesign.frontImage.data;
@@ -522,7 +605,7 @@ export const createOrderWithAccount = async (req, res) => {
           if (!base64Data || base64Data.trim().length === 0) {
             return res.status(400).json({ error: "Front image data is empty." });
           }
-          
+
           const imageBuffer = Buffer.from(base64Data, "base64");
           const cmykBuffer = await sharp(imageBuffer)
             .toColourspace("cmyk")
@@ -531,23 +614,32 @@ export const createOrderWithAccount = async (req, res) => {
               chromaSubsampling: '4:4:4'
             })
             .toBuffer();
-          
+
+          // Upload to Cloudinary
+          const filename = (uploadedDesign.frontImage.filename || "front-design.png").replace(/\.(png|gif|webp)$/i, ".jpg");
+          const cloudinaryResult = await uploadBufferToCloudinary(
+            cmykBuffer,
+            `${cloudinaryFolder}/designs`,
+            filename,
+            "image/jpeg"
+          );
+
           processedDesign.frontImage = {
-            data: cmykBuffer,
-            contentType: "image/jpeg",
-            filename: (uploadedDesign.frontImage.filename || "front-design.png").replace(/\.(png|gif|webp)$/i, ".jpg"),
+            url: cloudinaryResult.url,
+            publicId: cloudinaryResult.publicId,
+            filename: filename,
           };
         } catch (err) {
           console.error("Error processing front image:", err);
-          return res.status(400).json({ 
-            error: "Invalid front image data format or conversion failed.",
+          return res.status(400).json({
+            error: "Invalid front image data format or upload failed.",
             details: process.env.NODE_ENV === 'development' ? err.message : undefined
           });
         }
       } else {
         return res.status(400).json({ error: "Front image is required." });
       }
-      
+
       if (uploadedDesign.backImage && uploadedDesign.backImage.data) {
         try {
           let base64Data = uploadedDesign.backImage.data;
@@ -566,11 +658,20 @@ export const createOrderWithAccount = async (req, res) => {
                   chromaSubsampling: '4:4:4'
                 })
                 .toBuffer();
-              
+
+              // Upload to Cloudinary
+              const filename = (uploadedDesign.backImage.filename || "back-design.png").replace(/\.(png|gif|webp)$/i, ".jpg");
+              const cloudinaryResult = await uploadBufferToCloudinary(
+                cmykBuffer,
+                `${cloudinaryFolder}/designs`,
+                filename,
+                "image/jpeg"
+              );
+
               processedDesign.backImage = {
-                data: cmykBuffer,
-                contentType: "image/jpeg",
-                filename: (uploadedDesign.backImage.filename || "back-design.png").replace(/\.(png|gif|webp)$/i, ".jpg"),
+                url: cloudinaryResult.url,
+                publicId: cloudinaryResult.publicId,
+                filename: filename,
               };
             }
           }
@@ -578,14 +679,43 @@ export const createOrderWithAccount = async (req, res) => {
           console.warn("Skipping back image due to error:", err.message);
         }
       }
+
+      // Process PDF file if provided
+      if (uploadedDesign.pdfFile && uploadedDesign.pdfFile.data) {
+        try {
+          const pdfBase64 = uploadedDesign.pdfFile.data;
+
+          // Validate PDF size
+          const pdfSizeBytes = Buffer.from(pdfBase64, 'base64').length;
+          if (pdfSizeBytes > MAX_PDF_SIZE_BYTES) {
+            return res.status(400).json({
+              error: `PDF file is too large. Maximum size is ${MAX_PDF_SIZE_BYTES / (1024 * 1024)}MB.`
+            });
+          }
+
+          // Upload PDF to Cloudinary
+          const pdfFilename = uploadedDesign.pdfFile.filename || "design.pdf";
+          const pdfCloudinaryResult = await uploadPdfToCloudinary(
+            pdfBase64,
+            `${cloudinaryFolder}/pdf`,
+            pdfFilename
+          );
+
+          processedDesign.pdfFile = {
+            url: pdfCloudinaryResult.url,
+            publicId: pdfCloudinaryResult.publicId,
+            filename: pdfFilename,
+            pageCount: uploadedDesign.pdfFile.pageCount || 0,
+            pageMapping: uploadedDesign.pdfFile.pageMapping || [],
+          };
+        } catch (err) {
+          console.error("Error uploading PDF to Cloudinary:", err);
+          console.warn("Skipping PDF upload due to error:", err.message);
+        }
+      }
     } else {
       return res.status(400).json({ error: "Uploaded design is required." });
     }
-
-    // Generate unique order number
-    const timestamp = Date.now();
-    const random = Math.floor(Math.random() * 10000);
-    const orderNumber = `ORD-${timestamp}-${String(random).padStart(4, "0")}`;
 
     // DO NOT initialize department statuses at order creation
     let departmentStatuses = [];
@@ -648,6 +778,7 @@ export const createOrderWithAccount = async (req, res) => {
                 // Process uploaded images if any
                 let processedUploadedImages = [];
                 if (attr.uploadedImages && Array.isArray(attr.uploadedImages) && attr.uploadedImages.length > 0) {
+                  let imgIndex = 0;
                   for (const img of attr.uploadedImages) {
                     try {
                       let base64Data = img.data;
@@ -658,7 +789,7 @@ export const createOrderWithAccount = async (req, res) => {
                         if (base64Data && base64Data.trim().length > 0) {
                           // Convert base64 to Buffer
                           const imageBuffer = Buffer.from(base64Data, "base64");
-                          
+
                           // Convert image to CMYK format using sharp (same as design images)
                           const cmykBuffer = await sharp(imageBuffer)
                             .toColourspace("cmyk")
@@ -667,12 +798,22 @@ export const createOrderWithAccount = async (req, res) => {
                               chromaSubsampling: '4:4:4'
                             })
                             .toBuffer();
-                          
+
+                          // Upload to Cloudinary
+                          const filename = (img.filename || `attribute-image-${imgIndex}.png`).replace(/\.(png|gif|webp)$/i, ".jpg");
+                          const cloudinaryResult = await uploadBufferToCloudinary(
+                            cmykBuffer,
+                            `${cloudinaryFolder}/attributes`,
+                            filename,
+                            "image/jpeg"
+                          );
+
                           processedUploadedImages.push({
-                            data: cmykBuffer,
-                            contentType: "image/jpeg",
-                            filename: (img.filename || "attribute-image.png").replace(/\.(png|gif|webp)$/i, ".jpg"),
+                            url: cloudinaryResult.url,
+                            publicId: cloudinaryResult.publicId,
+                            filename: filename,
                           });
+                          imgIndex++;
                         }
                       }
                     } catch (err) {
@@ -681,7 +822,7 @@ export const createOrderWithAccount = async (req, res) => {
                     }
                   }
                 }
-                
+
                 if (Array.isArray(selectedValueDetails)) {
                   const labels = selectedValueDetails.map((sv) => sv.label || sv.value).join(", ");
                   const totalPriceMultiplier = selectedValueDetails.reduce((sum, sv) => sum + (sv.priceMultiplier || 0), 0);
@@ -756,7 +897,7 @@ export const createOrderWithAccount = async (req, res) => {
 
     const order = new Order(orderData);
     await order.save();
-    
+
     await order.populate({
       path: "product",
       select: "name image basePrice subcategory options discount description instructions attributes minFileWidth maxFileWidth minFileHeight maxFileHeight filters gstPercentage additionalDesignCharge productionSequence",
@@ -806,29 +947,29 @@ export const createOrderWithAccount = async (req, res) => {
     });
   } catch (error) {
     console.error("Create order with account error:", error);
-    
+
     if (error.name === 'ValidationError') {
       const validationDetails = Object.keys(error.errors).map(key => ({
         field: key,
         message: error.errors[key].message
       }));
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: "Validation error",
         details: validationDetails
       });
     }
     if (error.name === 'MongoServerError' && error.code === 11000) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: "Email already registered or duplicate order number. Please try again."
       });
     }
     if (error.name === 'CastError') {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: `Invalid value for field: ${error.path}`,
         details: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
     }
-    res.status(500).json({ 
+    res.status(500).json({
       error: "Failed to create order.",
       details: process.env.NODE_ENV === 'development' ? error.message : undefined,
       errorType: error.name
@@ -841,7 +982,7 @@ export const getSingleOrder = async (req, res) => {
   try {
     const { orderId } = req.params;
     const userId = req.user.id;
-    
+
     // Validate orderId is a valid ObjectId
     if (!orderId || !/^[0-9a-fA-F]{24}$/.test(orderId)) {
       return res.status(400).json({ error: "Invalid order ID format." });
@@ -852,8 +993,8 @@ export const getSingleOrder = async (req, res) => {
       .populate({
         path: "product",
         select: "name image basePrice subcategory options discount description instructions attributes minFileWidth maxFileWidth minFileHeight maxFileHeight filters gstPercentage additionalDesignCharge maxFileSizeMB",
-        populate: { 
-          path: "subcategory", 
+        populate: {
+          path: "subcategory",
           select: "name image",
           populate: {
             path: "category",
@@ -950,8 +1091,8 @@ export const getMyOrders = async (req, res) => {
       .populate({
         path: "product",
         select: "name image basePrice subcategory gstPercentage", // Minimal product fields
-        populate: { 
-          path: "subcategory", 
+        populate: {
+          path: "subcategory",
           select: "name image",
           populate: {
             path: "category",
@@ -1014,7 +1155,7 @@ export const getAllOrders = async (req, res) => {
     // Convert uploaded design buffers to base64 for frontend
     const ordersWithImages = orders.map((order) => {
       const orderObj = order.toObject();
-      
+
       if (order.uploadedDesign?.frontImage?.data) {
         orderObj.uploadedDesign.frontImage.data = `data:${order.uploadedDesign.frontImage.contentType};base64,${order.uploadedDesign.frontImage.data.toString("base64")}`;
       }
@@ -1067,9 +1208,9 @@ export const updateOrderStatus = async (req, res) => {
     if (adminNotes !== undefined) order.adminNotes = adminNotes;
 
     // If admin approves order (request -> approved) or starts production (production_ready -> approved), send to first department
-    if ((previousStatus === "request" && (status === "approved" || status === "processing")) || 
-        (previousStatus === "production_ready" && status === "approved") ||
-        action === "start_production") {
+    if ((previousStatus === "request" && (status === "approved" || status === "processing")) ||
+      (previousStatus === "production_ready" && status === "approved") ||
+      action === "start_production") {
       // Set status to "approved" (not "processing" yet - processing starts when first dept starts)
       if (status === "processing") {
         order.status = "approved";
@@ -1087,9 +1228,9 @@ export const updateOrderStatus = async (req, res) => {
       let departmentsToUse = [];
       if (product.productionSequence && product.productionSequence.length > 0) {
         const deptIds = product.productionSequence.map(dept => typeof dept === 'object' ? dept._id : dept);
-        const departments = await Department.find({ 
+        const departments = await Department.find({
           _id: { $in: deptIds },
-          isEnabled: true 
+          isEnabled: true
         });
         // Create a map for O(1) lookup instead of O(n) find
         const deptMap = new Map(departments.map(d => [d._id.toString(), d]));
@@ -1107,7 +1248,7 @@ export const updateOrderStatus = async (req, res) => {
       if (departmentsToUse.length > 0) {
         const firstDept = departmentsToUse[0];
         const now = new Date();
-        
+
         // Initialize departmentStatuses array if it doesn't exist
         if (!order.departmentStatuses) {
           order.departmentStatuses = [];
@@ -1175,10 +1316,10 @@ export const updateOrderStatus = async (req, res) => {
     if (order.productionTimeline && order.productionTimeline.length > 0) {
       order.markModified('productionTimeline');
     }
-    
+
     // Save the order
     await order.save();
-    
+
     await order.populate({
       path: "product",
       select: "name image basePrice subcategory options discount description instructions attributes minFileWidth maxFileWidth minFileHeight maxFileHeight filters gstPercentage additionalDesignCharge productionSequence",

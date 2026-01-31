@@ -51,9 +51,13 @@ const OrderSchema = new mongoose.Schema(
         description: String, // Description of the selected value
         image: String, // Image URL if available
         uploadedImages: [{
+          // Legacy Buffer storage (for backward compatibility)
           data: Buffer, // Base64 image data
           contentType: String, // MIME type (e.g., "image/png")
           filename: String, // Original filename
+          // New Cloudinary URL storage
+          url: String,
+          publicId: String,
         }], // Images uploaded by user for this attribute
       },
     ],
@@ -95,14 +99,39 @@ const OrderSchema = new mongoose.Schema(
     },
     uploadedDesign: {
       frontImage: {
+        // Legacy Buffer storage (for backward compatibility)
         data: Buffer,
         contentType: String,
         filename: String,
+        // New Cloudinary URL storage
+        url: String,
+        publicId: String,
       },
       backImage: {
+        // Legacy Buffer storage (for backward compatibility)
         data: Buffer,
         contentType: String,
         filename: String,
+        // New Cloudinary URL storage
+        url: String,
+        publicId: String,
+      },
+      // PDF file storage (Cloudinary only)
+      pdfFile: {
+        url: String,
+        publicId: String,
+        filename: String,
+        pageCount: Number,
+        pageMapping: [{
+          pageNumber: Number,
+          purpose: String,
+          type: {
+            type: String,
+            enum: ['attribute', 'design'],
+          },
+          attributeName: String,
+          isRequired: Boolean,
+        }],
       },
     },
     notes: {

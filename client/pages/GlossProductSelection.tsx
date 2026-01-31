@@ -124,6 +124,10 @@ interface GlossProductSelectionProps {
   forcedProductId?: string;
 }
 
+// Maximum PDF file size in MB (must match backend limit)
+const MAX_PDF_SIZE_MB = 50;
+const MAX_PDF_SIZE_BYTES = MAX_PDF_SIZE_MB * 1024 * 1024;
+
 const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedProductId }) => {
   const params = useParams<{ categoryId: string; subCategoryId?: string; nestedSubCategoryId?: string; productId?: string }>();
   const navigate = useNavigate();
@@ -187,7 +191,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
   const [frontDesignPreview, setFrontDesignPreview] = useState<string>("");
   const [backDesignPreview, setBackDesignPreview] = useState<string>("");
   const [orderNotes, setOrderNotes] = useState<string>("");
-  
+
   // PDF Upload states
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [pdfValidationError, setPdfValidationError] = useState<string | null>(null);
@@ -2201,7 +2205,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
     const imageUploadsRequired: Array<{ numberOfImages: number }> = [];
 
     let attributesToCheck: any[] = [];
-    
+
     if (isInitialized && pdpAttributes.length > 0) {
       const ruleResult = applyAttributeRules({
         attributes: pdpAttributes,
@@ -2305,7 +2309,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
   // Handle PDF file upload
   const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    
+
     if (!file) {
       setPdfValidationError(null);
       setPdfFile(null);
@@ -2317,6 +2321,15 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
     // Validate file type
     if (file.type !== 'application/pdf') {
       setPdfValidationError('Please upload a valid PDF file.');
+      setPdfFile(null);
+      setExtractedPdfPages([]);
+      setPdfPreviewPages([]);
+      return;
+    }
+
+    // Validate file size
+    if (file.size > MAX_PDF_SIZE_BYTES) {
+      setPdfValidationError(`PDF file is too large. Maximum size is ${MAX_PDF_SIZE_MB}MB. Your file is ${(file.size / (1024 * 1024)).toFixed(1)}MB.`);
       setPdfFile(null);
       setExtractedPdfPages([]);
       setPdfPreviewPages([]);
@@ -2350,7 +2363,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
       // Extract pages
       const { pages, previews } = await extractPdfPagesToImages(file);
-      
+
       setPdfFile(file);
       setExtractedPdfPages(pages);
       setPdfPreviewPages(previews);
@@ -2368,7 +2381,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
       }> = [];
 
       let attributesToCheck: any[] = [];
-      
+
       if (isInitialized && pdpAttributes.length > 0) {
         const ruleResult = applyAttributeRules({
           attributes: pdpAttributes,
@@ -2422,7 +2435,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
       // Update dynamic attributes with extracted pages
       const updatedDynamicAttributes = { ...selectedDynamicAttributes };
-      
+
       imageUploadsRequired.forEach((uploadReq) => {
         const imagesForThisAttr = pages.slice(pageIndex, pageIndex + uploadReq.numberOfImages);
         updatedDynamicAttributes[uploadReq.imagesKey] = imagesForThisAttr;
@@ -2472,7 +2485,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
         for (let i = 0; i < req.numberOfImages; i++) {
           pageMappingMetadata.push({
             pageNumber: currentPageNum,
-            purpose: req.numberOfImages > 1 
+            purpose: req.numberOfImages > 1
               ? `${attrName} - ${optionLabel} (Image ${i + 1}/${req.numberOfImages})`
               : `${attrName} - ${optionLabel}`,
             type: 'attribute',
@@ -2504,12 +2517,12 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
       // Map last 2 pages to front and back design
       const frontPage = pages[pageIndex];
       const backPage = pages[pageIndex + 1];
-      
+
       if (frontPage) {
         setFrontDesignFile(frontPage);
         setFrontDesignPreview(previews[pageIndex]);
       }
-      
+
       if (backPage) {
         setBackDesignFile(backPage);
         setBackDesignPreview(previews[pageIndex + 1]);
@@ -5089,7 +5102,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                       );
                                     } else {
                                       return (
-                                       <></>
+                                        <></>
                                       );
                                     }
                                   })()}
@@ -5301,41 +5314,41 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                         <div className="relative">
                                                           {/* Top fade gradient */}
                                                           <div className="absolute top-0 left-0 right-0 h-5 bg-gradient-to-b from-white to-transparent pointer-events-none z-10" />
-                                                          
+
                                                           <div className="max-h-[400px] overflow-y-auto mini-scrollbar pr-2">
                                                             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                                                             {availableSubAttributes.map((subAttr) => {
-                                                               // Format price display for sub-attribute
-                                                               const getSubAttrPriceDisplay = () => {
-                                                                 if (!subAttr.priceAdd || subAttr.priceAdd === 0) return null;
-                                                                 return `+₹${subAttr.priceAdd.toFixed(2)}/piece`;
-                                                               };
+                                                              {availableSubAttributes.map((subAttr) => {
+                                                                // Format price display for sub-attribute
+                                                                const getSubAttrPriceDisplay = () => {
+                                                                  if (!subAttr.priceAdd || subAttr.priceAdd === 0) return null;
+                                                                  return `+₹${subAttr.priceAdd.toFixed(2)}/piece`;
+                                                                };
 
-                                                               const subAttrKey = `${attrId}__${selectedValue}`;
-                                                               const isSubAttrSelected = selectedDynamicAttributes[subAttrKey] === subAttr.value;
+                                                                const subAttrKey = `${attrId}__${selectedValue}`;
+                                                                const isSubAttrSelected = selectedDynamicAttributes[subAttrKey] === subAttr.value;
 
-                                                               return (
-                                                                 <button
-                                                                   key={subAttr._id}
-                                                                   type="button"
-                                                                   onClick={() => {
-                                                                     setSelectedDynamicAttributes((prev) => ({
-                                                                       ...prev,
-                                                                       [subAttrKey]: subAttr.value,
-                                                                     }));
-                                                                     // Mark the parent attribute as user-selected for image updates (preserved order)
-                                                                     setUserSelectedAttributes(prev => {
-                                                                       const next = new Set(prev);
-                                                                       next.delete(attrId);
-                                                                       next.add(attrId);
-                                                                       return next;
-                                                                     });
-                                                                   }}
-                                                                   className={`p-3 my-3 rounded-lg border text-left transition-all ${isSubAttrSelected
-                                                                     ? "border-gray-900 bg-gray-50 ring-1 ring-gray-900"
-                                                                     : "border-gray-200 hover:border-gray-400"
-                                                                     }`}
-                                                                 >
+                                                                return (
+                                                                  <button
+                                                                    key={subAttr._id}
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                      setSelectedDynamicAttributes((prev) => ({
+                                                                        ...prev,
+                                                                        [subAttrKey]: subAttr.value,
+                                                                      }));
+                                                                      // Mark the parent attribute as user-selected for image updates (preserved order)
+                                                                      setUserSelectedAttributes(prev => {
+                                                                        const next = new Set(prev);
+                                                                        next.delete(attrId);
+                                                                        next.add(attrId);
+                                                                        return next;
+                                                                      });
+                                                                    }}
+                                                                    className={`p-3 my-3 rounded-lg border text-left transition-all ${isSubAttrSelected
+                                                                      ? "border-gray-900 bg-gray-50 ring-1 ring-gray-900"
+                                                                      : "border-gray-200 hover:border-gray-400"
+                                                                      }`}
+                                                                  >
                                                                     {subAttr.image && (
                                                                       <div className="mb-2">
                                                                         <LazyImage
@@ -5347,7 +5360,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                                         />
                                                                       </div>
                                                                     )}
-                                                                   <div className="text-sm font-medium">{subAttr.label}</div>
+                                                                    <div className="text-sm font-medium">{subAttr.label}</div>
                                                                     {getSubAttrPriceDisplay() && (
                                                                       <div className="text-xs text-gray-600 mt-1">
                                                                         {getSubAttrPriceDisplay()}
@@ -5358,7 +5371,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                               })}
                                                             </div>
                                                           </div>
-                                                          
+
                                                           {/* Bottom fade gradient */}
                                                           <div className="absolute bottom-0 left-0 right-0 h-5 bg-gradient-to-t from-white to-transparent pointer-events-none z-10" />
                                                         </div>
@@ -5594,7 +5607,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                           {(() => {
                             // Calculate required pages dynamically
                             const calculatedPages = calculateRequiredPageCount();
-                            
+
                             return (
                               <div className="mb-3 sm:mb-4 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                                 {/* Header Section */}
@@ -5608,7 +5621,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                         Upload Design PDF
                                       </h3>
                                       <p className="text-xs text-gray-500 mt-0.5">
-                                        {calculatedPages} page{calculatedPages !== 1 ? 's' : ''} required • Each page = 1 image
+                                        {calculatedPages} page{calculatedPages !== 1 ? 's' : ''} required • Max size: {MAX_PDF_SIZE_MB}MB
                                       </p>
                                     </div>
                                     {pdfFile && !pdfValidationError && (
@@ -5636,11 +5649,10 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                     /* Upload Prompt */
                                     <label
                                       htmlFor="pdf-upload-input"
-                                      className={`block cursor-pointer border-2 border-dashed rounded-xl transition-all duration-200 ${
-                                        pdfValidationError
-                                          ? 'border-red-300 bg-red-50'
-                                          : 'border-gray-300 bg-gray-50 hover:border-blue-400 hover:bg-blue-50'
-                                      }`}
+                                      className={`block cursor-pointer border-2 border-dashed rounded-xl transition-all duration-200 ${pdfValidationError
+                                        ? 'border-red-300 bg-red-50'
+                                        : 'border-gray-300 bg-gray-50 hover:border-blue-400 hover:bg-blue-50'
+                                        }`}
                                     >
                                       <div className="p-8 text-center">
                                         {isPdfProcessing ? (
@@ -5655,8 +5667,11 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                             <p className="text-base font-semibold text-gray-700 mb-1">
                                               Click to upload PDF
                                             </p>
-                                            <p className="text-sm text-gray-500 mb-3">
+                                            <p className="text-sm text-gray-500 mb-2">
                                               Required: {calculatedPages} page{calculatedPages !== 1 ? 's' : ''}
+                                            </p>
+                                            <p className="text-xs text-gray-400 mb-3">
+                                              Max file size: {MAX_PDF_SIZE_MB}MB
                                             </p>
                                             <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">
                                               <FileText size={16} />
@@ -5720,19 +5735,19 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                               // Color coding based on type
                                               const colorClasses = mapping.type === 'attribute'
                                                 ? {
-                                                    border: 'border-blue-400',
-                                                    badge: 'bg-blue-500',
-                                                    labelBg: 'bg-blue-600',
-                                                    icon: '📋'
-                                                  }
+                                                  border: 'border-blue-400',
+                                                  badge: 'bg-blue-500',
+                                                  labelBg: 'bg-blue-600',
+                                                  icon: '📋'
+                                                }
                                                 : mapping.purpose === 'Front Design'
-                                                ? {
+                                                  ? {
                                                     border: 'border-green-400',
                                                     badge: 'bg-green-500',
                                                     labelBg: 'bg-green-600',
                                                     icon: '✓'
                                                   }
-                                                : {
+                                                  : {
                                                     border: 'border-purple-400',
                                                     badge: 'bg-purple-500',
                                                     labelBg: 'bg-purple-600',
@@ -5749,19 +5764,19 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                       className="w-full h-full object-cover"
                                                     />
                                                   </div>
-                                                  
+
                                                   {/* Page Number Badge */}
                                                   <div className={`absolute -top-2 -left-2 w-7 h-7 ${colorClasses.badge} rounded-full flex items-center justify-center shadow-lg border-2 border-white`}>
                                                     <span className="text-white text-xs font-bold">{mapping.pageNumber}</span>
                                                   </div>
-                                                  
+
                                                   {/* Required Badge */}
                                                   {mapping.isRequired && (
                                                     <div className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center shadow-lg border-2 border-white">
                                                       <span className="text-white text-[10px] font-bold">!</span>
                                                     </div>
                                                   )}
-                                                  
+
                                                   {/* Purpose Label - Always Visible */}
                                                   <div className={`absolute bottom-0 left-0 right-0 ${colorClasses.labelBg} text-white px-2 py-2`}>
                                                     <div className="flex items-center gap-1.5">
@@ -5823,7 +5838,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                               {(() => {
                                                 let pageNum = 1;
                                                 const mapping = [];
-                                                
+
                                                 // Map attribute images
                                                 const imageUploadsRequired: Array<{
                                                   attrName: string;
@@ -5831,7 +5846,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                 }> = [];
 
                                                 let attributesToCheck: any[] = [];
-                                                
+
                                                 if (isInitialized && pdpAttributes.length > 0) {
                                                   const ruleResult = applyAttributeRules({
                                                     attributes: pdpAttributes,
@@ -5986,8 +6001,8 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                             onClick={handlePlaceOrder}
                             disabled={isProcessingPayment}
                             className={`w-full py-4 rounded-xl font-bold text-base transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 flex items-center justify-center gap-2 group ${isProcessingPayment
-                                ? 'bg-gray-400 text-gray-700 cursor-not-allowed opacity-60'
-                                : 'bg-gray-900 text-white hover:bg-black'
+                              ? 'bg-gray-400 text-gray-700 cursor-not-allowed opacity-60'
+                              : 'bg-gray-900 text-white hover:bg-black'
                               }`}
                           >
                             {isProcessingPayment ? (
