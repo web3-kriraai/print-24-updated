@@ -4185,7 +4185,8 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                           <LazyImage
                             src={displayImage}
                             alt={displayAlt}
-                            className="w-full h-full object-cover rounded-lg transition-transform duration-700 group-hover:scale-105"
+                            containerClassName="w-full h-full"
+                            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                             fallbackSrc={selectedSubCategory?.image || "/Glossy.png"}
                             showSkeleton={true}
                             skeletonVariant="image"
