@@ -1,12 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useParams, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowRight, Check, Truck, Upload as UploadIcon, FileImage, CreditCard, X, Info, Lock, AlertCircle, MapPin, Zap, Square, Circle, FileText } from 'lucide-react';
+import { ArrowRight, Check, Truck, Upload as UploadIcon, FileImage, CreditCard, X, Info, Lock, AlertCircle, MapPin, Zap, Square, Circle, FileText, UploadCloud } from 'lucide-react';
 import { Select, SelectOption } from '@/components/ui/select';
 import { ProductDetailSkeleton, Skeleton } from '@/components/ui/Skeleton';
 import { LazyImage, CloudinaryLazyImage } from '@/components/ui/LazyImage';
 import { API_BASE_URL_WITH_API as API_BASE_URL } from '../lib/apiConfig';
 import { applyAttributeRules, type AttributeRule, type Attribute } from '../utils/attributeRuleEngine';
+import * as pdfjsLib from 'pdfjs-dist';
+
+// Configure PDF.js worker - use local file for reliability
+pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
 
 interface SubCategory {
   _id: string;
@@ -183,6 +187,21 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
   const [frontDesignPreview, setFrontDesignPreview] = useState<string>("");
   const [backDesignPreview, setBackDesignPreview] = useState<string>("");
   const [orderNotes, setOrderNotes] = useState<string>("");
+  
+  // PDF Upload states
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [pdfValidationError, setPdfValidationError] = useState<string | null>(null);
+  const [requiredPageCount, setRequiredPageCount] = useState<number>(0);
+  const [extractedPdfPages, setExtractedPdfPages] = useState<File[]>([]);
+  const [pdfPreviewPages, setPdfPreviewPages] = useState<string[]>([]);
+  const [isPdfProcessing, setIsPdfProcessing] = useState<boolean>(false);
+  const [pdfPageMapping, setPdfPageMapping] = useState<Array<{
+    pageNumber: number;
+    purpose: string;
+    type: 'attribute' | 'design';
+    attributeName?: string;
+    isRequired?: boolean;
+  }>>([]);
   const [price, setPrice] = useState(0);
   const [subtotal, setSubtotal] = useState(0);
   const [gstAmount, setGstAmount] = useState(0);
@@ -2174,6 +2193,339 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
     };
   };
 
+  // Calculate required page count for PDF upload
+  const calculateRequiredPageCount = () => {
+    let totalPages = 0;
+
+    // Count pages from "Upload Required Images" section
+    const imageUploadsRequired: Array<{ numberOfImages: number }> = [];
+
+    let attributesToCheck: any[] = [];
+    
+    if (isInitialized && pdpAttributes.length > 0) {
+      const ruleResult = applyAttributeRules({
+        attributes: pdpAttributes,
+        rules: pdpRules,
+        selectedValues: { ...selectedDynamicAttributes } as Record<string, string | number | boolean | File | any[] | null>,
+      });
+      attributesToCheck = ruleResult.attributes.filter((attr) => attr.isVisible);
+    } else if (selectedProduct?.dynamicAttributes) {
+      attributesToCheck = selectedProduct.dynamicAttributes.filter((attr) => attr.isEnabled);
+    }
+
+    attributesToCheck.forEach((attr) => {
+      let attributeValues: any[] = [];
+      let attrId: string = '';
+
+      if (isInitialized && pdpAttributes.length > 0) {
+        attrId = attr._id;
+        attributeValues = (attr.allowedValues && attr.allowedValues.length > 0)
+          ? (attr.attributeValues || []).filter((av: any) => attr.allowedValues!.includes(av.value))
+          : (attr.attributeValues || []);
+      } else {
+        if (typeof attr.attributeType === 'object' && attr.attributeType !== null) {
+          const attrType = attr.attributeType;
+          attrId = attrType._id;
+          attributeValues = attr.customValues && attr.customValues.length > 0
+            ? attr.customValues
+            : attrType.attributeValues || [];
+        }
+      }
+
+      if (!attrId) return;
+
+      const selectedValue = selectedDynamicAttributes[attrId];
+      if (!selectedValue) return;
+
+      const selectedOption = attributeValues.find((av: any) => av.value === selectedValue);
+      if (!selectedOption || !selectedOption.description) return;
+
+      const imagesRequiredMatch = selectedOption.description.match(/Images Required: (\d+)/);
+      const numberOfImagesRequired = imagesRequiredMatch ? parseInt(imagesRequiredMatch[1]) : 0;
+
+      if (numberOfImagesRequired > 0) {
+        imageUploadsRequired.push({ numberOfImages: numberOfImagesRequired });
+        totalPages += numberOfImagesRequired;
+      }
+    });
+
+    // Add pages from "Upload Your Design" section (front + back = 2 pages)
+    totalPages += 2;
+
+    return totalPages;
+  };
+
+  // Extract PDF pages as images
+  const extractPdfPagesToImages = async (file: File): Promise<{ pages: File[], previews: string[] }> => {
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      const numPages = pdf.numPages;
+
+      const extractedPages: File[] = [];
+      const previewUrls: string[] = [];
+
+      for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+        const page = await pdf.getPage(pageNum);
+        const viewport = page.getViewport({ scale: 2.0 }); // Higher scale for better quality
+
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        canvas.height = viewport.height;
+        canvas.width = viewport.width;
+
+        if (context) {
+          await page.render({
+            canvasContext: context,
+            viewport: viewport,
+            canvas: canvas
+          }).promise;
+
+          // Convert canvas to blob
+          const blob = await new Promise<Blob>((resolve) => {
+            canvas.toBlob((b) => resolve(b!), 'image/png');
+          });
+
+          // Create File object from blob
+          const imageFile = new File([blob], `page-${pageNum}.png`, { type: 'image/png' });
+          extractedPages.push(imageFile);
+
+          // Create preview URL
+          previewUrls.push(canvas.toDataURL('image/png'));
+        }
+      }
+
+      return { pages: extractedPages, previews: previewUrls };
+    } catch (error) {
+      console.error('Error extracting PDF pages:', error);
+      throw new Error('Failed to extract PDF pages. Please ensure the file is a valid PDF.');
+    }
+  };
+
+  // Handle PDF file upload
+  const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    
+    if (!file) {
+      setPdfValidationError(null);
+      setPdfFile(null);
+      setExtractedPdfPages([]);
+      setPdfPreviewPages([]);
+      return;
+    }
+
+    // Validate file type
+    if (file.type !== 'application/pdf') {
+      setPdfValidationError('Please upload a valid PDF file.');
+      setPdfFile(null);
+      setExtractedPdfPages([]);
+      setPdfPreviewPages([]);
+      return;
+    }
+
+    setIsPdfProcessing(true);
+    setPdfValidationError(null);
+
+    try {
+      // Load PDF and get page count
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      const numPages = pdf.numPages;
+
+      // Calculate required pages
+      const required = calculateRequiredPageCount();
+      setRequiredPageCount(required);
+
+      // Validate page count
+      if (numPages !== required) {
+        setPdfValidationError(
+          `Invalid page count. Your PDF has ${numPages} page${numPages !== 1 ? 's' : ''}, but ${required} page${required !== 1 ? 's are' : ' is'} required.`
+        );
+        setPdfFile(null);
+        setExtractedPdfPages([]);
+        setPdfPreviewPages([]);
+        setIsPdfProcessing(false);
+        return;
+      }
+
+      // Extract pages
+      const { pages, previews } = await extractPdfPagesToImages(file);
+      
+      setPdfFile(file);
+      setExtractedPdfPages(pages);
+      setPdfPreviewPages(previews);
+      setPdfValidationError(null);
+
+      // Map extracted pages to existing image states
+      // First N pages go to dynamic attributes, last 2 pages go to front/back design
+      let pageIndex = 0;
+
+      // Map to dynamic attributes
+      const imageUploadsRequired: Array<{
+        attrId: string;
+        numberOfImages: number;
+        imagesKey: string;
+      }> = [];
+
+      let attributesToCheck: any[] = [];
+      
+      if (isInitialized && pdpAttributes.length > 0) {
+        const ruleResult = applyAttributeRules({
+          attributes: pdpAttributes,
+          rules: pdpRules,
+          selectedValues: { ...selectedDynamicAttributes } as Record<string, string | number | boolean | File | any[] | null>,
+        });
+        attributesToCheck = ruleResult.attributes.filter((attr) => attr.isVisible);
+      } else if (selectedProduct?.dynamicAttributes) {
+        attributesToCheck = selectedProduct.dynamicAttributes.filter((attr) => attr.isEnabled);
+      }
+
+      attributesToCheck.forEach((attr) => {
+        let attrType: any = null;
+        let attributeValues: any[] = [];
+        let attrId: string = '';
+
+        if (isInitialized && pdpAttributes.length > 0) {
+          attrId = attr._id;
+          attributeValues = (attr.allowedValues && attr.allowedValues.length > 0)
+            ? (attr.attributeValues || []).filter((av: any) => attr.allowedValues!.includes(av.value))
+            : (attr.attributeValues || []);
+        } else {
+          if (typeof attr.attributeType === 'object' && attr.attributeType !== null) {
+            attrType = attr.attributeType;
+            attrId = attrType._id;
+            attributeValues = attr.customValues && attr.customValues.length > 0
+              ? attr.customValues
+              : attrType.attributeValues || [];
+          }
+        }
+
+        if (!attrId) return;
+
+        const selectedValue = selectedDynamicAttributes[attrId];
+        if (!selectedValue) return;
+
+        const selectedOption = attributeValues.find((av: any) => av.value === selectedValue);
+        if (!selectedOption || !selectedOption.description) return;
+
+        const imagesRequiredMatch = selectedOption.description.match(/Images Required: (\d+)/);
+        const numberOfImagesRequired = imagesRequiredMatch ? parseInt(imagesRequiredMatch[1]) : 0;
+
+        if (numberOfImagesRequired > 0) {
+          imageUploadsRequired.push({
+            attrId,
+            numberOfImages: numberOfImagesRequired,
+            imagesKey: `${attrId}_images`,
+          });
+        }
+      });
+
+      // Update dynamic attributes with extracted pages
+      const updatedDynamicAttributes = { ...selectedDynamicAttributes };
+      
+      imageUploadsRequired.forEach((uploadReq) => {
+        const imagesForThisAttr = pages.slice(pageIndex, pageIndex + uploadReq.numberOfImages);
+        updatedDynamicAttributes[uploadReq.imagesKey] = imagesForThisAttr;
+        pageIndex += uploadReq.numberOfImages;
+      });
+
+      setSelectedDynamicAttributes(updatedDynamicAttributes);
+
+      // Generate page mapping metadata for display and storage
+      const pageMappingMetadata: Array<{
+        pageNumber: number;
+        purpose: string;
+        type: 'attribute' | 'design';
+        attributeName?: string;
+        isRequired?: boolean;
+      }> = [];
+
+      let currentPageNum = 1;
+
+      // Map attribute pages
+      imageUploadsRequired.forEach((req) => {
+        const attributeValues: any[] = [];
+        const attr = attributesToCheck.find((a) => {
+          if (isInitialized && pdpAttributes.length > 0) {
+            return a._id === req.attrId;
+          } else {
+            const attrType = typeof a.attributeType === 'object' ? a.attributeType : null;
+            return attrType?._id === req.attrId;
+          }
+        });
+
+        let attrName = '';
+        if (attr) {
+          if (isInitialized && pdpAttributes.length > 0) {
+            attrName = attr.attributeName;
+            attributeValues.push(...(attr.attributeValues || []));
+          } else if (typeof attr.attributeType === 'object') {
+            attrName = attr.attributeType.attributeName;
+            attributeValues.push(...(attr.customValues?.length > 0 ? attr.customValues : attr.attributeType.attributeValues || []));
+          }
+        }
+
+        const selectedValue = selectedDynamicAttributes[req.attrId];
+        const selectedOption = attributeValues.find((av: any) => av.value === selectedValue);
+        const optionLabel = selectedOption?.label || '';
+
+        for (let i = 0; i < req.numberOfImages; i++) {
+          pageMappingMetadata.push({
+            pageNumber: currentPageNum,
+            purpose: req.numberOfImages > 1 
+              ? `${attrName} - ${optionLabel} (Image ${i + 1}/${req.numberOfImages})`
+              : `${attrName} - ${optionLabel}`,
+            type: 'attribute',
+            attributeName: attrName,
+            isRequired: true
+          });
+          currentPageNum++;
+        }
+      });
+
+      // Map design pages
+      pageMappingMetadata.push({
+        pageNumber: currentPageNum,
+        purpose: 'Front Design',
+        type: 'design',
+        isRequired: true
+      });
+      currentPageNum++;
+
+      pageMappingMetadata.push({
+        pageNumber: currentPageNum,
+        purpose: 'Back Design',
+        type: 'design',
+        isRequired: false
+      });
+
+      setPdfPageMapping(pageMappingMetadata);
+
+      // Map last 2 pages to front and back design
+      const frontPage = pages[pageIndex];
+      const backPage = pages[pageIndex + 1];
+      
+      if (frontPage) {
+        setFrontDesignFile(frontPage);
+        setFrontDesignPreview(previews[pageIndex]);
+      }
+      
+      if (backPage) {
+        setBackDesignFile(backPage);
+        setBackDesignPreview(previews[pageIndex + 1]);
+      }
+
+    } catch (error) {
+      console.error('PDF processing error:', error);
+      setPdfValidationError(error instanceof Error ? error.message : 'Failed to process PDF. Please try again.');
+      setPdfFile(null);
+      setExtractedPdfPages([]);
+      setPdfPreviewPages([]);
+    } finally {
+      setIsPdfProcessing(false);
+    }
+  };
+
   // Helper function to calculate distance between two coordinates (Haversine formula)
   const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
     const R = 6371; // Radius of the Earth in km
@@ -2789,6 +3141,35 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
           }
         } catch (err) {
           // Back image is optional, so we'll just log the error
+        }
+      }
+
+      // Prepare original PDF file (if uploaded via PDF upload feature)
+      if (pdfFile && pdfPageMapping.length > 0) {
+        try {
+          // Convert PDF to base64
+          const pdfArrayBuffer = await pdfFile.arrayBuffer();
+          const pdfBase64 = btoa(
+            new Uint8Array(pdfArrayBuffer)
+              .reduce((data, byte) => data + String.fromCharCode(byte), '')
+          );
+
+          uploadedDesign.pdfFile = {
+            data: pdfBase64,
+            contentType: 'application/pdf',
+            filename: pdfFile.name,
+            pageCount: extractedPdfPages.length,
+            pageMapping: pdfPageMapping.map(mapping => ({
+              pageNumber: mapping.pageNumber,
+              purpose: mapping.purpose,
+              type: mapping.type,
+              attributeName: mapping.attributeName,
+              isRequired: mapping.isRequired
+            }))
+          };
+        } catch (err) {
+          console.error('Failed to prepare PDF file:', err);
+          // PDF is supplementary, continue without it if it fails
         }
       }
 
@@ -5209,521 +5590,366 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
 
 
-                          {/* Consolidated Image Upload Section */}
+                          {/* Unified PDF Upload Section - Replaces Both Image Upload Sections */}
                           {(() => {
-                            // Collect all attributes that require images based on selected values
-                            const imageUploadsRequired: Array<{
-                              attrId: string;
-                              attrName: string;
-                              optionLabel: string;
-                              numberOfImages: number;
-                              imagesKey: string;
-                            }> = [];
-
-                            // Use PDP attributes if available, otherwise fallback to product attributes
-                            let attributesToCheck: any[] = [];
+                            // Calculate required pages dynamically
+                            const calculatedPages = calculateRequiredPageCount();
                             
-                            if (isInitialized && pdpAttributes.length > 0) {
-                              const ruleResult = applyAttributeRules({
-                                attributes: pdpAttributes,
-                                rules: pdpRules,
-                                selectedValues: { ...selectedDynamicAttributes } as Record<string, string | number | boolean | File | any[] | null>,
-                              });
-                              attributesToCheck = ruleResult.attributes.filter((attr) => attr.isVisible);
-                            } else if (selectedProduct.dynamicAttributes) {
-                              attributesToCheck = selectedProduct.dynamicAttributes.filter((attr) => attr.isEnabled);
-                            }
-
-                            // Check each attribute for image requirements
-                            attributesToCheck.forEach((attr) => {
-                              let attrType: any = null;
-                              let attributeValues: any[] = [];
-                              let attrId: string = '';
-                              let attrName: string = '';
-
-                              if (isInitialized && pdpAttributes.length > 0) {
-                                attrId = attr._id;
-                                attrName = attr.attributeName;
-                                attributeValues = (attr.allowedValues && attr.allowedValues.length > 0)
-                                  ? (attr.attributeValues || []).filter((av: any) => attr.allowedValues!.includes(av.value))
-                                  : (attr.attributeValues || []);
-                              } else {
-                                if (typeof attr.attributeType === 'object' && attr.attributeType !== null) {
-                                  attrType = attr.attributeType;
-                                  attrId = attrType._id;
-                                  attrName = attrType.attributeName;
-                                  attributeValues = attr.customValues && attr.customValues.length > 0
-                                    ? attr.customValues
-                                    : attrType.attributeValues || [];
-                                }
-                              }
-
-                              if (!attrId) return;
-
-                              const selectedValue = selectedDynamicAttributes[attrId];
-                              if (!selectedValue) return;
-
-                              const selectedOption = attributeValues.find((av: any) => av.value === selectedValue);
-                              if (!selectedOption || !selectedOption.description) return;
-
-                              const imagesRequiredMatch = selectedOption.description.match(/Images Required: (\d+)/);
-                              const numberOfImagesRequired = imagesRequiredMatch ? parseInt(imagesRequiredMatch[1]) : 0;
-
-                              if (numberOfImagesRequired > 0) {
-                                imageUploadsRequired.push({
-                                  attrId,
-                                  attrName,
-                                  optionLabel: selectedOption.label,
-                                  numberOfImages: numberOfImagesRequired,
-                                  imagesKey: `${attrId}_images`,
-                                });
-                              }
-                            });
-
-                            if (imageUploadsRequired.length === 0) return null;
-
                             return (
                               <div className="mb-3 sm:mb-4 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                                 {/* Header Section */}
-                                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-4 sm:px-5 py-3 sm:py-4 border-b border-gray-200">
+                                <div className="bg-gradient-to-r from-blue-50 to-purple-50 px-4 sm:px-5 py-3 sm:py-4 border-b border-gray-200">
                                   <div className="flex items-center gap-2.5">
                                     <div className="w-8 h-8 rounded-lg bg-white shadow-sm flex items-center justify-center">
-                                      <svg 
-                                        className="w-[18px] h-[18px] text-blue-600" 
-                                        fill="none" 
-                                        stroke="currentColor" 
-                                        viewBox="0 0 24 24"
-                                      >
-                                        <path 
-                                          strokeLinecap="round" 
-                                          strokeLinejoin="round" 
-                                          strokeWidth={2} 
-                                          d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" 
-                                        />
-                                      </svg>
+                                      <FileText className="w-[18px] h-[18px] text-blue-600" />
                                     </div>
-                                    <div>
+                                    <div className="flex-1">
                                       <h3 className="font-semibold text-sm sm:text-base text-gray-900">
-                                        Upload Required Images
+                                        Upload Design PDF
                                       </h3>
                                       <p className="text-xs text-gray-500 mt-0.5">
-                                        {imageUploadsRequired.reduce((sum, req) => sum + req.numberOfImages, 0)} image{imageUploadsRequired.reduce((sum, req) => sum + req.numberOfImages, 0) > 1 ? 's' : ''} needed
+                                        {calculatedPages} page{calculatedPages !== 1 ? 's' : ''} required • Each page = 1 image
                                       </p>
                                     </div>
-                                  </div>
-                                </div>
-
-                                {/* Upload Items */}
-                                <div className="p-4 sm:p-5">
-                                  <div className="grid grid-cols-1 gap-4">
-                                  {imageUploadsRequired.map((uploadReq, reqIndex) => {
-                                    const uploadedImages = Array.isArray(selectedDynamicAttributes[uploadReq.imagesKey])
-                                      ? (selectedDynamicAttributes[uploadReq.imagesKey] as File[])
-                                      : [];
-                                    
-                                    const uploadedCount = uploadedImages.filter(f => f !== null).length;
-                                    const isComplete = uploadedCount === uploadReq.numberOfImages;
-
-                                    return (
-                                      <div 
-                                        key={uploadReq.attrId} 
-                                        className={`rounded-lg p-4 border-2 transition-all ${
-                                          isComplete 
-                                            ? 'bg-green-50 border-green-200' 
-                                            : 'bg-gray-50 border-gray-200'
-                                        }`}
-                                      >
-                                        {/* Attribute Header */}
-                                        <div className="mb-4">
-                                          <div className="flex items-start justify-between mb-2">
-                                            <div className="flex-1">
-                                              <div className="flex items-center gap-2 mb-1">
-                                                <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-100 text-blue-700 text-xs font-bold">
-                                                  {reqIndex + 1}
-                                                </span>
-                                                <h4 className="text-sm font-bold text-gray-900">
-                                                  {uploadReq.attrName}
-                                                </h4>
-                                              </div>
-                                              <p className="text-xs text-gray-600">
-                                                {uploadReq.optionLabel}
-                                              </p>
-                                            </div>
-                                            
-                                            {isComplete ? (
-                                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-100 text-green-700 text-xs font-semibold">
-                                                <Check size={12} strokeWidth={3} />
-                                                Complete
-                                              </span>
-                                            ) : (
-                                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-100 text-amber-700 text-xs font-semibold">
-                                                <AlertCircle size={12} />
-                                                {uploadReq.numberOfImages - uploadedCount} pending
-                                              </span>
-                                            )}
-                                          </div>
-                                        </div>
-
-                                        {/* Upload Grid - Responsive grid layout */}
-                                        <div className={`grid gap-3 ${
-                                          uploadReq.numberOfImages === 1 ? 'grid-cols-1' : 
-                                          uploadReq.numberOfImages === 2 ? 'grid-cols-2' : 
-                                          uploadReq.numberOfImages === 3 ? 'grid-cols-3' : 
-                                          'grid-cols-2 sm:grid-cols-3 md:grid-cols-4'
-                                        }`}>
-                                          {Array.from({ length: uploadReq.numberOfImages }).map((_, index) => {
-                                            const file = uploadedImages[index] || null;
-                                            const fileInputId = `file-${uploadReq.attrId}-${index}`;
-
-                                            return (
-                                              <div key={index} className="relative">
-                                                <input
-                                                  type="file"
-                                                  id={fileInputId}
-                                                  accept="image/*"
-                                                  data-image-index={index}
-                                                  data-attr-id={uploadReq.attrId}
-                                                  onChange={(e) => {
-                                                    const newFile = e.target.files?.[0] || null;
-                                                    if (newFile) {
-                                                      const updatedImages = [...uploadedImages];
-                                                      while (updatedImages.length <= index) {
-                                                        updatedImages.push(null as any);
-                                                      }
-                                                      updatedImages[index] = newFile;
-                                                      setSelectedDynamicAttributes({
-                                                        ...selectedDynamicAttributes,
-                                                        [uploadReq.imagesKey]: updatedImages
-                                                      });
-                                                    }
-                                                  }}
-                                                  className="hidden"
-                                                />
-                                                
-                                                {file ? (
-                                                  <div className="relative group">
-                                                    {/* Image Thumbnail */}
-                                                    <div className={`w-full rounded-xl overflow-hidden border-2 border-green-400 bg-white shadow-md hover:shadow-lg transition-all ${uploadReq.numberOfImages === 1 ? 'aspect-[4/1] sm:aspect-[5/1]' : 'aspect-[3/2]'}`}>
-                                                      <img
-                                                        src={URL.createObjectURL(file)}
-                                                        alt={`Upload ${index + 1}`}
-                                                        className="w-full h-full object-cover"
-                                                        onLoad={(e) => {
-                                                          URL.revokeObjectURL((e.target as HTMLImageElement).src);
-                                                        }}
-                                                      />
-                                                    </div>
-                                                    
-                                                    {/* Success Badge */}
-                                                    <div className="absolute -top-2 -left-2 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center shadow-md">
-                                                      <Check size={14} className="text-white" strokeWidth={3} />
-                                                    </div>
-                                                    
-                                                    {/* Remove Button */}
-                                                    <button
-                                                      type="button"
-                                                      onClick={() => {
-                                                        const updatedImages = [...uploadedImages];
-                                                        updatedImages[index] = null as any;
-                                                        setSelectedDynamicAttributes({
-                                                          ...selectedDynamicAttributes,
-                                                          [uploadReq.imagesKey]: updatedImages
-                                                        });
-                                                        const fileInput = document.getElementById(fileInputId) as HTMLInputElement;
-                                                        if (fileInput) {
-                                                          fileInput.value = '';
-                                                        }
-                                                      }}
-                                                      className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-md transition-all opacity-0 group-hover:opacity-100 hover:scale-110"
-                                                      title="Remove image"
-                                                    >
-                                                      <X size={14} strokeWidth={3} />
-                                                    </button>
-                                                    
-                                                    {/* Filename Overlay */}
-                                                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent text-white text-[10px] font-medium text-center px-1 py-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                      {file.name.length > 15 ? file.name.substring(0, 15) + '...' : file.name}
-                                                    </div>
-                                                  </div>
-                                                ) : (
-                                                  <label
-                                                    htmlFor={fileInputId}
-                                                    className={`w-full cursor-pointer border-2 border-dashed border-gray-300 rounded-xl hover:border-blue-400 hover:bg-blue-50 transition-all duration-200 flex flex-col items-center justify-center gap-2 bg-white group shadow-sm hover:shadow-md ${uploadReq.numberOfImages === 1 ? 'aspect-[4/1] sm:aspect-[5/1]' : 'aspect-[3/2]'}`}
-                                                  >
-                                                    {/* Upload Icon */}
-                                                    <svg 
-                                                      className="w-8 h-8 text-gray-400 group-hover:text-blue-500 transition-colors" 
-                                                      fill="none" 
-                                                      stroke="currentColor" 
-                                                      viewBox="0 0 24 24"
-                                                    >
-                                                      <path 
-                                                        strokeLinecap="round" 
-                                                        strokeLinejoin="round" 
-                                                        strokeWidth={2} 
-                                                        d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" 
-                                                      />
-                                                    </svg>
-                                                    
-                                                    {/* Upload Text */}
-                                                    <div className="text-center">
-                                                      <span className="block text-xs font-semibold text-gray-600 group-hover:text-blue-600">
-                                                        Upload
-                                                      </span>
-                                                      <span className="block text-[10px] text-gray-400 mt-0.5">
-                                                        Image {index + 1}
-                                                      </span>
-                                                    </div>
-                                                  </label>
-                                                )}
-                                              </div>
-                                            );
-                                          })}
-                                        </div>
-                                      </div>
-                                    );
-                                  })}
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })()}
-
-                          {/* Upload Your Design Section - Redesigned */}
-                          <div className="mb-3 sm:mb-4 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                            {/* Header Section */}
-                            <div className="bg-gradient-to-r from-purple-50 to-pink-50 px-4 sm:px-5 py-3 sm:py-4 border-b border-gray-200">
-                              <div className="flex items-center gap-2.5">
-                                <div className="w-8 h-8 rounded-lg bg-white shadow-sm flex items-center justify-center">
-                                  <svg 
-                                    className="w-[18px] h-[18px] text-purple-600" 
-                                    fill="none" 
-                                    stroke="currentColor" 
-                                    viewBox="0 0 24 24"
-                                  >
-                                    <path 
-                                      strokeLinecap="round" 
-                                      strokeLinejoin="round" 
-                                      strokeWidth={2} 
-                                      d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" 
-                                    />
-                                  </svg>
-                                </div>
-                                <div>
-                                  <h3 className="font-semibold text-sm sm:text-base text-gray-900">
-                                    Upload Your Design
-                                  </h3>
-                                  <p className="text-xs text-gray-500 mt-0.5">
-                                    Reference image required • Back design optional
-                                  </p>
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Upload Items */}
-                            <div className="p-4 sm:p-5">
-                              {/* Combined Reference and Back Design Upload */}
-                              <div className="rounded-lg p-4 border-2 border-gray-200 bg-gray-50 mb-4">
-                                {/* Upload Buttons Row */}
-                                <div className="grid grid-cols-2 gap-4 mb-4">
-                                  {/* Reference Image */}
-                                  <div>
-                                    <div className="flex items-center gap-2 mb-2">
-                                      <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-purple-100 text-purple-700 text-xs font-bold">
-                                        1
+                                    {pdfFile && !pdfValidationError && (
+                                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-100 text-green-700 text-xs font-semibold">
+                                        <Check size={12} strokeWidth={3} />
+                                        Complete
                                       </span>
-                                      <h4 className="text-sm font-bold text-gray-900">
-                                        Reference Image
-                                      </h4>
-                                      <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[10px] font-semibold">
-                                        Required
-                                      </span>
-                                    </div>
-                                    <p className="text-xs text-gray-600 mb-3">
-                                      Upload your design file for the front side
-                                    </p>
-                                    
-                                    <input
-                                      type="file"
-                                      id="reference-image-upload"
-                                      accept="image/*"
-                                      onChange={(e) => handleDesignFileChange(e, "front")}
-                                      className="hidden"
-                                      data-required-field
-                                    />
-                                    
-                                    {frontDesignFile && frontDesignPreview ? (
-                                      <div className="relative group">
-                                        <div className="w-full aspect-[3/2] rounded-xl overflow-hidden border-2 border-green-400 bg-white shadow-md hover:shadow-lg transition-all">
-                                          <img
-                                            src={frontDesignPreview}
-                                            alt="Reference image preview"
-                                            className="w-full h-full object-cover"
-                                          />
-                                        </div>
-                                        
-                                        <div className="absolute -top-2 -left-2 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center shadow-md">
-                                          <Check size={14} className="text-white" strokeWidth={3} />
-                                        </div>
-                                        
-                                        <button
-                                          type="button"
-                                          onClick={(e) => {
-                                            e.preventDefault();
-                                            setFrontDesignFile(null);
-                                            setFrontDesignPreview("");
-                                          }}
-                                          className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-md transition-all opacity-0 group-hover:opacity-100 hover:scale-110"
-                                          title="Remove image"
-                                        >
-                                          <X size={14} strokeWidth={3} />
-                                        </button>
-                                        
-                                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent text-white text-[10px] font-medium text-center px-1 py-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                                          {frontDesignFile.name.length > 20 ? frontDesignFile.name.substring(0, 20) + '...' : frontDesignFile.name}
-                                        </div>
-                                      </div>
-                                    ) : (
-                                      <label
-                                        htmlFor="reference-image-upload"
-                                        className="w-full aspect-[3/2] cursor-pointer border-2 border-dashed border-gray-300 rounded-xl hover:border-purple-400 hover:bg-purple-50 transition-all duration-200 flex flex-col items-center justify-center gap-2 bg-white group shadow-sm hover:shadow-md"
-                                      >
-                                        <svg 
-                                          className="w-8 h-8 text-gray-400 group-hover:text-purple-500 transition-colors" 
-                                          fill="none" 
-                                          stroke="currentColor" 
-                                          viewBox="0 0 24 24"
-                                        >
-                                          <path 
-                                            strokeLinecap="round" 
-                                            strokeLinejoin="round" 
-                                            strokeWidth={2} 
-                                            d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" 
-                                          />
-                                        </svg>
-                                        <div className="text-center">
-                                          <span className="block text-sm font-semibold text-gray-600 group-hover:text-purple-600">
-                                            Upload Image
-                                          </span>
-                                          <span className="block text-xs text-gray-400 mt-0.5">
-                                            Image 1
-                                          </span>
-                                        </div>
-                                      </label>
                                     )}
                                   </div>
+                                </div>
 
-                                  {/* Back Design */}
-                                  <div>
-                                    <div className="flex items-center gap-2 mb-2">
+                                {/* Upload Area */}
+                                <div className="p-4 sm:p-5">
+                                  {/* Upload Input */}
+                                  <input
+                                    type="file"
+                                    id="pdf-upload-input"
+                                    accept="application/pdf"
+                                    onChange={handlePdfUpload}
+                                    className="hidden"
+                                    data-required-field
+                                  />
+
+                                  {!pdfFile ? (
+                                    /* Upload Prompt */
+                                    <label
+                                      htmlFor="pdf-upload-input"
+                                      className={`block cursor-pointer border-2 border-dashed rounded-xl transition-all duration-200 ${
+                                        pdfValidationError
+                                          ? 'border-red-300 bg-red-50'
+                                          : 'border-gray-300 bg-gray-50 hover:border-blue-400 hover:bg-blue-50'
+                                      }`}
+                                    >
+                                      <div className="p-8 text-center">
+                                        {isPdfProcessing ? (
+                                          <div className="flex flex-col items-center">
+                                            <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-3"></div>
+                                            <p className="text-sm font-semibold text-gray-700">Processing PDF...</p>
+                                            <p className="text-xs text-gray-500 mt-1">Extracting pages as images</p>
+                                          </div>
+                                        ) : (
+                                          <>
+                                            <UploadCloud className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                                            <p className="text-base font-semibold text-gray-700 mb-1">
+                                              Click to upload PDF
+                                            </p>
+                                            <p className="text-sm text-gray-500 mb-3">
+                                              Required: {calculatedPages} page{calculatedPages !== 1 ? 's' : ''}
+                                            </p>
+                                            <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">
+                                              <FileText size={16} />
+                                              Select PDF File
+                                            </div>
+                                          </>
+                                        )}
+                                      </div>
+                                    </label>
+                                  ) : (
+                                    /* PDF Upload Success & Preview */
+                                    <div className="space-y-4">
+                                      {/* PDF File Info */}
+                                      <div className="flex items-center justify-between p-4 bg-green-50 border-2 border-green-200 rounded-xl">
+                                        <div className="flex items-center gap-3">
+                                          <div className="w-10 h-10 bg-green-500 rounded-lg flex items-center justify-center">
+                                            <FileText className="w-5 h-5 text-white" />
+                                          </div>
+                                          <div>
+                                            <p className="text-sm font-semibold text-gray-900">
+                                              {pdfFile.name}
+                                            </p>
+                                            <p className="text-xs text-gray-600">
+                                              {extractedPdfPages.length} page{extractedPdfPages.length !== 1 ? 's' : ''} extracted
+                                            </p>
+                                          </div>
+                                        </div>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setPdfFile(null);
+                                            setExtractedPdfPages([]);
+                                            setPdfPreviewPages([]);
+                                            setPdfValidationError(null);
+                                            // Clear mapped images
+                                            setFrontDesignFile(null);
+                                            setBackDesignFile(null);
+                                            setFrontDesignPreview("");
+                                            setBackDesignPreview("");
+                                            const fileInput = document.getElementById('pdf-upload-input') as HTMLInputElement;
+                                            if (fileInput) fileInput.value = '';
+                                          }}
+                                          className="px-3 py-1.5 text-xs font-medium text-red-700 bg-red-100 hover:bg-red-200 rounded-lg transition-colors"
+                                        >
+                                          Remove
+                                        </button>
+                                      </div>
+
+                                      {/* Extracted Pages with Purpose Labels - Enhanced UI */}
+                                      {pdfPreviewPages.length > 0 && pdfPageMapping.length > 0 && (
+                                        <div>
+                                          <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                                            <FileText size={16} className="text-blue-600" />
+                                            Page Assignments
+                                          </h4>
+                                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                            {pdfPreviewPages.map((preview, index) => {
+                                              const mapping = pdfPageMapping[index];
+                                              if (!mapping) return null;
+
+                                              // Color coding based on type
+                                              const colorClasses = mapping.type === 'attribute'
+                                                ? {
+                                                    border: 'border-blue-400',
+                                                    badge: 'bg-blue-500',
+                                                    labelBg: 'bg-blue-600',
+                                                    icon: '📋'
+                                                  }
+                                                : mapping.purpose === 'Front Design'
+                                                ? {
+                                                    border: 'border-green-400',
+                                                    badge: 'bg-green-500',
+                                                    labelBg: 'bg-green-600',
+                                                    icon: '✓'
+                                                  }
+                                                : {
+                                                    border: 'border-purple-400',
+                                                    badge: 'bg-purple-500',
+                                                    labelBg: 'bg-purple-600',
+                                                    icon: '⭐'
+                                                  };
+
+                                              return (
+                                                <div key={index} className="relative group">
+                                                  {/* Image Container */}
+                                                  <div className={`w-full aspect-[4/5] rounded-xl overflow-hidden border-2 ${colorClasses.border} bg-white shadow-md hover:shadow-xl transition-all`}>
+                                                    <img
+                                                      src={preview}
+                                                      alt={`Page ${index + 1}`}
+                                                      className="w-full h-full object-cover"
+                                                    />
+                                                  </div>
+                                                  
+                                                  {/* Page Number Badge */}
+                                                  <div className={`absolute -top-2 -left-2 w-7 h-7 ${colorClasses.badge} rounded-full flex items-center justify-center shadow-lg border-2 border-white`}>
+                                                    <span className="text-white text-xs font-bold">{mapping.pageNumber}</span>
+                                                  </div>
+                                                  
+                                                  {/* Required Badge */}
+                                                  {mapping.isRequired && (
+                                                    <div className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center shadow-lg border-2 border-white">
+                                                      <span className="text-white text-[10px] font-bold">!</span>
+                                                    </div>
+                                                  )}
+                                                  
+                                                  {/* Purpose Label - Always Visible */}
+                                                  <div className={`absolute bottom-0 left-0 right-0 ${colorClasses.labelBg} text-white px-2 py-2`}>
+                                                    <div className="flex items-center gap-1.5">
+                                                      <span className="text-sm">{colorClasses.icon}</span>
+                                                      <div className="flex-1 min-w-0">
+                                                        <p className="text-[11px] font-semibold truncate leading-tight">
+                                                          {mapping.purpose}
+                                                        </p>
+                                                        {mapping.type === 'attribute' && (
+                                                          <p className="text-[9px] opacity-90 truncate">
+                                                            {mapping.isRequired ? 'Required' : 'Optional'}
+                                                          </p>
+                                                        )}
+                                                      </div>
+                                                    </div>
+                                                  </div>
+
+                                                  {/* Hover Tooltip with Full Details */}
+                                                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all rounded-xl pointer-events-none"></div>
+                                                </div>
+                                              );
+                                            })}
+                                          </div>
+
+                                          {/* Legend */}
+                                          <div className="mt-4 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                                            <p className="text-xs font-semibold text-gray-700 mb-2">Color Legend:</p>
+                                            <div className="flex flex-wrap gap-3">
+                                              <div className="flex items-center gap-1.5">
+                                                <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                                                <span className="text-xs text-gray-600">Attribute Images</span>
+                                              </div>
+                                              <div className="flex items-center gap-1.5">
+                                                <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                                                <span className="text-xs text-gray-600">Front Design</span>
+                                              </div>
+                                              <div className="flex items-center gap-1.5">
+                                                <div className="w-3 h-3 rounded-full bg-purple-500"></div>
+                                                <span className="text-xs text-gray-600">Back Design</span>
+                                              </div>
+                                              <div className="flex items-center gap-1.5">
+                                                <div className="w-3 h-3 rounded-full bg-red-500 flex items-center justify-center">
+                                                  <span className="text-white text-[8px] font-bold">!</span>
+                                                </div>
+                                                <span className="text-xs text-gray-600">Required</span>
+                                              </div>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      )}
+
+                                      {/* Page Mapping Info */}
+                                      <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                                        <div className="flex items-start gap-2">
+                                          <Info size={16} className="text-blue-600 mt-0.5 flex-shrink-0" />
+                                          <div className="text-xs text-blue-900">
+                                            <p className="font-semibold mb-1">Page Mapping:</p>
+                                            <ul className="space-y-0.5 list-disc list-inside">
+                                              {(() => {
+                                                let pageNum = 1;
+                                                const mapping = [];
+                                                
+                                                // Map attribute images
+                                                const imageUploadsRequired: Array<{
+                                                  attrName: string;
+                                                  numberOfImages: number;
+                                                }> = [];
+
+                                                let attributesToCheck: any[] = [];
+                                                
+                                                if (isInitialized && pdpAttributes.length > 0) {
+                                                  const ruleResult = applyAttributeRules({
+                                                    attributes: pdpAttributes,
+                                                    rules: pdpRules,
+                                                    selectedValues: { ...selectedDynamicAttributes } as Record<string, string | number | boolean | File | any[] | null>,
+                                                  });
+                                                  attributesToCheck = ruleResult.attributes.filter((attr) => attr.isVisible);
+                                                } else if (selectedProduct?.dynamicAttributes) {
+                                                  attributesToCheck = selectedProduct.dynamicAttributes.filter((attr) => attr.isEnabled);
+                                                }
+
+                                                attributesToCheck.forEach((attr) => {
+                                                  let attrName: string = '';
+                                                  let attributeValues: any[] = [];
+                                                  let attrId: string = '';
+
+                                                  if (isInitialized && pdpAttributes.length > 0) {
+                                                    attrId = attr._id;
+                                                    attrName = attr.attributeName;
+                                                    attributeValues = (attr.allowedValues && attr.allowedValues.length > 0)
+                                                      ? (attr.attributeValues || []).filter((av: any) => attr.allowedValues!.includes(av.value))
+                                                      : (attr.attributeValues || []);
+                                                  } else {
+                                                    if (typeof attr.attributeType === 'object' && attr.attributeType !== null) {
+                                                      const attrType = attr.attributeType;
+                                                      attrId = attrType._id;
+                                                      attrName = attrType.attributeName;
+                                                      attributeValues = attr.customValues && attr.customValues.length > 0
+                                                        ? attr.customValues
+                                                        : attrType.attributeValues || [];
+                                                    }
+                                                  }
+
+                                                  if (!attrId) return;
+
+                                                  const selectedValue = selectedDynamicAttributes[attrId];
+                                                  if (!selectedValue) return;
+
+                                                  const selectedOption = attributeValues.find((av: any) => av.value === selectedValue);
+                                                  if (!selectedOption || !selectedOption.description) return;
+
+                                                  const imagesRequiredMatch = selectedOption.description.match(/Images Required: (\d+)/);
+                                                  const numberOfImagesRequired = imagesRequiredMatch ? parseInt(imagesRequiredMatch[1]) : 0;
+
+                                                  if (numberOfImagesRequired > 0) {
+                                                    imageUploadsRequired.push({
+                                                      attrName,
+                                                      numberOfImages: numberOfImagesRequired,
+                                                    });
+                                                  }
+                                                });
+
+                                                imageUploadsRequired.forEach((req) => {
+                                                  if (req.numberOfImages === 1) {
+                                                    mapping.push(<li key={`attr-${pageNum}`}>Page {pageNum}: {req.attrName}</li>);
+                                                    pageNum++;
+                                                  } else {
+                                                    mapping.push(
+                                                      <li key={`attr-${pageNum}`}>
+                                                        Pages {pageNum}-{pageNum + req.numberOfImages - 1}: {req.attrName}
+                                                      </li>
+                                                    );
+                                                    pageNum += req.numberOfImages;
+                                                  }
+                                                });
+
+                                                // Add design pages
+                                                mapping.push(<li key="front">Page {pageNum}: Front Design (Required)</li>);
+                                                pageNum++;
+                                                mapping.push(<li key="back">Page {pageNum}: Back Design (Optional)</li>);
+
+                                                return mapping;
+                                              })()}
+                                            </ul>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Validation Error */}
+                                  {pdfValidationError && (
+                                    <div className="mt-4 p-4 bg-red-50 border-2 border-red-200 rounded-xl">
+                                      <div className="flex items-start gap-2">
+                                        <AlertCircle className="text-red-600 flex-shrink-0 mt-0.5" size={18} />
+                                        <div>
+                                          <p className="text-sm font-semibold text-red-900 mb-1">Upload Error</p>
+                                          <p className="text-sm text-red-700">{pdfValidationError}</p>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Additional Notes Section */}
+                                  <div className="mt-4 p-4 rounded-lg border-2 border-gray-200 bg-gray-50">
+                                    <div className="flex items-center gap-2 mb-3">
                                       <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-purple-100 text-purple-700 text-xs font-bold">
-                                        2
+                                        <Info size={12} />
                                       </span>
                                       <h4 className="text-sm font-bold text-gray-900">
-                                        Back Design
+                                        Additional Notes
                                       </h4>
                                       <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-200 text-gray-600 text-[10px] font-semibold">
                                         Optional
                                       </span>
                                     </div>
-                                    <p className="text-xs text-gray-600 mb-3">
-                                      Upload design for the back side (if applicable)
-                                    </p>
-                                    
-                                    <input
-                                      type="file"
-                                      id="back-design-upload"
-                                      accept="image/*"
-                                      onChange={(e) => handleDesignFileChange(e, "back")}
-                                      className="hidden"
+                                    <textarea
+                                      value={orderNotes}
+                                      onChange={(e) => setOrderNotes(e.target.value)}
+                                      placeholder="Any special instructions or notes for your order..."
+                                      className="w-full p-3 rounded-lg border-2 border-gray-200 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none text-sm resize-none bg-white transition-all"
+                                      rows={3}
                                     />
-                                    
-                                    {backDesignFile && backDesignPreview ? (
-                                      <div className="relative group">
-                                        <div className="w-full aspect-[3/2] rounded-xl overflow-hidden border-2 border-green-400 bg-white shadow-md hover:shadow-lg transition-all">
-                                          <img
-                                            src={backDesignPreview}
-                                            alt="Back design preview"
-                                            className="w-full h-full object-cover"
-                                          />
-                                        </div>
-                                        
-                                        <div className="absolute -top-2 -left-2 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center shadow-md">
-                                          <Check size={14} className="text-white" strokeWidth={3} />
-                                        </div>
-                                        
-                                        <button
-                                          type="button"
-                                          onClick={(e) => {
-                                            e.preventDefault();
-                                            setBackDesignFile(null);
-                                            setBackDesignPreview("");
-                                          }}
-                                          className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-md transition-all opacity-0 group-hover:opacity-100 hover:scale-110"
-                                          title="Remove image"
-                                        >
-                                          <X size={14} strokeWidth={3} />
-                                        </button>
-                                        
-                                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent text-white text-[10px] font-medium text-center px-1 py-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                                          {backDesignFile.name.length > 20 ? backDesignFile.name.substring(0, 20) + '...' : backDesignFile.name}
-                                        </div>
-                                      </div>
-                                    ) : (
-                                      <label
-                                        htmlFor="back-design-upload"
-                                        className="w-full aspect-[3/2] cursor-pointer border-2 border-dashed border-gray-300 rounded-xl hover:border-purple-400 hover:bg-purple-50 transition-all duration-200 flex flex-col items-center justify-center gap-2 bg-white group shadow-sm hover:shadow-md"
-                                      >
-                                        <svg 
-                                          className="w-8 h-8 text-gray-400 group-hover:text-purple-500 transition-colors" 
-                                          fill="none" 
-                                          stroke="currentColor" 
-                                          viewBox="0 0 24 24"
-                                        >
-                                          <path 
-                                            strokeLinecap="round" 
-                                            strokeLinejoin="round" 
-                                            strokeWidth={2} 
-                                            d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" 
-                                          />
-                                        </svg>
-                                        <div className="text-center">
-                                          <span className="block text-sm font-semibold text-gray-600 group-hover:text-purple-600">
-                                            Upload Image
-                                          </span>
-                                          <span className="block text-xs text-gray-400 mt-0.5">
-                                            Image 2
-                                          </span>
-                                        </div>
-                                      </label>
-                                    )}
                                   </div>
                                 </div>
                               </div>
-
-                              {/* Additional Notes */}
-                              <div className="rounded-lg p-4 border-2 border-gray-200 bg-gray-50">
-                                <div className="flex items-center gap-2 mb-3">
-                                  <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-purple-100 text-purple-700 text-xs font-bold">
-                                    3
-                                  </span>
-                                  <h4 className="text-sm font-bold text-gray-900">
-                                    Additional Notes
-                                  </h4>
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-200 text-gray-600 text-[10px] font-semibold">
-                                    Optional
-                                  </span>
-                                </div>
-                                <textarea
-                                  value={orderNotes}
-                                  onChange={(e) => setOrderNotes(e.target.value)}
-                                  placeholder="Any special instructions or notes for your order..."
-                                  className="w-full p-3 rounded-lg border-2 border-gray-200 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none text-sm resize-none bg-white transition-all"
-                                  rows={3}
-                                />
-                              </div>
-                            </div>
-                          </div>
+                            );
+                          })()}
 
                         </div>
 
