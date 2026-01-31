@@ -4940,22 +4940,23 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
                                 {/* Quantity Selection */}
                                 <div className="mb-3 sm:mb-4" data-section="quantity">
-                                  <label className="block text-xs sm:text-sm font-bold text-gray-900 mb-2 sm:mb-3 uppercase tracking-wider">
-                                    {sectionNum++}. Select Quantity
-                                  </label>
-
-                                  <div className="mb-3">
-                                    <Select
-                                      options={generateQuantities(selectedProduct).map((q) => ({
-                                        value: q,
-                                        label: q.toLocaleString()
-                                      }))}
-                                      value={quantity}
-                                      onValueChange={(value) => setQuantity(Number(value))}
-                                      placeholder="Select quantity"
-                                      className="w-full"
-                                      colorTheme="amber"
-                                    />
+                                  <div className="flex items-center gap-4">
+                                    <label className="text-xs sm:text-sm font-bold text-gray-900 uppercase tracking-wider shrink-0" style={{ minWidth: '200px' }}>
+                                      {sectionNum++}. Select Quantity
+                                    </label>
+                                    <div className="flex-1">
+                                      <Select
+                                        options={generateQuantities(selectedProduct).map((q) => ({
+                                          value: q,
+                                          label: q.toLocaleString()
+                                        }))}
+                                        value={quantity}
+                                        onValueChange={(value) => setQuantity(Number(value))}
+                                        placeholder="Select quantity"
+                                        className="w-full"
+                                        colorTheme="amber"
+                                      />
+                                    </div>
                                   </div>
 
                                   {(() => {
@@ -5244,141 +5245,139 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
                                         return (
                                           <div key={attrId} className="mb-3 sm:mb-4">
-                                            <label className="block text-xs sm:text-sm font-bold text-gray-900 mb-2 sm:mb-3 uppercase tracking-wider">
-                                              {sectionNum++}. {attrType.attributeName}
-                                              {isRequired && <span className="text-red-500 ml-1">*</span>}
-                                            </label>
+                                            {/* Label for non-DROPDOWN/POPUP attributes (stacked layout) */}
+                                            {!(attrType.inputStyle === 'DROPDOWN' || attrType.inputStyle === 'POPUP') && (
+                                              <label className="block text-xs sm:text-sm font-bold text-gray-900 mb-2 sm:mb-3 uppercase tracking-wider">
+                                                {sectionNum++}. {attrType.attributeName}
+                                                {isRequired && <span className="text-red-500 ml-1">*</span>}
+                                              </label>
+                                            )}
 
                                             {(attrType.inputStyle === 'DROPDOWN' || attrType.inputStyle === 'POPUP') && (
                                               <div data-attribute={attrId} data-attribute-name={attrType.attributeName}>
-                                                {attributeValues.length === 0 ? (
-                                                  <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                                                    <p className="text-sm text-yellow-800">
-                                                      No options available for this attribute. Please contact support.
-                                                    </p>
-                                                  </div>
-                                                ) : (
-                                                  <>
-                                                    <Select
-                                                      options={attributeValues
-                                                        .filter((av: any) => av && av.value && av.label) // Filter out invalid options
-                                                        .map((av: any) => {
-                                                          // Get price display - check for priceImpact first, then fall back to priceMultiplier
-                                                          let priceDisplay = '';
-                                                          if (av.description) {
-                                                            const priceImpactMatch = av.description.match(/Price Impact: ₹([\d.]+)/);
-                                                            if (priceImpactMatch) {
-                                                              const priceImpact = parseFloat(priceImpactMatch[1]) || 0;
-                                                              if (priceImpact > 0) {
-                                                                priceDisplay = ` (+₹${priceImpact.toFixed(2)}/unit)`;
+                                                {/* Inline layout for label and select */}
+                                                <div className="flex items-center gap-4">
+                                                  <label className="text-xs sm:text-sm font-bold text-gray-900 uppercase tracking-wider shrink-0" style={{ minWidth: '200px' }}>
+                                                    {sectionNum++}. {attrType.attributeName}
+                                                    {isRequired && <span className="text-red-500 ml-1">*</span>}
+                                                  </label>
+                                                  <div className="flex-1">
+                                                    {attributeValues.length === 0 ? (
+                                                      <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                                                        <p className="text-sm text-yellow-800">
+                                                          No options available.
+                                                        </p>
+                                                      </div>
+                                                    ) : (
+                                                      <Select
+                                                        options={attributeValues
+                                                          .filter((av: any) => av && av.value && av.label)
+                                                          .map((av: any) => {
+                                                            let priceDisplay = '';
+                                                            if (av.description) {
+                                                              const priceImpactMatch = av.description.match(/Price Impact: ₹([\d.]+)/);
+                                                              if (priceImpactMatch) {
+                                                                const priceImpact = parseFloat(priceImpactMatch[1]) || 0;
+                                                                if (priceImpact > 0) {
+                                                                  priceDisplay = ` (+₹${priceImpact.toFixed(2)}/unit)`;
+                                                                }
                                                               }
                                                             }
-                                                          }
-                                                          if (!priceDisplay && av.priceMultiplier && av.priceMultiplier !== 1 && selectedProduct) {
-                                                            const basePrice = selectedProduct.basePrice || 0;
-                                                            const pricePerUnit = basePrice * (av.priceMultiplier - 1);
-                                                            if (Math.abs(pricePerUnit) >= 0.01) {
-                                                              priceDisplay = ` (+₹${pricePerUnit.toFixed(2)}/unit)`;
+                                                            if (!priceDisplay && av.priceMultiplier && av.priceMultiplier !== 1 && selectedProduct) {
+                                                              const basePrice = selectedProduct.basePrice || 0;
+                                                              const pricePerUnit = basePrice * (av.priceMultiplier - 1);
+                                                              if (Math.abs(pricePerUnit) >= 0.01) {
+                                                                priceDisplay = ` (+₹${pricePerUnit.toFixed(2)}/unit)`;
+                                                              }
                                                             }
-                                                          }
-                                                          return {
-                                                            value: av.value,
-                                                            label: `${av.label}${priceDisplay}`
-                                                          };
-                                                        })}
-                                                      value={selectedDynamicAttributes[attrId] as string || ""}
-                                                      onValueChange={(value) => {
-                                                        setSelectedDynamicAttributes({
-                                                          ...selectedDynamicAttributes,
-                                                          [attrId]: value
-                                                        });
-                                                        // Mark this attribute as user-selected for image updates (preserved order)
-                                                        setUserSelectedAttributes(prev => {
-                                                          const next = new Set(prev);
-                                                          next.delete(attrId);
-                                                          next.add(attrId);
-                                                          return next;
-                                                        });
-                                                      }}
-                                                      placeholder={`Select ${attrType.attributeName}`}
-                                                      className="w-full"
-                                                      colorTheme={['indigo', 'rose', 'cyan', 'lime', 'fuchsia'][Math.abs(attrId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)) % 5] as any}
-                                                    />
-                                                    {/* Sub-attributes for selected value */}
-                                                    {availableSubAttributes.length > 0 && (
-                                                      <div className="mt-4">
-                                                        <label className="block text-xs font-semibold text-gray-700 mb-2">
-                                                          Select {selectedValueObj?.label || attrType.attributeName} Option:
-                                                        </label>
-                                                        {/* Scrollable container with fade indicators */}
-                                                        <div className="relative">
-                                                          {/* Top fade gradient */}
-                                                          <div className="absolute top-0 left-0 right-0 h-5 bg-gradient-to-b from-white to-transparent pointer-events-none z-10" />
-
-                                                          <div className="max-h-[400px] overflow-y-auto mini-scrollbar pr-2">
-                                                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                                                              {availableSubAttributes.map((subAttr) => {
-                                                                // Format price display for sub-attribute
-                                                                const getSubAttrPriceDisplay = () => {
-                                                                  if (!subAttr.priceAdd || subAttr.priceAdd === 0) return null;
-                                                                  return `+₹${subAttr.priceAdd.toFixed(2)}/piece`;
-                                                                };
-
-                                                                const subAttrKey = `${attrId}__${selectedValue}`;
-                                                                const isSubAttrSelected = selectedDynamicAttributes[subAttrKey] === subAttr.value;
-
-                                                                return (
-                                                                  <button
-                                                                    key={subAttr._id}
-                                                                    type="button"
-                                                                    onClick={() => {
-                                                                      setSelectedDynamicAttributes((prev) => ({
-                                                                        ...prev,
-                                                                        [subAttrKey]: subAttr.value,
-                                                                      }));
-                                                                      // Mark the parent attribute as user-selected for image updates (preserved order)
-                                                                      setUserSelectedAttributes(prev => {
-                                                                        const next = new Set(prev);
-                                                                        next.delete(attrId);
-                                                                        next.add(attrId);
-                                                                        return next;
-                                                                      });
-                                                                    }}
-                                                                    className={`p-3 my-3 rounded-lg border text-left transition-all ${isSubAttrSelected
-                                                                      ? "border-gray-900 bg-gray-50 ring-1 ring-gray-900"
-                                                                      : "border-gray-200 hover:border-gray-400"
-                                                                      }`}
-                                                                  >
-                                                                    {subAttr.image && (
-                                                                      <div className="mb-2">
-                                                                        <LazyImage
-                                                                          src={subAttr.image}
-                                                                          alt={subAttr.label}
-                                                                          className="w-full h-24 object-cover rounded"
-                                                                          showSkeleton={true}
-                                                                          skeletonVariant="image"
-                                                                        />
-                                                                      </div>
-                                                                    )}
-                                                                    <div className="text-sm font-medium">{subAttr.label}</div>
-                                                                    {getSubAttrPriceDisplay() && (
-                                                                      <div className="text-xs text-gray-600 mt-1">
-                                                                        {getSubAttrPriceDisplay()}
-                                                                      </div>
-                                                                    )}
-                                                                  </button>
-                                                                );
-                                                              })}
-                                                            </div>
-                                                          </div>
-
-                                                          {/* Bottom fade gradient */}
-                                                          <div className="absolute bottom-0 left-0 right-0 h-5 bg-gradient-to-t from-white to-transparent pointer-events-none z-10" />
+                                                            return {
+                                                              value: av.value,
+                                                              label: `${av.label}${priceDisplay}`
+                                                            };
+                                                          })}
+                                                        value={selectedDynamicAttributes[attrId] as string || ""}
+                                                        onValueChange={(value) => {
+                                                          setSelectedDynamicAttributes({
+                                                            ...selectedDynamicAttributes,
+                                                            [attrId]: value
+                                                          });
+                                                          setUserSelectedAttributes(prev => {
+                                                            const next = new Set(prev);
+                                                            next.delete(attrId);
+                                                            next.add(attrId);
+                                                            return next;
+                                                          });
+                                                        }}
+                                                        placeholder={`Select ${attrType.attributeName}`}
+                                                        className="w-full"
+                                                        colorTheme={['indigo', 'rose', 'cyan', 'lime', 'fuchsia'][Math.abs(attrId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)) % 5] as any}
+                                                      />
+                                                    )}
+                                                  </div>
+                                                </div>
+                                                {/* Sub-attributes for selected value - unchanged stacked layout */}
+                                                {availableSubAttributes.length > 0 && (
+                                                  <div className="mt-4">
+                                                    <label className="block text-xs font-semibold text-gray-700 mb-2">
+                                                      Select {selectedValueObj?.label || attrType.attributeName} Option:
+                                                    </label>
+                                                    <div className="relative">
+                                                      <div className="absolute top-0 left-0 right-0 h-5 bg-gradient-to-b from-white to-transparent pointer-events-none z-10" />
+                                                      <div className="max-h-[400px] overflow-y-auto mini-scrollbar pr-2">
+                                                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                                          {availableSubAttributes.map((subAttr) => {
+                                                            const getSubAttrPriceDisplay = () => {
+                                                              if (!subAttr.priceAdd || subAttr.priceAdd === 0) return null;
+                                                              return `+₹${subAttr.priceAdd.toFixed(2)}/piece`;
+                                                            };
+                                                            const subAttrKey = `${attrId}__${selectedValue}`;
+                                                            const isSubAttrSelected = selectedDynamicAttributes[subAttrKey] === subAttr.value;
+                                                            return (
+                                                              <button
+                                                                key={subAttr._id}
+                                                                type="button"
+                                                                onClick={() => {
+                                                                  setSelectedDynamicAttributes((prev) => ({
+                                                                    ...prev,
+                                                                    [subAttrKey]: subAttr.value,
+                                                                  }));
+                                                                  setUserSelectedAttributes(prev => {
+                                                                    const next = new Set(prev);
+                                                                    next.delete(attrId);
+                                                                    next.add(attrId);
+                                                                    return next;
+                                                                  });
+                                                                }}
+                                                                className={`p-3 my-3 rounded-lg border text-left transition-all ${isSubAttrSelected
+                                                                  ? "border-gray-900 bg-gray-50 ring-1 ring-gray-900"
+                                                                  : "border-gray-200 hover:border-gray-400"
+                                                                  }`}
+                                                              >
+                                                                {subAttr.image && (
+                                                                  <div className="mb-2">
+                                                                    <LazyImage
+                                                                      src={subAttr.image}
+                                                                      alt={subAttr.label}
+                                                                      className="w-full h-24 object-cover rounded"
+                                                                      showSkeleton={true}
+                                                                      skeletonVariant="image"
+                                                                    />
+                                                                  </div>
+                                                                )}
+                                                                <div className="text-sm font-medium">{subAttr.label}</div>
+                                                                {getSubAttrPriceDisplay() && (
+                                                                  <div className="text-xs text-gray-600 mt-1">
+                                                                    {getSubAttrPriceDisplay()}
+                                                                  </div>
+                                                                )}
+                                                              </button>
+                                                            );
+                                                          })}
                                                         </div>
                                                       </div>
-                                                    )}
-
-                                                  </>
+                                                      <div className="absolute bottom-0 left-0 right-0 h-5 bg-gradient-to-t from-white to-transparent pointer-events-none z-10" />
+                                                    </div>
+                                                  </div>
                                                 )}
                                               </div>
                                             )}
