@@ -159,6 +159,10 @@ import {
   updateServiceOrder,
   uploadBannerImage,
   toggleServiceStatus,
+  uploadMultipleServiceBanners,
+  deleteServiceBanner,
+  reorderServiceBanners,
+  updateAutoSlideDuration,
 } from "../controllers/serviceController.js";
 
 /* SITE SETTINGS CONTROLLERS */
@@ -448,6 +452,12 @@ router.delete("/services/:id", authMiddleware, adminAuth, deleteService);
 router.patch("/services/reorder", authMiddleware, adminAuth, updateServiceOrder);
 router.post("/services/:id/banner", authMiddleware, adminAuth, uploadBannerImage);
 router.patch("/services/:id/toggle-status", authMiddleware, adminAuth, toggleServiceStatus);
+
+// Multiple banner management routes
+router.post("/services/:id/banners", authMiddleware, adminAuth, uploadMultipleServiceBanners);
+router.delete("/services/:id/banners/:bannerId", authMiddleware, adminAuth, deleteServiceBanner);
+router.put("/services/:id/banners/reorder", authMiddleware, adminAuth, reorderServiceBanners);
+router.put("/services/:id/auto-slide-duration", authMiddleware, adminAuth, updateAutoSlideDuration);
 
 /* =====================================
    GEOCODING ROUTES (Nominatim Proxy)

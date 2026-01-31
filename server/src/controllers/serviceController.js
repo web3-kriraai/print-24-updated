@@ -103,19 +103,19 @@ export const getServiceById = async (req, res) => {
 // Create new service
 export const createService = async (req, res) => {
     try {
-        const { 
-            name, 
-            navbarName, 
-            description, 
-            color, 
-            sortOrder, 
-            bannerImage, 
-            icon, 
-            navbarIcon, 
-            serviceHeading, 
+        const {
+            name,
+            navbarName,
+            description,
+            color,
+            sortOrder,
+            bannerImage,
+            icon,
+            navbarIcon,
+            serviceHeading,
             serviceDescription,
-            bannerConfig, 
-            titles 
+            bannerConfig,
+            titles
         } = req.body;
 
         // Check if service with same name exists
@@ -356,10 +356,229 @@ export const toggleServiceStatus = async (req, res) => {
             service
         });
     } catch (error) {
-        console.error('Error toggling service status:', error);
+    }
+};
+
+// Configure multer for multiple banner uploads
+const uploadMultipleBanners = multer({
+    storage: storage,
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit per file
+    fileFilter: (req, file, cb) => {
+        if (file.mimetype.startsWith('image/')) {
+            return cb(null, true);
+        }
+        const allowedTypes = /jpeg|jpg|png|gif|webp|bmp|tiff/;
+        const extname = file.originalname.match(/\.(jpeg|jpg|png|gif|webp|bmp|tiff)$/i);
+        const mimetype = allowedTypes.test(file.mimetype);
+
+        if (mimetype && extname) {
+            return cb(null, true);
+        } else {
+            cb(new Error(`Only image files are allowed! Got: ${file.mimetype}`));
+        }
+    }
+}).array('banners', 10); // Accept up to 10 files at once
+
+// Upload multiple banners
+export const uploadMultipleServiceBanners = (req, res) => {
+    uploadMultipleBanners(req, res, async (err) => {
+        if (err) {
+            console.error('Multer upload error:', err);
+            return res.status(400).json({
+                message: 'Error uploading images: ' + err.message,
+                error: err.message
+            });
+        }
+
+        if (!req.files || req.files.length === 0) {
+            return res.status(400).json({ message: 'No files uploaded' });
+        }
+
+        try {
+            const { id } = req.params;
+            const service = await Service.findById(id);
+
+            if (!service) {
+                return res.status(404).json({ message: 'Service not found' });
+            }
+
+            // Upload all files to Cloudinary
+            const uploadPromises = req.files.map((file, index) => {
+                return new Promise((resolve, reject) => {
+                    const stream = cloudinary.uploader.upload_stream(
+                        {
+                            folder: 'service-banners',
+                            resource_type: 'image',
+                            transformation: [
+                                { width: 1200, height: 350, crop: 'fill' }
+                            ]
+                        },
+                        (error, result) => {
+                            if (error) {
+                                console.error('Cloudinary upload error:', error);
+                                reject(error);
+                            } else {
+                                resolve({
+                                    imageUrl: result.secure_url,
+                                    sortOrder: (service.banners?.length || 0) + index,
+                                    altText: file.originalname.replace(/\.[^/.]+$/, '')
+                                });
+                            }
+                        }
+                    );
+                    stream.end(file.buffer);
+                });
+            });
+
+            const uploadedBanners = await Promise.all(uploadPromises);
+
+            // Add new banners to existing ones
+            if (!service.banners) {
+                service.banners = [];
+            }
+            service.banners.push(...uploadedBanners);
+
+            await service.save();
+
+            res.status(200).json({
+                message: 'Banners uploaded successfully',
+                banners: uploadedBanners,
+                service
+            });
+        } catch (error) {
+            console.error('Error uploading service banners:', error);
+            res.status(500).json({
+                message: 'Error uploading service banners',
+                error: error.message
+            });
+        }
+    });
+};
+
+// Delete individual banner
+export const deleteServiceBanner = async (req, res) => {
+    try {
+        const { id, bannerId } = req.params;
+
+        const service = await Service.findById(id);
+
+        if (!service) {
+            return res.status(404).json({ message: 'Service not found' });
+        }
+
+        const bannerIndex = service.banners.findIndex(
+            b => b._id.toString() === bannerId
+        );
+
+        if (bannerIndex === -1) {
+            return res.status(404).json({ message: 'Banner not found' });
+        }
+
+        const banner = service.banners[bannerIndex];
+
+        // Delete from Cloudinary
+        if (banner.imageUrl) {
+            try {
+                const urlParts = banner.imageUrl.split('/');
+                const publicIdWithExt = urlParts.slice(-2).join('/');
+                const publicId = publicIdWithExt.replace(/\.[^/.]+$/, '');
+                await cloudinary.uploader.destroy(publicId);
+            } catch (err) {
+                console.warn('Failed to delete banner from Cloudinary:', err.message);
+            }
+        }
+
+        // Remove banner from array
+        service.banners.splice(bannerIndex, 1);
+        await service.save();
+
+        res.status(200).json({
+            message: 'Banner deleted successfully',
+            service
+        });
+    } catch (error) {
+        console.error('Error deleting service banner:', error);
         res.status(500).json({
-            message: 'Error toggling service status',
+            message: 'Error deleting service banner',
             error: error.message
         });
     }
 };
+
+// Reorder banners
+export const reorderServiceBanners = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { bannerOrders } = req.body; // Array of { bannerId, sortOrder }
+
+        if (!Array.isArray(bannerOrders)) {
+            return res.status(400).json({ message: 'bannerOrders must be an array' });
+        }
+
+        const service = await Service.findById(id);
+
+        if (!service) {
+            return res.status(404).json({ message: 'Service not found' });
+        }
+
+        // Update sort order for each banner
+        bannerOrders.forEach(({ bannerId, sortOrder }) => {
+            const banner = service.banners.find(b => b._id.toString() === bannerId);
+            if (banner) {
+                banner.sortOrder = sortOrder;
+            }
+        });
+
+        // Sort banners by sortOrder
+        service.banners.sort((a, b) => a.sortOrder - b.sortOrder);
+
+        await service.save();
+
+        res.status(200).json({
+            message: 'Banners reordered successfully',
+            service
+        });
+    } catch (error) {
+        console.error('Error reordering service banners:', error);
+        res.status(500).json({
+            message: 'Error reordering service banners',
+            error: error.message
+        });
+    }
+};
+
+// Update auto-slide duration
+export const updateAutoSlideDuration = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { duration } = req.body;
+
+        if (!duration || duration < 1000 || duration > 30000) {
+            return res.status(400).json({
+                message: 'Duration must be between 1000 and 30000 milliseconds'
+            });
+        }
+
+        const service = await Service.findByIdAndUpdate(
+            id,
+            { autoSlideDuration: duration },
+            { new: true, runValidators: true }
+        );
+
+        if (!service) {
+            return res.status(404).json({ message: 'Service not found' });
+        }
+
+        res.status(200).json({
+            message: 'Auto-slide duration updated successfully',
+            service
+        });
+    } catch (error) {
+        console.error('Error updating auto-slide duration:', error);
+        res.status(500).json({
+            message: 'Error updating auto-slide duration',
+            error: error.message
+        });
+    }
+};
+

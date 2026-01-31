@@ -197,3 +197,117 @@ export const toggleServiceStatus = async (id: string): Promise<Service> => {
         throw error;
     }
 };
+
+// Upload multiple banners (admin only)
+export const uploadServiceBanners = async (id: string, files: File[]): Promise<Service> => {
+    try {
+        const token = localStorage.getItem('token');
+        const formData = new FormData();
+
+        files.forEach((file) => {
+            formData.append('banners', file);
+        });
+
+        const response = await fetch(`${API_BASE_URL_WITH_API}/services/${id}/banners`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            },
+            body: formData
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.message || 'Failed to upload banners');
+        }
+
+        const result = await response.json();
+        return result.service;
+    } catch (error) {
+        console.error('Error uploading banners:', error);
+        throw error;
+    }
+};
+
+// Delete individual banner (admin only)
+export const deleteServiceBanner = async (serviceId: string, bannerId: string): Promise<Service> => {
+    try {
+        const token = localStorage.getItem('token');
+
+        const response = await fetch(`${API_BASE_URL_WITH_API}/services/${serviceId}/banners/${bannerId}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.message || 'Failed to delete banner');
+        }
+
+        const result = await response.json();
+        return result.service;
+    } catch (error) {
+        console.error('Error deleting banner:', error);
+        throw error;
+    }
+};
+
+// Reorder banners (admin only)
+export const reorderServiceBanners = async (
+    serviceId: string,
+    bannerOrders: { bannerId: string; sortOrder: number }[]
+): Promise<Service> => {
+    try {
+        const token = localStorage.getItem('token');
+
+        const response = await fetch(`${API_BASE_URL_WITH_API}/services/${serviceId}/banners/reorder`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ bannerOrders })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.message || 'Failed to reorder banners');
+        }
+
+        const result = await response.json();
+        return result.service;
+    } catch (error) {
+        console.error('Error reordering banners:', error);
+        throw error;
+    }
+};
+
+// Update auto-slide duration (admin only)
+export const updateAutoSlideDuration = async (serviceId: string, duration: number): Promise<Service> => {
+    try {
+        const token = localStorage.getItem('token');
+
+        const response = await fetch(`${API_BASE_URL_WITH_API}/services/${serviceId}/auto-slide-duration`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ duration })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.message || 'Failed to update auto-slide duration');
+        }
+
+        const result = await response.json();
+        return result.service;
+    } catch (error) {
+        console.error('Error updating auto-slide duration:', error);
+        throw error;
+    }
+};
+

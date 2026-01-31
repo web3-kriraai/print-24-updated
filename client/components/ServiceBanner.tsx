@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import './ServiceBanner.css';
 import { Service } from '../types/serviceTypes';
 import { API_BASE_URL } from '../lib/apiConfig';
+import ServiceBannerCarousel from './ServiceBannerCarousel';
 
 interface ServiceBannerProps {
     service: Service;
@@ -69,25 +70,213 @@ const ServiceBanner: React.FC<ServiceBannerProps> = ({ service }) => {
         gradient: `linear-gradient(90deg, ${bannerConfig.primaryColor || service.color}15 0%, ${bannerConfig.primaryColor || service.color}05 50%, #ffffff 100%)`
     };
 
-    // Construct image URL if it exists
-    const bannerImageUrl = service.bannerImage
+    // Check if we have multiple banners
+    const hasMultipleBanners = service.banners && service.banners.length > 0;
+
+    // Construct single banner image URL if it exists (for backwards compatibility)
+    const singleBannerImageUrl = service.bannerImage
         ? (service.bannerImage.startsWith('http')
             ? service.bannerImage
             : `${API_BASE_URL}${service.bannerImage.startsWith('/') ? '' : '/'}${service.bannerImage}`)
         : null;
 
-    if (bannerImageUrl) {
-        console.log('Rendering Service Banner Image:', bannerImageUrl);
+    // PRIORITY LOGIC:
+    // 1. If multiple banners exist, use the carousel
+    // 2. Otherwise, if single bannerImage exists, use that
+    // 3. Otherwise, render the default banner design
+
+    if (hasMultipleBanners) {
+        console.log('Rendering Service Banner Carousel with', service.banners.length, 'banners');
+        // Render carousel WITH text and graphics overlay
+        // Images as background, text/icons on top
+    }
+
+    // For both carousel and single banner - show overlay with text if not using default
+    if (hasMultipleBanners || singleBannerImageUrl) {
+        const backgroundImage = hasMultipleBanners ? null : singleBannerImageUrl;
+        console.log(hasMultipleBanners ? 'Rendering carousel with overlay' : 'Rendering single banner with overlay');
+
         return (
             <div className="service-banner-container relative w-full h-[350px] overflow-hidden">
-                <motion.img
-                    src={bannerImageUrl}
-                    alt={`${service.name} Banner`}
-                    className="w-full h-full object-fill"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ duration: 0.6 }}
-                />
+                {/* Background: Carousel or Static Image */}
+                {hasMultipleBanners ? (
+                    <div className="absolute inset-0 z-0">
+                        <ServiceBannerCarousel
+                            banners={service.banners}
+                            autoSlideDuration={service.autoSlideDuration || 5000}
+                            fallbackImage={singleBannerImageUrl || undefined}
+                            className="w-full h-full"
+                        />
+                    </div>
+                ) : (
+                    <div className="absolute inset-0 z-0">
+                        <motion.img
+                            src={backgroundImage!}
+                            alt={`${service.name} Banner`}
+                            className="w-full h-full object-cover"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            transition={{ duration: 0.6 }}
+                        />
+                    </div>
+                )}
+
+                {/* Overlay: Gradient for text readability */}
+                <div className="absolute inset-0 z-10 bg-gradient-to-r from-black/40 via-black/20 to-transparent"></div>
+
+                {/* Overlay: Banner Content (Text, Icons, Graphics) */}
+                <div className="absolute inset-0 z-20">
+                    <motion.div
+                        className="service-banner h-full relative"
+                        style={{ background: 'transparent' }}
+                    >
+                        {/* Left Side - Icon Graphics */}
+                        <AnimatePresence mode="wait">
+                            <motion.div
+                                key={service._id}
+                                className="banner-left"
+                                initial={{ opacity: 0, x: -50 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                exit={{ opacity: 0, x: 50 }}
+                                transition={{ duration: 0.5, ease: "easeOut" }}
+                            >
+                                <div className="icon-cluster">
+                                    <motion.div
+                                        className="cluster-icon"
+                                        style={{ backgroundColor: bannerStyle.color }}
+                                        animate={{ rotate: [0, 5, -5, 0], scale: [1, 1.05, 1] }}
+                                        transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                                    >
+                                        <IconComponent size={40} color="white" />
+                                    </motion.div>
+                                    {/* Secondary Icons */}
+                                    {bannerConfig.secondaryIcons && bannerConfig.secondaryIcons.length > 0 ? (
+                                        bannerConfig.secondaryIcons.map((secIcon, idx) => {
+                                            const SecIconComponent = (Icons as any)[secIcon.icon] || Icons.Printer;
+                                            return (
+                                                <motion.div
+                                                    key={idx}
+                                                    className="cluster-icon secondary"
+                                                    animate={{ y: [0, -5, 0] }}
+                                                    transition={{ duration: 2, repeat: Infinity, ease: "easeInOut", delay: 0.2 + (idx * 0.2) }}
+                                                >
+                                                    <SecIconComponent size={secIcon.size || 24} color="#333" />
+                                                </motion.div>
+                                            );
+                                        })
+                                    ) : (
+                                        <>
+                                            <motion.div
+                                                className="cluster-icon secondary"
+                                                animate={{ y: [0, -5, 0] }}
+                                                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut", delay: 0.2 }}
+                                            >
+                                                <Icons.Printer size={24} color="#333" />
+                                            </motion.div>
+                                            <motion.div
+                                                className="cluster-icon secondary"
+                                                animate={{ y: [0, -5, 0] }}
+                                                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut", delay: 0.4 }}
+                                            >
+                                                <Icons.Palette size={24} color="#333" />
+                                            </motion.div>
+                                            <motion.div
+                                                className="cluster-icon secondary"
+                                                animate={{ y: [0, -5, 0] }}
+                                                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut", delay: 0.6 }}
+                                            >
+                                                <Icons.Package size={24} color="#333" />
+                                            </motion.div>
+                                        </>
+                                    )}
+                                </div>
+                            </motion.div>
+                        </AnimatePresence>
+
+                        {/* Center-Right - Text Content */}
+                        <AnimatePresence mode="wait">
+                            <motion.div
+                                key={service._id + '-content'}
+                                className="banner-content"
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -20 }}
+                                transition={{ duration: 0.5, ease: "easeOut" }}
+                            >
+                                <motion.p
+                                    className="banner-subtitle text-white drop-shadow-lg"
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    transition={{ delay: 0.1 }}
+                                >
+                                    {bannerConfig.textSection1 || bannerConfig.title || 'ORDER BOOK TODAY'}
+                                </motion.p>
+
+                                <motion.p
+                                    className="text-sm font-medium text-white/90 mb-4 max-w-lg mx-auto drop-shadow-md"
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    transition={{ delay: 0.15 }}
+                                >
+                                    {bannerConfig.textSection2 || service.serviceDescription || service.description}
+                                </motion.p>
+
+                                <motion.h2
+                                    className="banner-title text-white drop-shadow-xl"
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    transition={{ delay: 0.2 }}
+                                >
+                                    {bannerConfig.textSection3 || bannerConfig.subtitle || 'WIDE RANGE OF'}<br />
+
+                                    <motion.span
+                                        className="banner-highlight drop-shadow-lg"
+                                        style={{ color: bannerStyle.color, textShadow: '2px 2px 4px rgba(0,0,0,0.5)' }}
+                                        initial={{ opacity: 0, scale: 0.9 }}
+                                        animate={{ opacity: 1, scale: 1 }}
+                                        transition={{ delay: 0.3, duration: 0.4 }}
+                                    >
+                                        {bannerConfig.textSection4 || bannerConfig.highlightText || service.serviceHeading || `${service.name} SERVICES`}
+                                    </motion.span>
+                                </motion.h2>
+                            </motion.div>
+                        </AnimatePresence>
+
+                        {/* Top-Right - Decorative Stripes */}
+                        {bannerConfig.showIcons && (
+                            <div className="banner-stripes">
+                                <motion.div
+                                    className="stripe stripe-1"
+                                    style={{ backgroundColor: bannerStyle.color }}
+                                    initial={{ x: 100, opacity: 0 }}
+                                    animate={{ x: 0, opacity: 0.9 }}
+                                    transition={{ duration: 0.6, delay: 0.1 }}
+                                />
+                                <motion.div
+                                    className="stripe stripe-2"
+                                    style={{ backgroundColor: bannerStyle.secondaryColor }}
+                                    initial={{ x: 100, opacity: 0 }}
+                                    animate={{ x: 0, opacity: 0.9 }}
+                                    transition={{ duration: 0.6, delay: 0.2 }}
+                                />
+                                <motion.div
+                                    className="stripe stripe-3"
+                                    style={{ backgroundColor: bannerStyle.accentColor }}
+                                    initial={{ x: 100, opacity: 0 }}
+                                    animate={{ x: 0, opacity: 0.9 }}
+                                    transition={{ duration: 0.6, delay: 0.3 }}
+                                />
+                                <motion.div
+                                    className="stripe stripe-4"
+                                    style={{ backgroundColor: bannerConfig.colorPalette?.[0]?.color || '#c9d729' }}
+                                    initial={{ x: 100, opacity: 0 }}
+                                    animate={{ x: 0, opacity: 0.9 }}
+                                    transition={{ duration: 0.6, delay: 0.4 }}
+                                />
+                            </div>
+                        )}
+                    </motion.div>
+                </div>
             </div>
         );
     }

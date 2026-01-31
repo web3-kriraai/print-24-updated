@@ -74,6 +74,28 @@ const serviceSchema = new mongoose.Schema({
         type: String,
         default: ''
     },
+    // Multiple banners configuration
+    banners: [{
+        imageUrl: {
+            type: String,
+            required: true
+        },
+        sortOrder: {
+            type: Number,
+            default: 0
+        },
+        altText: {
+            type: String,
+            default: ''
+        }
+    }],
+    // Auto-slide duration in milliseconds
+    autoSlideDuration: {
+        type: Number,
+        default: 5000, // 5 seconds
+        min: 1000,    // 1 second minimum
+        max: 30000    // 30 seconds maximum
+    },
     // Icon configuration
     icon: {
         type: String,

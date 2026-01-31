@@ -77,6 +77,13 @@ export interface BannerConfig {
     iconPositions: BannerIconConfig[];
 }
 
+export interface Banner {
+    _id?: string;
+    imageUrl: string;
+    sortOrder: number;
+    altText?: string;
+}
+
 export interface Service {
     _id: string;
     name: string;
@@ -84,7 +91,9 @@ export interface Service {
     description: string;
     color: string;
     sortOrder: number;
-    bannerImage: string;
+    bannerImage: string; // Legacy field - kept for backwards compatibility
+    banners: Banner[]; // New multiple banners field
+    autoSlideDuration: number; // Auto-slide duration in milliseconds
     icon?: string;
     navbarIcon?: string;
     serviceHeading?: string;

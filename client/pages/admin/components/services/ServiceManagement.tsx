@@ -24,6 +24,7 @@ import {
     MapPin,
     Monitor,
     Calculator,
+    Image as ImageIcon,
 } from 'lucide-react';
 import {
     fetchServices,
@@ -33,8 +34,12 @@ import {
     reorderServices,
     uploadServiceBanner,
     toggleServiceStatus,
+    uploadServiceBanners,
+    deleteServiceBanner,
+    reorderServiceBanners,
+    updateAutoSlideDuration,
 } from '../../../../lib/serviceApi';
-import type { Service, CreateServiceData, BannerConfig, BannerSecondaryIcon, BannerColorPalette } from '../../../../types/serviceTypes';
+import type { Service, CreateServiceData, BannerConfig, BannerSecondaryIcon, BannerColorPalette, Banner } from '../../../../types/serviceTypes';
 import ServiceTitleManager from './ServiceTitleManager.tsx';
 import { API_BASE_URL } from '../../../../lib/apiConfig';
 import IconSelector from '../../../../components/IconSelector';
@@ -103,6 +108,13 @@ const ServiceManagement: React.FC = () => {
     const [saving, setSaving] = useState(false);
     const [activeTab, setActiveTab] = useState<'services' | 'reviews' | 'features'>('services');
 
+    // Multiple banners state
+    const [bannerFiles, setBannerFiles] = useState<File[]>([]);
+    const [bannerPreviews, setBannerPreviews] = useState<{ file: File; preview: string; id: string }[]>([]);
+    const [existingBanners, setExistingBanners] = useState<Banner[]>([]);
+    const [draggedBannerId, setDraggedBannerId] = useState<string | null>(null);
+    const [autoSlideDuration, setAutoSlideDuration] = useState<number>(5000); // 5 seconds default
+
     useEffect(() => {
         loadServices();
     }, []);
@@ -157,6 +169,13 @@ const ServiceManagement: React.FC = () => {
         setBannerFile(null);
         setBannerPreview('');
         setUseDefaultBanner(true);
+
+        // Clear multiple banners state
+        setExistingBanners([]);
+        setBannerFiles([]);
+        setBannerPreviews([]);
+        setAutoSlideDuration(5000); // Reset to default 5 seconds
+
         setShowForm(true);
     };
 
@@ -200,7 +219,20 @@ const ServiceManagement: React.FC = () => {
             ? (service.bannerImage.startsWith('http') ? service.bannerImage : `${API_BASE_URL}${service.bannerImage}`)
             : '';
         setBannerPreview(fullBannerUrl);
-        setUseDefaultBanner(!service.bannerImage);
+
+        // Set useDefaultBanner based on whether service has banners OR bannerImage
+        // If it has multiple banners OR a single bannerImage, then it's NOT using default
+        const hasCustomBanners = (service.banners && service.banners.length > 0) || service.bannerImage;
+        setUseDefaultBanner(!hasCustomBanners);
+
+        // Load multiple banners
+        setExistingBanners(service.banners || []);
+        setBannerFiles([]);
+        setBannerPreviews([]);
+
+        // Load auto-slide duration
+        setAutoSlideDuration(service.autoSlideDuration || 5000);
+
         setShowForm(true);
     };
 
@@ -213,6 +245,112 @@ const ServiceManagement: React.FC = () => {
                 setBannerPreview(reader.result as string);
             };
             reader.readAsDataURL(file);
+        }
+    };
+
+    // Handle multiple banner upload
+    const handleMultipleBannersChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(e.target.files || []);
+        if (files.length > 0) {
+            const newPreviews = files.map((file) => {
+                const reader = new FileReader();
+                const id = Math.random().toString(36).substring(7);
+
+                return new Promise<{ file: File; preview: string; id: string }>((resolve) => {
+                    reader.onloadend = () => {
+                        resolve({
+                            file,
+                            preview: reader.result as string,
+                            id
+                        });
+                    };
+                    reader.readAsDataURL(file);
+                });
+            });
+
+            Promise.all(newPreviews).then((previews) => {
+                setBannerPreviews([...bannerPreviews, ...previews]);
+            });
+        }
+    };
+
+    // Remove banner preview (not yet uploaded)
+    const removeBannerPreview = (id: string) => {
+        setBannerPreviews(bannerPreviews.filter(p => p.id !== id));
+    };
+
+    // Delete existing banner
+    const handleDeleteExistingBanner = async (bannerId: string) => {
+        if (!editingService) return;
+
+        try {
+            const updatedService = await deleteServiceBanner(editingService._id, bannerId);
+            setExistingBanners(updatedService.banners || []);
+            setServices(services.map(s => s._id === updatedService._id ? updatedService : s));
+        } catch (error) {
+            console.error('Error deleting banner:', error);
+            alert('Failed to delete banner');
+        }
+    };
+
+    // Handle banner drag start
+    const handleBannerDragStart = (e: React.DragEvent, bannerId: string) => {
+        setDraggedBannerId(bannerId);
+        e.dataTransfer.effectAllowed = 'move';
+    };
+
+    // Handle banner drag over
+    const handleBannerDragOver = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+    };
+
+    // Handle banner drop (reorder)
+    const handleBannerDrop = async (e: React.DragEvent, targetBannerId: string) => {
+        e.preventDefault();
+        if (!draggedBannerId || !editingService || draggedBannerId === targetBannerId) return;
+
+        const banners = [...existingBanners];
+        const dragIndex = banners.findIndex(b => b._id === draggedBannerId);
+        const dropIndex = banners.findIndex(b => b._id === targetBannerId);
+
+        if (dragIndex === -1 || dropIndex === -1) return;
+
+        // Reorder locally
+        const [draggedBanner] = banners.splice(dragIndex, 1);
+        banners.splice(dropIndex, 0, draggedBanner);
+
+        // Update sort orders
+        const bannerOrders = banners.map((banner, index) => ({
+            bannerId: banner._id!,
+            sortOrder: index
+        }));
+
+        setExistingBanners(banners);
+        setDraggedBannerId(null);
+
+        try {
+            const updatedService = await reorderServiceBanners(editingService._id, bannerOrders);
+            setServices(services.map(s => s._id === updatedService._id ? updatedService : s));
+        } catch (error) {
+            console.error('Error reordering banners:', error);
+            alert('Failed to reorder banners');
+            // Revert on error
+            await loadServices();
+        }
+    };
+
+    // Handle auto-slide duration change
+    const handleAutoSlideDurationChange = async (duration: number) => {
+        setAutoSlideDuration(duration);
+
+        if (editingService) {
+            try {
+                const updatedService = await updateAutoSlideDuration(editingService._id, duration);
+                setServices(services.map(s => s._id === updatedService._id ? updatedService : s));
+            } catch (error) {
+                console.error('Error updating auto-slide duration:', error);
+            }
         }
     };
 
@@ -233,6 +371,8 @@ const ServiceManagement: React.FC = () => {
                 submissionData.bannerImage = ''; // Clear image if default selected
             }
 
+            let serviceId: string;
+
             if (editingService) {
                 // Update existing service
                 const updated = await updateService(editingService._id, submissionData);
@@ -240,20 +380,14 @@ const ServiceManagement: React.FC = () => {
                 // Upload banner if new file selected and NOT default
                 if (bannerFile && !useDefaultBanner) {
                     await uploadServiceBanner(editingService._id, bannerFile);
-                } else if (useDefaultBanner && editingService.bannerImage) {
-                    // Logic to handle clearing existing banner if needed?
-                    // Currently updateService updates fields, but uploadServiceBanner is separate.
-                    // If we pass bannerImage: '' to updateService, does it persist?
-                    // Let's assume updateService updates the text fields. 
-                    // We might need to handle image deletion if it was there but now default is selected.
-                    // However, updateService in controller typically only updates fields passed.
-                    // If we pass bannerImage: '', it should update it.
                 }
 
+                serviceId = editingService._id;
                 setServices(services.map(s => s._id === updated._id ? updated : s));
             } else {
                 // Create new service
                 const newService = await createService(submissionData);
+                serviceId = newService._id;
 
                 // Upload banner if file selected and NOT default
                 if (bannerFile && !useDefaultBanner) {
@@ -261,6 +395,12 @@ const ServiceManagement: React.FC = () => {
                 }
 
                 setServices([...services, newService]);
+            }
+
+            // Upload multiple banners if any are selected
+            if (bannerPreviews.length > 0) {
+                const files = bannerPreviews.map(p => p.file);
+                await uploadServiceBanners(serviceId, files);
             }
 
             setShowForm(false);
@@ -1022,7 +1162,7 @@ const ServiceManagement: React.FC = () => {
 
                                             {/* Banner Image Upload */}
                                             <div>
-                                                <div className="flex items-center gap-2 mb-2">
+                                                <div className="flex items-center gap-2 mb-4">
                                                     <input
                                                         type="checkbox"
                                                         id="useDefaultBanner"
@@ -1038,70 +1178,186 @@ const ServiceManagement: React.FC = () => {
                                                         disabled={saving}
                                                     />
                                                     <label htmlFor="useDefaultBanner" className="text-sm font-medium text-gray-700">
-                                                        Use Default Banner
+                                                        Use Default Banner Design (Animated with text and icons)
                                                     </label>
                                                 </div>
+                                                <p className="text-xs text-gray-500 mb-4 pl-6">
+                                                    {useDefaultBanner
+                                                        ? "✅ Using default animated banner. Uncheck to upload custom banner images."
+                                                        : "📸 Upload custom banner images below. Multiple banners will auto-rotate."}
+                                                </p>
+                                            </div>
 
-                                                {!useDefaultBanner && (
-                                                    <div className="space-y-3 pl-6 border-l-2 border-gray-100">
-                                                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                                                            Upload Banner Image *
+                                            {/* Multiple Banners Manager - Only show when NOT using default banner */}
+                                            {!useDefaultBanner && (
+                                                <div className="border-t pt-6 mt-6">
+                                                    <h4 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                                                        <ImageIcon size={20} />
+                                                        Multiple Banners Manager
+                                                    </h4>
+
+                                                    {/* Auto-Slide Duration Control */}
+                                                    <div className="mb-6 bg-gray-50 p-4 rounded-lg">
+                                                        <label className="block text-sm font-medium text-gray-700 mb-3">
+                                                            Auto-Slide Duration: <span className="text-blue-600 font-semibold">{(autoSlideDuration / 1000).toFixed(1)}</span> seconds
                                                         </label>
-                                                        <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-lg hover:bg-gray-50 transition-colors group cursor-pointer relative">
-                                                            <div className="space-y-1 text-center">
-                                                                <Upload className="mx-auto h-12 w-12 text-gray-400 group-hover:text-blue-500 transition-colors" />
-                                                                <div className="flex text-sm text-gray-600 justify-center">
-                                                                    <label
-                                                                        htmlFor="banner-upload"
-                                                                        className="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-blue-500"
+                                                        <input
+                                                            type="range"
+                                                            min="1000"
+                                                            max="30000"
+                                                            step="500"
+                                                            value={autoSlideDuration}
+                                                            onChange={(e) => handleAutoSlideDurationChange(parseInt(e.target.value))}
+                                                            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                                                            disabled={saving || !editingService}
+                                                        />
+                                                        <div className="flex justify-between text-xs text-gray-500 mt-1">
+                                                            <span>1s (Fast)</span>
+                                                            <span>15s (Moderate)</span>
+                                                            <span>30s (Slow)</span>
+                                                        </div>
+                                                        {!editingService && (
+                                                            <p className="text-xs text-amber-600 mt-2">
+                                                                ⚠️ Save the service first to adjust auto-slide duration
+                                                            </p>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Existing Banners */}
+                                                    {existingBanners.length > 0 && (
+                                                        <div className="mb-6">
+                                                            <label className="block text-sm font-medium text-gray-700 mb-3">
+                                                                Current Banners ({existingBanners.length}) - Drag to reorder
+                                                            </label>
+                                                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                                                {existingBanners.map((banner, index) => (
+                                                                    <div
+                                                                        key={banner._id}
+                                                                        draggable
+                                                                        onDragStart={(e) => handleBannerDragStart(e, banner._id!)}
+                                                                        onDragOver={handleBannerDragOver}
+                                                                        onDrop={(e) => handleBannerDrop(e, banner._id!)}
+                                                                        className="relative group cursor-move border-2 border-gray-200 rounded-lg overflow-hidden hover:border-blue-500 hover:shadow-lg transition-all"
                                                                     >
-                                                                        <span>Upload a file</span>
-                                                                        <input
-                                                                            id="banner-upload"
-                                                                            name="banner-upload"
-                                                                            type="file"
-                                                                            accept="image/*"
-                                                                            className="sr-only"
-                                                                            onChange={handleBannerChange}
+                                                                        <div className="relative aspect-video bg-gray-100">
+                                                                            <img
+                                                                                src={banner.imageUrl}
+                                                                                alt={banner.altText || `Banner ${index + 1}`}
+                                                                                className="w-full h-full object-cover"
+                                                                            />
+                                                                            <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all" />
+                                                                        </div>
+
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => handleDeleteExistingBanner(banner._id!)}
+                                                                            className="absolute top-2 right-2 bg-red-600 text-white p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-lg hover:bg-red-700"
                                                                             disabled={saving}
-                                                                        />
-                                                                    </label>
-                                                                    <p className="pl-1">or drag and drop</p>
-                                                                </div>
-                                                                <p className="text-xs text-gray-500">
-                                                                    PNG, JPG, GIF up to 5MB
-                                                                </p>
+                                                                            title="Delete banner"
+                                                                        >
+                                                                            <Trash2 size={16} />
+                                                                        </button>
+
+                                                                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent text-white text-xs p-2 flex items-center justify-between">
+                                                                            <div className="flex items-center gap-1">
+                                                                                <GripVertical size={16} />
+                                                                                <span>Banner {index + 1}</span>
+                                                                            </div>
+                                                                            <span className="text-xs opacity-75">Order: {banner.sortOrder}</span>
+                                                                        </div>
+                                                                    </div>
+                                                                ))}
                                                             </div>
                                                         </div>
-                                                        {bannerPreview && (
-                                                            <div className="relative w-full h-48 bg-gray-100 rounded-lg overflow-hidden border border-gray-200">
-                                                                <img
-                                                                    src={bannerPreview}
-                                                                    alt="Banner preview"
-                                                                    className="w-full h-full object-cover"
-                                                                />
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => {
-                                                                        setBannerFile(null);
-                                                                        setBannerPreview('');
-                                                                        // If editing and had image, clearing preview might mean we want to remove it? 
-                                                                        // But usually we just let them select a new one.
-                                                                        // If we want to allow removing existing image without replacing, we need more logic.
-                                                                        // For now, assume this clears the *newly selected* file.
-                                                                    }}
-                                                                    className="absolute top-2 right-2 bg-white rounded-full p-1 shadow-md hover:bg-gray-100"
-                                                                >
-                                                                    <X size={16} />
-                                                                </button>
+                                                    )}
+
+                                                    {/* Banner Previews (not yet uploaded) */}
+                                                    {bannerPreviews.length > 0 && (
+                                                        <div className="mb-6">
+                                                            <label className="block text-sm font-medium text-gray-700 mb-3">
+                                                                New Banners ({bannerPreviews.length}) - Will be uploaded on save
+                                                            </label>
+                                                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                                                {bannerPreviews.map((preview) => (
+                                                                    <div
+                                                                        key={preview.id}
+                                                                        className="relative group border-2 border-dashed border-blue-400 rounded-lg overflow-hidden hover:border-blue-600 hover:shadow-lg transition-all"
+                                                                    >
+                                                                        <div className="relative aspect-video bg-gray-100">
+                                                                            <img
+                                                                                src={preview.preview}
+                                                                                alt="New banner preview"
+                                                                                className="w-full h-full object-cover"
+                                                                            />
+                                                                            <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all" />
+                                                                        </div>
+
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => removeBannerPreview(preview.id)}
+                                                                            className="absolute top-2 right-2 bg-red-600 text-white p-2 rounded-full shadow-lg hover:bg-red-700"
+                                                                            disabled={saving}
+                                                                            title="Remove preview"
+                                                                        >
+                                                                            <X size={16} />
+                                                                        </button>
+
+                                                                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-blue-600/70 to-transparent text-white text-xs p-2">
+                                                                            <span className="flex items-center gap-1">
+                                                                                <Upload size={14} />
+                                                                                Pending upload
+                                                                            </span>
+                                                                        </div>
+                                                                    </div>
+                                                                ))}
                                                             </div>
-                                                        )}
-                                                        <p className="text-xs text-gray-500">
-                                                            Recommended size: 1200x350px. Max size: 5MB.
+                                                        </div>
+                                                    )}
+
+                                                    {/* Upload More Banners Button */}
+                                                    <div className="mt-4">
+                                                        <label className="flex items-center justify-center gap-3 px-6 py-4 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition-all group">
+                                                            <ImageIcon size={24} className="text-gray-600 group-hover:text-blue-600 transition-colors" />
+                                                            <div className="text-center">
+                                                                <span className="block text-sm font-medium text-gray-700 group-hover:text-blue-600 transition-colors">
+                                                                    Upload Multiple Banners
+                                                                </span>
+                                                                <span className="block text-xs text-gray-500 mt-1">
+                                                                    Click to browse or drag and drop
+                                                                </span>
+                                                            </div>
+                                                            <input
+                                                                type="file"
+                                                                accept="image/*"
+                                                                multiple
+                                                                onChange={handleMultipleBannersChange}
+                                                                className="hidden"
+                                                                disabled={saving}
+                                                            />
+                                                        </label>
+                                                        <p className="text-xs text-gray-500 mt-2 text-center">
+                                                            📌 Upload up to 10 banners at once • Recommended size: 1200x350px • Max 5MB per file
                                                         </p>
                                                     </div>
-                                                )}
-                                            </div>
+
+                                                    {/* Info Box */}
+                                                    {(existingBanners.length === 0 && bannerPreviews.length === 0) && (
+                                                        <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                                            <div className="flex gap-3">
+                                                                <ImageIcon size={20} className="text-blue-600 flex-shrink-0 mt-0.5" />
+                                                                <div className="text-sm text-blue-800">
+                                                                    <p className="font-medium mb-1">No banners uploaded yet</p>
+                                                                    <p className="text-xs text-blue-700">
+                                                                        Upload multiple banner images to create an auto-rotating carousel for this service.
+                                                                        Drag and drop to reorder them.
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+
                                         </div>
 
                                         {/* Form Actions */}
