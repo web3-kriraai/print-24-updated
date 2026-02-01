@@ -87,12 +87,6 @@ const ManageImageMatrix: React.FC<{
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
     const [uploadingEntryId, setUploadingEntryId] = useState<string | null>(null);
-    const [bulkUploading, setBulkUploading] = useState(false);
-    const [bulkUploadResults, setBulkUploadResults] = useState<{
-        matched: number;
-        unmatched: number;
-        errors: number;
-    } | null>(null);
     const [previewImage, setPreviewImage] = useState<string | null>(null);
     const [productSearch, setProductSearch] = useState("");
     const [productDropdownOpen, setProductDropdownOpen] = useState(false);
@@ -116,9 +110,22 @@ const ManageImageMatrix: React.FC<{
         percentage: number;
     } | null>(null);
 
+    // Excel bulk upload state
+    const [zipUploading, setZipUploading] = useState(false);
+    const [zipProgress, setZipProgress] = useState<{
+        current: number;
+        total: number;
+        percentage: number;
+    } | null>(null);
+    const [zipResult, setZipResult] = useState<{
+        uploaded: number;
+        skipped: number;
+        total: number;
+        errors?: Array<{ filename: string; error: string }>;
+    } | null>(null);
+
     const fileInputRefs = useRef<Map<string, HTMLInputElement>>(new Map());
-    const bulkFileInputRef = useRef<HTMLInputElement>(null);
-    const dropZoneRef = useRef<HTMLDivElement>(null);
+    const zipFileInputRef = useRef<HTMLInputElement>(null);
 
     // Filtered products
     const filteredProducts = products.filter((p) =>
@@ -463,49 +470,7 @@ const ManageImageMatrix: React.FC<{
         }
     }, [selectedProductId, authHeaders]);
 
-    // Bulk upload
-    const handleBulkUpload = useCallback(async (files: FileList | File[]) => {
-        if (!selectedProductId || files.length === 0) return;
 
-        setBulkUploading(true);
-        setBulkUploadResults(null);
-        setError(null);
-
-        try {
-            const formData = new FormData();
-            Array.from(files).forEach((file) => {
-                formData.append("images", file);
-            });
-
-            const response = await fetch(
-                `${API_BASE_URL}/products/${selectedProductId}/image-matrix/bulk-upload`,
-                {
-                    method: "POST",
-                    headers: authHeaders() as HeadersInit,
-                    body: formData,
-                }
-            );
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || "Failed to process bulk upload");
-            }
-
-            const data = await response.json();
-            setBulkUploadResults({
-                matched: data.results.matched.length,
-                unmatched: data.results.unmatched.length,
-                errors: data.results.errors.length,
-            });
-            setStats(data.stats);
-            setSuccess(data.message);
-            await fetchEntries(pagination.page);
-        } catch (err: any) {
-            setError(err.message);
-        } finally {
-            setBulkUploading(false);
-        }
-    }, [selectedProductId, authHeaders, fetchEntries, pagination.page]);
 
     // Delete entry image
     const clearEntryImage = useCallback(async (entryId: string) => {
@@ -543,32 +508,72 @@ const ManageImageMatrix: React.FC<{
         }
     }, [selectedProductId, authHeaders]);
 
-    // Drag and drop handlers
-    const handleDragOver = (e: React.DragEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (dropZoneRef.current) {
-            dropZoneRef.current.classList.add("border-blue-500", "bg-blue-50");
+
+
+    // Download Excel template for bulk upload
+    const downloadTemplate = async () => {
+        if (!selectedProductId) return;
+
+        try {
+            const response = await fetch(
+                `${API_BASE_URL}/products/${selectedProductId}/image-matrix/template`,
+                { headers: authHeaders() }
+            );
+
+            if (!response.ok) {
+                throw new Error('Failed to generate template');
+            }
+
+            // Download the file
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `matrix_template_${selectedProductId}.xlsx`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+        } catch (err: any) {
+            setError(err.message);
         }
     };
 
-    const handleDragLeave = (e: React.DragEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (dropZoneRef.current) {
-            dropZoneRef.current.classList.remove("border-blue-500", "bg-blue-50");
-        }
-    };
+    // Handle ZIP file upload (Excel + images)
+    const handleZipUpload = async (file: File) => {
+        if (!selectedProductId || !file) return;
 
-    const handleDrop = (e: React.DragEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (dropZoneRef.current) {
-            dropZoneRef.current.classList.remove("border-blue-500", "bg-blue-50");
-        }
-        const files = e.dataTransfer.files;
-        if (files.length > 0) {
-            handleBulkUpload(files);
+        setZipUploading(true);
+        setZipResult(null);
+        setError(null);
+
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+
+            const response = await fetch(
+                `${API_BASE_URL}/products/${selectedProductId}/image-matrix/bulk-upload`,
+                {
+                    method: 'POST',
+                    headers: authHeaders(),
+                    body: formData,
+                }
+            );
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to process ZIP file');
+            }
+
+            const result = await response.json();
+            setZipResult(result);
+
+            // Refresh entries to show newly uploaded images
+            await fetchEntries(pagination.page);
+        } catch (err: any) {
+            setError(err.message);
+        } finally {
+            setZipUploading(false);
         }
     };
 
@@ -752,9 +757,97 @@ const ManageImageMatrix: React.FC<{
                                     Regenerate
                                 </button>
                             )}
+
+                            {/* Excel Bulk Upload Buttons */}
+                            {stats.total > 0 && (
+                                <>
+                                    <button
+                                        onClick={downloadTemplate}
+                                        disabled={loading}
+                                        className="px-6 py-3 bg-blue-100 text-blue-700 rounded-lg font-medium hover:bg-blue-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 mt-7"
+                                    >
+                                        <Download size={18} />
+                                        Download Template
+                                    </button>
+
+                                    <button
+                                        onClick={() => zipFileInputRef.current?.click()}
+                                        disabled={zipUploading}
+                                        className="px-6 py-3 bg-green-100 text-green-700 rounded-lg font-medium hover:bg-green-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 mt-7"
+                                    >
+                                        {zipUploading ? <Loader className="animate-spin" size={18} /> : <UploadCloud size={18} />}
+                                        {zipUploading ? 'Uploading...' : 'Upload ZIP'}
+                                    </button>
+
+                                    <input
+                                        ref={zipFileInputRef}
+                                        type="file"
+                                        accept=".zip"
+                                        onChange={(e) => e.target.files?.[0] && handleZipUpload(e.target.files[0])}
+                                        className="hidden"
+                                    />
+                                </>
+                            )}
                         </>
                     )}
                 </div>
+
+                {/* ZIP Upload Result Modal */}
+                {zipResult && (
+                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                        <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-auto">
+                            <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between">
+                                <h3 className="text-xl font-bold text-gray-900">Upload Complete</h3>
+                                <button
+                                    onClick={() => setZipResult(null)}
+                                    className="text-gray-400 hover:text-gray-600"
+                                >
+                                    <X size={24} />
+                                </button>
+                            </div>
+
+                            <div className="p-6 space-y-4">
+                                {/* Summary Stats */}
+                                <div className="grid grid-cols-3 gap-4">
+                                    <div className="bg-green-50 rounded-lg p-4 text-center">
+                                        <div className="text-3xl font-bold text-green-700">{zipResult.uploaded}</div>
+                                        <div className="text-sm text-green-600">Uploaded</div>
+                                    </div>
+                                    <div className="bg-yellow-50 rounded-lg p-4 text-center">
+                                        <div className="text-3xl font-bold text-yellow-700">{zipResult.skipped}</div>
+                                        <div className="text-sm text-yellow-600">Skipped</div>
+                                    </div>
+                                    <div className="bg-blue-50 rounded-lg p-4 text-center">
+                                        <div className="text-3xl font-bold text-blue-700">{zipResult.total}</div>
+                                        <div className="text-sm text-blue-600">Total</div>
+                                    </div>
+                                </div>
+
+                                {/* Errors */}
+                                {zipResult.errors && zipResult.errors.length > 0 && (
+                                    <div className="mt-4">
+                                        <h4 className="font-semibold text-gray-900 mb-2">Errors ({zipResult.errors.length})</h4>
+                                        <div className="max-h-64 overflow-y-auto space-y-2">
+                                            {zipResult.errors.map((err, idx) => (
+                                                <div key={idx} className="bg-red-50 border border-red-200 rounded p-3 text-sm">
+                                                    <div className="font-medium text-red-900">{err.filename}</div>
+                                                    <div className="text-red-700">{err.error}</div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                <button
+                                    onClick={() => setZipResult(null)}
+                                    className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                                >
+                                    Close
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {/* Preview Info */}
                 {previewData && (
@@ -827,50 +920,6 @@ const ManageImageMatrix: React.FC<{
             </div>
 
             {/* Bulk Upload Zone */}
-            {selectedProductId && stats.total > 0 && (
-                <div
-                    ref={dropZoneRef}
-                    onDragOver={handleDragOver}
-                    onDragLeave={handleDragLeave}
-                    onDrop={handleDrop}
-                    className="bg-white rounded-xl shadow-sm border-2 border-dashed border-gray-300 p-8 text-center hover:border-blue-400 transition-colors cursor-pointer"
-                    onClick={() => bulkFileInputRef.current?.click()}
-                >
-                    <input
-                        ref={bulkFileInputRef}
-                        type="file"
-                        multiple
-                        accept="image/*"
-                        onChange={(e) => e.target.files && handleBulkUpload(e.target.files)}
-                        className="hidden"
-                    />
-
-                    {bulkUploading ? (
-                        <div className="flex flex-col items-center gap-3">
-                            <Loader className="animate-spin text-blue-600" size={40} />
-                            <span className="text-gray-600">Processing images...</span>
-                        </div>
-                    ) : (
-                        <>
-                            <UploadCloud className="mx-auto text-gray-400 mb-3" size={48} />
-                            <p className="text-gray-700 font-medium">Bulk Upload Images</p>
-                            <p className="text-gray-500 text-sm mt-1">
-                                Drag & drop images here, or click to select. Filename format: <code>value1_value2_value3.jpg</code>
-                            </p>
-                        </>
-                    )}
-
-                    {bulkUploadResults && (
-                        <div className="mt-4 flex justify-center gap-4">
-                            <span className="text-green-600">✓ {bulkUploadResults.matched} matched</span>
-                            <span className="text-yellow-600">⚠ {bulkUploadResults.unmatched} unmatched</span>
-                            {bulkUploadResults.errors > 0 && (
-                                <span className="text-red-600">✕ {bulkUploadResults.errors} errors</span>
-                            )}
-                        </div>
-                    )}
-                </div>
-            )}
 
             {/* Matrix Grid */}
             {selectedProductId && entries.length > 0 && (

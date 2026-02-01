@@ -2,7 +2,7 @@ import express from "express";
 import { adminAuth } from "../middlewares/roleMiddleware.js";
 import { authMiddleware } from "../middlewares/authMiddleware.js";
 import { optionalAuthMiddleware } from "../middlewares/optionalAuthMiddleware.js";
-import upload from "../middlewares/upload.js";
+import upload, { uploadZip } from "../middlewares/upload.js";
 
 /* CATEGORY CONTROLLERS */
 import {
@@ -130,6 +130,8 @@ import {
   deleteMatrixEntry,
   clearMatrixEntryImage,
   clearProductMatrix,
+  downloadTemplate,
+  bulkUpload,
 } from "../controllers/attributeImageMatrixController.js";
 
 /* DEPARTMENT CONTROLLERS */
@@ -284,6 +286,46 @@ router.put(
   updateProduct
 );
 router.delete("/products/:id", authMiddleware, adminAuth, deleteProduct);
+
+/* =====================================
+   PRODUCT IMAGE MATRIX ROUTES
+===================================== */
+
+// Get product matrix configuration
+router.get("/products/:productId/image-matrix", authMiddleware, adminAuth, getProductMatrix);
+
+// Generate matrix combinations
+router.post("/products/:productId/image-matrix/generate", authMiddleware, adminAuth, generateProductMatrix);
+
+// Generate matrix with custom configurations
+router.post("/products/:productId/image-matrix/generate-custom", authMiddleware, adminAuth, generateProductMatrixCustom);
+
+// Preview matrix before generation
+router.get("/products/:productId/image-matrix/preview", authMiddleware, adminAuth, previewProductMatrix);
+
+// Upload image for a specific combination
+router.post("/products/:productId/image-matrix/upload", authMiddleware, adminAuth, upload.single("image"), uploadMatrixImage);
+
+// Bulk upload images for multiple combinations
+router.post("/products/:productId/image-matrix/bulk", authMiddleware, adminAuth, upload.array("images", 50), bulkUploadMatrixImages);
+
+// Download Excel template for bulk upload
+router.get("/products/:productId/image-matrix/template", authMiddleware, adminAuth, downloadTemplate);
+
+// Bulk upload via ZIP file (Excel + images)
+router.post("/products/:productId/image-matrix/bulk-upload", authMiddleware, adminAuth, uploadZip.single("file"), bulkUpload);
+
+// Resolve matrix image based on attribute selection (public endpoint for PDP)
+router.get("/products/:productId/image-matrix/resolve", resolveMatrixImage);
+
+// Delete a specific matrix entry
+router.delete("/products/:productId/image-matrix/:entryId", authMiddleware, adminAuth, deleteMatrixEntry);
+
+// Clear image from a matrix entry
+router.delete("/products/:productId/image-matrix/:entryId/image", authMiddleware, adminAuth, clearMatrixEntryImage);
+
+// Clear all matrix entries for a product
+router.delete("/products/:productId/image-matrix", authMiddleware, adminAuth, clearProductMatrix);
 
 /* =====================================
    ADMIN ROUTES

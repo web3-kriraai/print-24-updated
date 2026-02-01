@@ -24,4 +24,21 @@ export const uploadDesignFiles = upload.fields([
   { name: "backImage", maxCount: 1 }
 ]);
 
+// Separate upload instance for ZIP files (Excel bulk upload)
+const zipFileFilter = (req, file, cb) => {
+  if (file.mimetype === "application/zip" || file.mimetype === "application/x-zip-compressed") {
+    cb(null, true);
+  } else {
+    cb(new Error("Only ZIP files are allowed for bulk upload!"), false);
+  }
+};
+
+export const uploadZip = multer({
+  storage: storage,
+  fileFilter: zipFileFilter,
+  limits: {
+    fileSize: 100 * 1024 * 1024 // 100MB for ZIP files
+  }
+});
+
 export default upload;

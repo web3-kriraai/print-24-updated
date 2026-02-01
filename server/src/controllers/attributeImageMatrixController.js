@@ -1586,3 +1586,265 @@ export const previewProductMatrix = async (req, res) => {
         });
     }
 };
+
+// ========== EXCEL BULK UPLOAD FUNCTIONS ==========
+
+import ExcelJS from 'exceljs';
+import AdmZip from 'adm-zip';
+
+/**
+ * Download Excel template for bulk upload
+ * GET /products/:productId/image-matrix/template
+ * 
+ * Generates an Excel file with all combinations and Combo IDs
+ * Users rename images to match Combo IDs (combo_0001.jpg, combo_0002.jpg...)
+ */
+export const downloadTemplate = async (req, res) => {
+    try {
+        const { productId } = req.params;
+
+        // Fetch all matrix entries for this product
+        const entries = await AttributeImageMatrix.find({ product: productId })
+            .select('attributeCombination attributeLabels combinationKey status')
+            .lean()
+            .sort({ sortOrder: 1 });
+
+        if (entries.length === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'No matrix entries found. Please generate the matrix first.'
+            });
+        }
+
+        // Create workbook and worksheet
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet('Matrix Template');
+
+        // Get attribute names from first entry (all entries have same attributes)
+        const firstEntry = entries[0];
+        const attributeLabels = firstEntry.attributeLabels instanceof Map
+            ? Object.fromEntries(firstEntry.attributeLabels)
+            : firstEntry.attributeLabels;
+
+        const attributeNames = Object.values(attributeLabels).map(label => label.attributeName);
+
+        // Define columns
+        const columns = [
+            { header: 'Combo ID', key: 'comboId', width: 15 },
+            ...attributeNames.map(name => ({ header: name, key: name, width: 20 })),
+            { header: 'Status', key: 'status', width: 12 },
+            { header: 'Combination Key', key: 'combinationKey', width: 15 }
+        ];
+
+        worksheet.columns = columns;
+
+        // Style header row
+        worksheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+        worksheet.getRow(1).fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FF4472C4' }
+        };
+
+        // Add data rows
+        entries.forEach((entry, index) => {
+            const comboId = `combo_${String(index + 1).padStart(4, '0')}`;
+
+            const attrLabels = entry.attributeLabels instanceof Map
+                ? Object.fromEntries(entry.attributeLabels)
+                : entry.attributeLabels;
+
+            const rowData = { comboId, status: entry.status, combinationKey: entry.combinationKey };
+
+            // Add attribute values
+            Object.entries(attrLabels).forEach(([attrId, label]) => {
+                rowData[label.attributeName] = label.valueLabel;
+            });
+
+            worksheet.addRow(rowData);
+        });
+
+        // Hide the Combination Key column (used for internal validation)
+        const combinationKeyCol = worksheet.getColumn('combinationKey');
+        combinationKeyCol.hidden = true;
+
+        // Set response headers
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', `attachment; filename="matrix_template_${productId}.xlsx"`);
+
+        // Write to response
+        await workbook.xlsx.write(res);
+        res.end();
+
+        console.log(`[downloadTemplate] Generated template for product ${productId} with ${entries.length} combinations`);
+    } catch (error) {
+        console.error('[downloadTemplate] Error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message || 'Failed to generate template'
+        });
+    }
+};
+
+/**
+ * Bulk upload images via ZIP file
+ * POST /products/:productId/image-matrix/bulk-upload
+ * 
+ * Process ZIP containing Excel template + images
+ * Auto-matches images by Combo ID (combo_0001.jpg → combo_0001 row in Excel)
+ */
+export const bulkUpload = async (req, res) => {
+    try {
+        const { productId } = req.params;
+
+        if (!req.file) {
+            return res.status(400).json({
+                success: false,
+                error: 'No ZIP file uploaded'
+            });
+        }
+
+        console.log(`[bulkUpload] Processing ZIP for product ${productId}`);
+
+        // Extract ZIP
+        const zip = new AdmZip(req.file.buffer);
+        const zipEntries = zip.getEntries();
+
+        // Find Excel file and images
+        const excelEntry = zipEntries.find(entry =>
+            entry.entryName.match(/\.(xlsx|xls)$/i) && !entry.isDirectory
+        );
+
+        if (!excelEntry) {
+            return res.status(400).json({
+                success: false,
+                error: 'No Excel file found in ZIP'
+            });
+        }
+
+        // Read Excel
+        const workbook = new ExcelJS.Workbook();
+        await workbook.xlsx.load(excelEntry.getData());
+        const worksheet = workbook.worksheets[0];
+
+        // Build map of Combo ID → Combination Key
+        const comboMap = new Map();
+        worksheet.eachRow((row, rowNumber) => {
+            if (rowNumber === 1) return; // Skip header
+
+            // Column 1 = Combo ID, last column = Combination Key (hidden)
+            const comboId = row.getCell(1).value;
+            const lastColIndex = row.cellCount;
+            const combinationKey = row.getCell(lastColIndex).value;
+
+            if (comboId && combinationKey) {
+                comboMap.set(String(comboId).trim(), String(combinationKey).trim());
+            }
+        });
+
+        console.log(`[bulkUpload] Found ${comboMap.size} combinations in Excel`);
+
+        // Find image files
+        const imageEntries = zipEntries.filter(entry =>
+            !entry.isDirectory &&
+            entry.entryName.match(/\.(jpg|jpeg|png|webp)$/i) &&
+            !entry.entryName.startsWith('__MACOSX') // Ignore Mac metadata
+        );
+
+        console.log(`[bulkUpload] Found ${imageEntries.length} images in ZIP`);
+
+        let uploaded = 0;
+        let skipped = 0;
+        const errors = [];
+
+        // Process each image
+        for (const imageEntry of imageEntries) {
+            try {
+                // Extract filename without path
+                const filename = imageEntry.entryName.split('/').pop();
+                const nameWithoutExt = filename.replace(/\.[^.]+$/, '');
+
+                // Try to match Combo ID
+                const combinationKey = comboMap.get(nameWithoutExt);
+
+                if (!combinationKey) {
+                    skipped++;
+                    errors.push({
+                        filename,
+                        error: `No matching Combo ID found for "${nameWithoutExt}"`
+                    });
+                    continue;
+                }
+
+                // Find matrix entry
+                const entry = await AttributeImageMatrix.findOne({
+                    product: productId,
+                    combinationKey
+                });
+
+                if (!entry) {
+                    skipped++;
+                    errors.push({
+                        filename,
+                        error: `Matrix entry not found for combination key: ${combinationKey}`
+                    });
+                    continue;
+                }
+
+                // Upload to Cloudinary
+                const imageBuffer = imageEntry.getData();
+                const semanticFilename = generateSemanticFilename(combinationKey);
+                const cloudinaryFilename = `prod_${productId}_${semanticFilename}_${Date.now()}`;
+
+                const uploadResult = await new Promise((resolve, reject) => {
+                    const uploadStream = cloudinary.uploader.upload_stream(
+                        {
+                            folder: `product-matrix/${productId}`,
+                            public_id: cloudinaryFilename,
+                            resource_type: 'image'
+                        },
+                        (error, result) => {
+                            if (error) reject(error);
+                            else resolve(result);
+                        }
+                    );
+
+                    streamifier.createReadStream(imageBuffer).pipe(uploadStream);
+                });
+
+                // Update matrix entry
+                entry.imageUrl = uploadResult.secure_url;
+                entry.cloudinaryPublicId = uploadResult.public_id;
+                entry.status = 'UPLOADED';
+                entry.uploadedAt = new Date();
+                await entry.save();
+
+                uploaded++;
+                console.log(`[bulkUpload] Uploaded ${uploaded}/${imageEntries.length}: ${filename}`);
+
+            } catch (error) {
+                skipped++;
+                errors.push({
+                    filename: imageEntry.entryName,
+                    error: error.message
+                });
+                console.error(`[bulkUpload] Error processing ${imageEntry.entryName}:`, error);
+            }
+        }
+
+        res.json({
+            success: true,
+            uploaded,
+            skipped,
+            total: imageEntries.length,
+            errors: errors.length > 0 ? errors : undefined
+        });
+
+    } catch (error) {
+        console.error('[bulkUpload] Error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message || 'Failed to process bulk upload'
+        });
+    }
+};
