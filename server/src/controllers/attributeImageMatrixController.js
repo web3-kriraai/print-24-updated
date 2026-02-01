@@ -113,6 +113,155 @@ const deleteFromCloudinary = async (publicId) => {
 };
 
 /**
+ * Generate combinations iteratively with rule-based filtering at each step
+ * This builds combinations one attribute at a time, applying rules to determine
+ * which values are valid for each subsequent attribute based on previous selections
+ * 
+ * @param {Array} attributes - Array of attribute definitions with values
+ * @param {Array} rules - Array of attribute rules  
+ * @param {Object} options - Generation options
+ * @returns {Array} Array of valid combinations
+ */
+const generateCombinationsWithRules = (attributes, rules, options = {}) => {
+    const { progressCallback } = options;
+    const combinations = [];
+    let processedCount = 0;
+
+    /**
+     * Recursively build combinations, applying rules at each step
+     * @param {number} attrIndex - Current attribute index
+     * @param {Object} currentCombo - Combination built so far {attrId: value}
+     * @param {string} currentKey - Key string built so far
+     * @param {Object} currentLabels - Labels built so far {attrId: {attributeName, valueLabel}}
+     */
+    const buildCombinations = (attrIndex, currentCombo, currentKey, currentLabels = {}) => {
+        // Base case: all attributes processed
+        if (attrIndex >= attributes.length) {
+            combinations.push({
+                key: currentKey,
+                map: { ...currentCombo },
+                labels: { ...currentLabels },
+                sortOrder: processedCount
+            });
+
+            // Update progress
+            processedCount++;
+            if (progressCallback && processedCount % 100 === 0) {
+                progressCallback(processedCount);
+            }
+            return;
+        }
+
+        const currentAttr = attributes[attrIndex];
+        const attrId = currentAttr.id;
+
+        // Log progress only at depth 0 (first attribute) to reduce memory
+        if (attrIndex === 0 && processedCount % 500 === 0 && processedCount > 0) {
+            console.log(`[IterRule] Progress: ${processedCount} combinations generated...`);
+        }
+
+        // Determine which values are valid for this attribute based on rules
+        let validValues = [...currentAttr.values];
+        let isAttributeHidden = false;
+
+        // Apply SHOW_ONLY and HIDE rules based on current combination
+        for (const rule of rules) {
+            const whenAttrId = rule.when?.attribute?._id?.toString();
+            const whenValue = rule.when?.value;
+
+            // Check if WHEN condition matches current combination
+            if (whenAttrId && currentCombo[whenAttrId]) {
+                const selectedValue = currentCombo[whenAttrId];
+                const baseValue = selectedValue.includes('__')
+                    ? selectedValue.split('__')[0]
+                    : selectedValue;
+
+                const conditionMet = baseValue === whenValue || selectedValue === whenValue;
+
+                if (conditionMet) {
+                    // Apply THEN actions for current attribute
+                    for (const action of rule.then) {
+                        const targetAttrId = action.targetAttribute?._id?.toString();
+
+                        if (targetAttrId === attrId) {
+                            if (action.action === 'HIDE') {
+                                // This attribute shouldn't appear - skip all its values
+                                isAttributeHidden = true;
+                                break; // Stop checking more rules once hidden
+                            } else if (action.action === 'SHOW_ONLY') {
+                                // Filter to only allowed values
+                                const allowedValues = action.allowedValues || [];
+                                validValues = validValues.filter(v => {
+                                    const baseVal = v.value.includes('__')
+                                        ? v.value.split('__')[0]
+                                        : v.value;
+                                    return allowedValues.includes(baseVal) || allowedValues.includes(v.value);
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Exit early if attribute is hidden
+            if (isAttributeHidden) {
+                break;
+            }
+        }
+
+        // If attribute is hidden, skip to next attribute instead of aborting
+        if (isAttributeHidden) {
+            buildCombinations(attrIndex + 1, currentCombo, currentKey, currentLabels);
+            return;
+        }
+
+        // If no valid values remain after filtering, stop this branch
+        if (validValues.length === 0) {
+            console.log(`[IterRule] No valid values for ${currentAttr.name} given current combination`);
+            return;
+        }
+
+        // Recursively build combinations for each valid value
+        for (const value of validValues) {
+            const newCombo = { ...currentCombo, [attrId]: value.value };
+            // Build labels map with attribute name and value label
+            const newLabels = {
+                ...currentLabels,
+                [attrId]: {
+                    attributeName: currentAttr.name,
+                    valueLabel: value.label || value.value
+                }
+            };
+            const newKey = currentKey
+                ? `${currentKey}|${attrId}:${value.value}`
+                : `${attrId}:${value.value}`;
+
+            buildCombinations(attrIndex + 1, newCombo, newKey, newLabels);
+        }
+    };
+
+    // Start recursive generation from first attribute
+    console.log(`\n[IterRule] ═══════════════════════════════════════════════════`);
+    console.log(`[IterRule] Starting iterative generation with ${attributes.length} attributes`);
+    console.log(`[IterRule] Attributes to process:`);
+    attributes.forEach((attr, idx) => {
+        console.log(`  ${idx + 1}. "${attr.name}" (ID: ${attr.id.substring(0, 8)}..., ${attr.values.length} values)`);
+    });
+    console.log(`[IterRule] Rules available: ${rules.length}`);
+    console.log(`[IterRule] ═══════════════════════════════════════════════════\n`);
+
+    buildCombinations(0, {}, '', {});
+
+    console.log(`\n[IterRule] ═══════════════════════════════════════════════════`);
+    console.log(`[IterRule] ✅ Generated ${combinations.length} valid combinations`);
+    console.log(`[IterRule] ═══════════════════════════════════════════════════\n`);
+
+    return combinations;
+};
+
+
+
+/**
  * Fetch applicable attribute rules for a product
  * @param {string} productId - Product ID
  * @param {string} categoryId - Category ID
@@ -342,6 +491,7 @@ export const generateProductMatrix = async (req, res) => {
             const subAttrsByParentValue = new Map();
 
             if (includeSubAttributes) {
+                console.log(`[SubAttr] Checking for sub-attributes for "${attrName}" (${attrType.attributeValues.length} parent values)`);
                 for (const v of attrType.attributeValues) {
                     const subAttrs = await SubAttribute.find({
                         parentAttribute: attrType._id,
@@ -350,9 +500,13 @@ export const generateProductMatrix = async (req, res) => {
                     }).lean();
 
                     if (subAttrs.length > 0) {
+                        console.log(`[SubAttr]   ✓ Found ${subAttrs.length} sub-attributes for "${v.value}": [${subAttrs.map(s => s.value).join(', ')}]`);
                         subAttrsByParentValue.set(v.value, subAttrs);
+                    } else {
+                        console.log(`[SubAttr]   - No sub-attributes for "${v.value}"`);
                     }
                 }
+                console.log(`[SubAttr] Total parent values with sub-attributes: ${subAttrsByParentValue.size}`);
             }
 
             if (subAttrsByParentValue.size > 0) {
@@ -435,12 +589,12 @@ export const generateProductMatrix = async (req, res) => {
             });
         }
 
-        // Generate Cartesian product
-        const allCombinations = AttributeImageMatrix.generateCartesianProduct(attributes);
 
-        // Apply attribute rules to filter invalid combinations
-        const combinations = filterCombinationsWithRules(allCombinations, rules, attributes);
-        console.log(`[ImageMatrix] Rule filtering: ${allCombinations.length} → ${combinations.length} combinations (${allCombinations.length - combinations.length} removed)`);
+        // Use iterative rule-based generation for proper HIDE rule handling
+        console.log(`[ImageMatrix] Using iterative rule-based generation with ${rules.length} rules`);
+        const combinations = generateCombinationsWithRules(attributes, rules);
+        console.log(`[ImageMatrix] Generated ${combinations.length} valid combinations (with rule filtering)`);
+
 
         // Bulk upsert
         const result = await AttributeImageMatrix.bulkUpsertCombinations(productId, combinations);
@@ -465,6 +619,353 @@ export const generateProductMatrix = async (req, res) => {
         res.status(500).json({
             success: false,
             error: error.message || "Failed to generate product matrix"
+        });
+    }
+};
+
+/**
+ * Generate matrix with custom attribute/value selection
+ * POST /products/:productId/image-matrix/generate-custom
+ * 
+ * Allows admins to specify which attributes and values to include in matrix generation.
+ * This reduces combinatorial explosion by allowing selective generation.
+ * 
+ * Request body:
+ * {
+ *   mode: "custom" | "auto",
+ *   selectedAttributes: [
+ *     {
+ *       attributeId: string,
+ *       selectedValues: string[] // omit or empty array = all values
+ *     }
+ *   ],
+ *   includeSubAttributes: boolean,
+ *   applyRules: boolean,
+ *   regenerate: boolean
+ * }
+ */
+export const generateProductMatrixCustom = async (req, res) => {
+    console.log('[ImageMatrix] 🚀 VERSION 2.0 - Sub-attribute expansion with full logging');
+    try {
+        const { productId } = req.params;
+        const {
+            mode = 'custom',
+            selectedAttributes = [],
+            includeSubAttributes = true,
+            applyRules = true,
+            regenerate = false
+        } = req.body;
+
+        // Log request parameters for debugging
+        console.log(`\n[ImageMatrix Custom] ═══════════════════════════════════════════════════`);
+        console.log(`[ImageMatrix Custom] Request Parameters:`);
+        console.log(`  - Product ID: ${productId}`);
+        console.log(`  - Mode: ${mode}`);
+        console.log(`  - Include Sub-Attributes: ${includeSubAttributes}`);
+        console.log(`  - Apply Rules: ${applyRules}`);
+        console.log(`  - Regenerate: ${regenerate}`);
+        console.log(`  - Selected Attributes: ${selectedAttributes.length} attributes`);
+        console.log(`[ImageMatrix Custom] ═══════════════════════════════════════════════════\n`);
+
+        // Fetch product with populated attributes
+        const product = await Product.findById(productId)
+            .populate('dynamicAttributes.attributeType')
+            .lean();
+
+        if (!product) {
+            return res.status(404).json({
+                success: false,
+                error: "Product not found"
+            });
+        }
+
+        // Fetch applicable attribute rules if applyRules is true
+        let rules = [];
+        if (applyRules) {
+            const categoryId = typeof product.category === 'object'
+                ? product.category._id?.toString()
+                : product.category?.toString();
+            rules = await fetchApplicableRules(productId, categoryId);
+            console.log(`[ImageMatrix Custom] Fetched ${rules.length} applicable rules for product ${productId}`);
+        }
+
+        // Filter for eligible attributes (DROPDOWN, RADIO, POPUP with values)
+        const eligibleInputStyles = ['DROPDOWN', 'RADIO', 'POPUP'];
+
+        // Deduplicate attributes by attributeType ID
+        const seenAttrIds = new Set();
+        const eligibleAttrs = product.dynamicAttributes
+            ?.filter(attr => {
+                if (!attr.isEnabled) return false;
+                const attrType = attr.attributeType;
+                if (!attrType) return false;
+
+                const attrId = attrType._id.toString();
+                if (seenAttrIds.has(attrId)) {
+                    return false;
+                }
+                seenAttrIds.add(attrId);
+
+                if (!eligibleInputStyles.includes(attrType.inputStyle)) return false;
+                const values = attrType.attributeValues || [];
+                return values.length > 0;
+            }) || [];
+
+        if (eligibleAttrs.length === 0) {
+            return res.status(400).json({
+                success: false,
+                error: "No eligible attributes found for matrix generation."
+            });
+        }
+
+        // Build configuration map for selected attributes/values
+        const selectionMap = new Map();
+        selectedAttributes.forEach(sel => {
+            if (sel.attributeId && Array.isArray(sel.selectedValues)) {
+                selectionMap.set(sel.attributeId, sel.selectedValues);
+            }
+        });
+
+        // Build attributes array with filtering based on selection
+        const attributes = [];
+
+        for (const attr of eligibleAttrs) {
+            const attrType = attr.attributeType;
+            const attrId = attrType._id.toString();
+            const attrName = attrType.attributeName;
+
+            // Check if this attribute is selected (only in custom mode)
+            if (mode === 'custom' && selectionMap.size > 0 && !selectionMap.has(attrId)) {
+                // Attribute not selected, skip it
+                continue;
+            }
+
+            // Get selected values for this attribute (if specified)
+            const selectedValues = selectionMap.get(attrId) || [];
+            const useAllValues = selectedValues.length === 0;
+
+            // Filter attribute values based on selection
+            let filteredAttributeValues = attrType.attributeValues;
+            if (!useAllValues) {
+                filteredAttributeValues = attrType.attributeValues.filter(v =>
+                    selectedValues.includes(v.value)
+                );
+            }
+
+            if (filteredAttributeValues.length === 0) {
+                // No values selected for this attribute, skip it
+                continue;
+            }
+
+            // ========== APPLY SHOW_ONLY RULES BEFORE SUB-ATTRIBUTE EXPANSION ==========
+            // Filter the attribute values based on SHOW_ONLY rules from previously selected attributes
+            // This prevents invalid parent values from getting their sub-attributes expanded
+            if (applyRules && rules.length > 0 && attributes.length > 0) {
+                // Build current combination context from already-processed attributes
+                const currentContext = {};
+                for (const processedAttr of attributes) {
+                    currentContext[processedAttr.id] = processedAttr.values.map(v => v.value);
+                }
+
+                // Find rules that apply to current attribute based on previous selections
+                const applicableRules = rules.filter(rule => {
+                    const targetAttrId = rule.then?.[0]?.targetAttribute?._id?.toString();
+                    return targetAttrId === attrId && rule.then?.[0]?.action === 'SHOW_ONLY';
+                });
+
+                for (const rule of applicableRules) {
+                    const whenAttrId = rule.when?.attribute?._id?.toString();
+                    const whenValue = rule.when?.value;
+                    const allowedValues = rule.then?.[0]?.allowedValues || [];
+
+                    // Check if WHEN condition is met by any previously selected attribute
+                    if (whenAttrId && currentContext[whenAttrId]) {
+                        const whenAttrValues = currentContext[whenAttrId];
+                        // Check if the when value (or its base) matches any selected value
+                        const conditionMet = whenAttrValues.some(val => {
+                            const baseVal = val.includes('__') ? val.split('__')[0] : val;
+                            return baseVal === whenValue || val === whenValue;
+                        });
+
+                        if (conditionMet && allowedValues.length > 0) {
+                            // Filter to only allowed values
+                            filteredAttributeValues = filteredAttributeValues.filter(v =>
+                                allowedValues.includes(v.value)
+                            );
+                            console.log(`[Rule Filter] Applied SHOW_ONLY rule "${rule.name}" to ${attrName}: filtered to [${filteredAttributeValues.map(v => v.value).join(', ')}]`);
+                        }
+                    }
+                }
+            }
+
+            // Check for sub-attributes (same logic as original)
+            const subAttrsByParentValue = new Map();
+
+            if (includeSubAttributes) {
+                console.log(`[SubAttr] Checking for sub-attributes for "${attrName}" (${filteredAttributeValues.length} parent values)`);
+                for (const v of filteredAttributeValues) {
+                    const subAttrs = await SubAttribute.find({
+                        parentAttribute: attrType._id,
+                        parentValue: v.value,
+                        isEnabled: true
+                    }).lean();
+
+                    if (subAttrs.length > 0) {
+                        console.log(`[SubAttr]   Found ${subAttrs.length} sub-attributes for "${v.value}": [${subAttrs.map(s => s.value).join(', ')}]`);
+                        subAttrsByParentValue.set(v.value, subAttrs);
+                    } else {
+                        console.log(`[SubAttr]   No sub-attributes found for "${v.value}"`);
+                    }
+                }
+                console.log(`[SubAttr] Total parent values with sub-attributes: ${subAttrsByParentValue.size}`);
+            }
+
+            if (subAttrsByParentValue.size > 0) {
+                // Build expanded values list with sub-attributes
+                const expandedValues = [];
+
+                for (const v of filteredAttributeValues) {
+                    if (subAttrsByParentValue.has(v.value)) {
+                        const subAttrs = subAttrsByParentValue.get(v.value);
+                        for (const subAttr of subAttrs) {
+                            expandedValues.push({
+                                value: `${v.value}__${subAttr.value}`,
+                                label: `${v.label || v.value} - ${subAttr.label}`,
+                                parentValue: v.value,
+                                subValue: subAttr.value,
+                                subLabel: subAttr.label,
+                                isSubAttribute: true
+                            });
+                        }
+                    } else {
+                        expandedValues.push({
+                            value: v.value,
+                            label: v.label || v.value,
+                            isSubAttribute: false
+                        });
+                    }
+                }
+
+                console.log(`[SubAttr] ✅ Expanded "${attrName}" to ${expandedValues.length} total values (with sub-attributes)`);
+                attributes.push({
+                    id: attrId,
+                    name: attrName,
+                    values: expandedValues,
+                    hasSubAttributes: true
+                });
+            } else {
+                // No sub-attributes, use filtered values
+                attributes.push({
+                    id: attrId,
+                    name: attrName,
+                    values: filteredAttributeValues.map(v => ({
+                        value: v.value,
+                        label: v.label || v.value,
+                        isSubAttribute: false
+                    })),
+                    hasSubAttributes: false
+                });
+            }
+        }
+
+        // Validate that we have at least one attribute
+        if (attributes.length === 0) {
+            return res.status(400).json({
+                success: false,
+                error: "No attributes selected or all selected attributes have no values."
+            });
+        }
+
+        // Calculate total combinations for validation
+        const totalCombinations = attributes.reduce((acc, attr) => acc * attr.values.length, 1);
+
+        // Safety check
+        if (totalCombinations > 10000) {
+            console.warn(`Very large matrix warning: ${totalCombinations} combinations for product ${productId}`);
+        }
+
+        // If regenerate is false and entries exist, skip
+        if (!regenerate) {
+            const existingCount = await AttributeImageMatrix.countDocuments({ product: productId });
+            if (existingCount > 0) {
+                return res.status(400).json({
+                    success: false,
+                    error: `Matrix already exists with ${existingCount} entries. Use regenerate=true to recreate.`,
+                    existingCount
+                });
+            }
+        }
+
+        // If regenerating, only delete MISSING entries to preserve uploaded images
+        if (regenerate) {
+            await AttributeImageMatrix.deleteMany({
+                product: productId,
+                status: 'MISSING'
+            });
+        }
+
+        // Generate combinations using iterative rule-based approach or Cartesian product
+        let combinations;
+        let filteringStats = { before: 0, after: 0, removed: 0 };
+
+        if (applyRules && rules.length > 0) {
+            // Use iterative generation that applies rules DURING generation
+            console.log(`[ImageMatrix Custom] Using iterative rule-based generation with ${rules.length} rules`);
+            combinations = generateCombinationsWithRules(attributes, rules);
+            filteringStats.after = combinations.length;
+            filteringStats.before = combinations.length; // Iterative doesn't generate filtered-out combos
+        } else {
+            // No rules: use traditional Cartesian product
+            console.log(`[ImageMatrix Custom] Using Cartesian product (rules disabled)`);
+            const allCombinations = AttributeImageMatrix.generateCartesianProduct(attributes);
+            combinations = allCombinations;
+            filteringStats = {
+                before: allCombinations.length,
+                after: allCombinations.length,
+                removed: 0
+            };
+        }
+
+        // Check if any combinations remain after filtering
+        if (combinations.length === 0) {
+            return res.status(400).json({
+                success: false,
+                error: applyRules
+                    ? `No valid combinations found after applying ${rules.length} attribute rules. Try disabling rules or selecting different attributes/values.`
+                    : `No valid combinations could be generated with the selected attributes and values.`,
+                filteringStats,
+                rulesApplied: applyRules,
+                totalRules: rules.length
+            });
+        }
+
+        // Bulk upsert
+        const result = await AttributeImageMatrix.bulkUpsertCombinations(productId, combinations);
+
+        // Fetch stats
+        const stats = await AttributeImageMatrix.getProductStats(productId);
+
+        res.json({
+            success: true,
+            message: `Custom matrix generated successfully`,
+            mode,
+            selectedAttributesCount: attributes.length,
+            attributes: attributes.map(a => ({
+                name: a.name,
+                valuesCount: a.values.length,
+                hasSubAttributes: a.hasSubAttributes
+            })),
+            totalCombinations,
+            rulesApplied: applyRules,
+            filteringStats,
+            result,
+            stats
+        });
+    } catch (error) {
+        console.error("Error generating custom product matrix:", error);
+        res.status(500).json({
+            success: false,
+            error: error.message || "Failed to generate custom product matrix"
         });
     }
 };

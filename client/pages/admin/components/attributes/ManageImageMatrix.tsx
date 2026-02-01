@@ -61,6 +61,12 @@ interface PreviewData {
         }>;
     }>;
     totalCombinations: number;
+    estimatedAfterRules?: number;
+    rulesApplied?: Array<{
+        name: string;
+        when: string;
+        actions: string;
+    }>;
     existingStats: MatrixStats;
     warning?: string;
 }
@@ -90,6 +96,25 @@ const ManageImageMatrix: React.FC<{
     const [previewImage, setPreviewImage] = useState<string | null>(null);
     const [productSearch, setProductSearch] = useState("");
     const [productDropdownOpen, setProductDropdownOpen] = useState(false);
+
+    // Configuration modal state
+    const [configModalOpen, setConfigModalOpen] = useState(false);
+    const [selectedAttributeIds, setSelectedAttributeIds] = useState<Set<string>>(new Set());
+    const [selectedValuesByAttr, setSelectedValuesByAttr] = useState<Map<string, Set<string>>>(new Map());
+    const [applyRules, setApplyRules] = useState(true);
+    const [includeSubAttributes, setIncludeSubAttributes] = useState(true);
+    const [calculatedCombinations, setCalculatedCombinations] = useState<{
+        total: number;
+        withRules: number;
+        reduction: number;
+    } | null>(null);
+
+    // Progress tracking for matrix generation
+    const [generationProgress, setGenerationProgress] = useState<{
+        current: number;
+        total: number;
+        percentage: number;
+    } | null>(null);
 
     const fileInputRefs = useRef<Map<string, HTMLInputElement>>(new Map());
     const bulkFileInputRef = useRef<HTMLInputElement>(null);
@@ -166,7 +191,45 @@ const ManageImageMatrix: React.FC<{
         }
     }, [selectedProductId, statusFilter, pagination.limit, authHeaders]);
 
-    // Generate matrix
+    // Calculate combinations based on selection
+    const calculateCombinations = useCallback(() => {
+        if (!previewData) return null;
+
+        // Get selected attributes
+        const selectedAttrs = previewData.attributes.filter(attr => selectedAttributeIds.has(attr.id));
+
+        if (selectedAttrs.length === 0) {
+            return { total: 0, withRules: 0, reduction: 0 };
+        }
+
+        // Calculate total combinations
+        let total = 1;
+        for (const attr of selectedAttrs) {
+            const selectedValues = selectedValuesByAttr.get(attr.id);
+            const valueCount = selectedValues && selectedValues.size > 0
+                ? selectedValues.size
+                : attr.expandedValuesCount;
+            total *= valueCount;
+        }
+
+        // Estimate with rules (simple approximation - actual backend will be more accurate)
+        const estimatedWithRules = applyRules && previewData.estimatedAfterRules
+            ? Math.floor(total * (previewData.estimatedAfterRules / previewData.totalCombinations))
+            : total;
+
+        return {
+            total,
+            withRules: estimatedWithRules,
+            reduction: Math.round(((total - estimatedWithRules) / total) * 100)
+        };
+    }, [previewData, selectedAttributeIds, selectedValuesByAttr, applyRules]);
+
+    // Update calculated combinations when selection changes
+    useEffect(() => {
+        setCalculatedCombinations(calculateCombinations());
+    }, [calculateCombinations]);
+
+    // Generate matrix (auto mode)
     const generateMatrix = useCallback(async (regenerate = false) => {
         if (!selectedProductId) return;
 
@@ -183,7 +246,11 @@ const ManageImageMatrix: React.FC<{
                         ...authHeaders(),
                         "Content-Type": "application/json",
                     },
-                    body: JSON.stringify({ regenerate }),
+                    body: JSON.stringify({
+                        regenerate,
+                        includeSubAttributes: true,  // Always include sub-attributes
+                        applyRules: true             // Always apply attribute rules
+                    }),
                 }
             );
 
@@ -202,6 +269,147 @@ const ManageImageMatrix: React.FC<{
             setLoading(false);
         }
     }, [selectedProductId, authHeaders, fetchEntries]);
+
+    // Generate matrix with custom configuration
+    const generateCustomMatrix = useCallback(async (regenerate = false) => {
+        if (!selectedProductId) return;
+
+        setLoading(true);
+        setError(null);
+        setSuccess(null);
+
+        try {
+            // Build selected attributes configuration
+            const selectedAttributes = Array.from(selectedAttributeIds).map(attrId => {
+                const selectedValues = selectedValuesByAttr.get(attrId);
+                return {
+                    attributeId: attrId,
+                    selectedValues: selectedValues ? Array.from(selectedValues) : []
+                };
+            });
+
+            const response = await fetch(
+                `${API_BASE_URL}/products/${selectedProductId}/image-matrix/generate-custom`,
+                {
+                    method: "POST",
+                    headers: {
+                        ...authHeaders(),
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        mode: 'custom',
+                        selectedAttributes,
+                        includeSubAttributes,
+                        applyRules,
+                        regenerate
+                    }),
+                }
+            );
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                const errorMessage = errorData.error || "Failed to generate custom matrix";
+
+                // Show more helpful error for rule filtering issues
+                if (errorMessage.includes("filtered out by attribute rules")) {
+                    setError(
+                        `${errorMessage}\n\n💡 Suggestion: Try toggling "Apply Attribute Rules" OFF to generate without rule filtering, then review your attribute rules configuration.`
+                    );
+                } else {
+                    setError(errorMessage);
+                }
+                setLoading(false);
+                return;
+            }
+
+            const data = await response.json();
+            setSuccess(`${data.message} - ${data.totalCombinations} combinations created`);
+            setStats(data.stats);
+            // DON'T close modal - keep it open to preserve form state
+            // setConfigModalOpen(false);
+            await fetchEntries(1);
+            setGenerationProgress(null); // Reset progress
+        } catch (err: any) {
+            setError(err.message);
+            setGenerationProgress(null); // Reset progress on error
+        } finally {
+            setLoading(false);
+        }
+    }, [selectedProductId, selectedAttributeIds, selectedValuesByAttr, applyRules, authHeaders, fetchEntries]);
+
+    // Toggle attribute selection
+    const toggleAttributeSelection = (attrId: string) => {
+        setSelectedAttributeIds(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(attrId)) {
+                newSet.delete(attrId);
+                // Clear value selection for this attribute
+                setSelectedValuesByAttr(prevMap => {
+                    const newMap = new Map(prevMap);
+                    newMap.delete(attrId);
+                    return newMap;
+                });
+            } else {
+                newSet.add(attrId);
+            }
+            return newSet;
+        });
+    };
+
+    // Toggle value selection for an attribute
+    const toggleValueSelection = (attrId: string, value: string) => {
+        setSelectedValuesByAttr(prev => {
+            const newMap = new Map(prev);
+            const attrValues = newMap.get(attrId) || new Set<string>();
+            const newAttrValues = new Set(attrValues);
+
+            if (newAttrValues.has(value)) {
+                newAttrValues.delete(value);
+            } else {
+                newAttrValues.add(value);
+            }
+
+            if (newAttrValues.size === 0) {
+                newMap.delete(attrId);
+            } else {
+                newMap.set(attrId, newAttrValues);
+            }
+
+            return newMap;
+        });
+    };
+
+    // Select all values for an attribute
+    const selectAllValues = (attrId: string) => {
+        const attr = previewData?.attributes.find(a => a.id === attrId);
+        if (!attr) return;
+
+        setSelectedValuesByAttr(prev => {
+            const newMap = new Map(prev);
+            newMap.set(attrId, new Set(attr.values.map(v => v.value)));
+            return newMap;
+        });
+    };
+
+    // Clear all value selections for an attribute
+    const clearAllValues = (attrId: string) => {
+        setSelectedValuesByAttr(prev => {
+            const newMap = new Map(prev);
+            newMap.delete(attrId);
+            return newMap;
+        });
+    };
+
+    // Open configuration modal and initialize with all attributes selected
+    const openConfigModal = () => {
+        if (previewData) {
+            setSelectedAttributeIds(new Set(previewData.attributes.map(a => a.id)));
+            setSelectedValuesByAttr(new Map());
+            setApplyRules(true);
+            setIncludeSubAttributes(false); // Default to FALSE to prevent explosion
+        }
+        setConfigModalOpen(true);
+    };
 
     // Upload image for entry
     const uploadImage = useCallback(async (entryId: string, file: File) => {
@@ -384,22 +592,25 @@ const ManageImageMatrix: React.FC<{
     // Render combination labels
     const renderCombinationLabels = (entry: MatrixEntry) => {
         const labels = entry.attributeLabels;
-        if (!labels) return entry.combinationKey;
 
-        return Object.entries(labels)
-            .map(([_, val]) => (
-                <span key={val.attributeName} className="inline-flex items-center gap-1">
-                    <span className="text-xs text-gray-500">{val.attributeName}:</span>
-                    <span className="text-sm font-medium text-gray-800">{val.valueLabel}</span>
-                </span>
-            ))
-            .reduce((prev, curr, idx) => (
-                <>
-                    {prev}
-                    {idx > 0 && <span className="text-gray-300 mx-1">|</span>}
-                    {curr}
-                </>
-            ) as any);
+        // Fallback to combinationKey if no labels or empty labels
+        if (!labels || Object.keys(labels).length === 0) {
+            return <span className="text-sm text-gray-600">{entry.combinationKey}</span>;
+        }
+
+        const entries = Object.entries(labels);
+
+        return (
+            <div className="flex flex-wrap items-center gap-1">
+                {entries.map(([attrId, val], idx) => (
+                    <span key={attrId} className="inline-flex items-center">
+                        {idx > 0 && <span className="text-gray-300 mx-1">|</span>}
+                        <span className="text-xs text-gray-500">{val.attributeName}:</span>
+                        <span className="text-sm font-medium text-gray-800 ml-1">{val.valueLabel}</span>
+                    </span>
+                ))}
+            </div>
+        );
     };
 
     return (
@@ -522,6 +733,15 @@ const ManageImageMatrix: React.FC<{
                                 Generate Matrix
                             </button>
 
+                            <button
+                                onClick={openConfigModal}
+                                disabled={loading || !previewData}
+                                className="px-6 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 mt-7"
+                            >
+                                <Filter size={18} />
+                                Configure Matrix
+                            </button>
+
                             {stats.total > 0 && (
                                 <button
                                     onClick={() => generateMatrix(true)}
@@ -585,8 +805,8 @@ const ManageImageMatrix: React.FC<{
                                             <span
                                                 key={v.value}
                                                 className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs ${v.hasSubAttributes && (v.subAttributeCount || 0) > 0
-                                                        ? 'bg-purple-100 text-purple-700 border border-purple-200'
-                                                        : 'bg-white text-gray-600 border border-gray-200'
+                                                    ? 'bg-purple-100 text-purple-700 border border-purple-200'
+                                                    : 'bg-white text-gray-600 border border-gray-200'
                                                     }`}
                                                 title={v.hasSubAttributes ? `${v.subAttributeCount} sub-attributes` : 'No sub-attributes'}
                                             >
@@ -889,8 +1109,258 @@ const ManageImageMatrix: React.FC<{
                     <Grid className="mx-auto text-gray-300 mb-4" size={64} />
                     <h3 className="text-lg font-medium text-gray-800 mb-2">No Matrix Generated Yet</h3>
                     <p className="text-gray-500 mb-6">
-                        Click "Generate Matrix" to create all attribute combinations for this product.
+                        Click "Generate Matrix" or "Configure Matrix" to create attribute combinations for this product.
                     </p>
+                </div>
+            )}
+
+            {/* Configuration Modal */}
+            {configModalOpen && previewData && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+                        {/* Modal Header */}
+                        <div className="px-6 py-4 border-b flex items-center justify-between bg-gradient-to-r from-green-600 to-blue-600 text-white">
+                            <div>
+                                <h3 className="text-xl font-bold">Configure Matrix Generation</h3>
+                                <p className="text-sm opacity-90 mt-1">Select attributes and values to reduce combinations</p>
+                            </div>
+                            <button
+                                onClick={() => setConfigModalOpen(false)}
+                                className="p-2 hover:bg-white/20 rounded-lg transition"
+                            >
+                                <X size={24} />
+                            </button>
+                        </div>
+
+                        {/* Modal Body */}
+                        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                            {/* Combination Counter */}
+                            <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-xl p-6 border border-blue-200">
+                                <div className="grid grid-cols-3 gap-4">
+                                    <div className="bg-white rounded-lg p-4 shadow-sm">
+                                        <div className="text-3xl font-bold text-blue-600">
+                                            {calculatedCombinations?.total.toLocaleString() || 0}
+                                        </div>
+                                        <div className="text-sm text-gray-600 mt-1">Selected Combinations</div>
+                                    </div>
+                                    {applyRules && (
+                                        <>
+                                            <div className="bg-white rounded-lg p-4 shadow-sm">
+                                                <div className="text-3xl font-bold text-green-600">
+                                                    {calculatedCombinations?.withRules.toLocaleString() || 0}
+                                                </div>
+                                                <div className="text-sm text-gray-600 mt-1">After Rules</div>
+                                            </div>
+                                            <div className="bg-white rounded-lg p-4 shadow-sm">
+                                                <div className="text-3xl font-bold text-orange-600">
+                                                    -{calculatedCombinations?.reduction || 0}%
+                                                </div>
+                                                <div className="text-sm text-gray-600 mt-1">Reduction</div>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+
+                                {/* Apply Rules Toggle */}
+                                <div className="mt-4 flex items-center justify-between bg-white rounded-lg p-4">
+                                    <div>
+                                        <label className="text-sm font-medium text-gray-700">Apply Attribute Rules</label>
+                                        <p className="text-xs text-gray-500 mt-1">Filter out invalid combinations based on business rules</p>
+                                    </div>
+                                    <button
+                                        onClick={() => setApplyRules(!applyRules)}
+                                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${applyRules ? 'bg-green-600' : 'bg-gray-300'
+                                            }`}
+                                    >
+                                        <span
+                                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${applyRules ? 'translate-x-6' : 'translate-x-1'
+                                                }`}
+                                        />
+                                    </button>
+                                </div>
+
+                                {/* Include Sub-Attributes Toggle */}
+                                <div className="mt-3 flex items-center justify-between bg-amber-50 border border-amber-200 rounded-lg p-4">
+                                    <div>
+                                        <label className="text-sm font-medium text-amber-900">Include Sub-Attributes</label>
+                                        <p className="text-xs text-amber-700 mt-1">
+                                            ⚠️ Enabling this can create 10x-100x more combinations!
+                                        </p>
+                                    </div>
+                                    <button
+                                        onClick={() => setIncludeSubAttributes(!includeSubAttributes)}
+                                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${includeSubAttributes ? 'bg-amber-600' : 'bg-gray-300'
+                                            }`}
+                                    >
+                                        <span
+                                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${includeSubAttributes ? 'translate-x-6' : 'translate-x-1'
+                                                }`}
+                                        />
+                                    </button>
+                                </div>
+
+                                {/* Rule Info */}
+                                {applyRules && previewData.rulesApplied && previewData.rulesApplied.length > 0 && (
+                                    <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-3">
+                                        <div className="text-sm font-medium text-blue-800 mb-2">
+                                            {previewData.rulesApplied.length} Active Rule{previewData.rulesApplied.length !== 1 ? 's' : ''}
+                                        </div>
+                                        <div className="space-y-1 max-h-32 overflow-y-auto">
+                                            {previewData.rulesApplied.map((rule, idx) => (
+                                                <div key={idx} className="text-xs text-blue-700 bg-white rounded px-2 py-1">
+                                                    <span className="font-medium">{rule.name}:</span> {rule.when} → {rule.actions}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Attribute Selection */}
+                            <div className="space-y-4">
+                                <div className="flex items-center justify-between">
+                                    <h4 className="font-semibold text-gray-800">Select Attributes</h4>
+                                    <div className="text-sm text-gray-500">
+                                        {selectedAttributeIds.size} of {previewData.attributes.length} selected
+                                    </div>
+                                </div>
+
+                                {previewData.attributes.map((attr) => {
+                                    const isSelected = selectedAttributeIds.has(attr.id);
+                                    const selectedValues = selectedValuesByAttr.get(attr.id);
+                                    const allValuesSelected = !selectedValues || selectedValues.size === 0;
+
+                                    return (
+                                        <div
+                                            key={attr.id}
+                                            className={`border-2 rounded-xl overflow-hidden transition ${isSelected ? 'border-green-300 bg-green-50/50' : 'border-gray-200 bg-gray-50'
+                                                }`}
+                                        >
+                                            {/* Attribute Header */}
+                                            <div className="p-4 flex items-center justify-between bg-white/50">
+                                                <div className="flex items-center gap-3 flex-1">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={isSelected}
+                                                        onChange={() => toggleAttributeSelection(attr.id)}
+                                                        className="w-5 h-5 rounded text-green-600 focus:ring-green-500"
+                                                    />
+                                                    <div>
+                                                        <div className="font-semibold text-gray-800">{attr.name}</div>
+                                                        <div className="text-sm text-gray-500">
+                                                            {attr.expandedValuesCount} value{attr.expandedValuesCount !== 1 ? 's' : ''}
+                                                            {attr.hasSubAttributes && (
+                                                                <span className="ml-2 px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded-full">
+                                                                    Has Sub-Attrs
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                {isSelected && (
+                                                    <div className="flex items-center gap-2">
+                                                        <button
+                                                            onClick={() => selectAllValues(attr.id)}
+                                                            className="px-3 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition"
+                                                        >
+                                                            All
+                                                        </button>
+                                                        <button
+                                                            onClick={() => clearAllValues(attr.id)}
+                                                            className="px-3 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition"
+                                                        >
+                                                            Clear
+                                                        </button>
+                                                        <div className="text-sm text-gray-600">
+                                                            {allValuesSelected ? 'All' : `${selectedValues?.size || 0}`} selected
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Value Selection */}
+                                            {isSelected && (
+                                                <div className="p-4 bg-white border-t">
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {attr.values.map((val) => {
+                                                            const isValueSelected = allValuesSelected || selectedValues?.has(val.value);
+                                                            return (
+                                                                <button
+                                                                    key={val.value}
+                                                                    onClick={() => toggleValueSelection(attr.id, val.value)}
+                                                                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${isValueSelected
+                                                                        ? 'bg-green-600 text-white'
+                                                                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                                                        }`}
+                                                                >
+                                                                    {val.label}
+                                                                    {val.subAttributeCount && val.subAttributeCount > 0 && (
+                                                                        <span className="ml-1 opacity-75">({val.subAttributeCount})</span>
+                                                                    )}
+                                                                </button>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div className="px-6 py-4 border-t bg-gray-50">
+                            {/* Progress Bar */}
+                            {loading && (
+                                <div className="mb-4">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <span className="text-sm font-medium text-gray-700">
+                                            Generating combinations...
+                                        </span>
+                                        <span className="text-sm text-gray-600">
+                                            {generationProgress
+                                                ? `${generationProgress.current} / ${generationProgress.total} (${generationProgress.percentage}%)`
+                                                : 'Processing...'
+                                            }
+                                        </span>
+                                    </div>
+                                    <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                                        <div
+                                            className="bg-gradient-to-r from-green-500 to-blue-500 h-3 transition-all duration-300 ease-out"
+                                            style={{
+                                                width: generationProgress
+                                                    ? `${generationProgress.percentage}%`
+                                                    : '0%'
+                                            }}
+                                        >
+                                            <div className="w-full h-full bg-white/20 animate-pulse"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="flex items-center justify-between">
+                                <button
+                                    onClick={() => setConfigModalOpen(false)}
+                                    className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition"
+                                    disabled={loading}
+                                >
+                                    Cancel
+                                </button>
+                                <div className="flex gap-3">
+                                    <button
+                                        onClick={() => generateCustomMatrix(false)}
+                                        disabled={loading || selectedAttributeIds.size === 0}
+                                        className="px-6 py-2 bg-gradient-to-r from-green-600 to-blue-600 text-white rounded-lg font-medium hover:from-green-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                                    >
+                                        {loading ? <Loader className="animate-spin" size={18} /> : <RefreshCw size={18} />}
+                                        Generate {calculatedCombinations?.withRules.toLocaleString() || 0} Combinations
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             )}
 

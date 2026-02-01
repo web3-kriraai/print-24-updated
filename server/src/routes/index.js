@@ -122,6 +122,7 @@ import {
 import {
   getProductMatrix,
   generateProductMatrix,
+  generateProductMatrixCustom,
   previewProductMatrix,
   uploadMatrixImage,
   bulkUploadMatrixImages,
@@ -424,6 +425,9 @@ router.get("/products/:productId/image-matrix/preview", authMiddleware, adminAut
 
 // Generate matrix entries (Cartesian product)
 router.post("/products/:productId/image-matrix/generate", authMiddleware, adminAuth, generateProductMatrix);
+
+// Generate matrix entries with custom attribute/value selection
+router.post("/products/:productId/image-matrix/generate-custom", authMiddleware, adminAuth, generateProductMatrixCustom);
 
 // Get all matrix entries for a product (paginated)
 router.get("/products/:productId/image-matrix", authMiddleware, adminAuth, getProductMatrix);

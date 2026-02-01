@@ -271,8 +271,11 @@ AttributeImageMatrixSchema.statics.bulkUpsertCombinations = async function (prod
                     product: new mongoose.Types.ObjectId(productId),
                     combinationKey: combo.key,
                     attributeCombination: combo.map,
-                    attributeLabels: combo.labels,
                     status: 'MISSING',
+                },
+                // Always update labels and sortOrder (even for existing entries)
+                $set: {
+                    attributeLabels: combo.labels,
                     sortOrder: combo.sortOrder,
                 }
             },
