@@ -260,6 +260,10 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
   } | null>(null);
   const [isGettingLocation, setIsGettingLocation] = useState(false);
 
+  // Matrix Strategy: Pre-rendered combination image lookup
+  const [matrixImageUrl, setMatrixImageUrl] = useState<string | null>(null);
+  const [matrixImageLoading, setMatrixImageLoading] = useState(false);
+
 
   // Close modal on ESC key
   useEffect(() => {
@@ -1966,6 +1970,116 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
     return () => clearTimeout(timer);
   }, [selectedProduct?._id]);
+
+  // Matrix Strategy: Resolve pre-rendered image for current attribute combination
+  const resolveMatrixImage = async () => {
+    if (!selectedProduct?._id) {
+      setMatrixImageUrl(null);
+      return;
+    }
+
+    // Build selections object from selectedDynamicAttributes
+    // We need to map the attribute IDs to their selected values
+    // Format: { attributeId: "value" } or { attributeId: "value__subValue" }
+    const selections: Record<string, string> = {};
+
+    // Get attributes from either pdpAttributes or product's dynamicAttributes
+    const attrs = pdpAttributes && pdpAttributes.length > 0
+      ? pdpAttributes
+      : (selectedProduct.dynamicAttributes || []);
+
+    for (const attr of attrs) {
+      // Handle both pdpAttributes structure (_id directly) and dynamicAttributes (attributeType._id)
+      let attrId: string | undefined;
+
+      // Cast to any to handle both structures
+      const attrAny = attr as any;
+
+      if (attrAny._id && !attrAny.attributeType) {
+        // pdpAttributes have _id directly (Attribute type)
+        attrId = attrAny._id;
+      } else if (attrAny.attributeType) {
+        // dynamicAttributes have attributeType._id
+        const attrType = typeof attrAny.attributeType === 'object' ? attrAny.attributeType : null;
+        attrId = attrType?._id;
+      }
+
+      if (!attrId) continue;
+
+      const value = selectedDynamicAttributes[attrId];
+
+      if (value && typeof value === 'string') {
+        // Check for sub-attribute selection
+        const subAttrKey = `${attrId}__${value}`;
+        const subValue = selectedDynamicAttributes[subAttrKey];
+
+        if (subValue && typeof subValue === 'string') {
+          // Include sub-attribute in the combination: "parentValue__subValue"
+          selections[attrId] = `${value}__${subValue}`;
+        } else {
+          selections[attrId] = value;
+        }
+      }
+    }
+
+    // Only resolve if we have at least one selection
+    if (Object.keys(selections).length === 0) {
+      setMatrixImageUrl(null);
+      return;
+    }
+
+    console.log('[MatrixImage] Resolving for selections:', selections);
+
+    try {
+      setMatrixImageLoading(true);
+      const queryString = new URLSearchParams(selections).toString();
+      const url = `${API_BASE_URL}/products/${selectedProduct._id}/image-matrix/resolve?${queryString}`;
+      console.log('[MatrixImage] Fetching:', url);
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' }
+      });
+
+      if (!response.ok) {
+        console.warn('[MatrixImage] Resolve failed:', response.status);
+        setMatrixImageUrl(null);
+        return;
+      }
+
+      const data = await response.json();
+      console.log('[MatrixImage] Response:', data);
+
+      if (data.success && data.imageUrl) {
+        console.log('[MatrixImage] ✅ Found image:', data.imageUrl);
+        setMatrixImageUrl(data.imageUrl);
+      } else {
+        console.log('[MatrixImage] ❌ No image found for this combination');
+        setMatrixImageUrl(null);
+      }
+    } catch (error) {
+      console.error('[MatrixImage] Error resolving:', error);
+      setMatrixImageUrl(null);
+    } finally {
+      setMatrixImageLoading(false);
+    }
+  };
+
+  // Trigger matrix image resolution when attributes change (debounced)
+  useEffect(() => {
+    // Don't resolve until user has explicitly selected at least one attribute
+    if (userSelectedAttributes.size === 0) {
+      setMatrixImageUrl(null);
+      return;
+    }
+
+    // Debounce to avoid too many API calls during rapid selection
+    const timeoutId = setTimeout(() => {
+      resolveMatrixImage();
+    }, 150);
+
+    return () => clearTimeout(timeoutId);
+  }, [selectedDynamicAttributes, selectedProduct?._id, pdpAttributes, userSelectedAttributes.size]);
 
   // Get preview classes based on selected product
   const getPreviewClasses = (excludeSize: boolean = false) => {
@@ -4106,7 +4220,12 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                     <div className="w-full h-full flex items-center justify-center ">
                       {(() => {
                         // Get the image to display based on selected attributes
-                        // Prioritize product image first, then subcategory, then fallback
+                        // Priority order:
+                        // 1. Matrix-resolved image (pre-rendered combination from admin)
+                        // 2. Individual attribute value images (legacy fallback)
+                        // 3. Product image
+                        // 4. Subcategory image
+                        // 5. Default fallback
                         let displayImage = selectedProduct?.image || selectedSubCategory?.image || "/Glossy.png";
                         let displayAlt = selectedProduct?.name || selectedSubCategory?.name || "Product Preview";
 
@@ -4115,9 +4234,13 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                           displayImage = selectedSubCategory?.image || "/Glossy.png";
                         }
 
-                        // Only check for attribute images if user has explicitly selected at least one attribute
-                        // This ensures the main product image is shown initially
-                        if (selectedProduct && selectedProduct.dynamicAttributes && userSelectedAttributes.size > 0) {
+                        // Priority 1: Matrix-resolved image (best quality - pre-rendered combinations)
+                        if (matrixImageUrl) {
+                          displayImage = matrixImageUrl;
+                          displayAlt = `${selectedProduct?.name || 'Product'} - Custom Configuration`;
+                        }
+                        // Priority 2: Individual attribute images (legacy fallback when no matrix image)
+                        else if (selectedProduct && selectedProduct.dynamicAttributes && userSelectedAttributes.size > 0) {
                           // Iterate through userSelectedAttributes in REVERSE order (most recent first)
                           // to find the most recently selected attribute that has an image
                           const selectionOrderArray = Array.from(userSelectedAttributes).reverse();
@@ -4193,6 +4316,12 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                           />
                         );
                       })()}
+                      {/* Matrix image loading indicator */}
+                      {matrixImageLoading && (
+                        <div className="absolute inset-0 bg-white/50 backdrop-blur-[1px] flex items-center justify-center z-20 transition-opacity duration-200">
+                          <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                        </div>
+                      )}
                     </div>
                   </motion.div>
 

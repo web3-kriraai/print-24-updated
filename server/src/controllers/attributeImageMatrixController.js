@@ -1191,6 +1191,9 @@ export const resolveMatrixImage = async (req, res) => {
         // Remove any non-attribute query params
         delete selections.productId;
 
+        console.log('[resolveMatrixImage] Product:', productId);
+        console.log('[resolveMatrixImage] Selections:', selections);
+
         if (Object.keys(selections).length === 0) {
             return res.json({
                 success: true,
@@ -1199,13 +1202,61 @@ export const resolveMatrixImage = async (req, res) => {
             });
         }
 
-        // Use the static method for O(1) lookup
-        const entry = await AttributeImageMatrix.findBySelection(productId, selections);
+        // First, try exact match using the static method for O(1) lookup
+        let entry = await AttributeImageMatrix.findBySelection(productId, selections);
+
+        // If no exact match, try partial match:
+        // Find an uploaded matrix entry where ALL its attributes match the user's selections
+        if (!entry) {
+            console.log('[resolveMatrixImage] No exact match, trying partial match...');
+
+            // Get all uploaded entries for this product
+            const uploadedEntries = await AttributeImageMatrix.find({
+                product: productId,
+                status: 'UPLOADED'
+            }).select('attributeCombination imageUrl thumbnailUrl combinationKey').lean();
+
+            console.log('[resolveMatrixImage] Found', uploadedEntries.length, 'uploaded entries');
+
+            // Find entries where ALL stored attributes match user's selections
+            for (const candidate of uploadedEntries) {
+                const storedAttrs = candidate.attributeCombination instanceof Map
+                    ? Object.fromEntries(candidate.attributeCombination)
+                    : candidate.attributeCombination;
+
+                if (!storedAttrs || Object.keys(storedAttrs).length === 0) continue;
+
+                console.log('[resolveMatrixImage] Comparing with stored:', storedAttrs);
+
+                // Check if ALL stored attributes match user's selections
+                let allMatch = true;
+                let mismatchDetails = [];
+                for (const [attrId, storedValue] of Object.entries(storedAttrs)) {
+                    const userValue = selections[attrId];
+                    if (!userValue) {
+                        allMatch = false;
+                        mismatchDetails.push(`${attrId}: user has no value, stored="${storedValue}"`);
+                    } else if (userValue !== storedValue) {
+                        allMatch = false;
+                        mismatchDetails.push(`${attrId}: user="${userValue}" vs stored="${storedValue}"`);
+                    }
+                }
+
+                if (allMatch) {
+                    console.log('[resolveMatrixImage] Found partial match:', candidate.combinationKey);
+                    entry = candidate;
+                    break; // Use first match (could be improved to find best match)
+                } else {
+                    console.log('[resolveMatrixImage] No match. Mismatches:', mismatchDetails);
+                }
+            }
+        }
 
         // Set cache headers for CDN/browser caching
         res.set('Cache-Control', 'public, max-age=300'); // 5 minutes
 
         if (entry) {
+            console.log('[resolveMatrixImage] ✅ Returning image:', entry.imageUrl);
             res.json({
                 success: true,
                 imageUrl: entry.imageUrl,
@@ -1213,6 +1264,7 @@ export const resolveMatrixImage = async (req, res) => {
                 combinationKey: entry.combinationKey
             });
         } else {
+            console.log('[resolveMatrixImage] ❌ No matching image found');
             res.json({
                 success: true,
                 imageUrl: null,
