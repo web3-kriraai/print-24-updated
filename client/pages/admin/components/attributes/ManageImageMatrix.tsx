@@ -730,33 +730,13 @@ const ManageImageMatrix: React.FC<{
                     {selectedProductId && (
                         <>
                             <button
-                                onClick={() => generateMatrix(false)}
+                                onClick={() => generateMatrix(stats.total > 0)}
                                 disabled={loading}
                                 className="px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg font-medium hover:from-purple-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 mt-7"
                             >
                                 {loading ? <Loader className="animate-spin" size={18} /> : <RefreshCw size={18} />}
-                                Generate Matrix
+                                {stats.total > 0 ? 'Regenerate Matrix' : 'Generate Matrix'}
                             </button>
-
-                            <button
-                                onClick={openConfigModal}
-                                disabled={loading || !previewData}
-                                className="px-6 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 mt-7"
-                            >
-                                <Filter size={18} />
-                                Configure Matrix
-                            </button>
-
-                            {stats.total > 0 && (
-                                <button
-                                    onClick={() => generateMatrix(true)}
-                                    disabled={loading}
-                                    className="px-6 py-3 bg-orange-100 text-orange-700 rounded-lg font-medium hover:bg-orange-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 mt-7"
-                                >
-                                    <RefreshCw size={18} />
-                                    Regenerate
-                                </button>
-                            )}
 
                             {/* Excel Bulk Upload Buttons */}
                             {stats.total > 0 && (
@@ -852,14 +832,10 @@ const ManageImageMatrix: React.FC<{
                 {/* Preview Info */}
                 {previewData && (
                     <div className="mt-6 pt-6 border-t">
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className="grid grid-cols-3 gap-4">
                             <div className="bg-gray-50 rounded-lg p-4">
                                 <div className="text-2xl font-bold text-gray-800">{previewData.attributes.length}</div>
                                 <div className="text-sm text-gray-500">Attributes</div>
-                            </div>
-                            <div className="bg-blue-50 rounded-lg p-4">
-                                <div className="text-2xl font-bold text-blue-700">{previewData.totalCombinations}</div>
-                                <div className="text-sm text-blue-600">Total Combinations</div>
                             </div>
                             <div className="bg-green-50 rounded-lg p-4">
                                 <div className="text-2xl font-bold text-green-700">{stats.uploaded}</div>
