@@ -86,6 +86,7 @@ interface Product {
   _id: string;
   name: string;
   slug?: string;
+  sku?: string;
   description: string;
   basePrice: number;
   category?: string | { _id: string; name: string };
@@ -1341,16 +1342,22 @@ const AdminDashboard: React.FC = () => {
     // Filter by search query
     if (productSearchQuery.trim()) {
       const query = productSearchQuery.toLowerCase().trim();
+      console.log("Filtering products with query:", query); // Debug log
+
       filtered = filtered.filter((product) => {
         const nameMatch = product.name?.toLowerCase().includes(query);
         const descMatch = product.description?.toLowerCase().includes(query);
+        // Robust SKU check: handle if sku is number, null, or undefined
+        const skuMatch = String(product.sku || "").toLowerCase().includes(query);
+
         const categoryMatch = product.category && typeof product.category === 'object'
           ? product.category.name?.toLowerCase().includes(query)
           : false;
         const subcategoryMatch = product.subcategory && typeof product.subcategory === 'object'
           ? product.subcategory.name?.toLowerCase().includes(query)
           : false;
-        return nameMatch || descMatch || categoryMatch || subcategoryMatch;
+
+        return nameMatch || descMatch || skuMatch || categoryMatch || subcategoryMatch;
       });
     }
 

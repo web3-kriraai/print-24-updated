@@ -105,6 +105,23 @@ const ServicesMorph: React.FC<ServicesMorphProps> = ({ onServiceSelect, services
         };
     }, [hasMorphed]);
 
+    // Cleanup effect to ensure navbar is restored when component unmounts
+    useEffect(() => {
+        return () => {
+            // Restore navbar visibility when leaving the page (unmounting)
+            const mainNav = document.querySelector('nav');
+            if (mainNav) {
+                (mainNav as HTMLElement).style.opacity = '1';
+                (mainNav as HTMLElement).style.visibility = 'visible';
+                (mainNav as HTMLElement).style.pointerEvents = 'auto';
+                // Also reset transition to avoid potentially unwanted effects on re-entry
+                setTimeout(() => {
+                    if (mainNav) (mainNav as HTMLElement).style.transition = '';
+                }, 300);
+            }
+        };
+    }, []);
+
     // Initial auto-scroll timer effect
     useEffect(() => {
         // Skip if page auto-scroll is disabled OR if settings haven't loaded yet
@@ -112,7 +129,7 @@ const ServicesMorph: React.FC<ServicesMorphProps> = ({ onServiceSelect, services
             console.log('[Auto-Scroll] Disabled by user');
             return;
         }
-        
+
         // Only proceed if explicitly enabled (true) or using default (undefined = true)
         if (scrollSettings.pageAutoScrollEnabled !== true && scrollSettings.pageAutoScrollEnabled !== undefined) {
             console.log('[Auto-Scroll] Not enabled, skipping');
@@ -120,7 +137,7 @@ const ServicesMorph: React.FC<ServicesMorphProps> = ({ onServiceSelect, services
         }
 
         console.log('[Auto-Scroll] Enabled, setting timer with delay:', scrollSettings.pageAutoScrollDelay || 2000);
-        
+
         const timer = setTimeout(() => {
             // Only auto-scroll if user hasn't scrolled manually yet and we are at the top
             if (!userInteractedRef.current && window.scrollY < 50) {
@@ -259,72 +276,72 @@ const ServicesMorph: React.FC<ServicesMorphProps> = ({ onServiceSelect, services
         <div className="services-morph-container">
             {/* Sticky Sub Nav - Only render if enabled in admin settings */}
             {scrollSettings.stickyNavEnabled && (
-            <div className="sticky-sub-nav" id="stickyBar" ref={stickyBarRef}>
-                {/* Logo on the left */}
-                <div className="sticky-nav-logo-container">
-                    <img src={logo} alt="P24 Logo" className="sticky-nav-logo" />
-                </div>
+                <div className="sticky-sub-nav" id="stickyBar" ref={stickyBarRef}>
+                    {/* Logo on the left */}
+                    <div className="sticky-nav-logo-container">
+                        <img src={logo} alt="P24 Logo" className="sticky-nav-logo" />
+                    </div>
 
-                {/* Service Links */}
-                <div className="sticky-nav-links" ref={navLinksRef} style={{ gap: navbarSettings.itemGap || '8px', padding: '8px 12px' }}>
-                    {services.map(service => {
-                        const Icon = getServiceIcon(service);
-                        const isActive = selectedServiceId === service._id;
-                        return (
-                            <a
-                                key={service._id}
-                                href="#"
-                                className={`sub-nav-link ${isActive ? 'active' : ''}`}
-                                style={{ 
-                                    backgroundColor: isActive ? '#ffffff' : service.color,
-                                    color: isActive ? service.color : '#ffffff',
-                                    borderRadius: '6px',
-                                    padding: '8px 12px',
-                                    margin: '0',
-                                    boxShadow: isActive 
-                                        ? `0 4px 15px ${service.color}40, inset 0 0 0 2px ${service.color}` 
-                                        : `0 2px 8px ${service.color}30`,
-                                    transform: isActive ? 'scale(1.05)' : 'scale(1)',
-                                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                                    fontWeight: fontSettings.navbarNameFontWeight || '600',
-                                    letterSpacing: '0.3px',
-                                    fontSize: fontSettings.navbarNameFontSize || '0.85rem',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    gap: '6px',
-                                    textWrap: 'nowrap',
-                                    width: navbarSettings.itemWidth || '150px',
-                                    flex: '0 0 auto'
-                                }}
-                                data-target={service._id}
-                                onClick={(e) => {
-                                    e.preventDefault();
-                                    if (onServiceSelect) {
-                                        onServiceSelect(service._id);
-                                        scrollToBanner();
-                                    }
-                                }}
-                                onMouseEnter={(e) => {
-                                    if (!isActive) {
-                                        e.currentTarget.style.transform = 'scale(1.03) translateY(-2px)';
-                                        e.currentTarget.style.boxShadow = `0 6px 20px ${service.color}50`;
-                                    }
-                                }}
-                                onMouseLeave={(e) => {
-                                    if (!isActive) {
-                                        e.currentTarget.style.transform = 'scale(1)';
-                                        e.currentTarget.style.boxShadow = `0 2px 8px ${service.color}30`;
-                                    }
-                                }}
-                            >
-                                <Icon size={16} style={{ marginRight: '6px' }} />
-                                {service.navbarName || service.name}
-                            </a>
-                        );
-                    })}
+                    {/* Service Links */}
+                    <div className="sticky-nav-links" ref={navLinksRef} style={{ gap: navbarSettings.itemGap || '8px', padding: '8px 12px' }}>
+                        {services.map(service => {
+                            const Icon = getServiceIcon(service);
+                            const isActive = selectedServiceId === service._id;
+                            return (
+                                <a
+                                    key={service._id}
+                                    href="#"
+                                    className={`sub-nav-link ${isActive ? 'active' : ''}`}
+                                    style={{
+                                        backgroundColor: isActive ? '#ffffff' : service.color,
+                                        color: isActive ? service.color : '#ffffff',
+                                        borderRadius: '6px',
+                                        padding: '8px 12px',
+                                        margin: '0',
+                                        boxShadow: isActive
+                                            ? `0 4px 15px ${service.color}40, inset 0 0 0 2px ${service.color}`
+                                            : `0 2px 8px ${service.color}30`,
+                                        transform: isActive ? 'scale(1.05)' : 'scale(1)',
+                                        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                                        fontWeight: fontSettings.navbarNameFontWeight || '600',
+                                        letterSpacing: '0.3px',
+                                        fontSize: fontSettings.navbarNameFontSize || '0.85rem',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '6px',
+                                        textWrap: 'nowrap',
+                                        width: navbarSettings.itemWidth || '150px',
+                                        flex: '0 0 auto'
+                                    }}
+                                    data-target={service._id}
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        if (onServiceSelect) {
+                                            onServiceSelect(service._id);
+                                            scrollToBanner();
+                                        }
+                                    }}
+                                    onMouseEnter={(e) => {
+                                        if (!isActive) {
+                                            e.currentTarget.style.transform = 'scale(1.03) translateY(-2px)';
+                                            e.currentTarget.style.boxShadow = `0 6px 20px ${service.color}50`;
+                                        }
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        if (!isActive) {
+                                            e.currentTarget.style.transform = 'scale(1)';
+                                            e.currentTarget.style.boxShadow = `0 2px 8px ${service.color}30`;
+                                        }
+                                    }}
+                                >
+                                    <Icon size={16} style={{ marginRight: '6px' }} />
+                                    {service.navbarName || service.name}
+                                </a>
+                            );
+                        })}
+                    </div>
                 </div>
-            </div>
             )}
 
             <div className="hero-wrapper">
@@ -345,7 +362,7 @@ const ServicesMorph: React.FC<ServicesMorphProps> = ({ onServiceSelect, services
                                 }
                             }}
                         >
-                            <span 
+                            <span
                                 className="card-intro"
                                 style={{
                                     fontSize: fontSettings.cardIntroFontSize,
@@ -354,7 +371,7 @@ const ServicesMorph: React.FC<ServicesMorphProps> = ({ onServiceSelect, services
                             >
                                 We Offer...
                             </span>
-                            <h3 
+                            <h3
                                 className="card-title text-white"
                                 style={{
                                     fontSize: fontSettings.cardTitleFontSize,
@@ -363,7 +380,7 @@ const ServicesMorph: React.FC<ServicesMorphProps> = ({ onServiceSelect, services
                             >
                                 {service.name}
                             </h3>
-                            <p 
+                            <p
                                 className="card-desc text-white/90"
                                 style={{
                                     fontSize: fontSettings.cardDescFontSize,

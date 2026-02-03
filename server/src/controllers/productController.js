@@ -1459,7 +1459,7 @@ export const updateProductsSortOrder = async (req, res) => {
     );
 
     const results = await Promise.all(updatePromises);
-    
+
     const successCount = results.filter(r => r !== null).length;
 
     return res.json({

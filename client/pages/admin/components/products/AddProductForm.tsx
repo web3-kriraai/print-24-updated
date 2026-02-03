@@ -2246,14 +2246,14 @@ const AddProductForm: React.FC<AddProductFormProps> = ({
                                 // Pre-populate categories from current product context
                                 const categoriesToApply = [];
                                 const subCategoriesToApply = [];
-                                
+
                                 if (productForm.category) {
                                     categoriesToApply.push(productForm.category);
                                 }
                                 if (productForm.subcategory) {
                                     subCategoriesToApply.push(productForm.subcategory);
                                 }
-                                
+
                                 // Update attribute form with current product's categories
                                 setAttributeTypeForm(prev => ({
                                     ...prev,
@@ -2262,7 +2262,7 @@ const AddProductForm: React.FC<AddProductFormProps> = ({
                                     // Set as common attribute by default, or category-specific if category is selected
                                     isCommonAttribute: categoriesToApply.length === 0
                                 }));
-                                
+
                                 // Open the create attribute modal
                                 setShowCreateAttributeModal(true);
                             }}
@@ -2483,7 +2483,7 @@ const AddProductForm: React.FC<AddProductFormProps> = ({
                     // Refresh attribute types list after successful creation/update
                     console.log('CreateAttributeModal onSuccess: Refreshing attribute types list');
                     fetchAttributeTypes(productForm.category, productForm.subcategory);
-                    
+
                     // Show additional confirmation toast on the product page
                     toast.success('Attribute is now available in the list below!', {
                         duration: 3000,
