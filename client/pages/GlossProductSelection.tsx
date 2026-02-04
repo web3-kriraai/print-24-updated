@@ -324,11 +324,33 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
           }
         }
         // Apply SET_DEFAULT if no selection and default is set
+        // BUT verify the default value is actually in the filtered list
         if (attr.defaultValue && !selectedDynamicAttributes[attr._id]) {
-          setSelectedDynamicAttributes((prev) => ({
-            ...prev,
-            [attr._id]: attr.defaultValue,
-          }));
+          // Check if defaultValue exists in the filtered attributeValues list
+          const defaultValueExists = attributeValues.some((av: any) => av.value === attr.defaultValue);
+          if (defaultValueExists) {
+            // Use the configured default value
+            setSelectedDynamicAttributes((prev) => ({
+              ...prev,
+              [attr._id]: attr.defaultValue,
+            }));
+          } else if (attributeValues.length > 0 && attr.inputStyle !== 'CHECKBOX') {
+            // Default value is not in the filtered list, fall back to first available value
+            console.log(`⚠️ Default value "${attr.defaultValue}" for "${attr.attributeName}" not in filtered list. Using first available value: "${attributeValues[0].value}"`);
+            setSelectedDynamicAttributes((prev) => ({
+              ...prev,
+              [attr._id]: attributeValues[0].value,
+            }));
+          }
+        } else if (!selectedDynamicAttributes[attr._id] && attributeValues.length > 0) {
+          // If no default value is set but we have attribute values, set to first value
+          // (except for CHECKBOX which should remain empty)
+          if (attr.inputStyle !== 'CHECKBOX') {
+            setSelectedDynamicAttributes((prev) => ({
+              ...prev,
+              [attr._id]: attributeValues[0].value,
+            }));
+          }
         }
       });
 
@@ -5425,7 +5447,13 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                               label: `${av.label}${priceDisplay}`
                                                             };
                                                           })}
-                                                        value={selectedDynamicAttributes[attrId] as string || ""}
+                                                        value={(() => {
+                                                          // Ensure the selected value exists in the filtered options
+                                                          const currentValue = selectedDynamicAttributes[attrId] as string;
+                                                          const valueExists = attributeValues.some((av: any) => av.value === currentValue);
+                                                          // If invalid, show first available option (useEffect will update state properly)
+                                                          return valueExists ? currentValue : (attributeValues.length > 0 ? attributeValues[0].value : "");
+                                                        })()}
                                                         onValueChange={(value) => {
                                                           setSelectedDynamicAttributes({
                                                             ...selectedDynamicAttributes,
