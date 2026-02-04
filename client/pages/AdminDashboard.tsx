@@ -1299,17 +1299,11 @@ const AdminDashboard: React.FC = () => {
 
   // Filter products by search query and category/subcategory
   useEffect(() => {
-    // Show filtering loader if there's an active filter or search query
-    const hasActiveFilter = selectedSubCategoryFilter || productSearchQuery.trim();
+    const hasActiveFilter = selectedCategoryFilter || selectedSubCategoryFilter || productSearchQuery.trim();
+
+    // Show filtering loader if there's an active filter
     if (hasActiveFilter && products.length > 0) {
       setFilteringProducts(true);
-      // Small delay to show loader for better UX
-      const timer = setTimeout(() => {
-        setFilteringProducts(false);
-      }, 100);
-      return () => clearTimeout(timer);
-    } else {
-      setFilteringProducts(false);
     }
 
     let filtered = products;
@@ -1342,7 +1336,6 @@ const AdminDashboard: React.FC = () => {
     // Filter by search query
     if (productSearchQuery.trim()) {
       const query = productSearchQuery.toLowerCase().trim();
-      console.log("Filtering products with query:", query); // Debug log
 
       filtered = filtered.filter((product) => {
         const nameMatch = product.name?.toLowerCase().includes(query);
@@ -1362,7 +1355,13 @@ const AdminDashboard: React.FC = () => {
     }
 
     setFilteredProducts(filtered);
-    setFilteringProducts(false);
+
+    // Small delay to hide loader for better UX
+    const timer = setTimeout(() => {
+      setFilteringProducts(false);
+    }, 100);
+
+    return () => clearTimeout(timer);
   }, [products, selectedCategoryFilter, selectedSubCategoryFilter, productSearchQuery]);
 
   const handleSubCategoryFilterChange = async (categoryId: string) => {
