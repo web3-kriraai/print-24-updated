@@ -1,0 +1,231 @@
+# COMPLAINT MANAGEMENT SYSTEM - DEPLOYMENT GUIDE
+
+## Prerequisites
+- Node.js 16+ installed
+- MongoDB database
+- Email service configured (for notifications)
+- Cloudinary account (for image uploads - optional)
+
+---
+
+## Backend Deployment Steps
+
+### 1. Copy All Backend Files
+Copy these directories/files to your production server:
+
+```
+server/src/
+├── models/
+│   ├── User.js [MODIFIED - lines 128-145]
+│   └── ComplaintSchema.js [NEW]
+│
+├── utils/complaint/ [NEW DIRECTORY]
+│   ├── index.js
+│   ├── staffTimeLimits.js
+│   └── complaintHelpers.js
+│
+├── middlewares/
+│   └── complaintValidation.js [NEW]
+│
+├── controllers/
+│   └── complaintController.js [NEW]
+│
+├── routes/
+│   ├── complaintRoutes.js [NEW]
+│   ├── webhooks.js [NEW]
+│   └── index.js [MODIFIED - lines 450-463]
+│
+├── services/
+│   └── complaintNotificationService.js [NEW]
+│
+└── templates/
+    └── complaintEmails.js [NEW]
+```
+
+### 2. Environment Variables
+Add to your `.env` file:
+
+```env
+# Complaint System
+FRONTEND_URL=https://your-domain.com
+# Email service credentials already configured
+```
+
+### 3. Database Indexes
+Run these MongoDB commands after deployment:
+
+```javascript
+use your_database_name;
+
+// Create indexes for performance
+db.complaints.createIndex({ orderNumber: 1 });
+db.complaints.createIndex({ status: 1, createdAt: -1 });
+db.complaints.createIndex({ raisedBy: 1, createdAt: -1 });
+db.complaints.createIndex({ assignedTo: 1, status: 1 });
+db.complaints.createIndex({ deliveryDate: 1, createdAt: 1 });
+db.complaints.createIndex({ registerSource: 1 });
+db.complaints.createIndex({ reopenSource: 1 });
+```
+
+### 4. Restart Server
+```bash
+npm install  # If any new dependencies
+npm start
+```
+
+---
+
+## Frontend Deployment Steps
+
+### 1. Copy Frontend Files
+```
+client/
+├── pages/
+│   ├── RegisterComplaint.tsx [NEW]
+│   ├── ComplaintDetails.tsx [NEW]
+│   └── admin/
+│       └── AdminComplaintManagement.tsx [NEW]
+│
+├── components/
+│   └── ComplaintButton.tsx [NEW]
+│
+└── routes.tsx [MODIFIED - lines 72-73]
+```
+
+### 2. Update OrderDetails.tsx (MANUAL STEP)
+Add the ComplaintButton component to your OrderDetails page:
+
+```tsx
+// 1. Import at top
+import { ComplaintButton } from '../components/ComplaintButton';
+
+// 2. Add button in your JSX (near Download Invoice button):
+{order && (
+  <ComplaintButton 
+    orderId={order._id} 
+    orderStatus={order.status} 
+  />
+)}
+```
+
+### 3. Build and Deploy
+```bash
+npm install
+npm run build
+# Deploy build folder to your hosting service
+```
+
+---
+
+## API Endpoints Reference
+
+### Customer Endpoints
+- `GET /api/complaints/check-eligibility/:orderId` - Check if can register
+- `POST /api/complaints/register` - Register new complaint
+- `GET /api/complaints/:id` - View complaint details
+- `POST /api/complaints/:id/messages` - Add message to conversation
+
+### Admin Endpoints
+- `GET /api/complaints` - List all complaints (with filters)
+- `GET /api/complaints/stats/dashboard` - Get statistics
+- `PATCH /api/complaints/:id/status` - Update status
+- `POST /api/complaints/:id/reopen` - Reopen closed complaint
+- `POST /api/complaints/register-on-behalf` - Staff register for customer
+
+### Webhook Endpoints
+- `POST /api/webhooks/complaint/chat` - Register from WhatsApp/chat
+- `POST /api/webhooks/complaint/call` - Register from phone call
+- `POST /api/webhooks/complaint/email` - Register from email
+
+---
+
+## Testing Checklist
+
+### ✅ Backend Tests
+- [ ] Register complaint (customer)
+- [ ] Register complaint (staff on behalf)
+- [ ] Check time limit validation
+- [ ] Check single complaint per order rule
+- [ ] Add message to conversation
+- [ ] Update complaint status
+- [ ] Reopen closed complaint
+- [ ] Email notifications sent correctly
+- [ ] Webhook endpoints work
+
+### ✅ Frontend Tests
+- [ ] Navigate to complaint registration from order details
+- [ ] Fill and submit complaint form
+- [ ] View complaint details page
+- [ ] Send messages in conversation
+- [ ] View existing complaint notification
+- [ ] Admin dashboard shows all complaints
+- [ ] Filter and search complaints
+
+---
+
+## Troubleshooting
+
+### Email Notifications Not Sending
+- Check `sendEmail` function is configured in `utils/emailService.js`
+- Verify SMTP credentials in environment variables
+- Check notification logs in complaint documents
+
+### Complaint Button Not Showing
+- Verify order status is DELIVERED or relevant status
+- Check authentication token is valid
+- Inspect browser console for errors
+
+### Database Errors
+- Ensure MongoDB is running
+- Verify ComplaintSchema is properly imported
+- Check indexes are created
+
+---
+
+## Module Architecture
+
+```
+┌─────────────────────────────────────────────────────┐
+│                  CLIENT REQUEST                      │
+└─────────────────────────────────────────────────────┘
+                         ↓
+┌─────────────────────────────────────────────────────┐
+│              COMPLAINT ROUTES                        │
+│  (/api/complaints, /api/webhooks)                   │
+└─────────────────────────────────────────────────────┘
+                         ↓
+┌─────────────────────────────────────────────────────┐
+│          VALIDATION MIDDLEWARE                       │
+│  - Time Limit Check                                 │
+│  - Single Complaint Rule                            │
+│  - Permissions                                      │
+└─────────────────────────────────────────────────────┘
+                         ↓
+┌─────────────────────────────────────────────────────┐
+│         COMPLAINT CONTROLLER                         │
+│  9 Main Endpoints + Webhook Handlers                │
+└─────────────────────────────────────────────────────┘
+                         ↓
+┌─────────────────────────────────────────────────────┐
+│            DATABASE (MongoDB)                        │
+│  ComplaintSchema + User + Order                     │
+└─────────────────────────────────────────────────────┘
+                         ↓
+┌─────────────────────────────────────────────────────┐
+│       EMAIL NOTIFICATION SERVICE                     │
+│  5 Email Templates                                  │
+└─────────────────────────────────────────────────────┘
+```
+
+---
+
+## Support & Maintenance
+
+For issues or enhancements:
+1. Check `COMPLAINT_SYSTEM_CHANGES.txt` for file locations
+2. Review `COMPLAINT_MODULE_STRUCTURE.txt` for architecture
+3. All complaint code is marked with 🔧 comments for easy identification
+
+**Module Version**: 1.0.0
+**Created**: 2026-02-04
+**Status**: Production Ready ✅

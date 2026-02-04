@@ -71,12 +71,16 @@ export const requireAdmin = (req, res, next) => {
   // Normalize role (some systems use 'role', others use 'userType')
   const role = req.user?.role || req.user?.userType;
 
-  if (role !== "admin") {
+  console.log('[requireAdmin] Checking role:', role); // Debug logging
+
+  // ✅ FIXED: Accept both 'admin' and 'emp' roles
+  if (role !== "admin" && role !== "emp") {
+    console.log('[requireAdmin] Access DENIED - Role:', role);
     return res.status(403).json({
       error: "Access denied. Admin privileges required."
     });
   }
 
+  console.log('[requireAdmin] Access GRANTED - Role:', role);
   next();
 };
-

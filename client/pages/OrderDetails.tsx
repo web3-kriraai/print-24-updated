@@ -27,6 +27,7 @@ import {
   Check,
   X,
   Sparkles,
+  AlertCircle,
 } from 'lucide-react';
 import { formatCurrency, calculateOrderBreakdown, OrderForCalculation } from '../utils/pricing';
 import { API_BASE_URL_WITH_API as API_BASE_URL } from '../lib/apiConfig';
@@ -1128,6 +1129,61 @@ const OrderDetails: React.FC = () => {
                 <button className="flex items-center justify-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-lg font-medium transition-all shadow-lg">
                   <HelpCircle className="w-4 h-4" />
                   Contact Support
+                </button>
+                {/* 🔧 Complaint Management System - Register Complaint Button */}
+                <button
+                  onClick={async () => {
+                    try {
+                      const token = localStorage.getItem('token');
+                      if (!token) {
+                        alert('Please login to register a complaint');
+                        return;
+                      }
+                      const response = await fetch(
+                        `${API_BASE_URL}/complaints/check-eligibility/${order._id}`,
+                        { headers: { 'Authorization': `Bearer ${token}` } }
+                      );
+                      const data = await response.json();
+
+                      console.log('📋 Eligibility check response:', data);
+
+                      if (data.existingComplaint) {
+                        // ✅ Validate complaint ID before navigation
+                        const complaintId = data.existingComplaint._id || data.existingComplaint.id;
+
+                        if (!complaintId) {
+                          console.error('❌ Existing complaint found but ID is missing:', data.existingComplaint);
+                          alert('Error: Complaint ID not found. Please contact support.');
+                          return;
+                        }
+
+                        console.log('✅ Navigating to existing complaint:', complaintId);
+
+                        // Show informative message
+                        alert(
+                          '⚠️ Complaint Already Exists\n\n' +
+                          'A complaint has already been registered for this order.\n\n' +
+                          'You cannot create a new complaint for the same order.\n\n' +
+                          'You will be redirected to view and continue the existing complaint.'
+                        );
+
+                        navigate(`/complaints/${complaintId}`);
+                      } else if (data.canRegister) {
+                        console.log('✅ Can register new complaint for order:', order._id);
+                        navigate(`/complaints/register/${order._id}`);
+                      } else {
+                        console.log('⚠️ Cannot register complaint:', data.message);
+                        alert(data.message || 'Cannot register complaint at this time');
+                      }
+                    } catch (error) {
+                      console.error('Complaint check error:', error);
+                      alert('Error checking complaint eligibility');
+                    }
+                  }}
+                  className="flex items-center justify-center gap-2 px-5 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-medium transition-colors shadow-lg"
+                >
+                  <AlertCircle className="w-4 h-4" />
+                  Register Complaint
                 </button>
               </div>
             </div>

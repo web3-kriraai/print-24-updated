@@ -23,6 +23,11 @@ import PaymentTestPage from './src/pages/PaymentTestPage';
 import PaymentSuccess from './pages/PaymentSuccess';
 import PaymentFailure from './pages/PaymentFailure';
 import NotFound from './pages/NotFound';
+// 🔧 Complaint Management System Pages
+import RegisterComplaint from './pages/RegisterComplaint';
+import ComplaintDetails from './pages/ComplaintDetails';
+import ComplaintTestPage from './pages/ComplaintTestPage';
+import AdminComplaintManagement from './pages/admin/AdminComplaintManagement';
 // AdminPricingDashboard and AdminPricingHub removed - functionality consolidated into AdminDashboard
 
 // Shared routes configuration for both SSR and client
@@ -64,10 +69,15 @@ export const routes = [
       { path: 'admin/dashboard', element: <AdminDashboard />, errorElement: <ErrorBoundary /> },
       { path: 'admin/payment-gateways', element: <PaymentGatewayManager />, errorElement: <ErrorBoundary /> },
       { path: 'admin/test-payment', element: <PaymentTestPage />, errorElement: <ErrorBoundary /> },
+      { path: 'admin/complaints', element: <AdminComplaintManagement />, errorElement: <ErrorBoundary /> },
       // admin/pricing and admin/pricing-hub removed - use admin/dashboard Pricing tabs instead
       { path: 'employee/dashboard', element: <EmployeeDashboard />, errorElement: <ErrorBoundary /> },
       { path: 'department-portal', element: <DepartmentPortal />, errorElement: <ErrorBoundary /> },
       { path: 'reviews', element: <Reviews />, errorElement: <ErrorBoundary /> },
+      // 🔧 Complaint Management System - Added 2026-02-04
+      { path: 'complaints/register/:orderId', element: <RegisterComplaint />, errorElement: <ErrorBoundary /> },
+      { path: 'complaints/:id', element: <ComplaintDetails />, errorElement: <ErrorBoundary /> },
+      { path: 'test-complaints', element: <ComplaintTestPage />, errorElement: <ErrorBoundary /> },
       // Payment result pages
       { path: 'payment/success', element: <PaymentSuccess />, errorElement: <ErrorBoundary /> },
       { path: 'payment/failure', element: <PaymentFailure />, errorElement: <ErrorBoundary /> },

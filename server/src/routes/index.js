@@ -1,6 +1,5 @@
 import express from "express";
-import { adminAuth } from "../middlewares/roleMiddleware.js";
-import { authMiddleware } from "../middlewares/authMiddleware.js";
+import { authMiddleware, requireAdmin } from "../middlewares/authMiddleware.js";
 import { optionalAuthMiddleware } from "../middlewares/optionalAuthMiddleware.js";
 import upload from "../middlewares/upload.js";
 
@@ -145,7 +144,6 @@ import {
 
 /* MODIFIER ROUTES */
 import modifierRoutes from "./modifierRoutes.js";
-import { requireAdmin } from "../middlewares/authMiddleware.js";
 
 /* PRICING ROUTES */
 import pricingRoutes from "./pricingRoutes.js";
@@ -164,7 +162,7 @@ const router = express.Router();
 router.post(
   "/categories",
   authMiddleware,
-  adminAuth,
+  requireAdmin,
   upload.single("image"), // enable file upload
   createCategory
 );
@@ -180,11 +178,11 @@ router.get("/categories/:id", getCategory);
 router.put(
   "/categories/:id",
   authMiddleware,
-  adminAuth,
+  requireAdmin,
   upload.single("image"),
   updateCategory
 );
-router.delete("/categories/:id", authMiddleware, adminAuth, deleteCategory);
+router.delete("/categories/:id", authMiddleware, requireAdmin, deleteCategory);
 
 /* =====================================
    SUBCATEGORY ROUTES
@@ -193,7 +191,7 @@ router.delete("/categories/:id", authMiddleware, adminAuth, deleteCategory);
 router.post(
   "/subcategories",
   authMiddleware,
-  adminAuth,
+  requireAdmin,
   upload.single("image"),
   createSubCategory
 );
@@ -205,14 +203,14 @@ router.get("/subcategories/:id", getSubCategory);
 router.put(
   "/subcategories/:id",
   authMiddleware,
-  adminAuth,
+  requireAdmin,
   upload.single("image"),
   updateSubCategory
 );
 router.delete(
   "/subcategories/:id",
   authMiddleware,
-  adminAuth,
+  requireAdmin,
   deleteSubCategory
 );
 
@@ -223,7 +221,7 @@ router.delete(
 router.post(
   "/products",
   authMiddleware,
-  adminAuth,
+  requireAdmin,
   upload.single("image"), // enable file upload
   createProduct
 );
@@ -236,36 +234,36 @@ router.get("/products/:id", getSingleProduct);
 router.put(
   "/products/:id",
   authMiddleware,
-  adminAuth,
+  requireAdmin,
   upload.single("image"),
   updateProduct
 );
-router.delete("/products/:id", authMiddleware, adminAuth, deleteProduct);
+router.delete("/products/:id", authMiddleware, requireAdmin, deleteProduct);
 
 /* =====================================
    ADMIN ROUTES
 ===================================== */
 
-router.get("/admin/uploads", authMiddleware, adminAuth, getAllUploads);
+router.get("/admin/uploads", authMiddleware, requireAdmin, getAllUploads);
 
-router.get("/admin/uploads/:id", authMiddleware, adminAuth, getUploadById);
+router.get("/admin/uploads/:id", authMiddleware, requireAdmin, getUploadById);
 
-router.delete("/admin/uploads/:id", authMiddleware, adminAuth, deleteUpload);
+router.delete("/admin/uploads/:id", authMiddleware, requireAdmin, deleteUpload);
 
-router.post("/admin/create-admin", authMiddleware, adminAuth, createAdmin);
+router.post("/admin/create-admin", authMiddleware, requireAdmin, createAdmin);
 
-router.post("/admin/create-employee", authMiddleware, adminAuth, createEmployee);
+router.post("/admin/create-employee", authMiddleware, requireAdmin, createEmployee);
 
-router.get("/admin/admins", authMiddleware, adminAuth, getAllAdmins);
+router.get("/admin/admins", authMiddleware, requireAdmin, getAllAdmins);
 
-router.get("/admin/users", authMiddleware, adminAuth, getAllUsers);
+router.get("/admin/users", authMiddleware, requireAdmin, getAllUsers);
 
-router.get("/admin/employees", authMiddleware, adminAuth, getAllEmployees);
+router.get("/admin/employees", authMiddleware, requireAdmin, getAllEmployees);
 
 router.put(
   "/admin/update-user-role",
   authMiddleware,
-  adminAuth,
+  requireAdmin,
   updateUserRole
 );
 
@@ -295,11 +293,11 @@ router.get("/orders/:orderId/invoice", generateInvoice); // Download invoice PDF
 router.put("/orders/:orderId/cancel", authMiddleware, cancelOrder);
 
 // Admin order routes
-router.get("/admin/orders", authMiddleware, adminAuth, getAllOrders);
+router.get("/admin/orders", authMiddleware, requireAdmin, getAllOrders);
 router.put(
   "/admin/orders/:orderId",
   authMiddleware,
-  adminAuth,
+  requireAdmin,
   updateOrderStatus
 );
 
@@ -307,7 +305,7 @@ router.put(
 router.post(
   "/orders/:orderId/approve",
   authMiddleware,
-  adminAuth,
+  requireAdmin,
   approveOrderForProduction
 );
 
@@ -322,7 +320,7 @@ router.get(
    ATTRIBUTE TYPE ROUTES
 ===================================== */
 
-router.post("/attribute-types", authMiddleware, adminAuth, createAttributeType);
+router.post("/attribute-types", authMiddleware, requireAdmin, createAttributeType);
 
 router.get("/attribute-types", getAllAttributeTypes);
 router.get("/attribute-types/unused/list", getUnusedAttributeTypes);
@@ -330,13 +328,13 @@ router.get("/attribute-types/:id", getSingleAttributeType);
 router.put(
   "/attribute-types/:id",
   authMiddleware,
-  adminAuth,
+  requireAdmin,
   updateAttributeType
 );
 router.delete(
   "/attribute-types/:id",
   authMiddleware,
-  adminAuth,
+  requireAdmin,
   deleteAttributeType
 );
 
@@ -344,11 +342,11 @@ router.delete(
    ATTRIBUTE RULE ROUTES (Admin)
 ===================================== */
 
-router.post("/admin/attribute-rules", authMiddleware, adminAuth, createAttributeRule);
-router.get("/admin/attribute-rules", authMiddleware, adminAuth, getAllAttributeRules);
-router.get("/admin/attribute-rules/:id", authMiddleware, adminAuth, getSingleAttributeRule);
-router.put("/admin/attribute-rules/:id", authMiddleware, adminAuth, updateAttributeRule);
-router.delete("/admin/attribute-rules/:id", authMiddleware, adminAuth, deleteAttributeRule);
+router.post("/admin/attribute-rules", authMiddleware, requireAdmin, createAttributeRule);
+router.get("/admin/attribute-rules", authMiddleware, requireAdmin, getAllAttributeRules);
+router.get("/admin/attribute-rules/:id", authMiddleware, requireAdmin, getSingleAttributeRule);
+router.put("/admin/attribute-rules/:id", authMiddleware, requireAdmin, updateAttributeRule);
+router.delete("/admin/attribute-rules/:id", authMiddleware, requireAdmin, deleteAttributeRule);
 
 /* =====================================
    RULE EVALUATION (Public)
@@ -371,21 +369,21 @@ router.post("/rules/evaluate", async (req, res) => {
    SUB-ATTRIBUTE ROUTES (Admin)
 ===================================== */
 
-router.post("/admin/sub-attributes", authMiddleware, adminAuth, upload.single("image"), createSubAttribute);
-router.get("/admin/sub-attributes", authMiddleware, adminAuth, getAllSubAttributes);
-router.put("/admin/sub-attributes/:id", authMiddleware, adminAuth, upload.single("image"), updateSubAttribute);
-router.delete("/admin/sub-attributes/:id", authMiddleware, adminAuth, deleteSubAttribute);
+router.post("/admin/sub-attributes", authMiddleware, requireAdmin, upload.single("image"), createSubAttribute);
+router.get("/admin/sub-attributes", authMiddleware, requireAdmin, getAllSubAttributes);
+router.put("/admin/sub-attributes/:id", authMiddleware, requireAdmin, upload.single("image"), updateSubAttribute);
+router.delete("/admin/sub-attributes/:id", authMiddleware, requireAdmin, deleteSubAttribute);
 
 /* =====================================
    DEPARTMENT ROUTES
 ===================================== */
 
-router.post("/departments", authMiddleware, adminAuth, createDepartment);
+router.post("/departments", authMiddleware, requireAdmin, createDepartment);
 
 router.get("/departments", getAllDepartments);
 router.get("/departments/:id", getSingleDepartment);
-router.put("/departments/:id", authMiddleware, adminAuth, updateDepartment);
-router.delete("/departments/:id", authMiddleware, adminAuth, deleteDepartment);
+router.put("/departments/:id", authMiddleware, requireAdmin, updateDepartment);
+router.delete("/departments/:id", authMiddleware, requireAdmin, deleteDepartment);
 
 // Department orders route (for employees)
 router.get(
@@ -405,13 +403,13 @@ router.post(
    SEQUENCE ROUTES
 ===================================== */
 
-router.post("/sequences", authMiddleware, adminAuth, createSequence);
+router.post("/sequences", authMiddleware, requireAdmin, createSequence);
 
 router.get("/sequences", getAllSequences);
 router.get("/sequences/subcategory/:subcategoryId", getSequenceBySubcategory);
 router.get("/sequences/:id", getSingleSequence);
-router.put("/sequences/:id", authMiddleware, adminAuth, updateSequence);
-router.delete("/sequences/:id", authMiddleware, adminAuth, deleteSequence);
+router.put("/sequences/:id", authMiddleware, requireAdmin, updateSequence);
+router.delete("/sequences/:id", authMiddleware, requireAdmin, deleteSequence);
 
 /* =====================================
    GEOCODING ROUTES (Nominatim Proxy)
@@ -446,6 +444,21 @@ router.use("/payment", paymentRoutes);
 
 // Payment gateway admin routes
 router.use("/admin/payment-gateways", authMiddleware, requireAdmin, paymentGatewayRoutes);
+
+/* =====================================
+   🔧 COMPLAINT MANAGEMENT SYSTEM
+   Added: 2026-02-04
+===================================== */
+
+// Import complaint routes
+import complaintRoutes from "./complaintRoutes.js";
+import webhookRoutes from "./webhooks.js";
+
+// Complaint routes (requires authentication)
+router.use("/complaints", complaintRoutes);
+
+// Webhook routes (for multi-channel complaint registration)
+router.use("/webhooks", webhookRoutes);
 
 export default router;
 

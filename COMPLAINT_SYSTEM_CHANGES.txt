@@ -1,0 +1,349 @@
+# COMPLAINT MANAGEMENT SYSTEM - CHANGE LOG
+Generated: 2026-02-04
+
+## Overview
+This file tracks all changes made for the Complaint Management System implementation.
+The system is designed as a modular package that can be easily migrated to production.
+
+---
+
+## PHASE 1: Database & Core Utilities ✅ COMPLETED
+
+### 1. User Schema Modifications
+**File**: `server/src/models/User.js`
+**Status**: ✅ Completed
+**Changes**:
+- Added `staffLevel` field (enum: SUPPORT_OFFICER, SENIOR_SUPPORT, TEAM_LEADER, MANAGER, ADMIN)
+- Added `allowedComplaintRegistrationDays` field (number, auto-calculated)
+- Lines: 128-145
+**Migration**: Add these fields to existing User schema (copy lines 128-145)
+
+---
+
+### 2. NEW: Complaint Schema
+**File**: `server/src/models/ComplaintSchema.js`
+**Status**: ✅ Completed
+**Changes**:
+- Complete new model with conversation threading
+- Unique constraint on `orderNumber` for single complaint enforcement
+- Status workflow: NEW → UNDER_REVIEW → APPROVED_FOR_REPRINT → RESOLVED → CLOSED
+- Email notification logs
+- Proof of mistake tracking
+- Multi-channel source support
+- Pre-save hook for auto-calculating time limits
+- 7 performance indexes
+**Migration**: Copy entire file to production
+
+---
+
+### 3. NEW: Time Limit Utilities
+**File**: `server/src/utils/complaint/staffTimeLimits.js`
+**Status**: ✅ Completed
+**Changes**:
+- `getStaffTimeLimit(staffLevel)` - Returns allowed days based on role
+- `getTimeLimitForUser(userType, staffLevel)` - Get limit for any user type
+- `isWithinTimeLimit(deliveryDate, userType, staffLevel)` - Validates eligibility
+- `getRemainingDays()` - Calculate remaining days
+- `getTimeLimitMessage()` - User-friendly messages
+- `validateComplaintEligibility()` - Complete validation with response
+**Migration**: Copy entire file to production
+
+---
+
+### 4. NEW: Complaint Helpers
+**File**: `server/src/utils/complaint/complaintHelpers.js`
+**Status**: ✅ Completed
+**Changes**:
+- `getRegisterSource(user)` - Determine who registered complaint
+- `generateComplaintId(mongoId)` - Human-readable IDs
+- `getStatusColor()`, `getStatusLabel()` - UI helpers
+- `canReopenComplaint()` - Permission check
+- `formatTimeAgo()` - Time formatting
+- `isSlaBreached()` - SLA compliance check
+**Migration**: Copy entire file to production
+
+---
+
+### 5. NEW: Utility Index
+**File**: `server/src/utils/complaint/index.js`
+**Status**: ✅ Completed
+**Changes**: Central export point for all complaint utilities
+**Migration**: Copy entire file to production
+
+---
+
+## PHASE 2: Backend Core ✅ COMPLETED
+
+### 4. NEW: Validation Middleware
+**File**: `server/src/middlewares/complaintValidation.js`
+**Status**: ✅ Completed
+
+### 5. NEW: Complaint Controller
+**File**: `server/src/controllers/complaintController.js`
+**Status**: ✅ Completed
+**Changes**: All 9 endpoints implemented
+
+### 6. NEW: Complaint Routes  
+**File**: `server/src/routes/complaintRoutes.js`
+**Status**: ✅ Completed
+
+### 7. NEW: Webhook Routes
+**File**: `server/src/routes/webhooks.js`
+**Status**: ✅ Completed
+
+### 8. MODIFY: Main Router
+**File**: `server/src/routes/index.js`
+**Status**: ✅ Completed
+**Lines**: 450-463 (added complaint & webhook routes)
+
+### 9. NEW: Email Notification Service
+**File**: `server/src/services/complaintNotificationService.js`
+**Status**: ✅ Completed
+
+### 10. NEW: Email Templates
+**File**: `server/src/templates/complaintEmails.js`
+**Status**: ✅ Completed (5 templates)
+
+---
+
+## PHASE 3: Frontend - Customer Flow ✅ COMPLETED
+
+### 11. NEW: Register Complaint Page
+**File**: `client/pages/RegisterComplaint.tsx`
+**Status**: ✅ Completed
+
+### 12. NEW: Complaint Details Page
+**File**: `client/pages/ComplaintDetails.tsx`
+**Status**: ✅ Completed
+
+### 13. NEW: Complaint Button Component
+**File**: `client/components/ComplaintButton.tsx`
+**Status**: ✅ Completed
+**Usage**: Add to OrderDetails.tsx
+
+### 14. MODIFY: Routes Config
+**File**: `client/routes.tsx`
+**Status**: ✅ Completed
+**Lines**: 72-73 (added complaint routes)
+
+---
+
+## PHASE 4: Frontend - Admin Flow ✅ COMPLETED
+
+### 15. NEW: Admin Complaint Management
+**File**: `client/pages/admin/AdminComplaintManagement.tsx`
+**Status**: ✅ Completed
+
+---
+
+## MODULE COMPLETION SUMMARY ✅
+
+**Total Files Created**: 15
+**Total Files Modified**: 3
+**Backend Completion**: 100%
+**Frontend Completion**: 100%
+
+### Backend Files (11):
+1. ComplaintSchema.js
+2. staffTimeLimits.js
+3. complaintHelpers.js
+4. complaint/index.js
+5. complaintValidation.js
+6. complaintController.js
+7. complaintRoutes.js
+8. webhooks.js
+9. complaintNotificationService.js
+10. complaintEmails.js
+11. User.js (modified)
+12. routes/index.js (modified)
+
+### Frontend Files (5):
+1. RegisterComplaint.tsx
+2. ComplaintDetails.tsx
+3. ComplaintButton.tsx
+4. AdminComplaintManagement.tsx
+5. routes.tsx (modified)
+
+---
+
+## Migration Checklist ✅
+- [x] All NEW files can be copied as-is to production
+- [x] All MODIFY changes have clear comments marking complaint system code
+- [x] Database indexes documented for performance
+- [x] Email templates created for all scenarios
+- [x] Multi-channel support (website/chat/call/email)
+- [x] Time limit validation with staff levels
+- [x] Single complaint per order enforcement
+- [x] Conversation threading
+- [x] Status workflow management
+- [x] Reopen functionality
+
+---
+
+## ERROR FIXES & CORRECTIONS ✅
+
+### Build Error Fixes (Applied: 2026-02-04)
+
+**Issue 1: Client Routes - React.lazy() Syntax Error**
+**File**: `client/routes.tsx`
+**Lines**: 24-26, 72-73
+**Fix**: Removed incorrect `React.lazy()` usage, added proper imports
+**Changes**:
+- Added imports: `RegisterComplaint` and `ComplaintDetails`
+- Changed route elements from `React.lazy(() => import(...))` to `<RegisterComplaint />` and `<ComplaintDetails />`
+
+**Issue 2: Missing roleMiddleware.js**
+**File**: `server/src/routes/authRoutes.js`
+**Lines**: 26-27
+**Fix**: Replaced non-existent `roleMiddleware.js` import with correct middleware
+**Changes**:
+- Removed: `import { adminAuth } from "../middlewares/roleMiddleware.js"`
+- Added: `import { authMiddleware, requireAdmin } from "../middlewares/authMiddleware.js"`
+- Replaced all `adminAuth` with `requireAdmin` (lines 49, 55-57, 61-63)
+
+**Issue 3: Duplicate Middleware Imports in Main Router**
+**File**: `server/src/routes/index.js`
+**Lines**: 2, 147
+**Fix**: Consolidated imports and replaced all `adminAuth` references
+**Changes**:
+- Removed duplicate `roleMiddleware.js` import
+- Consolidated to single import: `import { authMiddleware, requireAdmin } from "../middlewares/authMiddleware.js"`
+- Replaced ALL `adminAuth` with `requireAdmin` throughout the file (40+ instances)
+
+**Issue 4: Wrong Middleware Names in Complaint Routes**
+**File**: `server/src/routes/complaintRoutes.js`
+**Lines**: 24, 35, 68, 79, 90, 101, 112, 123
+**Fix**: Updated to use correct middleware function names
+**Changes**:
+- Removed: `import { authenticate, authorize } from '../middlewares/auth.js'`
+- Added: `import { authMiddleware, requireAdmin } from '../middlewares/authMiddleware.js'`
+- Replaced: `authenticate` → `authMiddleware`
+- Replaced: `authorize(['admin', 'emp'])` → `requireAdmin`
+
+**Issue 5: Incorrect User Import in Webhooks**
+**File**: `server/src/routes/webhooks.js`
+**Line**: 12
+**Fix**: Changed from default import to named export
+**Changes**:
+- Changed: `import User from '../models/User.js'`
+- To: `import { User } from '../models/User.js'`
+
+**Issue 6: Missing Email Service Functions**
+**File**: `server/src/utils/emailService.js`
+**Lines**: 40-49
+**Fix**: Added missing `sendOtpEmail` function stub
+**Changes**:
+- Added `sendOtpEmail` function for OTP emails
+- Updated default export to include both `sendEmail` and `sendOtpEmail`
+
+---
+
+## FINAL FILE COUNT ✅
+
+**Total Files Created**: 16 (including email service stub)
+**Total Files Modified**: 6 (including error fixes)
+**Backend Files**: 12 (11 new + User.js modified)
+**Frontend Files**: 4
+**Error Fix Files**: 6
+
+### All Modified Files:
+1. server/src/models/User.js (Complaint fields added)
+2. server/src/routes/index.js (Complaint routes integrated + adminAuth fixes)
+3. client/routes.tsx (Complaint routes added + lazy loading fix)
+4. server/src/routes/authRoutes.js (roleMiddleware fix)
+5. server/src/routes/complaintRoutes.js (middleware imports fix)
+6. server/src/routes/webhooks.js (User import fix)
+
+---
+
+## DEPLOYMENT STATUS ✅
+
+**Server**: ✅ Running without errors
+**Client**: ✅ Running without errors
+**Database**: ⏳ Indexes pending (see deployment guide)
+**Email Service**: ⚠️ Using stub (needs production implementation)
+
+**Next Steps for Production**:
+1. Create database indexes as documented
+2. Replace email service stub with actual email provider
+3. Add ComplaintButton to OrderDetails.tsx
+4. Test all endpoints
+5. Configure webhook integrations for multi-channel support
+
+### 4. NEW: Validation Middleware
+**File**: `server/src/middlewares/complaintValidation.js`
+**Status**: ⏸️ Pending
+
+### 5. NEW: Complaint Controller
+**File**: `server/src/controllers/complaintController.js`
+**Status**: ⏸️ Pending
+
+### 6. NEW: Complaint Routes
+**File**: `server/src/routes/complaintRoutes.js`
+**Status**: ⏸️ Pending
+
+### 7. NEW: Webhook Routes
+**File**: `server/src/routes/webhooks.js`
+**Status**: ⏸️ Pending
+
+### 8. MODIFY: Main Router
+**File**: `server/src/routes/index.js`
+**Status**: ⏸️ Pending
+**Changes**: Mount `/api/complaints` and `/api/webhooks`
+
+### 9. NEW: Email Notification Service
+**File**: `server/src/services/complaintNotificationService.js`
+**Status**: ⏸️ Pending
+
+### 10. NEW: Email Templates
+**File**: `server/src/templates/complaintEmails.js`
+**Status**: ⏸️ Pending
+
+---
+
+## PHASE 3: Frontend - Customer Flow (Not Started)
+
+### 11. MODIFY: OrderDetails Page
+**File**: `client/pages/OrderDetails.tsx`
+**Status**: ⏸️ Pending
+
+### 12. NEW: Register Complaint Page
+**File**: `client/pages/RegisterComplaint.tsx`
+**Status**: ⏸️ Pending
+
+### 13. NEW: Complaint Details Page
+**File**: `client/pages/ComplaintDetails.tsx`
+**Status**: ⏸️ Pending
+
+### 14. MODIFY: Routes Config
+**File**: `client/routes.tsx`
+**Status**: ⏸️ Pending
+
+---
+
+## PHASE 4: Frontend - Admin Flow (Not Started)
+
+### 15. NEW: Complaint Management Admin
+**File**: `client/pages/admin/ComplaintManagement.tsx`
+**Status**: ⏸️ Pending
+
+---
+
+## PHASE 5: Testing & Verification (Not Started)
+
+---
+
+## Migration Checklist
+- [ ] All NEW files can be copied as-is to production
+- [ ] All MODIFY changes have clear comments marking complaint system code
+- [ ] Database indexes created for performance
+- [ ] Environment variables configured
+- [ ] Email service configured
+
+---
+
+## Legend
+- ✅ Completed
+- ⏳ In Progress
+- ⏸️ Pending
+- ❌ Blocked

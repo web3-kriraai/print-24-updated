@@ -1,0 +1,281 @@
+/**
+ * QUICK TESTING GUIDE - Complaint Management System
+ * Created: 2026-02-04
+ */
+
+# How to Test the Complaint Management System
+
+## 🎯 USER SIDE TESTING
+
+### Step 1: Access an Order
+1. Login as a customer
+2. Navigate to "My Orders" (http://localhost:3000/my-orders)
+3. Click on any completed order to view details
+
+### Step 2: Register a Complaint
+1. On the Order Details page, look for the **"Register Complaint" button**
+   - Button appears for orders with appropriate status
+   - Click to check eligibility
+2. Fill out the complaint form:
+   - Select complaint type
+   - Add description (minimum 10 characters)
+   - Upload images (optional, max 5)
+   - Accept policy checkbox
+3. Click "Register Complaint"
+
+### Step 3: View Complaint Details
+1. After registration, you'll be redirected to the complaint details page
+2. You can:
+   - View the conversation thread
+   - Send messages
+   - View status timeline
+   - See attached images
+
+### Step 4: Access Existing Complaints
+- Navigate to: `/complaints/{complaintId}`
+- Or click the complaint button again on the order - it will redirect to existing complaint
+
+---
+
+## 🔧 ADMIN SIDE TESTING
+
+### Step 1: Access Admin Dashboard
+1. Login as admin
+2. Navigate to Admin Dashboard
+3. Look for **"Complaint Management"** link/tab
+
+### Step 2: View All Complaints
+1. Go to: http://localhost:3000/admin/complaints
+2. You'll see:
+   - Statistics cards (Total, Open, Resolved, SLA)
+   - Filter options (status, type, search)
+   - Complaints list table
+
+### Step 3: Manage a Complaint
+1. Click "View Details" on any complaint
+2. You can:
+   - Read full conversation
+   - Add internal/external messages
+   - Update status
+   - Assign to staff members
+   - See complete audit trail
+
+### Step 4: Register Complaint on Behalf
+1. Use endpoint: POST `/api/complaints/register-on-behalf`
+2. Required fields:
+   - orderId
+   - complaintType
+   - description
+   - onBehalfOfUserId
+   - proofOfMistake (object with details)
+
+---
+
+## 🌐 API TESTING (Postman/Thunder Client)
+
+### Get Complaint Eligibility
+```
+GET http://localhost:5000/api/complaints/check-eligibility/:orderId
+Headers: Authorization: Bearer {token}
+```
+
+### Register Complaint
+```
+POST http://localhost:5000/api/complaints/register
+Headers: 
+  Authorization: Bearer {token}
+  Content-Type: application/json
+Body:
+{
+  "orderId": "...",
+  "complaintType": "PRINTING_QUALITY",
+  "description": "The print quality is not good...",
+  "images": [],
+  "policyConfirmed": true
+}
+```
+
+### Get All Complaints (Admin)
+```
+GET http://localhost:5000/api/complaints
+Headers: Authorization: Bearer {admin_token}
+Query params: ?status=NEW&page=1&limit=10
+```
+
+### Add Message
+```
+POST http://localhost:5000/api/complaints/:id/messages
+Headers: Authorization: Bearer {token}
+Body:
+{
+  "message": "When can I expect the reprint?",
+  "isInternal": false
+}
+```
+
+### Update Status (Admin)
+```
+PATCH http://localhost:5000/api/complaints/:id/status
+Headers: Authorization: Bearer {admin_token}
+Body:
+{
+  "status": "UNDER_REVIEW",
+  "notes": "Reviewing the complaint..."
+}
+```
+
+---
+
+## 🧪 Test Scenarios
+
+### Scenario 1: Normal Complaint Flow
+1. Customer registers complaint
+2. Email notification sent
+3. Admin reviews complaint
+4. Admin changes status to UNDER_REVIEW
+5. Customer receives status update email
+6. Admin approves for reprint
+7. Status changed to APPROVED_FOR_REPRINT
+8. Customer notified
+
+### Scenario 2: Existing Complaint Detection
+1. Customer tries to register complaint on same order
+2. System detects existing complaint
+3. Redirects to existing complaint details
+4. Shows message about existing complaint
+
+### Scenario 3: Time Limit Validation
+1. Try to register complaint after time limit (e.g., 8 days for customer)
+2. System shows error message
+3. Registration blocked
+
+### Scenario 4: Conversation Threading
+1. Customer sends message
+2. Admin replies
+3. Customer sees response
+4. Full conversation maintained in order
+
+### Scenario 5: Reopen Functionality  
+1. Complaint marked as CLOSED
+2. Admin clicks reopen
+3. Status changes to REOPENED
+4. Customer notified
+
+---
+
+## 📱 Multi-Channel Testing
+
+### WhatsApp/Chat Webhook
+```
+POST http://localhost:5000/api/webhooks/complaint/chat
+Body:
+{
+  "orderNumber": "ORD123",
+  "customerPhone": "+91...",
+  "message": "Product quality issue",
+  "complaintType": "PRINTING_QUALITY",
+  "source": "WHATSAPP"
+}
+```
+
+### Phone Call Webhook
+```
+POST http://localhost:5000/api/webhooks/complaint/call
+Body:
+{
+  "orderNumber": "ORD123",
+  "complaintType": "WRONG_CONTENT",
+  "description": "Customer called about wrong content",
+  "loggedByStaffId": "{staff_id}",
+  "callRecordingUrl": "https://..."
+}
+```
+
+---
+
+## ⚠️ Common Issues & Solutions
+
+### Issue: "Cannot register complaint"
+- Check order status (must be appropriate status)
+- Check time limit (within allowed days)
+- Check for existing complaint
+
+### Issue: "404 Not Found"
+- Verify routes are properly configured
+- Check if server is running
+- Verify API_BASE_URL in client config
+
+### Issue: Email not sending
+- Emails are using stub currently
+- Check console logs for email details
+- Implement actual email service for production
+
+### Issue: Permission denied
+- Ensure correct user role (admin/user)
+- Check authentication token
+- Verify requireAdmin middleware
+
+---
+
+## ✅ Testing Checklist
+
+### Customer Features
+- [ ] View order details
+- [ ] Click "Register Complaint" button
+- [ ] Fill complaint form
+- [ ] Upload images
+- [ ] Submit complaint
+- [ ] View complaint details
+- [ ] Send messages
+- [ ] Receive email notifications
+
+### Admin Features
+- [ ] View complaints dashboard
+- [ ] Filter complaints
+- [ ] Search by order number
+- [ ] View complaint details
+- [ ] Update status
+- [ ] Add messages
+- [ ] Reopen complaint
+- [ ] View statistics
+
+### API Endpoints
+- [ ] Check eligibility
+- [ ] Register complaint
+- [ ] Register on behalf
+- [ ] Get complaints list
+- [ ] Get single complaint
+- [ ] Add message
+- [ ] Update status
+- [ ] Reopen complaint
+- [ ] Get stats
+
+### Edge Cases
+- [ ] Duplicate complaint attempt
+- [ ] Time limit exceeded
+- [ ] Invalid order ID
+- [ ] Missing required fields
+- [ ] Unauthorized access
+- [ ] Conversation pagination
+
+---
+
+## 🔗 Quick Links
+
+**Customer Routes:**
+- My Orders: `/my-orders`
+- Order Details: `/orders/:orderId`
+- Register Complaint: `/complaints/register/:orderId`
+- Complaint Details: `/complaints/:id`
+
+**Admin Routes:**
+- Admin Dashboard: `/admin/dashboard`
+- Complaints Management: `/admin/complaints`
+
+**API Base URL:** `http://localhost:5000/api`
+
+---
+
+**Ready to test!** 🚀
+
+Start with the customer flow, then test admin features, and finally API endpoints.

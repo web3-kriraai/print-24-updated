@@ -1,0 +1,60 @@
+/**
+ * ADMIN DASHBOARD - COMPLAINT MANAGEMENT INTEGRATION
+ * 
+ * Add this code snippet to your AdminDashboard.tsx
+ * Location: Near the top of the dashboard, after the header
+ */
+
+// ===== STEP 1: Add to imports (around line 6-44) =====
+import { AlertCircle } from 'lucide-react';
+
+// ===== STEP 2: Add this component before the main dashboard content =====
+// Suggested location: Right after the header/title, before the tabbed content
+
+<div className="mb-6">
+  <button
+    onClick={() => navigate('/admin/complaints')}
+    className="w-full md:w-auto px-6 py-4 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded-xl font-semibold transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-3 group"
+  >
+    <div className="w-10 h-10 bg-white bg-opacity-20 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
+      <AlertCircle className="w-6 h-6" />
+    </div>
+    <div className="text-left">
+      <div className="font-bold text-lg">Complaint Management</div>
+      <div className="text-sm text-orange-100">View and manage customer complaints</div>
+    </div>
+  </button>
+</div>
+
+// ===== ALTERNATIVE: Simpler button version =====
+<button
+  onClick={() => navigate('/admin/complaints')}
+  className="mb-4 px-6 py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
+>
+  <AlertCircle className="w-5 h-5" />
+  Complaint Management
+</button>
+
+// ===== ALTERNATIVE: As a dashboard card =====
+<div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+  <button
+    onClick={() => navigate('/admin/complaints')}
+    className="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow border-2 border-orange-200 hover:border-orange-400 text-left group"
+  >
+    <div className="flex items-center gap-4">
+      <div className="w-14 h-14 bg-orange-100 group-hover:bg-orange-200 rounded-xl flex items-center justify-center transition-colors">
+        <AlertCircle className="w-7 h-7 text-orange-600" />
+      </div>
+      <div>
+        <h3 className="font-bold text-gray-900 text-lg mb-1">
+          Complaint Management
+        </h3>
+        <p className="text-sm text-gray-600">
+          Manage customer complaints
+        </p>
+      </div>
+    </div>
+  </button>
+  
+  {/* Add other dashboard cards here */}
+</div>

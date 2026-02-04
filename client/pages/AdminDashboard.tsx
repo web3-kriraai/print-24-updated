@@ -16618,6 +16618,18 @@ const AdminDashboard: React.FC = () => {
           </div>
         )}
       </AnimatePresence>
+
+      {/* 🔧 Complaint Management - Floating Action Button */}
+      <button
+        onClick={() => navigate('/admin/complaints')}
+        className="fixed bottom-8 right-8 z-50 w-16 h-16 bg-orange-500 hover:bg-orange-600 text-white rounded-full shadow-2xl hover:shadow-orange-500/50 transition-all flex items-center justify-center group hover:w-auto hover:px-6 hover:gap-3"
+        title="Complaint Management"
+      >
+        <AlertCircle className="w-7 h-7" />
+        <span className="hidden group-hover:inline-block whitespace-nowrap font-semibold">
+          Complaints
+        </span>
+      </button>
     </div>
   );
 };

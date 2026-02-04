@@ -1,0 +1,117 @@
+# COMPLAINT MANAGEMENT SYSTEM - MODULE STRUCTURE
+
+## Overview
+This document shows the complete module structure for easy migration to production.
+
+---
+
+## 📁 Backend File Structure
+
+```
+server/src/
+├── models/
+│   ├── User.js [MODIFIED]
+│   │   └── Lines 128-145: Complaint management fields
+│   └── ComplaintSchema.js [NEW]
+│       └── Complete complaint model with all features
+│
+├── utils/
+│   └── complaint/ [NEW DIRECTORY]
+│       ├── index.js
+│       ├── staffTimeLimits.js
+│       └── complaintHelpers.js
+│
+├── middlewares/
+│   └── complaintValidation.js [PENDING]
+│
+├── controllers/
+│   └── complaintController.js [PENDING]
+│
+├── routes/
+│   ├── complaintRoutes.js [PENDING]
+│   ├── webhooks.js [PENDING]
+│   └── index.js [TO BE MODIFIED]
+│
+├── services/
+│   └── complaintNotificationService.js [PENDING]
+│
+└── templates/
+    └── complaintEmails.js [PENDING]
+```
+
+---
+
+## 📁 Frontend File Structure
+
+```
+client/
+├── pages/
+│   ├── OrderDetails.tsx [TO BE MODIFIED]
+│   ├── RegisterComplaint.tsx [PENDING]
+│   ├── ComplaintDetails.tsx [PENDING]
+│   └── admin/
+│       └── ComplaintManagement.tsx [PENDING]
+│
+├── components/
+│   └── complaint/ [PENDING]
+│       ├── ComplaintCard.tsx
+│       ├── ComplaintChat.tsx
+│       ├── ComplaintStatusBadge.tsx
+│       └── ComplaintTimeline.tsx
+│
+└── routes.tsx [TO BE MODIFIED]
+```
+
+---
+
+## 🔧 Completed Files (Phase 1)
+
+### Backend
+1. **server/src/models/User.js** ✅
+   - Modified lines: 128-145
+   - Added: `staffLevel`, `allowedComplaintRegistrationDays`
+
+2. **server/src/models/ComplaintSchema.js** ✅
+   - Complete file (new)
+   - 400+ lines with full schema
+
+3. **server/src/utils/complaint/staffTimeLimits.js** ✅
+   - Complete file (new)
+   - Time limit calculation logic
+
+4. **server/src/utils/complaint/complaintHelpers.js** ✅
+   - Complete file (new)
+   - Helper functions
+
+5. **server/src/utils/complaint/index.js** ✅
+   - Complete file (new)
+   - Export aggregator
+
+---
+
+## 🚀 Migration Instructions
+
+### To Production:
+1. Copy all files from `server/src/utils/complaint/` directory
+2. Copy `server/src/models/ComplaintSchema.js`
+3. In User model, add lines 128-145 (complaint management fields)
+4. Restart server to register new model
+
+### Database Indexes:
+Run after first deployment:
+```javascript
+// In MongoDB shell or migration script
+db.complaints.createIndex({ orderNumber: 1 });
+db.complaints.createIndex({ status: 1, createdAt: -1 });
+db.complaints.createIndex({ raisedBy: 1, createdAt: -1 });
+db.complaints.createIndex({ assignedTo: 1, status: 1 });
+db.complaints.createIndex({ deliveryDate: 1, createdAt: 1 });
+db.complaints.createIndex({ registerSource: 1 });
+db.complaints.createIndex({ reopenSource: 1 });
+```
+
+---
+
+## 📝 Next Steps (Phase 2)
+
+See COMPLAINT_SYSTEM_CHANGES.txt for detailed progress tracking.

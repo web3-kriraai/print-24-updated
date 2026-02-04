@@ -125,6 +125,23 @@ const userSchema = new mongoose.Schema(
       }
     }],
 
+    /* =====================
+       🔧 COMPLAINT MANAGEMENT SYSTEM
+       Added: 2026-02-04
+       Purpose: Staff time limit tracking for complaint registration
+    ====================== */
+    staffLevel: {
+      type: String,
+      enum: ["SUPPORT_OFFICER", "SENIOR_SUPPORT", "TEAM_LEADER", "MANAGER", "ADMIN", null],
+      default: null,
+    },
+
+    allowedComplaintRegistrationDays: {
+      type: Number,
+      // Auto-calculated based on staffLevel
+      // SUPPORT_OFFICER: 15-20, SENIOR_SUPPORT/TEAM_LEADER: 25, MANAGER: 30, ADMIN: null
+    },
+
     payout_preferences: {
       default_bank_account: {
         account_number_masked: String,  // Last 4 digits only
