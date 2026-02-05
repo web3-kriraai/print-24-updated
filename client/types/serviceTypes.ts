@@ -75,6 +75,7 @@ export interface BannerConfig {
     defaultShapeSize?: number;
     showIcons: boolean;
     iconPositions: BannerIconConfig[];
+    enableOverlap?: boolean;
 }
 
 export interface Banner {

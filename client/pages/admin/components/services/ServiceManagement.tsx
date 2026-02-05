@@ -98,6 +98,7 @@ const ServiceManagement: React.FC = () => {
             showIcons: true,
             iconPositions: [],
             decorativeElements: [],
+            enableOverlap: false,
         },
     });
     const [bannerFile, setBannerFile] = useState<File | null>(null);
@@ -164,6 +165,7 @@ const ServiceManagement: React.FC = () => {
                 showIcons: true,
                 iconPositions: [],
                 decorativeElements: [],
+                enableOverlap: false,
             },
         });
         setBannerFile(null);
@@ -211,6 +213,7 @@ const ServiceManagement: React.FC = () => {
                 showIcons: true,
                 iconPositions: [],
                 decorativeElements: [],
+                enableOverlap: service.bannerConfig?.enableOverlap ?? false,
             },
         });
         setBannerFile(null);
@@ -1186,6 +1189,33 @@ const ServiceManagement: React.FC = () => {
                                                         ? "✅ Using default animated banner. Uncheck to upload custom banner images."
                                                         : "📸 Upload custom banner images below. Multiple banners will auto-rotate."}
                                                 </p>
+
+                                                {/* Overlap Control - Only show when NOT using default banner */}
+                                                {!useDefaultBanner && (
+                                                    <div className="mb-4 pl-6">
+                                                        <div className="flex items-center gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                                                            <input
+                                                                type="checkbox"
+                                                                id="enableOverlap"
+                                                                checked={formData.bannerConfig.enableOverlap ?? false}
+                                                                onChange={(e) => setFormData({
+                                                                    ...formData,
+                                                                    bannerConfig: { ...formData.bannerConfig, enableOverlap: e.target.checked }
+                                                                })}
+                                                                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                                                disabled={saving}
+                                                            />
+                                                            <div className="flex-1">
+                                                                <label htmlFor="enableOverlap" className="text-sm font-medium text-gray-700 cursor-pointer">
+                                                                    Show content overlay (text, icons, colors) on uploaded banners
+                                                                </label>
+                                                                <p className="text-xs text-gray-500 mt-1">
+                                                                    When unchecked, only the raw banner image displays without any overlay.
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
 
                                             {/* Multiple Banners Manager - Only show when NOT using default banner */}

@@ -1274,73 +1274,257 @@ const AddProductForm: React.FC<AddProductFormProps> = ({
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                            <div>
-                                <label className="block text-xs font-bold text-slate-600 mb-2">
-                                    Min Quantity
-                                </label>
-                                <input
-                                    type="number"
-                                    value={productForm.filters.orderQuantity.min}
-                                    onChange={(e) =>
-                                        setProductForm({
+                        <div className="space-y-6">
+                            {/* Quantity Type Selection */}
+                            <div className="flex flex-wrap gap-4">
+                                <label className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all flex-1 min-w-[200px] ${(!productForm.filters.orderQuantity.quantityType || productForm.filters.orderQuantity.quantityType === 'SIMPLE') ? 'bg-sky-50 border-sky-200 ring-1 ring-sky-500' : 'bg-white border-slate-200 hover:border-slate-300'}`}>
+                                    <input
+                                        type="radio"
+                                        name="quantityType"
+                                        value="SIMPLE"
+                                        checked={!productForm.filters.orderQuantity.quantityType || productForm.filters.orderQuantity.quantityType === 'SIMPLE'}
+                                        onChange={() => setProductForm({
                                             ...productForm,
                                             filters: {
                                                 ...productForm.filters,
                                                 orderQuantity: {
                                                     ...productForm.filters.orderQuantity,
-                                                    min: parseInt(e.target.value) || 0,
-                                                },
-                                            },
-                                        })
-                                    }
-                                    className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-sky-500/10 focus:border-sky-400 transition-all outline-none"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold text-slate-600 mb-2">
-                                    Max Quantity
+                                                    quantityType: 'SIMPLE'
+                                                }
+                                            }
+                                        })}
+                                        className="hidden"
+                                    />
+                                    <div className={`w-8 h-8 rounded-full border flex items-center justify-center shrink-0 ${(!productForm.filters.orderQuantity.quantityType || productForm.filters.orderQuantity.quantityType === 'SIMPLE') ? 'border-sky-500 bg-sky-500 text-white' : 'border-slate-300 bg-slate-50'}`}>
+                                        {(!productForm.filters.orderQuantity.quantityType || productForm.filters.orderQuantity.quantityType === 'SIMPLE') ? <Check size={16} /> : <span className="w-2 h-2 rounded-full bg-slate-300" />}
+                                    </div>
+                                    <div>
+                                        <span className={`block text-sm font-bold ${(!productForm.filters.orderQuantity.quantityType || productForm.filters.orderQuantity.quantityType === 'SIMPLE') ? 'text-sky-700' : 'text-slate-600'}`}>Simple Range</span>
+                                        <span className="text-xs text-slate-500">Min, Max & Multiples</span>
+                                    </div>
                                 </label>
-                                <input
-                                    type="number"
-                                    value={productForm.filters.orderQuantity.max}
-                                    onChange={(e) =>
-                                        setProductForm({
+
+                                <label className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all flex-1 min-w-[200px] ${productForm.filters.orderQuantity.quantityType === 'STEP_WISE' ? 'bg-sky-50 border-sky-200 ring-1 ring-sky-500' : 'bg-white border-slate-200 hover:border-slate-300'}`}>
+                                    <input
+                                        type="radio"
+                                        name="quantityType"
+                                        value="STEP_WISE"
+                                        checked={productForm.filters.orderQuantity.quantityType === 'STEP_WISE'}
+                                        onChange={() => setProductForm({
                                             ...productForm,
                                             filters: {
                                                 ...productForm.filters,
                                                 orderQuantity: {
                                                     ...productForm.filters.orderQuantity,
-                                                    max: parseInt(e.target.value) || 0,
-                                                },
-                                            },
-                                        })
-                                    }
-                                    className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-sky-500/10 focus:border-sky-400 transition-all outline-none"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold text-slate-600 mb-2">
-                                    Multiples Of
+                                                    quantityType: 'STEP_WISE'
+                                                }
+                                            }
+                                        })}
+                                        className="hidden"
+                                    />
+                                    <div className={`w-8 h-8 rounded-full border flex items-center justify-center shrink-0 ${productForm.filters.orderQuantity.quantityType === 'STEP_WISE' ? 'border-sky-500 bg-sky-500 text-white' : 'border-slate-300 bg-slate-50'}`}>
+                                        {productForm.filters.orderQuantity.quantityType === 'STEP_WISE' ? <Check size={16} /> : <span className="w-2 h-2 rounded-full bg-slate-300" />}
+                                    </div>
+                                    <div>
+                                        <span className={`block text-sm font-bold ${productForm.filters.orderQuantity.quantityType === 'STEP_WISE' ? 'text-sky-700' : 'text-slate-600'}`}>Step-wise Quantities</span>
+                                        <span className="text-xs text-slate-500">Specific exact quantities</span>
+                                    </div>
                                 </label>
-                                <input
-                                    type="number"
-                                    value={productForm.filters.orderQuantity.multiples}
-                                    onChange={(e) =>
-                                        setProductForm({
-                                            ...productForm,
-                                            filters: {
-                                                ...productForm.filters,
-                                                orderQuantity: {
-                                                    ...productForm.filters.orderQuantity,
-                                                    multiples: parseInt(e.target.value) || 0,
-                                                },
-                                            },
-                                        })
-                                    }
-                                    className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-sky-500/10 focus:border-sky-400 transition-all outline-none"
-                                />
                             </div>
+
+                            {/* Simple Configuration Inputs (Legacy) */}
+                            {(!productForm.filters.orderQuantity.quantityType || productForm.filters.orderQuantity.quantityType === 'SIMPLE') && (
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 animate-in fade-in slide-in-from-top-2 duration-300">
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-600 mb-2">
+                                            Min Quantity
+                                        </label>
+                                        <input
+                                            type="number"
+                                            value={productForm.filters.orderQuantity.min}
+                                            onChange={(e) =>
+                                                setProductForm({
+                                                    ...productForm,
+                                                    filters: {
+                                                        ...productForm.filters,
+                                                        orderQuantity: {
+                                                            ...productForm.filters.orderQuantity,
+                                                            min: parseInt(e.target.value) || 0,
+                                                        },
+                                                    },
+                                                })
+                                            }
+                                            className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-sky-500/10 focus:border-sky-400 transition-all outline-none"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-600 mb-2">
+                                            Max Quantity
+                                        </label>
+                                        <input
+                                            type="number"
+                                            value={productForm.filters.orderQuantity.max}
+                                            onChange={(e) =>
+                                                setProductForm({
+                                                    ...productForm,
+                                                    filters: {
+                                                        ...productForm.filters,
+                                                        orderQuantity: {
+                                                            ...productForm.filters.orderQuantity,
+                                                            max: parseInt(e.target.value) || 0,
+                                                        },
+                                                    },
+                                                })
+                                            }
+                                            className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-sky-500/10 focus:border-sky-400 transition-all outline-none"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-600 mb-2">
+                                            Multiples Of
+                                        </label>
+                                        <input
+                                            type="number"
+                                            value={productForm.filters.orderQuantity.multiples}
+                                            onChange={(e) =>
+                                                setProductForm({
+                                                    ...productForm,
+                                                    filters: {
+                                                        ...productForm.filters,
+                                                        orderQuantity: {
+                                                            ...productForm.filters.orderQuantity,
+                                                            multiples: parseInt(e.target.value) || 0,
+                                                        },
+                                                    },
+                                                })
+                                            }
+                                            className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-sky-500/10 focus:border-sky-400 transition-all outline-none"
+                                        />
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Step-wise Configuration Inputs */}
+                            {productForm.filters.orderQuantity.quantityType === 'STEP_WISE' && (
+                                <div className="bg-slate-50/80 rounded-xl p-5 border border-slate-200 animate-in fade-in slide-in-from-top-2 duration-300">
+                                    <div className="flex items-center justify-between mb-4">
+                                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider">
+                                            Defined Quantities
+                                        </label>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const currentQuantities = productForm.filters.orderQuantity.stepWiseQuantities || [];
+                                                const lastQty = currentQuantities.length > 0 ? Math.max(...currentQuantities) : 0;
+                                                // Intelligent suggestion for next quantity
+                                                let newQty = 1000;
+                                                if (lastQty > 0) {
+                                                    if (lastQty < 1000) newQty = lastQty + 100;
+                                                    else if (lastQty < 5000) newQty = lastQty + 500;
+                                                    else if (lastQty < 10000) newQty = lastQty + 1000;
+                                                    else newQty = lastQty + 5000;
+                                                }
+
+                                                setProductForm({
+                                                    ...productForm,
+                                                    filters: {
+                                                        ...productForm.filters,
+                                                        orderQuantity: {
+                                                            ...productForm.filters.orderQuantity,
+                                                            stepWiseQuantities: [...currentQuantities, newQty]
+                                                        }
+                                                    }
+                                                });
+                                            }}
+                                            className="text-xs font-bold text-sky-600 bg-sky-100 hover:bg-sky-200 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors"
+                                        >
+                                            <Plus size={14} />
+                                            Add Quantity
+                                        </button>
+                                    </div>
+
+                                    <div className="space-y-3">
+                                        {!productForm.filters.orderQuantity.stepWiseQuantities || productForm.filters.orderQuantity.stepWiseQuantities.length === 0 ? (
+                                            <div className="text-center py-8 border-2 border-dashed border-slate-200 rounded-xl">
+                                                <p className="text-sm text-slate-400 italic mb-2">No quantities defined yet.</p>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setProductForm({
+                                                        ...productForm,
+                                                        filters: {
+                                                            ...productForm.filters,
+                                                            orderQuantity: {
+                                                                ...productForm.filters.orderQuantity,
+                                                                stepWiseQuantities: [1000]
+                                                            }
+                                                        }
+                                                    })}
+                                                    className="text-sm font-semibold text-sky-500 hover:text-sky-600 hover:underline"
+                                                >
+                                                    Add First Quantity (1000)
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                                {(productForm.filters.orderQuantity.stepWiseQuantities || []).map((qty: number, idx: number) => (
+                                                    <div key={idx} className="flex items-center gap-2 bg-white p-2 pl-3 rounded-lg border border-slate-200 shadow-sm group hover:border-sky-300 transition-colors">
+                                                        <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-500 shrink-0">
+                                                            {idx + 1}
+                                                        </div>
+                                                        <input
+                                                            type="number"
+                                                            value={qty}
+                                                            onChange={(e) => {
+                                                                const newQuantities = [...(productForm.filters.orderQuantity.stepWiseQuantities || [])];
+                                                                newQuantities[idx] = parseInt(e.target.value) || 0;
+                                                                setProductForm({
+                                                                    ...productForm,
+                                                                    filters: {
+                                                                        ...productForm.filters,
+                                                                        orderQuantity: {
+                                                                            ...productForm.filters.orderQuantity,
+                                                                            stepWiseQuantities: newQuantities
+                                                                        }
+                                                                    }
+                                                                });
+                                                            }}
+                                                            className="flex-1 min-w-0 bg-transparent outline-none text-sm font-medium text-slate-700 font-mono"
+                                                            placeholder="Qty"
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                const newQuantities = [...(productForm.filters.orderQuantity.stepWiseQuantities || [])];
+                                                                newQuantities.splice(idx, 1);
+                                                                setProductForm({
+                                                                    ...productForm,
+                                                                    filters: {
+                                                                        ...productForm.filters,
+                                                                        orderQuantity: {
+                                                                            ...productForm.filters.orderQuantity,
+                                                                            stepWiseQuantities: newQuantities
+                                                                        }
+                                                                    }
+                                                                });
+                                                            }}
+                                                            className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors opacity-60 group-hover:opacity-100"
+                                                        >
+                                                            <Trash2 size={14} />
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {(productForm.filters.orderQuantity.stepWiseQuantities?.length > 0) && (
+                                        <p className="mt-3 text-[10px] text-slate-400 italic flex items-center gap-1.5">
+                                            <Info size={12} />
+                                            Quantities will be automatically sorted in ascending order when saving.
+                                        </p>
+                                    )}
+                                </div>
+                            )}
                         </div>
 
                     </div>

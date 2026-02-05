@@ -249,7 +249,12 @@ const serviceSchema = new mongoose.Schema({
                 enum: ['float', 'pulse', 'none'],
                 default: 'float'
             }
-        }]
+        }],
+        // Enable/disable decorative elements overlay on uploaded banners
+        enableOverlap: {
+            type: Boolean,
+            default: false
+        }
     },
     titles: [serviceTitleSchema],
     isActive: {
