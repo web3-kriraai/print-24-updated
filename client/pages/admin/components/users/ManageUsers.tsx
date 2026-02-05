@@ -24,7 +24,7 @@ import { API_BASE_URL_WITH_API as API_BASE_URL } from "../../../../lib/apiConfig
 import { getAuthHeaders } from "../../../../utils/auth";
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Select } from '../../../../components/ui/select';
+import { SearchableDropdown } from '../../../../components/SearchableDropdown';
 import toast from "react-hot-toast";
 
 interface User {
@@ -290,19 +290,20 @@ const ManageUsers: React.FC<ManageUsersProps> = ({ setError }) => {
                         </div>
 
                         {/* Role Filter */}
-                        <div className="relative">
-                            <Select
+                        <div className="w-48">
+                            <SearchableDropdown
+                                label="All Roles"
                                 value={selectedRole}
-                                onValueChange={(val) => setSelectedRole(val as string)}
+                                onChange={(val) => setSelectedRole(val as string)}
                                 options={[
                                     { value: 'all', label: 'All Roles' },
                                     { value: 'admin', label: 'Administrator' },
                                     { value: 'user', label: 'Customer' },
                                     { value: 'employee', label: 'Employee' }
                                 ]}
-                                className="w-48"
+                                className="w-full"
+                                enableSearch={false}
                             />
-                            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={18} />
                         </div>
                     </div>
 
@@ -398,17 +399,17 @@ const ManageUsers: React.FC<ManageUsersProps> = ({ setError }) => {
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="relative">
+                                            <div className="relative w-40">
                                                 <select
                                                     value={user.role}
                                                     onChange={(e) => handleRoleChange(user._id, e.target.value)}
-                                                    className={`appearance-none px-3 py-1.5 text-xs font-medium rounded-full border ${roleColors[user.role] || 'bg-gray-100 text-gray-800'} focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 cursor-pointer transition-all`}
+                                                    className={`appearance-none w-full px-3 py-1.5 text-xs font-medium rounded-full border ${roleColors[user.role] || 'bg-gray-100 text-gray-800'} focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 cursor-pointer transition-all`}
                                                 >
                                                     <option value="admin">Administrator</option>
                                                     <option value="user">Customer</option>
                                                     <option value="employee">Employee</option>
                                                 </select>
-                                                <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={12} />
+                                                <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" size={12} />
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
@@ -546,15 +547,17 @@ const ManageUsers: React.FC<ManageUsersProps> = ({ setError }) => {
                                 <div className="grid grid-cols-1 gap-4">
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
-                                        <Select
+                                        <SearchableDropdown
+                                            label="User"
                                             value={createUserForm.role}
-                                            onValueChange={(val) => setCreateUserForm({ ...createUserForm, role: val as string })}
+                                            onChange={(val) => setCreateUserForm({ ...createUserForm, role: val as string })}
                                             options={[
                                                 { value: 'user', label: 'User' },
                                                 { value: 'admin', label: 'Admin' },
                                                 { value: 'employee', label: 'Employee' }
                                             ]}
                                             className="w-full"
+                                            enableSearch={false}
                                         />
                                     </div>
                                 </div>

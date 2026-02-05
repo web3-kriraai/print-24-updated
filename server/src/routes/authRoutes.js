@@ -1,9 +1,9 @@
 import express from "express";
-import { 
-  registerUser, 
-  loginUser, 
-  updateUserEmail, 
-  sendOtp, 
+import {
+  registerUser,
+  loginUser,
+  updateUserEmail,
+  sendOtp,
   verifyOtpAndRegister,
   forgotPassword,
   verifyOtpForPasswordReset,

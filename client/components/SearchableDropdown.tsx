@@ -15,6 +15,12 @@ interface SearchableDropdownProps {
     id?: string;
     searchPlaceholder?: string;
     enableSearch?: boolean;
+    disabled?: boolean;
+    buttonClassName?: string;
+    dropdownClassName?: string;
+    searchClassName?: string;
+    searchIconClassName?: string;
+    scrollbarColor?: string;
 }
 
 export const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
@@ -26,6 +32,12 @@ export const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
     id,
     searchPlaceholder = "Search...",
     enableSearch = true,
+    disabled = false,
+    buttonClassName = "",
+    dropdownClassName = "",
+    searchClassName = "",
+    searchIconClassName = "",
+    scrollbarColor = "#d4a574",
 }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
@@ -149,8 +161,12 @@ export const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
             <button
                 type="button"
                 id={id}
-                onClick={() => setIsOpen(!isOpen)}
-                className="flex items-center gap-2 px-4 py-2.5 border-2 border-cream-300 rounded-lg bg-white text-cream-900 cursor-pointer hover:border-cream-500 transition-all shadow-sm hover:shadow-md min-w-[140px] justify-between w-full"
+                onClick={() => !disabled && setIsOpen(!isOpen)}
+                disabled={disabled}
+                className={`flex items-center gap-2 px-4 py-2.5 border-2 border-cream-300 rounded-lg bg-white text-cream-900 transition-all shadow-sm min-w-[140px] justify-between w-full ${disabled
+                    ? "bg-gray-100 text-gray-400 cursor-not-allowed border-gray-200"
+                    : "cursor-pointer hover:border-cream-500 hover:shadow-md"
+                    } ${buttonClassName}`}
             >
                 <span className="text-sm font-medium truncate">
                     {selectedOption ? selectedOption.label : label}
@@ -172,14 +188,14 @@ export const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
               border-radius: 3px;
             }
             .filter-dropdown-scroll::-webkit-scrollbar-thumb {
-              background: #d4a574;
+              background: ${scrollbarColor};
               border-radius: 3px;
             }
             .filter-dropdown-scroll::-webkit-scrollbar-thumb:hover {
-              background: #c49564;
+              filter: brightness(0.9);
             }
           `}</style>
-                    <div className="absolute top-full left-0 mt-2 w-full min-w-[250px] bg-white rounded-lg shadow-lg border border-cream-200 z-50 overflow-hidden">
+                    <div className={`absolute top-full left-0 mt-2 w-full min-w-[250px] bg-white rounded-lg shadow-lg border border-cream-200 z-50 overflow-hidden ${dropdownClassName}`}>
                         {enableSearch && (
                             <div className="p-2 border-b border-cream-200">
                                 <div className="relative">
@@ -189,7 +205,7 @@ export const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
                                         value={searchQuery}
                                         onChange={(e) => setSearchQuery(e.target.value)}
                                         placeholder={searchPlaceholder}
-                                        className="w-full pl-3 pr-20 py-2 text-sm border border-cream-300 rounded-md focus:outline-none focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
+                                        className={`w-full pl-3 pr-20 py-2 text-sm border border-cream-300 rounded-md focus:outline-none focus:ring-2 focus:ring-cream-500 focus:border-cream-500 ${searchClassName}`}
                                     />
                                     <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center gap-1">
                                         {searchQuery && (
@@ -206,7 +222,7 @@ export const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
                                         )}
                                         <button
                                             type="button"
-                                            className="p-1.5 bg-cream-100 text-cream-600 rounded hover:bg-cream-200 transition-colors"
+                                            className={`p-1.5 bg-cream-100 text-cream-600 rounded hover:bg-cream-200 transition-colors ${searchIconClassName}`}
                                             onClick={() => searchInputRef.current?.focus()}
                                         >
                                             <Search size={14} />
@@ -220,7 +236,7 @@ export const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
                             style={{
                                 maxHeight: enableSearch ? "200px" : "132px",
                                 scrollbarWidth: "thin",
-                                scrollbarColor: "#d4a574 #f5f5f0",
+                                scrollbarColor: `${scrollbarColor} #f5f5f0`,
                             }}
                         >
                             {filteredOptions.length === 0 ? (

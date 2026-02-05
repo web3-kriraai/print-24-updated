@@ -10,10 +10,10 @@ const userSchema = new mongoose.Schema(
     countryCode: { type: String, required: false },
     role: { type: String, enum: ["user", "admin", "emp"], default: "user" },
     password: { type: String, required: true },
-    userType: { 
-      type: String, 
-      enum: ["customer", "print partner", "CORPORATE MEMBER"], 
-      default: "customer" 
+    userType: {
+      type: String,
+      enum: ["customer", "print partner", "CORPORATE MEMBER"],
+      default: "customer"
     },
     // Print Partner specific fields
     businessName: { type: String, required: false },

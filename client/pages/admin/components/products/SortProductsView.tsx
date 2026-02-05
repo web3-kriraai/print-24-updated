@@ -15,6 +15,7 @@ import {
 import { getAuthHeaders } from '../../../../utils/auth';
 import { API_BASE_URL_WITH_API as API_BASE_URL } from '../../../../lib/apiConfig';
 import toast from 'react-hot-toast';
+import { SearchableDropdown } from '../../../../components/SearchableDropdown';
 
 interface Product {
     _id: string;
@@ -53,6 +54,7 @@ const SortProductsView: React.FC<SortProductsViewProps> = ({ categories, subCate
     const [success, setSuccess] = useState<string | null>(null);
     const [selectedCategory, setSelectedCategory] = useState<string>('');
     const [selectedSubCategory, setSelectedSubCategory] = useState<string>('');
+    const [selectedType, setSelectedType] = useState<string>('');
     const [currentPage, setCurrentPage] = useState(1);
     const [editedSortOrders, setEditedSortOrders] = useState<{ [key: string]: number }>({});
     const [hasChanges, setHasChanges] = useState(false);
@@ -68,6 +70,14 @@ const SortProductsView: React.FC<SortProductsViewProps> = ({ categories, subCate
                 url = `${API_BASE_URL}/products/subcategory/${selectedSubCategory}`;
             } else if (selectedCategory) {
                 url = `${API_BASE_URL}/products/category/${selectedCategory}`;
+            } else if (selectedType) {
+                // If only type is selected, we might want to filter by type, but currently API doesn't support products/type directly in this context easily without a new endpoint or query param.
+                // For now, if no category is selected, we fetch all (or we could filter client side, but pagination makes that tricky).
+                // Ideally, we should add a query param ?type=... to /products.
+                // Assuming /products returns all, we can filter client side if needed, BUT products are paginated in the VIEW (client side pagination on full list?).
+                // Wait, fetchProducts gets ALL products?
+                // yes: const productList = Array.isArray(data) ? data : [];
+                // So we can filter by type client side if needed.
             }
 
             const response = await fetch(url, {
@@ -79,11 +89,25 @@ const SortProductsView: React.FC<SortProductsViewProps> = ({ categories, subCate
             }
 
             const data = await response.json();
-            const productList = Array.isArray(data) ? data : [];
-            
+            let productList = Array.isArray(data) ? data : [];
+
+            // Client-side filter by type if selected and no category selected (because category implies type)
+            if (selectedType && !selectedCategory) {
+                // We need to know which products belong to this type.
+                // Products have category. If category has type.
+                // The product interface has category?: { _id: string; name: string } | string;
+                // It doesn't have the type directly on category object in product usually unless populated deep.
+                // However, we can filter based on the 'categories' prop we have.
+                const categoriesOfType = categories.filter(c => c.type === selectedType).map(c => c._id);
+                productList = productList.filter(p => {
+                    const pCatId = typeof p.category === 'object' ? p.category?._id : p.category;
+                    return categoriesOfType.includes(pCatId as string);
+                });
+            }
+
             // Sort by sortOrder
             productList.sort((a: Product, b: Product) => (a.sortOrder || 0) - (b.sortOrder || 0));
-            
+
             setProducts(productList);
             setEditedSortOrders({});
             setHasChanges(false);
@@ -93,7 +117,7 @@ const SortProductsView: React.FC<SortProductsViewProps> = ({ categories, subCate
         } finally {
             setLoading(false);
         }
-    }, [selectedCategory, selectedSubCategory]);
+    }, [selectedCategory, selectedSubCategory, selectedType, categories]);
 
     useEffect(() => {
         fetchProducts();
@@ -153,13 +177,21 @@ const SortProductsView: React.FC<SortProductsViewProps> = ({ categories, subCate
         }
     };
 
+    // Get unique types
+    const uniqueTypes = Array.from(new Set(categories.map(cat => cat.type).filter(Boolean))) as string[];
+
+    // Filter categories based on selected type
+    const filteredCategories = selectedType
+        ? categories.filter(cat => cat.type === selectedType)
+        : categories;
+
     // Get filtered subcategories
     const filteredSubCategories = selectedCategory
         ? subCategories.filter(sc => {
             const catId = typeof sc.category === 'object' ? sc.category?._id : sc.category;
             return catId === selectedCategory;
         })
-        : subCategories;
+        : []; // Only show subcategories if a category is selected
 
     const getCategoryName = (cat: any) => {
         if (!cat) return 'N/A';
@@ -213,36 +245,62 @@ const SortProductsView: React.FC<SortProductsViewProps> = ({ categories, subCate
                     <Filter size={18} />
                     <span className="font-medium">Filter by Category</span>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {/* Type Filter */}
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-                        <select
-                            value={selectedCategory}
-                            onChange={(e) => {
-                                setSelectedCategory(e.target.value);
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Type</label>
+                        <SearchableDropdown
+                            label="All Types"
+                            value={selectedType}
+                            onChange={(value) => {
+                                setSelectedType(value as string);
+                                setSelectedCategory('');
                                 setSelectedSubCategory('');
                             }}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                        >
-                            <option value="">All Categories</option>
-                            {categories.map(cat => (
-                                <option key={cat._id} value={cat._id}>{cat.name}</option>
-                            ))}
-                        </select>
+                            options={[
+                                { value: '', label: 'All Types' },
+                                ...uniqueTypes.map(type => ({ value: type, label: type }))
+                            ]}
+                            className="w-full"
+                        />
                     </div>
+
+                    {/* Category Filter */}
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Subcategory</label>
-                        <select
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
+                        <SearchableDropdown
+                            label="All Categories"
+                            value={selectedCategory}
+                            onChange={(value) => {
+                                setSelectedCategory(value as string);
+                                setSelectedSubCategory('');
+                            }}
+                            options={[
+                                { value: '', label: 'All Categories' },
+                                ...filteredCategories.map(cat => ({ value: cat._id, label: cat.name }))
+                            ]}
+                            className="w-full"
+                            enableSearch={true}
+                            searchPlaceholder="Search categories..."
+                        />
+                    </div>
+
+                    {/* Subcategory Filter */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Subcategory</label>
+                        <SearchableDropdown
+                            label="All Subcategories"
                             value={selectedSubCategory}
-                            onChange={(e) => setSelectedSubCategory(e.target.value)}
+                            onChange={(value) => setSelectedSubCategory(value as string)}
+                            options={[
+                                { value: '', label: 'All Subcategories' },
+                                ...filteredSubCategories.map(sc => ({ value: sc._id, label: sc.name }))
+                            ]}
+                            className="w-full"
                             disabled={!selectedCategory}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-                        >
-                            <option value="">All Subcategories</option>
-                            {filteredSubCategories.map(sc => (
-                                <option key={sc._id} value={sc._id}>{sc.name}</option>
-                            ))}
-                        </select>
+                            enableSearch={true}
+                            searchPlaceholder="Search subcategories..."
+                        />
                     </div>
                 </div>
             </div>
@@ -301,7 +359,7 @@ const SortProductsView: React.FC<SortProductsViewProps> = ({ categories, subCate
                                 {paginatedProducts.map((product) => {
                                     const currentOrder = editedSortOrders[product._id] ?? product.sortOrder ?? 0;
                                     const isEdited = editedSortOrders[product._id] !== undefined;
-                                    
+
                                     return (
                                         <motion.tr
                                             key={product._id}
@@ -315,9 +373,8 @@ const SortProductsView: React.FC<SortProductsViewProps> = ({ categories, subCate
                                                     min="0"
                                                     value={currentOrder}
                                                     onChange={(e) => handleSortOrderChange(product._id, e.target.value)}
-                                                    className={`w-20 px-2 py-1 text-center border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 ${
-                                                        isEdited ? 'border-amber-400 bg-amber-50' : 'border-gray-300'
-                                                    }`}
+                                                    className={`w-20 px-2 py-1 text-center border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 ${isEdited ? 'border-amber-400 bg-amber-50' : 'border-gray-300'
+                                                        }`}
                                                 />
                                             </td>
                                             <td className="px-4 py-3">

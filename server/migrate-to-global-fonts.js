@@ -13,7 +13,7 @@ dotenv.config({ path: join(__dirname, '.env') });
 
 const migrateToGlobalFonts = async () => {
     try {
-        await mongoose.connect(process.env.MONGO_URI);
+        await mongoose.connect(process.env.MONGO_TEST_URI);
         console.log('✅ Connected to MongoDB');
 
         // Step 1: Ensure SiteSettings has fontSettings with defaults
