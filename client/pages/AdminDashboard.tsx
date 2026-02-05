@@ -6621,7 +6621,7 @@ const AdminDashboard: React.FC = () => {
                     } else if (tab.id === "print-partner-requests") {
                       // fetchPrintPartnerRequests();
                     } else if (tab.id === "orders") {
-                      fetchOrders();
+                      navigate("/admin/orders");
                     } else if (tab.id === "attribute-types") {
                       fetchAttributeTypes();
                     } else if (tab.id === "attribute-rules") {

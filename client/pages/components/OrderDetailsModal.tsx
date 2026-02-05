@@ -27,7 +27,7 @@ interface Order {
         currency: string;
     };
     createdAt: string;
-    updatedAt: string;
+    updatedAt?: string;
     actualDeliveryDate?: string;
     deliveryStatus?: string;
     address?: string;
@@ -208,8 +208,8 @@ const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
                         <div>
                             <span
                                 className={`inline-block px-3 py-1 text-sm font-semibold rounded-full ${order.paymentStatus === 'COMPLETED'
-                                        ? 'bg-green-100 text-green-800'
-                                        : 'bg-yellow-100 text-yellow-800'
+                                    ? 'bg-green-100 text-green-800'
+                                    : 'bg-yellow-100 text-yellow-800'
                                     }`}
                             >
                                 {order.paymentStatus}
@@ -295,8 +295,8 @@ const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
                                     key={tab.id}
                                     onClick={() => setActiveTab(tab.id)}
                                     className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === tab.id
-                                            ? 'border-indigo-600 text-indigo-600'
-                                            : 'border-transparent text-gray-500 hover:text-gray-700'
+                                        ? 'border-indigo-600 text-indigo-600'
+                                        : 'border-transparent text-gray-500 hover:text-gray-700'
                                         }`}
                                 >
                                     <Icon size={16} />

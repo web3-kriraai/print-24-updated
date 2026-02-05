@@ -9,21 +9,28 @@ interface Order {
     _id: string;
     orderNumber: string;
     user: {
+        _id: string;
         name: string;
         email: string;
     };
     product: {
+        _id: string;
         name: string;
     };
     quantity: number;
     status: string;
     paymentStatus: string;
     priceSnapshot: {
+        basePrice: number;
+        subtotal: number;
+        gstAmount: number;
         totalPayable: number;
+        currency: string;
     };
     createdAt: string;
     actualDeliveryDate?: string;
     complaint?: {
+        _id: string;
         status: string;
     };
 }

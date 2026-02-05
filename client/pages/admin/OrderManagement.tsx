@@ -31,6 +31,9 @@ interface Order {
     status: string;
     paymentStatus: string;
     priceSnapshot: {
+        basePrice: number;
+        subtotal: number;
+        gstAmount: number;
         totalPayable: number;
         currency: string;
     };
@@ -379,13 +382,14 @@ const OrderManagement: React.FC = () => {
                                         },
                                         body: JSON.stringify({
                                             orderIds: selectedIds,
-                                            status: status
+                                            action: 'UPDATE_STATUS',
+                                            payload: { status: status }
                                         }),
                                     });
 
                                     if (response.ok) {
                                         const result = await response.json();
-                                        alert(`Successfully updated ${result.updatedCount} orders`);
+                                        alert(`Successfully updated ${result.updatedCount || result.modifiedCount || 0} orders`);
                                         setSelectedIds([]);
                                         fetchOrders();
                                     } else {
@@ -407,13 +411,14 @@ const OrderManagement: React.FC = () => {
                                         },
                                         body: JSON.stringify({
                                             orderIds: selectedIds,
-                                            paymentStatus: paymentStatus
+                                            action: 'UPDATE_PAYMENT',
+                                            payload: { paymentStatus: paymentStatus }
                                         }),
                                     });
 
                                     if (response.ok) {
                                         const result = await response.json();
-                                        alert(`Successfully updated ${result.updatedCount} orders`);
+                                        alert(`Successfully updated ${result.updatedCount || result.modifiedCount || 0} orders`);
                                         setSelectedIds([]);
                                         fetchOrders();
                                     } else {
