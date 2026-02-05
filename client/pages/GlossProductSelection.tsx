@@ -4174,7 +4174,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                   onClick={() => handleNestedSubcategoryChange(nestedSubcat._id)}
                   className={`px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg border-2 font-medium transition-all text-sm sm:text-base ${selectedNestedSubcategoryId === nestedSubcat._id
                     ? 'border-gray-800 bg-gray-800 text-white shadow-md'
-                    : 'border-gray-300 bg-white text-gray-700 hover:border-gray-600 hover:bg-gray-50'
+                    : 'border-gray-300 bg-white text-gray-900 hover:border-gray-600 hover:bg-gray-50'
                     }`}
                 >
                   {nestedSubcat.name}
@@ -4637,7 +4637,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                             <FileText size={16} />
                                             Product Description
                                           </h4>
-                                          <div className="text-xs sm:text-sm text-blue-800 space-y-3">
+                                          <div className="text-xs sm:text-sm text-blue-800">
                                             {(() => {
                                               // First check if description contains HTML (prioritize description field)
                                               if (selectedProduct.description) {
@@ -4668,9 +4668,8 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                         .product-description-html p,
                                                         .product-description-html div {
                                                           margin-bottom: 0.25rem;
-                                                          line-height: 1.6;
+                                                          line-height: 1.2;
                                                           color: #1e3a8a;
-                                                          white-space: normal;
                                                           word-wrap: break-word;
                                                           overflow-wrap: break-word;
                                                         }
