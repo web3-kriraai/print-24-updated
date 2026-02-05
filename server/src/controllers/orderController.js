@@ -1135,26 +1135,56 @@ export const updateOrderStatus = async (req, res) => {
     }
 
     // Validate status
-    const validStatuses = ["request", "production_ready", "approved", "processing", "completed", "cancelled", "rejected"];
-    if (status && !validStatuses.includes(status)) {
-      return res.status(400).json({ error: "Invalid status" });
+    // Validate status
+    // FIX: Added "DELIVERED" and other strict schema statuses
+    const validStatuses = [
+      "REQUESTED", "DESIGN", "APPROVED", "PRODUCTION", "QC", "PACKED", "DISPATCHED", "DELIVERED", "CANCELLED", "REJECTED", // Schema statuses (Uppercase)
+      "request", "production_ready", "approved", "processing", "completed", "cancelled", "rejected", "delivered" // Legacy/Controller statuses (Lowercase)
+    ];
+
+    if (status) {
+      // Check case-insensitive
+      const statusUpper = status.toUpperCase();
+      const isValid = validStatuses.some(s => s.toUpperCase() === statusUpper);
+      if (!isValid) {
+        return res.status(400).json({ error: "Invalid status" });
+      }
     }
 
     // Check for special action: start_production
     const { action } = req.body;
     if (action === "start_production") {
-      if (order.status !== "production_ready") {
-        return res.status(400).json({ error: `Cannot start production. Order must be in "production_ready" status. Current status: ${order.status}` });
+      if (order.status !== "production_ready" && order.status !== "PRODUCTION") {
+        return res.status(400).json({ error: `Cannot start production. Order must be in "production_ready" status.` });
       }
       // Set status to approved and send to first department
-      order.status = "approved";
-      status = "approved"; // Set for the logic below
+      order.status = "APPROVED";
+      status = "APPROVED"; // Set for the logic below
     }
 
     // Update order
     const previousStatus = order.status;
-    if (status) order.status = status;
-    if (deliveryDate) order.deliveryDate = new Date(deliveryDate);
+
+    // Normalize status to uppercase if it matches schema enum
+    let newStatus = status;
+    const schemaStatuses = ["REQUESTED", "DESIGN", "APPROVED", "PRODUCTION", "QC", "PACKED", "DISPATCHED", "DELIVERED", "CANCELLED", "REJECTED"];
+    if (status && schemaStatuses.includes(status.toUpperCase())) {
+      newStatus = status.toUpperCase();
+    }
+
+    if (newStatus) order.status = newStatus;
+
+    // FIX: Map 'deliveryDate' to 'actualDeliveryDate' and auto-set on DELIVERED
+    if (deliveryDate) {
+      // If deliveryDate is provided, use it for actualDeliveryDate
+      order.actualDeliveryDate = new Date(deliveryDate);
+    } else if (
+      (newStatus === 'DELIVERED' || newStatus === 'completed') &&
+      !order.actualDeliveryDate
+    ) {
+      // Auto-set actualDeliveryDate if not provided and status is valid
+      order.actualDeliveryDate = new Date();
+    }
     if (adminNotes !== undefined) order.adminNotes = adminNotes;
 
     // If admin approves order (request -> approved) or starts production (production_ready -> approved), send to first department

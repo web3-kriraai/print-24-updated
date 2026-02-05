@@ -16,7 +16,13 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 const AdminComplaintManagement = () => {
     const [data, setData] = useState({ complaints: [], stats: null });
     const [loading, setLoading] = useState(true);
-    const [filters, setFilters] = useState({ status: '', type: '', search: '' });
+    const [filters, setFilters] = useState({
+        status: '',
+        type: '',
+        search: '',
+        startDate: '',
+        endDate: ''
+    });
 
     useEffect(() => {
         fetchData();
@@ -103,26 +109,90 @@ const AdminComplaintManagement = () => {
                 </div>
             )}
 
-            {/* Filters */}
-            <div className="bg-white p-4 rounded-lg shadow mb-6 flex gap-4">
-                <input
-                    type="text"
-                    placeholder="Search by order number..."
-                    value={filters.search}
-                    onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-                    className="flex-1 px-4 py-2 border rounded-lg"
-                />
-                <select
-                    value={filters.status}
-                    onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-                    className="px-4 py-2 border rounded-lg"
-                >
-                    <option value="">All Status</option>
-                    <option value="NEW">New</option>
-                    <option value="UNDER_REVIEW">Under Review</option>
-                    <option value="RESOLVED">Resolved</option>
-                    <option value="CLOSED">Closed</option>
-                </select>
+            {/* Enhanced Filters */}
+            <div className="bg-white p-4 rounded-lg shadow mb-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                    {/* Search */}
+                    <div className="lg:col-span-2">
+                        <label className="block text-xs text-gray-600 mb-1">Search</label>
+                        <input
+                            type="text"
+                            placeholder="Order number or Complaint ID..."
+                            value={filters.search}
+                            onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+                            className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        />
+                    </div>
+
+                    {/* Status Filter */}
+                    <div>
+                        <label className="block text-xs text-gray-600 mb-1">Status</label>
+                        <select
+                            value={filters.status}
+                            onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+                            className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        >
+                            <option value="">All Status</option>
+                            <option value="NEW">New</option>
+                            <option value="UNDER_REVIEW">Under Review</option>
+                            <option value="WAITING_FOR_CUSTOMER">Waiting for Customer</option>
+                            <option value="RESOLVED">Resolved</option>
+                            <option value="CLOSED">Closed</option>
+                            <option value="REJECTED">Rejected</option>
+                            <option value="REOPENED">Reopened</option>
+                        </select>
+                    </div>
+
+                    {/* Type Filter */}
+                    <div>
+                        <label className="block text-xs text-gray-600 mb-1">Type</label>
+                        <select
+                            value={filters.type}
+                            onChange={(e) => setFilters({ ...filters, type: e.target.value })}
+                            className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        >
+                            <option value="">All Types</option>
+                            <option value="PRINTING_QUALITY">Printing Quality</option>
+                            <option value="WRONG_CONTENT">Wrong Content</option>
+                            <option value="QUANTITY_ISSUE">Quantity Issue</option>
+                            <option value="ORDER_DELAY">Order Delay</option>
+                            <option value="DAMAGE_DELIVERY">Damage in Delivery</option>
+                            <option value="OTHER">Other</option>
+                        </select>
+                    </div>
+
+                    {/* Clear Filters Button */}
+                    <div className="flex items-end">
+                        <button
+                            onClick={() => setFilters({ status: '', type: '', search: '', startDate: '', endDate: '' })}
+                            className="w-full px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"
+                        >
+                            Clear Filters
+                        </button>
+                    </div>
+                </div>
+
+                {/* Date Range Filter (Second Row) */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                    <div>
+                        <label className="block text-xs text-gray-600 mb-1">From Date</label>
+                        <input
+                            type="date"
+                            value={filters.startDate}
+                            onChange={(e) => setFilters({ ...filters, startDate: e.target.value })}
+                            className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-xs text-gray-600 mb-1">To Date</label>
+                        <input
+                            type="date"
+                            value={filters.endDate}
+                            onChange={(e) => setFilters({ ...filters, endDate: e.target.value })}
+                            className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        />
+                    </div>
+                </div>
             </div>
 
             {/* Complaints List */}
