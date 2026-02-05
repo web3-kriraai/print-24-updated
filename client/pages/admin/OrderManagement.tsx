@@ -272,7 +272,7 @@ const OrderManagement: React.FC = () => {
         <div className="min-h-screen bg-gray-50">
             {/* Header */}
             <div className="bg-white border-b border-gray-200">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                <div className="max-w-[95%] mx-auto px-4 sm:px-6 lg:px-8 py-6">
                     <div className="flex items-center justify-between">
                         <div>
                             <h1 className="text-2xl font-bold text-gray-900">Order Management</h1>
@@ -300,12 +300,12 @@ const OrderManagement: React.FC = () => {
             </div>
 
             {/* Stats Cards */}
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            <div className="max-w-[95%] mx-auto px-4 sm:px-6 lg:px-8 py-6">
                 <OrderStats />
             </div>
 
             {/* Main Content */}
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
+            <div className="max-w-[95%] mx-auto px-4 sm:px-6 lg:px-8 pb-12">
                 {/* Search & Filters Bar */}
                 <div className="bg-white rounded-lg shadow mb-6">
                     <div className="p-4 border-b border-gray-200">
