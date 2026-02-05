@@ -6,7 +6,7 @@ dotenv.config();
 import AttributeImageMatrix from './src/models/AttributeImageMatrix.js';
 
 const run = async () => {
-    const mongoUri = process.env.MONGO_TEST_URI || process.env.MONGODB_URI;
+    const mongoUri = process.env.MONGO_URI || process.env.MONGODB_URI;
     await mongoose.connect(mongoUri);
     console.log('✓ Connected to database\n');
 

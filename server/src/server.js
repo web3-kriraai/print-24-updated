@@ -182,14 +182,14 @@ app.use((req, res) => {
 });
 
 // DB + SERVER
-if (!process.env.MONGO_TEST_URI) {
-  console.error("❌ ERROR: MONGO_TEST_URI environment variable is not set!");
-  console.error("Please check your .env file and ensure MONGO_TEST_URI is configured.");
+if (!process.env.MONGO_URI) {
+  console.error("❌ ERROR: MONGO_URI environment variable is not set!");
+  console.error("Please check your .env file and ensure MONGO_URI is configured.");
   process.exit(1);
 }
 
 mongoose
-  .connect(process.env.MONGO_TEST_URI, {
+  .connect(process.env.MONGO_URI, {
     serverSelectionTimeoutMS: 5000,
     socketTimeoutMS: 45000,
     retryWrites: true,

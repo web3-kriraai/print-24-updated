@@ -12,17 +12,17 @@ import mongoose from 'mongoose';
 import AttributeType from './src/models/attributeTypeModal.js';
 import SubAttribute from './src/models/subAttributeSchema.js';
 
-const MONGO_TEST_URI = process.env.MONGO_TEST_URI;
+const MONGO_URI = process.env.MONGO_URI;
 
-if (!MONGO_TEST_URI) {
-  console.error('❌ MONGO_TEST_URI environment variable is not set!');
+if (!MONGO_URI) {
+  console.error('❌ MONGO_URI environment variable is not set!');
   process.exit(1);
 }
 
 async function fixParentValueMismatches() {
   try {
     console.log('🔌 Connecting to MongoDB...');
-    await mongoose.connect(MONGO_TEST_URI);
+    await mongoose.connect(MONGO_URI);
     console.log('✅ Connected to MongoDB');
 
     // Get all sub-attributes

@@ -8,7 +8,7 @@ This seed script populates your database with:
 - 4 Attribute Rules (IF-THEN logic)
 
 ## Prerequisites
-1. Make sure your `.env` file has `MONGO_TEST_URI` set
+1. Make sure your `.env` file has `MONGO_URI` set
 2. Ensure MongoDB is running and accessible
 3. Node.js and npm installed
 

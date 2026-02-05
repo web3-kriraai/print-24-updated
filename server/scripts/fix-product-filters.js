@@ -14,7 +14,7 @@ dotenv.config({ path: path.join(__dirname, '../.env') });
 const fixProductFilters = async () => {
     try {
         // Connect to MongoDB
-        await mongoose.connect(process.env.MONGO_TEST_URI);
+        await mongoose.connect(process.env.MONGO_URI);
         console.log('✅ Connected to MongoDB');
 
         // Find all products that are missing printingOption or deliverySpeed

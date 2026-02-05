@@ -2,11 +2,11 @@ import mongoose from "mongoose";
 
 const connectDB = async () => {
   try {
-    if (!process.env.MONGO_TEST_URI) {
-      throw new Error("MONGO_TEST_URI environment variable is not set");
+    if (!process.env.MONGO_URI) {
+      throw new Error("MONGO_URI environment variable is not set");
     }
 
-    await mongoose.connect(process.env.MONGO_TEST_URI, {
+    await mongoose.connect(process.env.MONGO_URI, {
       serverSelectionTimeoutMS: 5000,
       socketTimeoutMS: 45000,
       retryWrites: true,

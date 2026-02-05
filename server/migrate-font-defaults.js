@@ -12,7 +12,7 @@ dotenv.config({ path: join(__dirname, '.env') });
 
 const migrateFontDefaults = async () => {
     try {
-        await mongoose.connect(process.env.MONGO_TEST_URI);
+        await mongoose.connect(process.env.MONGO_URI);
         console.log('✅ Connected to MongoDB');
 
         // Update all services that have null font values
