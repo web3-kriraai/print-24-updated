@@ -4596,7 +4596,10 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                     {/* Product Description Button - Only show if description exists */}
                                     {(selectedProduct.description || (selectedProduct.descriptionArray && selectedProduct.descriptionArray.length > 0)) && (
                                       <button
-                                        onClick={() => setIsDescriptionOpen(!isDescriptionOpen)}
+                                        onClick={() => {
+                                          setIsDescriptionOpen(!isDescriptionOpen);
+                                          if (!isDescriptionOpen) setIsInstructionsOpen(false);
+                                        }}
                                         className="px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-900 rounded-lg border border-blue-200 text-sm font-medium transition-all flex items-center gap-2 shadow-sm hover:shadow-md"
                                       >
                                         <FileText size={16} />
@@ -4607,7 +4610,10 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                     {/* Instructions Button - Only show if instructions or constraints exist */}
                                     {(selectedProduct.instructions || selectedProduct.maxFileSizeMB || selectedProduct.minFileWidth || selectedProduct.maxFileWidth || selectedProduct.minFileHeight || selectedProduct.maxFileHeight || selectedProduct.blockCDRandJPG || selectedProduct.additionalDesignCharge || selectedProduct.gstPercentage) && (
                                       <button
-                                        onClick={() => setIsInstructionsOpen(!isInstructionsOpen)}
+                                        onClick={() => {
+                                          setIsInstructionsOpen(!isInstructionsOpen);
+                                          if (!isInstructionsOpen) setIsDescriptionOpen(false);
+                                        }}
                                         className="px-4 py-2 bg-yellow-50 hover:bg-yellow-100 text-yellow-900 rounded-lg border border-yellow-200 text-sm font-medium transition-all flex items-center gap-2 shadow-sm hover:shadow-md"
                                       >
                                         <Info size={16} />
@@ -4631,7 +4637,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                             <FileText size={16} />
                                             Product Description
                                           </h4>
-                                          <div className="text-sm sm:text-base text-blue-800 space-y-2">
+                                          <div className="text-xs sm:text-sm text-blue-800 space-y-3">
                                             {(() => {
                                               // First check if description contains HTML (prioritize description field)
                                               if (selectedProduct.description) {
@@ -4661,7 +4667,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                         }
                                                         .product-description-html p,
                                                         .product-description-html div {
-                                                          margin-bottom: 0.5rem;
+                                                          margin-bottom: 0.25rem;
                                                           line-height: 1.6;
                                                           color: #1e3a8a;
                                                           white-space: normal;
@@ -4674,10 +4680,10 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                         .product-description-html ul,
                                                         .product-description-html ol {
                                                           margin-left: 1.5rem;
-                                                          margin-bottom: 0.5rem;
+                                                          margin-bottom: 0.25rem;
                                                         }
                                                         .product-description-html li {
-                                                          margin-bottom: 0.25rem;
+                                                          margin-bottom: 0.125rem;
                                                         }
                                                       `}</style>
                                                       <div
@@ -4709,8 +4715,8 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                 return descriptionLines.map((desc, i) => {
                                                   if (desc.includes(':')) {
                                                     return (
-                                                      <div key={i} className="mt-3 first:mt-0">
-                                                        <p className="font-semibold text-blue-900 mb-1.5">
+                                                      <div key={i} className="mt-1.5 first:mt-0">
+                                                        <p className="font-semibold text-blue-900 mb-1">
                                                           {renderTextWithBold(desc)}
                                                         </p>
                                                       </div>
@@ -4718,15 +4724,15 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                   } else if (desc.startsWith('→') || desc.startsWith('->') || desc.startsWith('•')) {
                                                     const cleanDesc = desc.replace(/^[→•\-]+\s*/, '').trim();
                                                     return (
-                                                      <p key={i} className="flex items-start">
-                                                        <span className="mr-2 text-blue-600 mt-1">→</span>
+                                                      <p key={i} className="flex items-start leading-tight">
+                                                        <span className="mr-1.5 text-blue-600 mt-0.5">→</span>
                                                         <span>{renderTextWithBold(cleanDesc)}</span>
                                                       </p>
                                                     );
                                                   } else {
                                                     return (
-                                                      <p key={i} className="flex items-start">
-                                                        <span className="mr-2 text-blue-600 mt-1">→</span>
+                                                      <p key={i} className="flex items-start leading-tight">
+                                                        <span className="mr-1.5 text-blue-600 mt-0.5">→</span>
                                                         <span>{renderTextWithBold(desc)}</span>
                                                       </p>
                                                     );
@@ -4748,8 +4754,8 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                 return descriptionLines.map((desc, i) => {
                                                   if (desc.includes(':')) {
                                                     return (
-                                                      <div key={i} className="mt-3 first:mt-0">
-                                                        <p className="font-semibold text-blue-900 mb-1.5">
+                                                      <div key={i} className="mt-1.5 first:mt-0">
+                                                        <p className="font-semibold text-blue-900 mb-1">
                                                           {renderTextWithBold(desc)}
                                                         </p>
                                                       </div>
@@ -4757,15 +4763,15 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                   } else if (desc.startsWith('→') || desc.startsWith('->') || desc.startsWith('•')) {
                                                     const cleanDesc = desc.replace(/^[→•\-]+\s*/, '').trim();
                                                     return (
-                                                      <p key={i} className="flex items-start">
-                                                        <span className="mr-2 text-blue-600 mt-1">→</span>
+                                                      <p key={i} className="flex items-start leading-tight">
+                                                        <span className="mr-1.5 text-blue-600 mt-0.5">→</span>
                                                         <span>{renderTextWithBold(cleanDesc)}</span>
                                                       </p>
                                                     );
                                                   } else {
                                                     return (
-                                                      <p key={i} className="flex items-start">
-                                                        <span className="mr-2 text-blue-600 mt-1">→</span>
+                                                      <p key={i} className="flex items-start leading-tight">
+                                                        <span className="mr-1.5 text-blue-600 mt-0.5">→</span>
                                                         <span>{renderTextWithBold(desc)}</span>
                                                       </p>
                                                     );
