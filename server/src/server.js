@@ -94,14 +94,16 @@ app.use("/api", (req, res, next) => {
   next();
 });
 
-// Mount pricing admin routes FIRST (more specific path /api/admin before general /api)
-app.use("/api/admin", pricingAdminRoutes);
-
-// Then mount general API routes
+// Mount general API routes (includes order management at /api/admin/orders/*)
 app.use("/api/auth", authRoutes);
-app.use("/api", apiRoutes);
+app.use("/api", apiRoutes);  // This includes order management routes
 app.use("/api", uploadRoutes);
 app.use("/api/timeline", timelineRoutes);
+
+// Mount pricing admin routes (at /api/admin/pricing, /api/admin/modifiers, etc)
+// Note: This must come AFTER apiRoutes so order management routes are matched first
+app.use("/api/admin", pricingAdminRoutes);
+
 app.use("/api/pricing", pricingRoutes);
 app.use("/api/user", userContextRoutes);  // User context API
 app.use("/api/geolocation", geolocationRoutes);  // Geolocation API

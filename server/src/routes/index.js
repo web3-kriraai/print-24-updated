@@ -64,6 +64,12 @@ import {
   updateOrderStatus,
   cancelOrder,
   generateInvoice,
+  getOrdersWithFilters,
+  getOrderStats,
+  bulkUpdateOrders,
+  bulkDeleteOrders,
+  exportOrders,
+  getFilterOptions,
 } from "../controllers/orderController.js";
 
 /* ORDER APPROVAL CONTROLLERS */
@@ -300,6 +306,14 @@ router.put(
   requireAdmin,
   updateOrderStatus
 );
+
+// Enhanced order management routes (added 2026-02-05)
+router.get("/admin/orders/list", authMiddleware, requireAdmin, getOrdersWithFilters); // Advanced filtering
+router.get("/admin/orders/stats", authMiddleware, requireAdmin, getOrderStats); // Statistics
+router.get("/admin/orders/filter-options", authMiddleware, requireAdmin, getFilterOptions); // Dynamic filter options
+router.post("/admin/orders/bulk-update", authMiddleware, requireAdmin, bulkUpdateOrders); // Bulk update
+router.post("/admin/orders/bulk-delete", authMiddleware, requireAdmin, bulkDeleteOrders); // Bulk delete
+router.post("/admin/orders/export", authMiddleware, requireAdmin, exportOrders); // Export CSV
 
 // New: Admin order approval route (ensures proper department assignment)
 router.post(

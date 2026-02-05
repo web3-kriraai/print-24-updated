@@ -28,6 +28,7 @@ import RegisterComplaint from './pages/RegisterComplaint';
 import ComplaintDetails from './pages/ComplaintDetails';
 import ComplaintTestPage from './pages/ComplaintTestPage';
 import AdminComplaintManagement from './pages/admin/AdminComplaintManagement';
+import OrderManagement from './pages/admin/OrderManagement';
 // AdminPricingDashboard and AdminPricingHub removed - functionality consolidated into AdminDashboard
 
 // Shared routes configuration for both SSR and client
@@ -70,6 +71,7 @@ export const routes = [
       { path: 'admin/payment-gateways', element: <PaymentGatewayManager />, errorElement: <ErrorBoundary /> },
       { path: 'admin/test-payment', element: <PaymentTestPage />, errorElement: <ErrorBoundary /> },
       { path: 'admin/complaints', element: <AdminComplaintManagement />, errorElement: <ErrorBoundary /> },
+      { path: 'admin/orders', element: <OrderManagement />, errorElement: <ErrorBoundary /> },
       // admin/pricing and admin/pricing-hub removed - use admin/dashboard Pricing tabs instead
       { path: 'employee/dashboard', element: <EmployeeDashboard />, errorElement: <ErrorBoundary /> },
       { path: 'department-portal', element: <DepartmentPortal />, errorElement: <ErrorBoundary /> },
