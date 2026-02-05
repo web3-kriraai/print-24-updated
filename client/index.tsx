@@ -20,7 +20,7 @@ root.render(
   <React.StrictMode>
     <BrowserRouter>
       <App />
-      <Toaster position="bottom-right"/>
+      <Toaster position="bottom-right" />
     </BrowserRouter>
   </React.StrictMode>
 );

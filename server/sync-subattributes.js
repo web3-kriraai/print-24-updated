@@ -16,17 +16,17 @@ import mongoose from 'mongoose';
 import AttributeType from './src/models/attributeTypeModal.js';
 import SubAttribute from './src/models/subAttributeSchema.js';
 
-const MONGO_URI = process.env.MONGO_URI;
+const MONGO_TEST_URI = process.env.MONGO_TEST_URI;
 
-if (!MONGO_URI) {
-  console.error('❌ MONGO_URI environment variable is not set!');
+if (!MONGO_TEST_URI) {
+  console.error('❌ MONGO_TEST_URI environment variable is not set!');
   process.exit(1);
 }
 
 async function syncSubAttributes() {
   try {
     console.log('🔌 Connecting to MongoDB...');
-    await mongoose.connect(MONGO_URI);
+    await mongoose.connect(MONGO_TEST_URI);
     console.log('✅ Connected to MongoDB');
 
     // Get all sub-attributes
@@ -51,7 +51,7 @@ async function syncSubAttributes() {
 
     for (const [parentId, parentValues] of Object.entries(subAttrsByParent)) {
       const attributeType = await AttributeType.findById(parentId);
-      
+
       if (!attributeType) {
         console.warn(`⚠️  Parent AttributeType ${parentId} not found!`);
         continue;
@@ -74,20 +74,20 @@ async function syncSubAttributes() {
           const withoutDash = parentValue.replace(/-$/, '');
           // Try with trailing dash
           const withDash = parentValue + '-';
-          
+
           valueIndex = attributeType.attributeValues.findIndex(av => {
             const avValue = String(av.value).trim();
-            return avValue === withoutDash || 
-                   avValue === withDash ||
-                   avValue.toLowerCase() === parentValue.toLowerCase() ||
-                   avValue.replace(/-$/, '') === parentValue ||
-                   avValue === parentValue.replace(/-$/, '');
+            return avValue === withoutDash ||
+              avValue === withDash ||
+              avValue.toLowerCase() === parentValue.toLowerCase() ||
+              avValue.replace(/-$/, '') === parentValue ||
+              avValue === parentValue.replace(/-$/, '');
           });
 
           if (valueIndex !== -1) {
             const matchedValue = attributeType.attributeValues[valueIndex].value;
             console.log(`   ⚠️  Fuzzy match: parentValue="${parentValue}" → attrValue="${matchedValue}"`);
-            
+
             mismatches.push({
               attributeName: attributeType.attributeName,
               parentValue: parentValue,
@@ -100,7 +100,7 @@ async function syncSubAttributes() {
 
         if (valueIndex !== -1) {
           const currentHasSubAttrs = attributeType.attributeValues[valueIndex].hasSubAttributes;
-          
+
           if (currentHasSubAttrs !== true) {
             console.log(`   🔧 Fixing hasSubAttributes for "${attributeType.attributeValues[valueIndex].label}": ${currentHasSubAttrs} → true`);
             attributeType.attributeValues[valueIndex].hasSubAttributes = true;

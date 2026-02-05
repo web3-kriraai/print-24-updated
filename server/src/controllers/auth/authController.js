@@ -112,11 +112,11 @@ export const loginUser = async (req, res) => {
     } else if (mobileNumber) {
       // Extract digits from mobile number to handle different formats
       const mobileDigits = mobileNumber.replace(/\D/g, "");
-      
+
       // Try to find user with different mobile number formats
       // 1. Try exact match
       user = await User.findOne({ mobileNumber });
-      
+
       // 2. If not found, try with country code variations
       if (!user) {
         // If input has country code, try without it
@@ -184,7 +184,7 @@ export const loginUser = async (req, res) => {
     });
   } catch (error) {
     console.error("Login error:", error);
-    return res.status(500).json({ 
+    return res.status(500).json({
       message: "Server error",
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
@@ -277,14 +277,14 @@ export const sendOtp = async (req, res) => {
 // VERIFY OTP AND REGISTER (Customer signup)
 export const verifyOtpAndRegister = async (req, res) => {
   try {
-    const { 
-      firstName, 
-      lastName, 
-      countryCode, 
-      mobileNumber, 
-      email, 
-      password, 
-      otp 
+    const {
+      firstName,
+      lastName,
+      countryCode,
+      mobileNumber,
+      email,
+      password,
+      otp
     } = req.body;
 
     // Validate required fields
@@ -691,7 +691,7 @@ export const getUserProfile = async (req, res) => {
   try {
     const userId = req.user._id || req.user.id;
     const user = await User.findById(userId).select("-password");
-    
+
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -819,7 +819,7 @@ export const updateUserProfile = async (req, res) => {
     }
     if (mobileNumber !== undefined) user.mobileNumber = mobileNumber;
     if (countryCode !== undefined) user.countryCode = countryCode;
-    
+
     // Update name if firstName or lastName changed
     if (firstName || lastName) {
       user.name = `${user.firstName || ""} ${user.lastName || ""}`.trim() || user.name;
@@ -927,7 +927,7 @@ export const submitPrintPartnerRequest = async (req, res) => {
 
     // Validate required fields
     if (!businessName || !ownerName || !mobileNumber || !whatsappNumber || !emailAddress || !password ||
-        !fullBusinessAddress || !city || !state || !pincode) {
+      !fullBusinessAddress || !city || !state || !pincode) {
       return res.status(400).json({
         success: false,
         message: "All required fields must be provided.",
@@ -955,7 +955,7 @@ export const submitPrintPartnerRequest = async (req, res) => {
     // Extract just the digits for validation
     const mobileDigits = mobileNumber.replace(/\D/g, "");
     const whatsappDigits = whatsappNumber.replace(/\D/g, "");
-    
+
     // Mobile number should be 10-15 digits (allowing for country codes)
     if (mobileDigits.length < 10 || mobileDigits.length > 15) {
       return res.status(400).json({
@@ -963,7 +963,7 @@ export const submitPrintPartnerRequest = async (req, res) => {
         message: "Mobile number must be between 10-15 digits.",
       });
     }
-    
+
     // Extract the actual number (last 10 digits for India, or full number for other countries)
     let mobileNumberToStore = mobileNumber;
     // If it starts with a country code like +91, extract just the number part
@@ -984,7 +984,7 @@ export const submitPrintPartnerRequest = async (req, res) => {
         message: "WhatsApp number must be between 10-15 digits.",
       });
     }
-    
+
     // Extract the actual WhatsApp number
     let whatsappNumberToStore = whatsappNumber;
     // If it starts with a country code like +91, extract just the number part

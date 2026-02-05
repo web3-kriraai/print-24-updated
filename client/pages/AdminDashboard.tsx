@@ -1257,9 +1257,9 @@ const AdminDashboard: React.FC = () => {
       }
 
       const data = await response.json();
-      console.log("=== PRODUCTS FETCHED (AdminDashboard) ===");
-      console.log("Total products:", Array.isArray(data) ? data.length : 0);
-      console.log("Full products data:", JSON.stringify(data, null, 2));
+      // console.log("=== PRODUCTS FETCHED (AdminDashboard) ===");
+      // console.log("Total products:", Array.isArray(data) ? data.length : 0);
+      // console.log("Full products data:", JSON.stringify(data, null, 2));
       setProducts(data);
       setFilteredProducts(data);
     } catch (err) {
@@ -1339,18 +1339,7 @@ const AdminDashboard: React.FC = () => {
 
       filtered = filtered.filter((product) => {
         const nameMatch = product.name?.toLowerCase().includes(query);
-        const descMatch = product.description?.toLowerCase().includes(query);
-        // Robust SKU check: handle if sku is number, null, or undefined
-        const skuMatch = String(product.sku || "").toLowerCase().includes(query);
-
-        const categoryMatch = product.category && typeof product.category === 'object'
-          ? product.category.name?.toLowerCase().includes(query)
-          : false;
-        const subcategoryMatch = product.subcategory && typeof product.subcategory === 'object'
-          ? product.subcategory.name?.toLowerCase().includes(query)
-          : false;
-
-        return nameMatch || descMatch || skuMatch || categoryMatch || subcategoryMatch;
+        return nameMatch;
       });
     }
 
@@ -1363,6 +1352,7 @@ const AdminDashboard: React.FC = () => {
 
     return () => clearTimeout(timer);
   }, [products, selectedCategoryFilter, selectedSubCategoryFilter, productSearchQuery]);
+
 
   const handleSubCategoryFilterChange = async (categoryId: string) => {
     setSelectedSubCategoryFilter(categoryId);
@@ -2442,10 +2432,6 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
-
-
-
-
   const handleAddSubCategoryToCategory = (categoryId: string) => {
     const category = categories.find(cat => cat._id === categoryId);
     if (category) {
@@ -2788,8 +2774,6 @@ const AdminDashboard: React.FC = () => {
       setLoadingOrders(false);
     }
   };
-
-
 
   // Attribute Type Management Functions
   const fetchAttributeTypes = async (categoryId?: string, subCategoryId?: string) => {
@@ -3759,8 +3743,6 @@ const AdminDashboard: React.FC = () => {
   };
 
   // Department Management Functions
-
-
   const handleUpdateOrderStatus = async (orderId: string, status?: string, action?: string, deliveryDate?: string) => {
     try {
       const updateData: any = {};
@@ -5663,9 +5645,6 @@ const AdminDashboard: React.FC = () => {
   };
 
   // handleUpdateUserRole and handleCreateEmployee moved to ManageUsers
-
-
-
   const handleDeleteUpload = async (uploadId: string) => {
     if (!window.confirm("Are you sure you want to delete this uploaded image?")) {
       return;
@@ -6092,8 +6071,6 @@ const AdminDashboard: React.FC = () => {
             )}
 
 
-
-
             {/* Orders Management */}
             {activeTab === "orders" && (
               <div>
@@ -6498,7 +6475,6 @@ const AdminDashboard: React.FC = () => {
             )}
 
             {/* Manage Products */}
-            {/* Manage Products */}
             {activeTab === "manage-products" && (
               <ManageProductsView
                 products={products}
@@ -6618,9 +6594,6 @@ const AdminDashboard: React.FC = () => {
                 onNavigate={setActiveTab}
               />
             )}
-
-
-
 
             {/* Attribute Rules Management */}
             {

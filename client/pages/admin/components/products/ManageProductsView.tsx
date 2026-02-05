@@ -654,6 +654,11 @@ const ManageProductsView: React.FC<ManageProductsViewProps> = ({
                                 className="w-full"
                                 searchPlaceholder="Search categories..."
                                 enableSearch={true}
+                                buttonClassName="!border-teal-500 hover:!border-teal-600"
+                                dropdownClassName="!border-teal-500"
+                                searchClassName="!border-teal-500 focus:!border-teal-500 focus:!ring-teal-500"
+                                searchIconClassName="!text-teal-600 !bg-teal-50 hover:!bg-teal-100"
+                                scrollbarColor="#14b8a6"
                             />
                         </div>
 
@@ -667,7 +672,12 @@ const ManageProductsView: React.FC<ManageProductsViewProps> = ({
                                 options={subCategoryOptions}
                                 className="w-full"
                                 searchPlaceholder="Search subcategories..."
-                                enableSearch={!selectedCategoryFilter ? false : true}
+                                enableSearch={true}
+                                buttonClassName="!border-teal-500 hover:!border-teal-600"
+                                dropdownClassName="!border-teal-500"
+                                searchClassName="!border-teal-500 focus:!border-teal-500 focus:!ring-teal-500"
+                                searchIconClassName="!text-teal-600 !bg-teal-50 hover:!bg-teal-100"
+                                scrollbarColor="#14b8a6"
                             />
                         </div>
                     </div>

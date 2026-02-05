@@ -17,7 +17,7 @@ import {
     ChevronUp,
     Layers,
 } from 'lucide-react';
-import { ReviewFilterDropdown } from '../../../../components/ReviewFilterDropdown';
+import { SearchableDropdown } from '../../../../components/SearchableDropdown';
 import { API_BASE_URL_WITH_API as API_BASE_URL } from '../../../../lib/apiConfig';
 
 interface Category {
@@ -718,7 +718,7 @@ const ManageCategoriesView: React.FC<ManageCategoriesViewProps> = ({
                         </div>
                     </div>
                     <div className="flex gap-2">
-                        
+
                     </div>
                 </div>
             </div>
@@ -764,7 +764,7 @@ const ManageCategoriesView: React.FC<ManageCategoriesViewProps> = ({
                     {viewMode === 'categories' && (
                         <div>
                             <label className="block text-sm font-semibold text-gray-900 mb-2">Type</label>
-                            <ReviewFilterDropdown
+                            <SearchableDropdown
                                 label="Filter by Type"
                                 value={categoryTypeFilter || ''}
                                 onChange={(value) => setCategoryTypeFilter(value as string)}
@@ -774,6 +774,9 @@ const ManageCategoriesView: React.FC<ManageCategoriesViewProps> = ({
                                     { value: 'Bulk', label: 'Bulk' },
                                 ]}
                                 className="w-full"
+                                enableSearch={false}
+                                buttonClassName="!border-teal-500 hover:!border-teal-600"
+                                dropdownClassName="!border-teal-500"
                             />
                         </div>
                     )}
@@ -782,7 +785,7 @@ const ManageCategoriesView: React.FC<ManageCategoriesViewProps> = ({
                     {viewMode === 'categories' && (
                         <div>
                             <label className="block text-sm font-semibold text-gray-900 mb-2">Level</label>
-                            <ReviewFilterDropdown
+                            <SearchableDropdown
                                 label="Filter by Level"
                                 value={categoryTopLevelFilter || ''}
                                 onChange={(value) => setCategoryTopLevelFilter(value as string)}
@@ -792,6 +795,9 @@ const ManageCategoriesView: React.FC<ManageCategoriesViewProps> = ({
                                     { value: 'sub', label: 'Subcategories Only' },
                                 ]}
                                 className="w-full"
+                                enableSearch={false}
+                                buttonClassName="!border-teal-500 hover:!border-teal-600"
+                                dropdownClassName="!border-teal-500"
                             />
                         </div>
                     )}

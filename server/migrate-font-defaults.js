@@ -12,7 +12,7 @@ dotenv.config({ path: join(__dirname, '.env') });
 
 const migrateFontDefaults = async () => {
     try {
-        await mongoose.connect(process.env.MONGO_URI);
+        await mongoose.connect(process.env.MONGO_TEST_URI);
         console.log('✅ Connected to MongoDB');
 
         // Update all services that have null font values
@@ -44,7 +44,7 @@ const migrateFontDefaults = async () => {
         );
 
         console.log(`✅ Updated ${result.modifiedCount} services with default font values`);
-        
+
         // Verify the update
         const services = await Service.find({}).select('name navbarNameFontSize cardTitleFontSize');
         console.log('\n📋 Sample services after migration:');

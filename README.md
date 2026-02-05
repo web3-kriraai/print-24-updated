@@ -55,7 +55,7 @@ Create `server/.env`:
 ```env
 PORT=5000
 NODE_ENV=development
-MONGO_URI=your-mongodb-connection-string
+MONGO_TEST_URI=your-mongodb-connection-string
 JWT_SECRET=your-jwt-secret
 CLOUDINARY_CLOUD_NAME=your-cloud-name
 CLOUDINARY_API_KEY=your-api-key
@@ -180,7 +180,7 @@ npm start         # Start server
 ### Server (.env)
 - `PORT` - Server port (default: 5000)
 - `NODE_ENV` - Environment (development/production)
-- `MONGO_URI` - MongoDB connection string
+- `MONGO_TEST_URI` - MongoDB connection string
 - `JWT_SECRET` - JWT signing secret
 - `CLOUDINARY_CLOUD_NAME` - Cloudinary cloud name
 - `CLOUDINARY_API_KEY` - Cloudinary API key

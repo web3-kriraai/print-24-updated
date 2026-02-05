@@ -12,17 +12,17 @@ import mongoose from 'mongoose';
 import AttributeType from './src/models/attributeTypeModal.js';
 import SubAttribute from './src/models/subAttributeSchema.js';
 
-const MONGO_URI = process.env.MONGO_URI;
+const MONGO_TEST_URI = process.env.MONGO_TEST_URI;
 
-if (!MONGO_URI) {
-  console.error('❌ MONGO_URI environment variable is not set!');
+if (!MONGO_TEST_URI) {
+  console.error('❌ MONGO_TEST_URI environment variable is not set!');
   process.exit(1);
 }
 
 async function fixParentValueMismatches() {
   try {
     console.log('🔌 Connecting to MongoDB...');
-    await mongoose.connect(MONGO_URI);
+    await mongoose.connect(MONGO_TEST_URI);
     console.log('✅ Connected to MongoDB');
 
     // Get all sub-attributes
@@ -43,7 +43,7 @@ async function fixParentValueMismatches() {
 
     for (const [parentId, subAttrs] of Object.entries(subAttrsByParent)) {
       const attributeType = await AttributeType.findById(parentId);
-      
+
       if (!attributeType) {
         continue;
       }
@@ -55,14 +55,14 @@ async function fixParentValueMismatches() {
         // Store normalized key -> exact value
         const normalizedKey = exactValue.replace(/-$/, '').toLowerCase();
         exactValuesMap[normalizedKey] = exactValue;
-        
+
         // Also store exact match
         exactValuesMap[exactValue] = exactValue;
       }
 
       for (const subAttr of subAttrs) {
         const currentParentValue = subAttr.parentValue;
-        
+
         // Check if exact match exists
         const exactMatch = attributeType.attributeValues.find(
           av => String(av.value).trim() === currentParentValue

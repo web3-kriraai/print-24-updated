@@ -18,7 +18,7 @@ dotenv.config({ path: path.join(__dirname, '../.env') });
 const seedVisitingCards = async () => {
   try {
     // Connect to MongoDB
-    await mongoose.connect(process.env.MONGO_URI);
+    await mongoose.connect(process.env.MONGO_TEST_URI);
     console.log('✅ Connected to MongoDB\n');
 
     // Step 1: Find or create Category and SubCategory
@@ -57,9 +57,9 @@ const seedVisitingCards = async () => {
 
     // Step 2: Create Attributes
     console.log('\n📋 Step 2: Creating Attributes...');
-    
+
     const attributes = {};
-    
+
     // Paper GSM
     let paperGSM = await AttributeType.findOne({ attributeName: 'Paper GSM' });
     if (!paperGSM) {
