@@ -32,6 +32,7 @@ import { API_BASE_URL_WITH_API as API_BASE_URL } from "../../../../lib/apiConfig
 import { getAuthHeaders } from "../../../../utils/auth";
 import { Product } from "../products/ManageProductsView";
 import { AdminSearchableDropdown } from "../../../../components/AdminSearchableDropdown";
+import { SearchableDropdown } from "../../../../components/SearchableDropdown";
 
 // Interface Definitions
 interface AttributeType {
@@ -450,6 +451,35 @@ const ManageAttributeRules: React.FC<ManageAttributeRulesProps> = ({
         return text.substring(0, maxLength) + '...';
     };
 
+    const attributeOptions = React.useMemo(() => [
+        { value: "", label: "All Attributes" },
+        ...attributeTypes.map(attr => ({
+            value: attr._id,
+            label: attr.systemName || attr.attributeName
+        }))
+    ], [attributeTypes]);
+
+    const actionOptions = [
+        { value: "", label: "All Actions" },
+        { value: "SHOW", label: "Show" },
+        { value: "HIDE", label: "Hide" },
+        { value: "SHOW_ONLY", label: "Show Only" },
+        { value: "SET_DEFAULT", label: "Set Default" },
+        { value: "QUANTITY", label: "Quantity" },
+    ];
+
+    const statusOptions = [
+        { value: "all", label: "All Status" },
+        { value: "active", label: "Active" },
+        { value: "inactive", label: "Inactive" },
+    ];
+
+    const scopeOptions = [
+        { value: "all", label: "All Scopes" },
+        { value: "global", label: "Global" },
+        { value: "product", label: "Product" },
+    ];
+
     return (
         <div className="space-y-6 animate-fadeIn">
             {/* Header */}
@@ -540,62 +570,74 @@ const ManageAttributeRules: React.FC<ManageAttributeRulesProps> = ({
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
                     <div className="relative">
                         <label className="block text-xs font-medium text-gray-700 mb-1 pl-1">Attribute</label>
-                        <select
+                        <SearchableDropdown
+                            label="All Attributes"
                             value={attributeRuleFilter}
-                            onChange={(e) => setAttributeRuleFilter(e.target.value)}
-                            className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500/30 focus:border-indigo-400 transition-all duration-300 hover:border-indigo-300 bg-white appearance-none"
-                        >
-                            <option value="">All Attributes</option>
-                            {attributeTypes.map(attr => (
-                                <option key={attr._id} value={attr._id}>{attr.systemName || attr.attributeName}</option>
-                            ))}
-                        </select>
-                        <ChevronDown size={16} className="absolute right-3 top-9 text-gray-400 pointer-events-none" />
+                            onChange={(value) => setAttributeRuleFilter(value as string)}
+                            options={attributeOptions}
+                            className="w-full"
+                            searchPlaceholder="Search attributes..."
+                            enableSearch={true}
+                            buttonClassName="!border-gray-200 hover:!border-indigo-300"
+                            dropdownClassName="!border-gray-200"
+                            searchClassName="!border-gray-200 focus:!border-indigo-400 focus:!ring-indigo-500/30"
+                            searchIconClassName="!text-indigo-600 !bg-indigo-50 hover:!bg-indigo-100"
+                            scrollbarColor="#6366f1"
+                        />
                     </div>
 
                     <div className="relative">
                         <label className="block text-xs font-medium text-gray-700 mb-1 pl-1">Action Type</label>
-                        <select
+                        <SearchableDropdown
+                            label="All Actions"
                             value={ruleActionTypeFilter}
-                            onChange={(e) => setRuleActionTypeFilter(e.target.value)}
-                            className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500/30 focus:border-indigo-400 transition-all duration-300 hover:border-indigo-300 bg-white appearance-none"
-                        >
-                            <option value="">All Actions</option>
-                            <option value="SHOW">Show</option>
-                            <option value="HIDE">Hide</option>
-                            <option value="SHOW_ONLY">Show Only</option>
-                            <option value="SET_DEFAULT">Set Default</option>
-                            <option value="QUANTITY">Quantity</option>
-                        </select>
-                        <Filter size={16} className="absolute right-3 top-9 text-gray-400 pointer-events-none" />
+                            onChange={(value) => setRuleActionTypeFilter(value as string)}
+                            options={actionOptions}
+                            className="w-full"
+                            searchPlaceholder="Search actions..."
+                            enableSearch={true}
+                            buttonClassName="!border-gray-200 hover:!border-indigo-300"
+                            dropdownClassName="!border-gray-200"
+                            searchClassName="!border-gray-200 focus:!border-indigo-400 focus:!ring-indigo-500/30"
+                            searchIconClassName="!text-indigo-600 !bg-indigo-50 hover:!bg-indigo-100"
+                            scrollbarColor="#6366f1"
+                        />
                     </div>
 
                     <div className="relative">
                         <label className="block text-xs font-medium text-gray-700 mb-1 pl-1">Status</label>
-                        <select
+                        <SearchableDropdown
+                            label="All Status"
                             value={ruleStatusFilter}
-                            onChange={(e) => setRuleStatusFilter(e.target.value as any)}
-                            className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500/30 focus:border-indigo-400 transition-all duration-300 hover:border-indigo-300 bg-white appearance-none"
-                        >
-                            <option value="all">All Status</option>
-                            <option value="active">Active</option>
-                            <option value="inactive">Inactive</option>
-                        </select>
-                        <Bell size={16} className="absolute right-3 top-9 text-gray-400 pointer-events-none" />
+                            onChange={(value) => setRuleStatusFilter(value as any)}
+                            options={statusOptions}
+                            className="w-full"
+                            searchPlaceholder="Search status..."
+                            enableSearch={true}
+                            buttonClassName="!border-gray-200 hover:!border-indigo-300"
+                            dropdownClassName="!border-gray-200"
+                            searchClassName="!border-gray-200 focus:!border-indigo-400 focus:!ring-indigo-500/30"
+                            searchIconClassName="!text-indigo-600 !bg-indigo-50 hover:!bg-indigo-100"
+                            scrollbarColor="#6366f1"
+                        />
                     </div>
 
                     <div className="relative">
                         <label className="block text-xs font-medium text-gray-700 mb-1 pl-1">Scope</label>
-                        <select
+                        <SearchableDropdown
+                            label="All Scopes"
                             value={ruleScopeFilter}
-                            onChange={(e) => setRuleScopeFilter(e.target.value as any)}
-                            className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500/30 focus:border-indigo-400 transition-all duration-300 hover:border-indigo-300 bg-white appearance-none"
-                        >
-                            <option value="all">All Scopes</option>
-                            <option value="global">Global</option>
-                            <option value="product">Product</option>
-                        </select>
-                        <Globe size={16} className="absolute right-3 top-9 text-gray-400 pointer-events-none" />
+                            onChange={(value) => setRuleScopeFilter(value as any)}
+                            options={scopeOptions}
+                            className="w-full"
+                            searchPlaceholder="Search scopes..."
+                            enableSearch={true}
+                            buttonClassName="!border-gray-200 hover:!border-indigo-300"
+                            dropdownClassName="!border-gray-200"
+                            searchClassName="!border-gray-200 focus:!border-indigo-400 focus:!ring-indigo-500/30"
+                            searchIconClassName="!text-indigo-600 !bg-indigo-50 hover:!bg-indigo-100"
+                            scrollbarColor="#6366f1"
+                        />
                     </div>
                 </div>
 
