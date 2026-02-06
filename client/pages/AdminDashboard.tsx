@@ -323,6 +323,7 @@ const AdminDashboard: React.FC = () => {
   // Product form state
   const [productForm, setProductForm] = useState({
     name: "",
+    shortDescription: "",
     slug: "",
     description: "",
     descriptionArray: [] as string[],
@@ -4012,6 +4013,8 @@ const AdminDashboard: React.FC = () => {
 
       const formData = new FormData();
       formData.append("name", productForm.name);
+      formData.append("shortDescription", productForm.shortDescription || "");
+      console.log('📤 SENDING shortDescription:', productForm.shortDescription, 'length:', productForm.shortDescription?.length);
       if (productForm.slug) {
         formData.append("slug", productForm.slug);
       }
@@ -4249,6 +4252,7 @@ const AdminDashboard: React.FC = () => {
       setIsProductSlugManuallyEdited(false);
       setProductForm({
         name: "",
+        shortDescription: "",
         slug: "",
         description: "",
         descriptionArray: [],
@@ -4456,6 +4460,7 @@ const AdminDashboard: React.FC = () => {
       setIsProductSlugManuallyEdited(true);
       setProductForm({
         name: product.name || "",
+        shortDescription: product.shortDescription || "",
         slug: product.slug || "",
         description: descriptionText,
         descriptionArray: product.descriptionArray || [],
@@ -4763,6 +4768,7 @@ const AdminDashboard: React.FC = () => {
     setIsNestedSubcategoryMode(false);
     setProductForm({
       name: "",
+      shortDescription: "",
       slug: "",
       description: "",
       descriptionArray: [],

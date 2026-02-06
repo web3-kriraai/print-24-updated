@@ -34,6 +34,7 @@ interface GlossProduct {
   _id: string;
   id: string;
   name: string;
+  shortDescription?: string;
   description?: string;
   descriptionArray?: string[];
   filters: {
@@ -510,6 +511,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
               setPdpError(null);
               const pdpResponse = await fetch(`${API_BASE_URL}/products/${productId}/detail`, {
                 method: "GET",
+                cache: "no-store",
                 headers: {
                   Accept: "application/json",
                 },
@@ -543,6 +545,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                     _id: productData._id,
                     id: productData._id,
                     name: productData.name || '',
+                    shortDescription: productData.shortDescription || '',
                     description: productData.description || '',
                     descriptionArray: productData.descriptionArray || (productData.description ? [productData.description] : []),
                     filters: {
@@ -931,6 +934,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
           productsUrl = `${API_BASE_URL}/products/subcategory/${productSubcategoryId}`;
           productsResponse = await fetch(productsUrl, {
             method: "GET",
+            cache: "no-store",
             headers: {
               Accept: "application/json",
             },
@@ -940,6 +944,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
           productsUrl = `${API_BASE_URL}/products/category/${categoryId}`;
           productsResponse = await fetch(productsUrl, {
             method: "GET",
+            cache: "no-store",
             headers: {
               Accept: "application/json",
             },
@@ -984,6 +989,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                 try {
                   const categoryProductsResponse = await fetch(`${API_BASE_URL}/products/category/${categoryId}`, {
                     method: "GET",
+                    cache: "no-store",
                     headers: {
                       Accept: "application/json",
                     },
@@ -1005,39 +1011,42 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
               }
 
               // Map API products to GlossProduct format
-              const mappedProducts: GlossProduct[] = finalProductsData.map((product: any) => ({
-                _id: product._id,
-                id: product._id,
-                name: product.name || '',
-                description: product.description || '',
-                descriptionArray: product.descriptionArray || (product.description ? [product.description] : []),
-                filters: {
-                  printingOption: product.filters?.printingOption || [],
-                  orderQuantity: product.filters?.orderQuantity || { min: 1000, max: 72000, multiples: 1000 },
-                  deliverySpeed: product.filters?.deliverySpeed || [],
-                  textureType: product.filters?.textureType || undefined,
-                  filterPricesEnabled: product.filters?.filterPricesEnabled || false,
-                  printingOptionPrices: product.filters?.printingOptionPrices || [],
-                  deliverySpeedPrices: product.filters?.deliverySpeedPrices || [],
-                  textureTypePrices: product.filters?.textureTypePrices || [],
-                },
-                basePrice: product.basePrice || 0,
-                image: product.image,
-                subcategory: product.subcategory,
-                options: product.options || [],
-                dynamicAttributes: product.dynamicAttributes || [],
-                quantityDiscounts: product.quantityDiscounts || [],
-                maxFileSizeMB: product.maxFileSizeMB,
-                minFileWidth: product.minFileWidth,
-                maxFileWidth: product.maxFileWidth,
-                minFileHeight: product.minFileHeight,
-                maxFileHeight: product.maxFileHeight,
-                blockCDRandJPG: product.blockCDRandJPG || false,
-                additionalDesignCharge: product.additionalDesignCharge || 0,
-                gstPercentage: product.gstPercentage || 0,
-                showPriceIncludingGst: product.showPriceIncludingGst || false,
-                instructions: product.instructions || "",
-              }));
+              const mappedProducts: GlossProduct[] = finalProductsData.map((product: any) => {
+                return {
+                  _id: product._id,
+                  id: product._id,
+                  name: product.name || '',
+                  shortDescription: product.shortDescription || '',
+                  description: product.description || '',
+                  descriptionArray: product.descriptionArray || (product.description ? [product.description] : []),
+                  filters: {
+                    printingOption: product.filters?.printingOption || [],
+                    orderQuantity: product.filters?.orderQuantity || { min: 1000, max: 72000, multiples: 1000 },
+                    deliverySpeed: product.filters?.deliverySpeed || [],
+                    textureType: product.filters?.textureType || undefined,
+                    filterPricesEnabled: product.filters?.filterPricesEnabled || false,
+                    printingOptionPrices: product.filters?.printingOptionPrices || [],
+                    deliverySpeedPrices: product.filters?.deliverySpeedPrices || [],
+                    textureTypePrices: product.filters?.textureTypePrices || [],
+                  },
+                  basePrice: product.basePrice || 0,
+                  image: product.image,
+                  subcategory: product.subcategory,
+                  options: product.options || [],
+                  dynamicAttributes: product.dynamicAttributes || [],
+                  quantityDiscounts: product.quantityDiscounts || [],
+                  maxFileSizeMB: product.maxFileSizeMB,
+                  minFileWidth: product.minFileWidth,
+                  maxFileWidth: product.maxFileWidth,
+                  minFileHeight: product.minFileHeight,
+                  maxFileHeight: product.maxFileHeight,
+                  blockCDRandJPG: product.blockCDRandJPG || false,
+                  additionalDesignCharge: product.additionalDesignCharge || 0,
+                  gstPercentage: product.gstPercentage || 0,
+                  showPriceIncludingGst: product.showPriceIncludingGst || false,
+                  instructions: product.instructions || "",
+                };
+              });
 
               setProducts(mappedProducts);
 
@@ -1058,6 +1067,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                   if (categoryProductsUrl) {
                     const categoryProductsResponse = await fetch(categoryProductsUrl, {
                       method: "GET",
+                      cache: "no-store",
                       headers: {
                         Accept: "application/json",
                       },
@@ -1073,6 +1083,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                             _id: product._id,
                             id: product._id,
                             name: product.name || '',
+                            shortDescription: product.shortDescription || '',
                             description: product.description || '',
                             descriptionArray: product.descriptionArray || [],
                             filters: {
@@ -4423,7 +4434,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
                         <div className="border-t border-gray-200 mt-3 pt-3 flex justify-between items-center">
                           <span className="text-xs sm:text-sm font-semibold text-gray-700">
-                            Estimated total
+                            Estimated Total Value
                           </span>
                           <span className="text-base sm:text-lg font-bold text-gray-900">
                             ₹{(price + gstAmount).toFixed(2)}
@@ -4557,9 +4568,18 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                               <div className="flex-1">
                                 {/* Product Header with Price */}
                                 <div className="border-b border-gray-100 flex flex-row justify-between items-center">
-                                  <h1 className="font-serif text-xl sm:text-2xl md:text-3xl font-bold text-gray-900 mb-1">
-                                    {selectedProduct.name}
-                                  </h1>
+                                  <div>
+                                    <h1 className="font-serif text-xl sm:text-2xl md:text-3xl font-bold text-gray-900 mb-1">
+                                      {selectedProduct.name}
+                                    </h1>
+                                    {selectedProduct.shortDescription && selectedProduct.shortDescription.trim() !== '' && (
+                                      <div className="mt-2 mb-4">
+                                        <p className="text-[15px] md:text-[16px] text-slate-500 leading-relaxed">
+                                          {selectedProduct.shortDescription}
+                                        </p>
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
 
                                 {/* Product Variants Filter - Only shown when nested subcategories exist */}
@@ -6131,10 +6151,10 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                         <div className="mt-auto pt-6 border-t border-gray-100 bg-white bottom-0 z-10">
                           <div className="flex justify-between items-end mb-4">
                             <div>
-                              <p className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-1">Total Price</p>
+                              <p className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-1">Estimated Total Value</p>
                               <div className="flex items-baseline gap-1">
                                 <span className="text-3xl font-bold text-gray-900">
-                                  ₹{(price + gstAmount).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                                  ₹{(price + gstAmount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </span>
                                 <span className="text-xs text-gray-500 font-medium">incl. taxes</span>
                               </div>

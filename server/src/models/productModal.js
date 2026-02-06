@@ -15,6 +15,7 @@ const ProductSchema = new mongoose.Schema(
     },
 
     name: { type: String, required: true },
+    shortDescription: { type: String }, // Short description displayed below product name
     slug: {
       type: String,
       required: true,

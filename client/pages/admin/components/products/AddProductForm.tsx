@@ -670,6 +670,7 @@ const AddProductForm: React.FC<AddProductFormProps> = ({
 
             const formData = new FormData();
             formData.append("name", productForm.name);
+            formData.append("shortDescription", productForm.shortDescription || "");
             if (productForm.slug) {
                 formData.append("slug", productForm.slug);
             }
@@ -887,6 +888,7 @@ const AddProductForm: React.FC<AddProductFormProps> = ({
             setIsProductSlugManuallyEdited(false);
             setProductForm({
                 name: "",
+                shortDescription: "",
                 slug: "",
                 description: "",
                 descriptionArray: [],
@@ -1075,6 +1077,7 @@ const AddProductForm: React.FC<AddProductFormProps> = ({
                                 placeholder="e.g., Glossy Business Cards - Premium"
                                 maxLength={100}
                             />
+
                             {productFormErrors.name && (
                                 <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
                                     <AlertCircle size={12} />
@@ -1084,6 +1087,38 @@ const AddProductForm: React.FC<AddProductFormProps> = ({
                             {productForm.name && productForm.name.length > 80 && (
                                 <p className="text-xs text-yellow-600 mt-1">
                                     {100 - productForm.name.length} characters remaining
+                                </p>
+                            )}
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 flex items-center gap-2">
+                                Short Description
+                                <div className="group relative">
+                                    <Info size={14} className="text-slate-400 cursor-help" />
+                                    <div className="absolute left-0 bottom-full mb-2 hidden group-hover:block z-20 w-64 p-3 bg-slate-800 text-white text-xs rounded-xl shadow-xl backdrop-blur-md">
+                                        A brief description that appears below the product name on the detail page. Keep it concise (max 200 characters).
+                                    </div>
+                                </div>
+                            </label>
+                            <textarea
+                                id="product-shortDescription"
+                                name="shortDescription"
+                                value={productForm.shortDescription || ""}
+                                onChange={(e) => {
+                                    setProductForm({
+                                        ...productForm,
+                                        shortDescription: e.target.value
+                                    });
+                                }}
+                                className="w-full px-4 py-2.5 bg-white/50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-sky-500/10 focus:border-sky-400 transition-all outline-none hover:border-slate-300 resize-none"
+                                placeholder="e.g., Premium quality with vibrant colors and glossy finish"
+                                maxLength={200}
+                                rows={2}
+                            />
+                            {productForm.shortDescription && productForm.shortDescription.length > 150 && (
+                                <p className="text-xs text-yellow-600 mt-1">
+                                    {200 - productForm.shortDescription.length} characters remaining
                                 </p>
                             )}
                         </div>
