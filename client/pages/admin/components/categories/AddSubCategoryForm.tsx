@@ -7,6 +7,7 @@ import RichTextEditor from '../../../../components/RichTextEditor';
 interface SubCategoryFormState {
     name: string;
     description: string;
+    shortDescription: string;
     category: string;
     parent: string;
     type: string;
@@ -90,8 +91,8 @@ const AddSubCategoryForm: React.FC<AddSubCategoryFormProps> = ({
                     </motion.div>
                     <div className="flex-1 min-w-0">
                         <h2 className="text-lg md:text-xl font-bold text-slate-800">
-                        {editingSubCategoryId ? 'Edit Subcategory' : 'Add New Subcategory'}
-                    </h2>
+                            {editingSubCategoryId ? 'Edit Subcategory' : 'Add New Subcategory'}
+                        </h2>
                         <p className="text-xs md:text-sm text-slate-600 mt-1">
                             Configure subcategory details under a parent category
                         </p>
@@ -352,6 +353,20 @@ const AddSubCategoryForm: React.FC<AddSubCategoryFormProps> = ({
                             value={subCategoryForm.description}
                             onChange={(value) => setSubCategoryForm({ ...subCategoryForm, description: value })}
                             placeholder="Enter subcategory description..."
+                        />
+                    </div>
+
+                    {/* Short Description */}
+                    <div className="md:col-span-2">
+                        <label className="block text-xs font-semibold text-slate-800 mb-1.5">
+                            Short Description <span className="text-slate-400 font-normal">(displayed on card)</span>
+                        </label>
+                        <input
+                            type="text"
+                            value={subCategoryForm.shortDescription || ''}
+                            onChange={(e) => setSubCategoryForm({ ...subCategoryForm, shortDescription: e.target.value })}
+                            className="w-full px-3 py-2.5 text-sm bg-white border border-slate-300 rounded-lg focus:border-rose-400 focus:ring-2 focus:ring-rose-100 transition-all"
+                            placeholder="Brief summary for display on cards..."
                         />
                     </div>
                 </div>

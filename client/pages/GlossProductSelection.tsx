@@ -4007,9 +4007,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
           transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
           position: relative;
           transform: scale(0.9);
-          opacity: 0.7;
           z-index: 0;
-          filter: grayscale(20%);
         }
         
         .deck-card:not(.active):hover {
@@ -4537,8 +4535,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
                                         {/* Label */}
                                         <div className="text-center w-full pointer-events-none mt-0.5">
-                                          <span className={`block text-[9px] font-bold uppercase tracking-tight leading-tight line-clamp-2 ${isCurrentProduct ? 'text-gray-900' : 'text-gray-500'
-                                            }`}>
+                                          <span className={`block text-[9px] font-bold uppercase tracking-tight leading-tight line-clamp-2 text-gray-900`}>
                                             {product.name}
                                           </span>
                                         </div>

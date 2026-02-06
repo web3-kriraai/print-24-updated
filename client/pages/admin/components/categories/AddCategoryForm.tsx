@@ -44,6 +44,7 @@ interface CategoryFormState {
 interface SubCategoryFormState {
     name: string;
     description: string;
+    shortDescription: string;
     category: string;
     parent: string;
     type: string;

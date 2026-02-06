@@ -417,6 +417,7 @@ const AdminDashboard: React.FC = () => {
   const [subCategoryForm, setSubCategoryForm] = useState({
     name: "",
     description: "",
+    shortDescription: "",
     category: "",
     parent: "", // Parent subcategory for nesting
     type: "", // Type filter for parent category selection
@@ -2439,6 +2440,7 @@ const AdminDashboard: React.FC = () => {
       setSubCategoryForm({
         name: "",
         description: "",
+        shortDescription: "",
         category: categoryId,
         parent: "",
         type: category.type || "",
@@ -4817,6 +4819,7 @@ const AdminDashboard: React.FC = () => {
     setSubCategoryForm({
       name: "",
       description: "",
+      shortDescription: "",
       category: "",
       parent: "",
       type: "",
@@ -5231,6 +5234,7 @@ const AdminDashboard: React.FC = () => {
       const formData = new FormData();
       formData.append("name", subCategoryForm.name.trim());
       formData.append("description", subCategoryForm.description || "");
+      formData.append("shortDescription", subCategoryForm.shortDescription || "");
       formData.append("category", subCategoryForm.category);
       if (subCategoryForm.parent && subCategoryForm.parent !== "") {
         formData.append("parent", subCategoryForm.parent);
@@ -5276,6 +5280,7 @@ const AdminDashboard: React.FC = () => {
       setSubCategoryForm({
         name: "",
         description: "",
+        shortDescription: "",
         category: "",
         parent: "",
         type: "",
@@ -5329,6 +5334,7 @@ const AdminDashboard: React.FC = () => {
       setSubCategoryForm({
         name: subCategory.name || "",
         description: subCategory.description || "",
+        shortDescription: subCategory.shortDescription || "",
         category: categoryId,
         parent: parentId,
         type: categoryType,

@@ -11,6 +11,7 @@ interface SubCategory {
   _id: string;
   name: string;
   description: string;
+  shortDescription?: string;
   image?: string;
   slug?: string;
   sortOrder?: number;
@@ -1312,6 +1313,11 @@ const VisitingCards: React.FC = () => {
                               <h3 className="font-serif text-xl sm:text-2xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent group-hover:from-purple-700 group-hover:to-rose-600 transition-all duration-400">
                                 {subCategory.name}
                               </h3>
+                              {subCategory.shortDescription && (
+                                <p className="text-sm text-gray-600 mt-2 line-clamp-2 leading-relaxed">
+                                  {subCategory.shortDescription}
+                                </p>
+                              )}
                             </div>
 
                             {/* Decorative Divider */}

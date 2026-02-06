@@ -7,6 +7,7 @@ import RichTextEditor from '../../../../components/RichTextEditor';
 interface SubCategoryFormState {
     name: string;
     description: string;
+    shortDescription: string;
     category: string;
     parent: string;
     type: string;
@@ -374,6 +375,20 @@ const AddNestedSubCategoryForm: React.FC<AddNestedSubCategoryFormProps> = ({
                                 </motion.button>
                             )}
                         </motion.div>
+                    </div>
+
+                    {/* Short Description */}
+                    <div className="md:col-span-2">
+                        <label className="block text-xs font-semibold text-slate-800 mb-1.5">
+                            Short Description <span className="text-slate-400 font-normal">(displayed on card)</span>
+                        </label>
+                        <input
+                            type="text"
+                            value={subCategoryForm.shortDescription || ''}
+                            onChange={(e) => setSubCategoryForm({ ...subCategoryForm, shortDescription: e.target.value })}
+                            className="w-full px-3 py-2.5 text-sm bg-white border border-slate-300 rounded-lg focus:border-rose-400 focus:ring-2 focus:ring-rose-100 transition-all"
+                            placeholder="Brief summary for display on cards..."
+                        />
                     </div>
 
                     {/* Description */}

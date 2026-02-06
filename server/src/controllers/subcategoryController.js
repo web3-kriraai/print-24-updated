@@ -33,7 +33,7 @@ const generateUniqueSubCategorySlug = async (baseSlug, excludeId = null) => {
 
 export const createSubCategory = async (req, res) => {
   try {
-    const { name, description, category, parent, slug, sortOrder } = req.body;
+    const { name, description, shortDescription, category, parent, slug, sortOrder } = req.body;
 
     // Validate required fields
     if (!name || name.trim() === "") {
@@ -154,6 +154,7 @@ export const createSubCategory = async (req, res) => {
     const data = await SubCategory.create({
       name,
       description,
+      shortDescription,
       category: categoryId, // Use the validated category ObjectId
       parent: parentSubcategory ? parentSubcategory._id : null, // Set parent if provided
       slug: subCategorySlug,
@@ -391,7 +392,7 @@ export const getSubCategoriesByParent = async (req, res) => {
 
 export const updateSubCategory = async (req, res) => {
   try {
-    const { name, description, category, parent, slug, sortOrder } = req.body;
+    const { name, description, shortDescription, category, parent, slug, sortOrder } = req.body;
     const subCategoryId = req.params.id;
 
     if (!subCategoryId) {
@@ -520,6 +521,7 @@ export const updateSubCategory = async (req, res) => {
     const updateData = {
       name: name !== undefined ? name : subCategory.name,
       description: description !== undefined ? description : subCategory.description,
+      shortDescription: shortDescription !== undefined ? shortDescription : subCategory.shortDescription,
       category: categoryId, // Use the validated category ObjectId
       parent: parent !== undefined ? (parentSubcategory ? parentSubcategory._id : null) : subCategory.parent,
       image: imageUrl,
