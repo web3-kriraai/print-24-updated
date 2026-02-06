@@ -28,6 +28,7 @@ export const createProduct = async (req, res) => {
       additionalDesignCharge,
       gstPercentage,
       showPriceIncludingGst,
+      showAttributePrices,
       instructions,
       productionSequence
     } = req.body;
@@ -232,6 +233,7 @@ export const createProduct = async (req, res) => {
     const parsedAdditionalDesignCharge = additionalDesignCharge ? parseFloat(additionalDesignCharge) : 0;
     const parsedGstPercentage = gstPercentage ? parseFloat(gstPercentage) : 0;
     const parsedShowPriceIncludingGst = showPriceIncludingGst === true || showPriceIncludingGst === 'true';
+    const parsedShowAttributePrices = showAttributePrices === undefined || showAttributePrices === true || showAttributePrices === 'true';
 
     // Parse productionSequence JSON
     let parsedProductionSequence = [];
@@ -321,6 +323,7 @@ export const createProduct = async (req, res) => {
       additionalDesignCharge: parsedAdditionalDesignCharge,
       gstPercentage: parsedGstPercentage,
       showPriceIncludingGst: parsedShowPriceIncludingGst,
+      showAttributePrices: parsedShowAttributePrices,
       instructions: instructions || "",
       productionSequence: parsedProductionSequence,
       sortOrder: nextSortOrder,
@@ -995,6 +998,7 @@ export const updateProduct = async (req, res) => {
       additionalDesignCharge,
       gstPercentage,
       showPriceIncludingGst,
+      showAttributePrices,
       instructions,
       productionSequence
     } = req.body;
@@ -1168,6 +1172,7 @@ export const updateProduct = async (req, res) => {
     const parsedAdditionalDesignCharge = additionalDesignCharge !== undefined ? (additionalDesignCharge ? parseFloat(additionalDesignCharge) : 0) : product.additionalDesignCharge;
     const parsedGstPercentage = gstPercentage !== undefined ? (gstPercentage ? parseFloat(gstPercentage) : 0) : product.gstPercentage;
     const parsedShowPriceIncludingGst = showPriceIncludingGst !== undefined ? (showPriceIncludingGst === true || showPriceIncludingGst === 'true') : (product.showPriceIncludingGst || false);
+    const parsedShowAttributePrices = showAttributePrices !== undefined ? (showAttributePrices === true || showAttributePrices === 'true') : (product.showAttributePrices !== undefined ? product.showAttributePrices : true);
 
     // Parse productionSequence JSON
     let parsedProductionSequence = product.productionSequence || [];
@@ -1300,6 +1305,7 @@ export const updateProduct = async (req, res) => {
         additionalDesignCharge: parsedAdditionalDesignCharge,
         gstPercentage: parsedGstPercentage,
         showPriceIncludingGst: parsedShowPriceIncludingGst,
+        showAttributePrices: parsedShowAttributePrices,
         instructions: instructions !== undefined ? instructions : product.instructions,
         productionSequence: parsedProductionSequence,
       },

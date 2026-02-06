@@ -157,6 +157,7 @@ const ProductSchema = new mongoose.Schema(
     additionalDesignCharge: { type: Number, default: 0 }, // Fixed fee for design help
     gstPercentage: { type: Number, default: 0 }, // GST percentage (required for invoice calculation)
     showPriceIncludingGst: { type: Boolean, default: false }, // If true, show prices including GST; if false, show excluding GST (industry standard)
+    showAttributePrices: { type: Boolean, default: true }, // If true, show attribute prices on product details; if false, hide them (pricing logic still applies)
 
     // Custom instructions for customers (must follow, otherwise company not responsible)
     instructions: { type: String }, // Custom instructions text that customers must follow

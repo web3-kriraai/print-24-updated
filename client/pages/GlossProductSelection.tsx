@@ -116,6 +116,7 @@ interface GlossProduct {
   gstPercentage?: number;
   // Price display setting
   showPriceIncludingGst?: boolean; // If true, show prices including GST; if false, show excluding GST
+  showAttributePrices?: boolean; // If true, show attribute prices; if false, hide them
   // Custom instructions for customers
   instructions?: string;
 }
@@ -582,6 +583,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                     additionalDesignCharge: productData.additionalDesignCharge || 0,
                     gstPercentage: productData.gstPercentage || 0,
                     showPriceIncludingGst: productData.showPriceIncludingGst || false,
+                    showAttributePrices: productData.showAttributePrices !== undefined ? productData.showAttributePrices : true,
                     instructions: productData.instructions || "",
                   };
 
@@ -5034,7 +5036,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                               </div>
                                             )}
                                             <div>{texture}</div>
-                                            {priceInfo !== null && (
+                                            {priceInfo !== null && (selectedProduct.showAttributePrices !== false) && (
                                               <div className="text-xs text-gray-600 mt-1">
                                                 {priceInfo > 0 ? '+' : ''}₹{Math.abs(priceInfo).toFixed(2)}/1k
                                               </div>
@@ -5080,7 +5082,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                               </div>
                                             )}
                                             <div className="font-bold text-sm">{speed}</div>
-                                            {priceInfo !== null && (
+                                            {priceInfo !== null && (selectedProduct.showAttributePrices !== false) && (
                                               <div className="text-xs text-gray-600 mt-1">
                                                 {priceInfo > 0 ? '+' : ''}₹{Math.abs(priceInfo).toFixed(2)} per 1000 units
                                               </div>
@@ -5217,7 +5219,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                               return (
                                                 <div key={idx}>
                                                   {range.label || `${min.toLocaleString()}${max ? ` - ${max.toLocaleString()}` : "+"} units`}
-                                                  {price > 0 && (
+                                                  {price > 0 && (selectedProduct.showAttributePrices !== false) && (
                                                     <span className="ml-2 text-green-600">
                                                       (₹{price.toFixed(2)})
                                                     </span>
@@ -5246,7 +5248,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                           {orderQuantity.rangeWiseQuantities.map((range, idx) => (
                                             <div key={idx}>
                                               {range.label || `${range.min.toLocaleString()}${range.max ? ` - ${range.max.toLocaleString()}` : "+"} units`}
-                                              {range.priceMultiplier !== 1.0 && (
+                                              {range.priceMultiplier !== 1.0 && (selectedProduct.showAttributePrices !== false) && (
                                                 <span className="ml-2 text-green-600">
                                                   ({range.priceMultiplier > 1 ? "+" : ""}{((range.priceMultiplier - 1) * 100).toFixed(0)}% price)
                                                 </span>
@@ -5428,20 +5430,23 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                           .filter((av: any) => av && av.value && av.label)
                                                           .map((av: any) => {
                                                             let priceDisplay = '';
-                                                            if (av.description) {
-                                                              const priceImpactMatch = av.description.match(/Price Impact: ₹([\d.]+)/);
-                                                              if (priceImpactMatch) {
-                                                                const priceImpact = parseFloat(priceImpactMatch[1]) || 0;
-                                                                if (priceImpact > 0) {
-                                                                  priceDisplay = ` (+₹${priceImpact.toFixed(2)}/unit)`;
+                                                            // Only show price if admin has enabled it
+                                                            if (selectedProduct && selectedProduct.showAttributePrices !== false) {
+                                                              if (av.description) {
+                                                                const priceImpactMatch = av.description.match(/Price Impact: ₹([\d.]+)/);
+                                                                if (priceImpactMatch) {
+                                                                  const priceImpact = parseFloat(priceImpactMatch[1]) || 0;
+                                                                  if (priceImpact > 0) {
+                                                                    priceDisplay = ` (+₹${priceImpact.toFixed(2)}/unit)`;
+                                                                  }
                                                                 }
                                                               }
-                                                            }
-                                                            if (!priceDisplay && av.priceMultiplier && av.priceMultiplier !== 1 && selectedProduct) {
-                                                              const basePrice = selectedProduct.basePrice || 0;
-                                                              const pricePerUnit = basePrice * (av.priceMultiplier - 1);
-                                                              if (Math.abs(pricePerUnit) >= 0.01) {
-                                                                priceDisplay = ` (+₹${pricePerUnit.toFixed(2)}/unit)`;
+                                                              if (!priceDisplay && av.priceMultiplier && av.priceMultiplier !== 1 && selectedProduct) {
+                                                                const basePrice = selectedProduct.basePrice || 0;
+                                                                const pricePerUnit = basePrice * (av.priceMultiplier - 1);
+                                                                if (Math.abs(pricePerUnit) >= 0.01) {
+                                                                  priceDisplay = ` (+₹${pricePerUnit.toFixed(2)}/unit)`;
+                                                                }
                                                               }
                                                             }
                                                             return {
@@ -5487,6 +5492,8 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                                                           {availableSubAttributes.map((subAttr) => {
                                                             const getSubAttrPriceDisplay = () => {
+                                                              // Only show price if admin has enabled it
+                                                              if (!selectedProduct || selectedProduct.showAttributePrices === false) return null;
                                                               if (!subAttr.priceAdd || subAttr.priceAdd === 0) return null;
                                                               return `+₹${subAttr.priceAdd.toFixed(2)}/piece`;
                                                             };
@@ -5602,6 +5609,9 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                     .map((av: any) => {
                                                       // Format price display as per unit price
                                                       const getPriceDisplay = () => {
+                                                        // Only show price if admin has enabled it
+                                                        if (!selectedProduct || selectedProduct.showAttributePrices === false) return null;
+
                                                         // Check for priceImpact first (new format with option usage)
                                                         if (av.description) {
                                                           const priceImpactMatch = av.description.match(/Price Impact: ₹([\d.]+)/);

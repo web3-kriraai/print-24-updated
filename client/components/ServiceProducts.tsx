@@ -136,28 +136,34 @@ const ServiceProducts: React.FC<ServiceProductsProps> = ({ service }) => {
         <div className="w-full bg-white py-12">
             <div className="max-w-[1920px] mx-auto px-2 sm:px-3 lg:px-4">
 
-                {/* Main Header */}
-                <div className="text-center mb-12">
-                    <motion.h2
-                        key={serviceData._id}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.5 }}
-                        className="text-3xl md:text-4xl font-bold uppercase mb-4"
-                        style={{ color: serviceData.color }}
-                    >
-                        {serviceData.serviceHeading || `${serviceData.name} SERVICES`}
-                    </motion.h2>
-                    <motion.p
-                        key={serviceData.description}
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        transition={{ duration: 0.5, delay: 0.2 }}
-                        className="text-gray-600 text-lg max-w-3xl mx-auto"
-                    >
-                        {serviceData.serviceDescription || serviceData.description}
-                    </motion.p>
-                </div>
+                {/* Main Header - Only show if there is content */}
+                {(serviceData.serviceHeading || serviceData.serviceDescription) && (
+                    <div className="text-center mb-12">
+                        {serviceData.serviceHeading && (
+                            <motion.h2
+                                key={serviceData._id}
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ duration: 0.5 }}
+                                className="text-3xl md:text-4xl font-bold uppercase mb-4"
+                                style={{ color: serviceData.color }}
+                            >
+                                {serviceData.serviceHeading}
+                            </motion.h2>
+                        )}
+                        {serviceData.serviceDescription && (
+                            <motion.p
+                                key={serviceData.serviceDescription}
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                transition={{ duration: 0.5, delay: 0.2 }}
+                                className="text-gray-600 text-lg max-w-3xl mx-auto"
+                            >
+                                {serviceData.serviceDescription}
+                            </motion.p>
+                        )}
+                    </div>
+                )}
 
                 {/* Titles and Items */}
                 {sortedTitles.length === 0 ? (

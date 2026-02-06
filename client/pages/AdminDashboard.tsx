@@ -104,6 +104,7 @@ interface Product {
   };
   image?: string;
   sortOrder?: number;
+  showAttributePrices?: boolean;
 }
 
 interface User {
@@ -375,6 +376,7 @@ const AdminDashboard: React.FC = () => {
       isAvailable: boolean;
     }>,
     existingImage: "", // For displaying current image when editing
+    showAttributePrices: true,
   });
 
   // Options table state
@@ -4157,6 +4159,7 @@ const AdminDashboard: React.FC = () => {
       }
       // Append price display setting
       formData.append("showPriceIncludingGst", productForm.showPriceIncludingGst ? "true" : "false");
+      formData.append("showAttributePrices", productForm.showAttributePrices ? "true" : "false");
 
       // Append custom instructions
       if (productForm.instructions) {
@@ -4285,6 +4288,7 @@ const AdminDashboard: React.FC = () => {
         instructions: "",
         productionSequence: [] as string[],
         existingImage: "",
+        showAttributePrices: true,
       });
       setOptionsTable([]);
       setFilterPricesEnabled(false);
@@ -4504,6 +4508,7 @@ const AdminDashboard: React.FC = () => {
             .filter((id: string) => id) // Filter out empty IDs
           : [],
         existingImage: product.image || "",
+        showAttributePrices: product.showAttributePrices ?? true,
       });
 
       if (product.options && Array.isArray(product.options) && product.options.length > 0) {
@@ -4797,6 +4802,7 @@ const AdminDashboard: React.FC = () => {
       maxFileHeight: "",
       productionSequence: [] as string[],
       showPriceIncludingGst: false,
+      showAttributePrices: true,
       variants: [],
       existingImage: "",
     });

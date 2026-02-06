@@ -13,6 +13,7 @@ interface ServicesMorphProps {
 
 const ServicesMorph: React.FC<ServicesMorphProps> = ({ onServiceSelect, services, selectedServiceId }) => {
     const [hasMorphed, setHasMorphed] = useState(false);
+    const [isVisible, setIsVisible] = useState(false);
     const stickyBarRef = useRef<HTMLDivElement>(null);
     const gridContainerRef = useRef<HTMLDivElement>(null);
     const navLinksRef = useRef<HTMLDivElement>(null);
@@ -20,6 +21,15 @@ const ServicesMorph: React.FC<ServicesMorphProps> = ({ onServiceSelect, services
     const { scrollSettings } = useScrollSettings();
     const { fontSettings } = useFontSettings();
     const { navbarSettings } = useNavbarSettings();
+
+    // Delayed visibility animation on mount
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setIsVisible(true);
+        }, 500); // 0.5 second delay
+
+        return () => clearTimeout(timer);
+    }, []);
 
     // Auto-scroll nav links to show selected service
     useEffect(() => {
@@ -299,7 +309,7 @@ const ServicesMorph: React.FC<ServicesMorphProps> = ({ onServiceSelect, services
                                         padding: '8px 12px',
                                         margin: '0',
                                         boxShadow: isActive
-                                            ? `0 4px 15px ${service.color}40, inset 0 0 0 2px ${service.color}`
+                                            ? `0 10px 30px ${service.color}66, 0 4px 10px rgba(0,0,0,0.1), inset 0 0 0 2px ${service.color}`
                                             : `0 2px 8px ${service.color}30`,
                                         transform: isActive ? 'scale(1.05)' : 'scale(1)',
                                         transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
@@ -347,7 +357,11 @@ const ServicesMorph: React.FC<ServicesMorphProps> = ({ onServiceSelect, services
             <div className="hero-wrapper">
                 <h1 className="hero-title py-5">OUR SERVICES</h1>
 
-                <div className="services-grid" id="gridContainer" ref={gridContainerRef}>
+                <div
+                    className={`services-grid ${isVisible ? 'visible' : ''}`}
+                    id="gridContainer"
+                    ref={gridContainerRef}
+                >
                     {services.map(service => (
                         <div
                             key={service._id}
@@ -369,7 +383,6 @@ const ServicesMorph: React.FC<ServicesMorphProps> = ({ onServiceSelect, services
                                     fontWeight: fontSettings.cardIntroFontWeight
                                 }}
                             >
-                                We Offer...
                             </span>
                             <h3
                                 className="card-title text-white"
@@ -380,15 +393,17 @@ const ServicesMorph: React.FC<ServicesMorphProps> = ({ onServiceSelect, services
                             >
                                 {service.name}
                             </h3>
-                            <p
-                                className="card-desc text-white/90"
-                                style={{
-                                    fontSize: fontSettings.cardDescFontSize,
-                                    fontWeight: fontSettings.cardDescFontWeight
-                                }}
-                            >
-                                {service.description}
-                            </p>
+                            {service.description && (
+                                <p
+                                    className="card-desc text-white/90"
+                                    style={{
+                                        fontSize: fontSettings.cardDescFontSize,
+                                        fontWeight: fontSettings.cardDescFontWeight
+                                    }}
+                                >
+                                    {service.description}
+                                </p>
+                            )}
                         </div>
                     ))}
                 </div>

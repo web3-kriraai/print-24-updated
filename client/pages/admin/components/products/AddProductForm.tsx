@@ -807,6 +807,7 @@ const AddProductForm: React.FC<AddProductFormProps> = ({
                 formData.append("gstPercentage", productForm.gstPercentage);
             }
             formData.append("showPriceIncludingGst", productForm.showPriceIncludingGst ? "true" : "false");
+            formData.append("showAttributePrices", productForm.showAttributePrices ? "true" : "false");
 
             // Append custom instructions
             if (productForm.instructions) {
@@ -920,6 +921,7 @@ const AddProductForm: React.FC<AddProductFormProps> = ({
                 additionalDesignCharge: "",
                 gstPercentage: "",
                 showPriceIncludingGst: false,
+                showAttributePrices: true,
                 instructions: "",
                 productionSequence: [] as string[],
             });
@@ -2381,6 +2383,20 @@ const AddProductForm: React.FC<AddProductFormProps> = ({
                             </div>
                             <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
                                 Show Price Including GST
+                            </span>
+                        </div>
+
+                        <div className="flex items-center gap-4 bg-slate-50/50 p-4 rounded-xl border border-slate-100">
+                            <div
+                                onClick={() => setProductForm({ ...productForm, showAttributePrices: !productForm.showAttributePrices })}
+                                className={`w-12 h-6 flex items-center rounded-full p-1 cursor-pointer transition-all ${productForm.showAttributePrices ? 'bg-sky-500 shadow-inner' : 'bg-slate-300'}`}
+                            >
+                                <div
+                                    className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform ${productForm.showAttributePrices ? 'translate-x-6' : 'translate-x-0'}`}
+                                />
+                            </div>
+                            <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                                Show Attribute Prices
                             </span>
                         </div>
                     </div>
