@@ -276,6 +276,63 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
   const [scrollStartX, setScrollStartX] = useState(0);
   const hasDraggedRef = useRef(false); // Track if significant drag occurred
 
+  // Variant scroll state for slim line indicator
+  const variantsScrollRef = useRef<HTMLDivElement>(null);
+  const [variantScrollLeft, setVariantScrollLeft] = useState(0);
+  const [variantScrollWidth, setVariantScrollWidth] = useState(0);
+  const [variantClientWidth, setVariantClientWidth] = useState(0);
+
+  // Update variant scroll dimensions on data change or resize
+  useEffect(() => {
+    const updateDimensions = () => {
+      if (variantsScrollRef.current) {
+        setVariantScrollWidth(variantsScrollRef.current.scrollWidth);
+        setVariantClientWidth(variantsScrollRef.current.clientWidth);
+      }
+    };
+
+    updateDimensions();
+    window.addEventListener('resize', updateDimensions);
+    return () => window.removeEventListener('resize', updateDimensions);
+  }, [availableNestedSubcategories]);
+
+  const handleVariantScroll = () => {
+    if (variantsScrollRef.current) {
+      setVariantScrollLeft(variantsScrollRef.current.scrollLeft);
+    }
+  };
+
+  // Deck scroll state for slim line indicator
+  const [deckScrollLeft, setDeckScrollLeft] = useState(0);
+  const [deckScrollWidth, setDeckScrollWidth] = useState(0);
+  const [deckClientWidth, setDeckClientWidth] = useState(0);
+
+  // Update deck scroll dimensions on data change or resize
+  useEffect(() => {
+    const updateDeckDimensions = () => {
+      if (deckScrollRef.current) {
+        setDeckScrollWidth(deckScrollRef.current.scrollWidth);
+        setDeckClientWidth(deckScrollRef.current.clientWidth);
+      }
+    };
+
+    updateDeckDimensions();
+    window.addEventListener('resize', updateDeckDimensions);
+    // Also update after a short delay to ensure images/layout settled
+    const timer = setTimeout(updateDeckDimensions, 500);
+
+    return () => {
+      window.removeEventListener('resize', updateDeckDimensions);
+      clearTimeout(timer);
+    };
+  }, [categoryProducts]);
+
+  const handleDeckScroll = () => {
+    if (deckScrollRef.current) {
+      setDeckScrollLeft(deckScrollRef.current.scrollLeft);
+    }
+  };
+
   // Mouse event handlers for drag-to-scroll on desktop
   const handleDeckMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!deckScrollRef.current) return;
@@ -4252,7 +4309,11 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
               Product Variants
             </h3>
             {/* On mobile: flex-wrap for easy touch scrolling. On desktop with 8+ variants: horizontal scroll with slim scrollbar */}
-            <div className={`flex gap-3 ${availableNestedSubcategories.length > 8 ? 'md:overflow-x-auto md:flex-nowrap md:pb-2 scrollbar-thin' : 'flex-wrap'}`}>
+            <div
+              ref={variantsScrollRef}
+              onScroll={handleVariantScroll}
+              className={`flex gap-3 ${availableNestedSubcategories.length > 8 ? 'md:overflow-x-auto md:flex-nowrap md:pb-2 hide-scroll' : 'flex-wrap'}`}
+            >
               {availableNestedSubcategories.map((nestedSubcat) => (
                 <button
                   key={nestedSubcat._id}
@@ -4266,6 +4327,19 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                 </button>
               ))}
             </div>
+
+            {/* Slim Line Scroll Indicator - Only show on desktop when scrollable */}
+            {availableNestedSubcategories.length > 8 && variantScrollWidth > variantClientWidth && (
+              <div className="hidden md:block w-full h-1 bg-gray-100 rounded-full mt-1 overflow-hidden">
+                <div
+                  className="h-full bg-gray-400 rounded-full transition-transform duration-100 ease-out hover:bg-gray-600"
+                  style={{
+                    width: `${(variantClientWidth / variantScrollWidth) * 100}%`,
+                    transform: `translateX(${(variantScrollLeft / (variantScrollWidth - variantClientWidth)) * ((variantScrollWidth / variantClientWidth - 1) * 100)}%)`
+                  }}
+                />
+              </div>
+            )}
           </motion.div>
         )}
 
@@ -4569,6 +4643,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                   onMouseMove={handleDeckMouseMove}
                                   onMouseUp={handleDeckMouseUp}
                                   onMouseLeave={handleDeckMouseLeave}
+                                  onScroll={handleDeckScroll}
                                 >
                                   {categoryProducts.map((product, index) => {
                                     const isCurrentProduct = product._id === selectedProduct._id;
@@ -4647,6 +4722,19 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                 <div className="absolute left-0 top-0 bottom-0 w-10 bg-gradient-to-r from-white to-transparent pointer-events-none z-20"></div>
                                 <div className="absolute right-0 top-0 bottom-0 w-10 bg-gradient-to-l from-white to-transparent pointer-events-none z-20"></div>
                               </div>
+
+                              {/* Slim Line Scroll Indicator for Deck - Only show when scrollable */}
+                              {categoryProducts.length > 1 && deckScrollWidth > deckClientWidth && (
+                                <div className="w-full max-w-[200px] mx-auto h-0.5 bg-gray-100 rounded-full mt-[-5px] mb-4 overflow-hidden relative z-30">
+                                  <div
+                                    className="h-full bg-gray-400 rounded-full transition-all duration-100 ease-out"
+                                    style={{
+                                      width: `${(deckClientWidth / deckScrollWidth) * 100}%`,
+                                      transform: `translateX(${(deckScrollLeft / (deckScrollWidth - deckClientWidth)) * ((deckScrollWidth / deckClientWidth - 1) * 100)}%)`
+                                    }}
+                                  />
+                                </div>
+                              )}
                             </div>
                           )}
 
