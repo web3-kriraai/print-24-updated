@@ -196,6 +196,7 @@ export const createProduct = async (req, res) => {
               isEnabled: da.isEnabled !== undefined ? da.isEnabled : true,
               isRequired: da.isRequired !== undefined ? da.isRequired : false,
               displayOrder: da.displayOrder !== undefined ? da.displayOrder : 0,
+              showPrice: da.showPrice !== undefined ? da.showPrice : true,
               customValues: Array.isArray(da.customValues) ? da.customValues : [],
             }));
         } else {
@@ -1136,6 +1137,7 @@ export const updateProduct = async (req, res) => {
               isEnabled: da.isEnabled !== undefined ? da.isEnabled : true,
               isRequired: da.isRequired !== undefined ? da.isRequired : false,
               displayOrder: da.displayOrder !== undefined ? da.displayOrder : 0,
+              showPrice: da.showPrice !== undefined ? da.showPrice : true,
               customValues: Array.isArray(da.customValues) ? da.customValues : [],
             }));
         } else {

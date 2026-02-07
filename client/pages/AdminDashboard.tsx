@@ -399,6 +399,7 @@ const AdminDashboard: React.FC = () => {
     isEnabled: boolean;
     isRequired: boolean;
     displayOrder: number;
+    showPrice?: boolean;
   }>>([]);
 
   // Category form state
@@ -4565,6 +4566,7 @@ const AdminDashboard: React.FC = () => {
               isEnabled: da.isEnabled !== undefined ? da.isEnabled : true,
               isRequired: da.isRequired !== undefined ? da.isRequired : false,
               displayOrder: da.displayOrder !== undefined ? da.displayOrder : 0,
+              showPrice: da.showPrice !== undefined ? da.showPrice : true,
             };
           })
           .filter((attr: any) => attr.attributeTypeId && attr.attributeTypeId.trim() !== ""); // Filter out attributes without valid IDs
@@ -5996,7 +5998,7 @@ const AdminDashboard: React.FC = () => {
           </AnimatePresence>
 
           {/* Tab Content */}
-          <div className="bg-white rounded-2xl shadow-lg p-6">
+          <div>
 
             {activeTab === "products" && (
               <AddProductForm

@@ -757,9 +757,11 @@ const AddProductForm: React.FC<AddProductFormProps> = ({
                         isEnabled: sa.isEnabled !== undefined ? sa.isEnabled : true,
                         isRequired: sa.isRequired !== undefined ? sa.isRequired : false,
                         displayOrder: sa.displayOrder !== undefined ? sa.displayOrder : 0,
+                        showPrice: sa.showPrice !== undefined ? sa.showPrice : true,
                         customValues: [],
                     }))
                 : [];
+            console.log('🔍 Sending dynamic attributes:', JSON.stringify(dynamicAttributesToSend, null, 2));
             formData.append("dynamicAttributes", JSON.stringify(dynamicAttributesToSend));
 
             // Append variants
@@ -2634,6 +2636,25 @@ const AddProductForm: React.FC<AddProductFormProps> = ({
                                                         </div>
                                                     </div>
                                                     <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">Required</span>
+                                                </label>
+
+                                                <label className="flex items-center gap-2 cursor-pointer group/check">
+                                                    <div className="relative">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={sa.showPrice !== false}
+                                                            onChange={() => {
+                                                                const updated = [...selectedAttributeTypes];
+                                                                updated[index] = { ...updated[index], showPrice: updated[index].showPrice === false ? true : false };
+                                                                setSelectedAttributeTypes(updated);
+                                                            }}
+                                                            className="sr-only"
+                                                        />
+                                                        <div className={`w-10 h-5 rounded-full transition-colors ${sa.showPrice !== false ? 'bg-emerald-500' : 'bg-slate-200'}`}>
+                                                            <div className={`absolute top-1 left-1 w-3 h-3 bg-white rounded-full transition-transform ${sa.showPrice !== false ? 'translate-x-5' : 'translate-x-0'}`} />
+                                                        </div>
+                                                    </div>
+                                                    <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">Show Price</span>
                                                 </label>
 
                                                 <button
