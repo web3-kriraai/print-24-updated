@@ -4657,7 +4657,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                 {/* Product Header with Price */}
                                 <div className="border-b border-gray-100 flex flex-row justify-between items-center pb-4">
                                   <div>
-                                    <h1 className="font-poppins text-xl sm:text-2xl md:text-3xl font-semibold text-gray-900 mb-1">
+                                    <h1 className="font-arial-rounded text-xl sm:text-2xl md:text-3xl font-semibold text-gray-900 mb-1">
                                       {selectedProduct.name}
                                     </h1>
                                     {selectedProduct.shortDescription && selectedProduct.shortDescription.trim() !== '' && (
