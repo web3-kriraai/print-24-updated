@@ -8,6 +8,7 @@ export const createProduct = async (req, res) => {
   try {
     const {
       name,
+      shortDescription,
       slug,
       basePrice,
       category,
@@ -30,6 +31,7 @@ export const createProduct = async (req, res) => {
       showPriceIncludingGst,
       showAttributePrices,
       instructions,
+      specialization,
       productionSequence
     } = req.body;
 
@@ -302,6 +304,7 @@ export const createProduct = async (req, res) => {
 
     const data = await Product.create({
       name,
+      shortDescription: shortDescription || "",
       slug: productSlug,
       basePrice: price,
       category: finalCategoryId, // Store parent category ID
@@ -325,6 +328,7 @@ export const createProduct = async (req, res) => {
       showPriceIncludingGst: parsedShowPriceIncludingGst,
       showAttributePrices: parsedShowAttributePrices,
       instructions: instructions || "",
+      specialization: specialization || "",
       productionSequence: parsedProductionSequence,
       sortOrder: nextSortOrder,
     });
@@ -978,6 +982,7 @@ export const updateProduct = async (req, res) => {
   try {
     const {
       name,
+      shortDescription,
       slug,
       basePrice,
       category,
@@ -1000,9 +1005,12 @@ export const updateProduct = async (req, res) => {
       showPriceIncludingGst,
       showAttributePrices,
       instructions,
+      specialization,
       productionSequence
     } = req.body;
     const productId = req.params.id;
+
+    console.log('🔍 UPDATE - shortDescription received:', shortDescription);
 
     if (!productId) {
       return res.status(400).json({ error: "Product ID is required" });
@@ -1283,6 +1291,7 @@ export const updateProduct = async (req, res) => {
       productId,
       {
         name: name !== undefined ? name : product.name,
+        shortDescription: shortDescription !== undefined ? shortDescription : product.shortDescription,
         slug: slugUpdate,
         basePrice: validatedBasePrice,
         category: categoryUpdate,
@@ -1307,6 +1316,7 @@ export const updateProduct = async (req, res) => {
         showPriceIncludingGst: parsedShowPriceIncludingGst,
         showAttributePrices: parsedShowAttributePrices,
         instructions: instructions !== undefined ? instructions : product.instructions,
+        specialization: specialization !== undefined ? specialization : product.specialization,
         productionSequence: parsedProductionSequence,
       },
       { new: true }

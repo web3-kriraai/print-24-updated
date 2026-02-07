@@ -34,6 +34,7 @@ interface GlossProduct {
   _id: string;
   id: string;
   name: string;
+  shortDescription?: string;
   description?: string;
   descriptionArray?: string[];
   filters: {
@@ -119,6 +120,8 @@ interface GlossProduct {
   showAttributePrices?: boolean; // If true, show attribute prices; if false, hide them
   // Custom instructions for customers
   instructions?: string;
+  // Product specialization (special features/highlights)
+  specialization?: string;
 }
 
 interface GlossProductSelectionProps {
@@ -223,6 +226,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
   const [isImageModalOpen, setIsImageModalOpen] = useState(false);
   const [isDescriptionOpen, setIsDescriptionOpen] = useState(false);
   const [isInstructionsOpen, setIsInstructionsOpen] = useState(false);
+  const [isSpecializationOpen, setIsSpecializationOpen] = useState(false);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
@@ -264,6 +268,72 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
   // Matrix Strategy: Pre-rendered combination image lookup
   const [matrixImageUrl, setMatrixImageUrl] = useState<string | null>(null);
   const [matrixImageLoading, setMatrixImageLoading] = useState(false);
+
+  // Drag-to-scroll state for desktop product variant selector
+  const deckScrollRef = useRef<HTMLDivElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStartX, setDragStartX] = useState(0);
+  const [scrollStartX, setScrollStartX] = useState(0);
+  const hasDraggedRef = useRef(false); // Track if significant drag occurred
+
+  // Mouse event handlers for drag-to-scroll on desktop
+  const handleDeckMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!deckScrollRef.current) return;
+    setIsDragging(true);
+    setDragStartX(e.pageX);
+    setScrollStartX(deckScrollRef.current.scrollLeft);
+    hasDraggedRef.current = false; // Reset drag flag on new drag start
+    deckScrollRef.current.style.cursor = 'grabbing';
+    deckScrollRef.current.style.userSelect = 'none';
+  };
+
+  const handleDeckMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isDragging || !deckScrollRef.current) return;
+    e.preventDefault();
+    const x = e.pageX;
+    const walk = (dragStartX - x) * 1.5; // Scroll speed multiplier
+    // Mark as dragged if moved more than 5px
+    if (Math.abs(dragStartX - x) > 5) {
+      hasDraggedRef.current = true;
+    }
+    deckScrollRef.current.scrollLeft = scrollStartX + walk;
+  };
+
+  // Auto-scroll to selected product in deck when selection changes
+  useEffect(() => {
+    if (selectedProduct?._id && categoryProducts.length > 0) {
+      // Small timeout to ensure DOM is rendered and layout is stable
+      const timer = setTimeout(() => {
+        const productCard = document.getElementById(`deck-card-${selectedProduct._id}`);
+        if (productCard) {
+          productCard.scrollIntoView({
+            behavior: 'smooth',
+            block: 'nearest',
+            inline: 'center'
+          });
+        }
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [selectedProduct?._id, categoryProducts.length]);
+
+  const handleDeckMouseUp = () => {
+    setIsDragging(false);
+    if (deckScrollRef.current) {
+      deckScrollRef.current.style.cursor = 'grab';
+      deckScrollRef.current.style.userSelect = '';
+    }
+  };
+
+  const handleDeckMouseLeave = () => {
+    if (isDragging) {
+      setIsDragging(false);
+      if (deckScrollRef.current) {
+        deckScrollRef.current.style.cursor = 'grab';
+        deckScrollRef.current.style.userSelect = '';
+      }
+    }
+  };
 
 
   // Close modal on ESC key
@@ -511,6 +581,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
               setPdpError(null);
               const pdpResponse = await fetch(`${API_BASE_URL}/products/${productId}/detail`, {
                 method: "GET",
+                cache: "no-store",
                 headers: {
                   Accept: "application/json",
                 },
@@ -544,6 +615,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                     _id: productData._id,
                     id: productData._id,
                     name: productData.name || '',
+                    shortDescription: productData.shortDescription || '',
                     description: productData.description || '',
                     descriptionArray: productData.descriptionArray || (productData.description ? [productData.description] : []),
                     filters: {
@@ -585,6 +657,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                     showPriceIncludingGst: productData.showPriceIncludingGst || false,
                     showAttributePrices: productData.showAttributePrices !== undefined ? productData.showAttributePrices : true,
                     instructions: productData.instructions || "",
+                    specialization: productData.specialization || "",
                   };
 
                   setSelectedProduct(mappedProduct);
@@ -933,6 +1006,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
           productsUrl = `${API_BASE_URL}/products/subcategory/${productSubcategoryId}`;
           productsResponse = await fetch(productsUrl, {
             method: "GET",
+            cache: "no-store",
             headers: {
               Accept: "application/json",
             },
@@ -942,6 +1016,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
           productsUrl = `${API_BASE_URL}/products/category/${categoryId}`;
           productsResponse = await fetch(productsUrl, {
             method: "GET",
+            cache: "no-store",
             headers: {
               Accept: "application/json",
             },
@@ -986,6 +1061,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                 try {
                   const categoryProductsResponse = await fetch(`${API_BASE_URL}/products/category/${categoryId}`, {
                     method: "GET",
+                    cache: "no-store",
                     headers: {
                       Accept: "application/json",
                     },
@@ -1007,39 +1083,43 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
               }
 
               // Map API products to GlossProduct format
-              const mappedProducts: GlossProduct[] = finalProductsData.map((product: any) => ({
-                _id: product._id,
-                id: product._id,
-                name: product.name || '',
-                description: product.description || '',
-                descriptionArray: product.descriptionArray || (product.description ? [product.description] : []),
-                filters: {
-                  printingOption: product.filters?.printingOption || [],
-                  orderQuantity: product.filters?.orderQuantity || { min: 1000, max: 72000, multiples: 1000 },
-                  deliverySpeed: product.filters?.deliverySpeed || [],
-                  textureType: product.filters?.textureType || undefined,
-                  filterPricesEnabled: product.filters?.filterPricesEnabled || false,
-                  printingOptionPrices: product.filters?.printingOptionPrices || [],
-                  deliverySpeedPrices: product.filters?.deliverySpeedPrices || [],
-                  textureTypePrices: product.filters?.textureTypePrices || [],
-                },
-                basePrice: product.basePrice || 0,
-                image: product.image,
-                subcategory: product.subcategory,
-                options: product.options || [],
-                dynamicAttributes: product.dynamicAttributes || [],
-                quantityDiscounts: product.quantityDiscounts || [],
-                maxFileSizeMB: product.maxFileSizeMB,
-                minFileWidth: product.minFileWidth,
-                maxFileWidth: product.maxFileWidth,
-                minFileHeight: product.minFileHeight,
-                maxFileHeight: product.maxFileHeight,
-                blockCDRandJPG: product.blockCDRandJPG || false,
-                additionalDesignCharge: product.additionalDesignCharge || 0,
-                gstPercentage: product.gstPercentage || 0,
-                showPriceIncludingGst: product.showPriceIncludingGst || false,
-                instructions: product.instructions || "",
-              }));
+              const mappedProducts: GlossProduct[] = finalProductsData.map((product: any) => {
+                return {
+                  _id: product._id,
+                  id: product._id,
+                  name: product.name || '',
+                  shortDescription: product.shortDescription || '',
+                  description: product.description || '',
+                  descriptionArray: product.descriptionArray || (product.description ? [product.description] : []),
+                  filters: {
+                    printingOption: product.filters?.printingOption || [],
+                    orderQuantity: product.filters?.orderQuantity || { min: 1000, max: 72000, multiples: 1000 },
+                    deliverySpeed: product.filters?.deliverySpeed || [],
+                    textureType: product.filters?.textureType || undefined,
+                    filterPricesEnabled: product.filters?.filterPricesEnabled || false,
+                    printingOptionPrices: product.filters?.printingOptionPrices || [],
+                    deliverySpeedPrices: product.filters?.deliverySpeedPrices || [],
+                    textureTypePrices: product.filters?.textureTypePrices || [],
+                  },
+                  basePrice: product.basePrice || 0,
+                  image: product.image,
+                  subcategory: product.subcategory,
+                  options: product.options || [],
+                  dynamicAttributes: product.dynamicAttributes || [],
+                  quantityDiscounts: product.quantityDiscounts || [],
+                  maxFileSizeMB: product.maxFileSizeMB,
+                  minFileWidth: product.minFileWidth,
+                  maxFileWidth: product.maxFileWidth,
+                  minFileHeight: product.minFileHeight,
+                  maxFileHeight: product.maxFileHeight,
+                  blockCDRandJPG: product.blockCDRandJPG || false,
+                  additionalDesignCharge: product.additionalDesignCharge || 0,
+                  gstPercentage: product.gstPercentage || 0,
+                  showPriceIncludingGst: product.showPriceIncludingGst || false,
+                  instructions: product.instructions || "",
+                  specialization: product.specialization || "",
+                };
+              });
 
               setProducts(mappedProducts);
 
@@ -1060,6 +1140,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                   if (categoryProductsUrl) {
                     const categoryProductsResponse = await fetch(categoryProductsUrl, {
                       method: "GET",
+                      cache: "no-store",
                       headers: {
                         Accept: "application/json",
                       },
@@ -1075,6 +1156,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                             _id: product._id,
                             id: product._id,
                             name: product.name || '',
+                            shortDescription: product.shortDescription || '',
                             description: product.description || '',
                             descriptionArray: product.descriptionArray || [],
                             filters: {
@@ -1103,6 +1185,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                             gstPercentage: product.gstPercentage || 0,
                             showPriceIncludingGst: product.showPriceIncludingGst || false,
                             instructions: product.instructions || "",
+                            specialization: product.specialization || "",
                           }));
                           setCategoryProducts(mappedCategoryProducts);
                         }
@@ -1363,6 +1446,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
               gstPercentage: product.gstPercentage || 0,
               showPriceIncludingGst: product.showPriceIncludingGst || false,
               instructions: product.instructions || "",
+              specialization: product.specialization || "",
             }));
 
             setProducts(mappedProducts);
@@ -4167,12 +4251,13 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
             <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wider mb-4">
               Product Variants
             </h3>
-            <div className="flex flex-wrap gap-3">
+            {/* On mobile: flex-wrap for easy touch scrolling. On desktop with 8+ variants: horizontal scroll with slim scrollbar */}
+            <div className={`flex gap-3 ${availableNestedSubcategories.length > 8 ? 'md:overflow-x-auto md:flex-nowrap md:pb-2 scrollbar-thin' : 'flex-wrap'}`}>
               {availableNestedSubcategories.map((nestedSubcat) => (
                 <button
                   key={nestedSubcat._id}
                   onClick={() => handleNestedSubcategoryChange(nestedSubcat._id)}
-                  className={`px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg border-2 font-medium transition-all text-sm sm:text-base ${selectedNestedSubcategoryId === nestedSubcat._id
+                  className={`px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg border-2 font-medium transition-all text-sm sm:text-base flex-shrink-0 ${selectedNestedSubcategoryId === nestedSubcat._id
                     ? 'border-gray-800 bg-gray-800 text-white shadow-md'
                     : 'border-gray-300 bg-white text-gray-900 hover:border-gray-600 hover:bg-gray-50'
                     }`}
@@ -4425,7 +4510,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
                         <div className="border-t border-gray-200 mt-3 pt-3 flex justify-between items-center">
                           <span className="text-xs sm:text-sm font-semibold text-gray-700">
-                            Estimated total
+                            Estimated Total Value
                           </span>
                           <span className="text-base sm:text-lg font-bold text-gray-900">
                             ₹{(price + gstAmount).toFixed(2)}
@@ -4473,11 +4558,17 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                               </div>
 
                               {/* Deck Container */}
-                              <div className="relative w-full h-44 flex items-center overflow-visible">
+                              <div className={`relative w-full flex items-center overflow-visible ${categoryProducts.length > 8 ? 'h-48' : 'h-44'}`}>
                                 {/* Scroll Container with overlapping stacking cards */}
+                                {/* On mobile: hidden scroll for touch-friendly swipe. On desktop with 8+ products: show slim scrollbar */}
                                 <div
                                   id="deck-scroll-container"
-                                  className="flex items-center overflow-x-auto hide-scroll pl-4 pr-16 pb-4 -space-x-4 w-full h-full pt-10"
+                                  ref={deckScrollRef}
+                                  className={`flex items-center overflow-x-auto pl-4 pr-16 pb-4 -space-x-4 w-full h-full pt-10 cursor-grab ${categoryProducts.length > 8 ? 'hide-scroll md:scrollbar-thin' : 'hide-scroll'}`}
+                                  onMouseDown={handleDeckMouseDown}
+                                  onMouseMove={handleDeckMouseMove}
+                                  onMouseUp={handleDeckMouseUp}
+                                  onMouseLeave={handleDeckMouseLeave}
                                 >
                                   {categoryProducts.map((product, index) => {
                                     const isCurrentProduct = product._id === selectedProduct._id;
@@ -4488,6 +4579,12 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                         key={product._id}
                                         id={`deck-card-${product._id}`}
                                         onClick={(e) => {
+                                          // Prevent click if user was dragging
+                                          if (hasDraggedRef.current) {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            return;
+                                          }
                                           if (!isCurrentProduct) {
                                             // Scroll clicked card into center view
                                             const cardElement = e.currentTarget;
@@ -4559,9 +4656,18 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                               <div className="flex-1">
                                 {/* Product Header with Price */}
                                 <div className="border-b border-gray-100 flex flex-row justify-between items-center">
-                                  <h1 className="font-serif text-xl sm:text-2xl md:text-3xl font-bold text-gray-900 mb-1">
-                                    {selectedProduct.name}
-                                  </h1>
+                                  <div>
+                                    <h1 className="font-poppins text-xl sm:text-2xl md:text-3xl font-semibold text-gray-900 mb-1">
+                                      {selectedProduct.name}
+                                    </h1>
+                                    {selectedProduct.shortDescription && selectedProduct.shortDescription.trim() !== '' && (
+                                      <div className="mt-2 mb-4">
+                                        <p className="text-[15px] md:text-[16px] text-slate-500 leading-relaxed">
+                                          {selectedProduct.shortDescription}
+                                        </p>
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
 
                                 {/* Product Variants Filter - Only shown when nested subcategories exist */}
@@ -4597,7 +4703,10 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                       <button
                                         onClick={() => {
                                           setIsDescriptionOpen(!isDescriptionOpen);
-                                          if (!isDescriptionOpen) setIsInstructionsOpen(false);
+                                          if (!isDescriptionOpen) {
+                                            setIsInstructionsOpen(false);
+                                            setIsSpecializationOpen(false);
+                                          }
                                         }}
                                         className="px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-900 rounded-lg border border-blue-200 text-sm font-medium transition-all flex items-center gap-2 shadow-sm hover:shadow-md"
                                       >
@@ -4611,12 +4720,32 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                       <button
                                         onClick={() => {
                                           setIsInstructionsOpen(!isInstructionsOpen);
-                                          if (!isInstructionsOpen) setIsDescriptionOpen(false);
+                                          if (!isInstructionsOpen) {
+                                            setIsDescriptionOpen(false);
+                                            setIsSpecializationOpen(false);
+                                          }
                                         }}
                                         className="px-4 py-2 bg-yellow-50 hover:bg-yellow-100 text-yellow-900 rounded-lg border border-yellow-200 text-sm font-medium transition-all flex items-center gap-2 shadow-sm hover:shadow-md"
                                       >
                                         <Info size={16} />
                                         Instructions
+                                      </button>
+                                    )}
+
+                                    {/* Specialization Button - Only show if specialization exists */}
+                                    {selectedProduct.specialization && (
+                                      <button
+                                        onClick={() => {
+                                          setIsSpecializationOpen(!isSpecializationOpen);
+                                          if (!isSpecializationOpen) {
+                                            setIsDescriptionOpen(false);
+                                            setIsInstructionsOpen(false);
+                                          }
+                                        }}
+                                        className="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-900 rounded-lg border border-red-200 text-sm font-medium transition-all flex items-center gap-2 shadow-sm hover:shadow-md"
+                                      >
+                                        <Info size={16} />
+                                        Specialization
                                       </button>
                                     )}
                                   </div>
@@ -4814,6 +4943,8 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                             </div>
                                           )}
 
+
+
                                           <div className="space-y-3 text-xs sm:text-sm text-yellow-800">
                                             {/* File Upload Constraints */}
                                             {(selectedProduct.maxFileSizeMB || selectedProduct.minFileWidth || selectedProduct.maxFileWidth || selectedProduct.minFileHeight || selectedProduct.maxFileHeight || selectedProduct.blockCDRandJPG) && (
@@ -4881,6 +5012,29 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                             {!selectedProduct.instructions && !selectedProduct.maxFileSizeMB && !selectedProduct.minFileWidth && !selectedProduct.maxFileWidth && !selectedProduct.minFileHeight && !selectedProduct.maxFileHeight && !selectedProduct.blockCDRandJPG && !selectedProduct.additionalDesignCharge && !selectedProduct.gstPercentage && (
                                               <p className="text-yellow-700 italic">No special instructions for this product.</p>
                                             )}
+                                          </div>
+                                        </div>
+                                      </motion.div>
+                                    )}
+                                  </AnimatePresence>
+
+                                  {/* Specialization Expandable Section */}
+                                  <AnimatePresence>
+                                    {isSpecializationOpen && selectedProduct.specialization && (
+                                      <motion.div
+                                        initial={{ opacity: 0, height: 0 }}
+                                        animate={{ opacity: 1, height: "auto" }}
+                                        exit={{ opacity: 0, height: 0 }}
+                                        transition={{ duration: 0.3, ease: "easeInOut" }}
+                                        className="overflow-hidden"
+                                      >
+                                        <div className="mb-2 p-4 sm:p-6 bg-red-50 border border-red-200 rounded-lg">
+                                          <h4 className="text-sm font-bold text-red-900 mb-3 flex items-center gap-2">
+                                            <Info size={16} />
+                                            Product Specialization
+                                          </h4>
+                                          <div className="text-xs sm:text-sm text-red-800 whitespace-pre-line">
+                                            {selectedProduct.specialization}
                                           </div>
                                         </div>
                                       </motion.div>
@@ -6141,10 +6295,10 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                         <div className="mt-auto pt-6 border-t border-gray-100 bg-white bottom-0 z-10">
                           <div className="flex justify-between items-end mb-4">
                             <div>
-                              <p className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-1">Total Price</p>
+                              <p className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-1">Estimated Total Value</p>
                               <div className="flex items-baseline gap-1">
                                 <span className="text-3xl font-bold text-gray-900">
-                                  ₹{(price + gstAmount).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                                  ₹{(price + gstAmount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </span>
                                 <span className="text-xs text-gray-500 font-medium">incl. taxes</span>
                               </div>

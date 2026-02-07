@@ -191,15 +191,15 @@ const ServiceProducts: React.FC<ServiceProductsProps> = ({ service }) => {
 
                                         {/* Title Header - Only show when multiple titles exist */}
                                         {shouldShowTitleHeader && (
-                                            <div className="mb-8 flex flex-col items-start">
+                                            <div className="mb-8 flex flex-col items-center text-center">
                                                 <div
-                                                    className="inline-block px-8 py-3 rounded-r-full text-white font-bold text-lg uppercase shadow-md mb-1"
+                                                    className="inline-block px-8 py-3 rounded-full text-white font-bold text-lg uppercase shadow-md mb-1"
                                                     style={{ backgroundColor: serviceData.color }}
                                                 >
                                                     {title.title}
                                                 </div>
                                                 {title.description && (
-                                                    <div className="px-8 py-2 bg-gray-200 text-gray-700 font-medium inline-block rounded-r-full text-sm">
+                                                    <div className="px-8 py-2 bg-gray-200 text-gray-700 font-medium inline-block rounded-full text-sm">
                                                         {title.description}
                                                     </div>
                                                 )}

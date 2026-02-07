@@ -40,6 +40,7 @@ import {
   FileText,
   Copy,
   Briefcase,
+  Menu,
 } from "lucide-react";
 import { Pagination } from "../components/Pagination";
 import { motion, AnimatePresence } from "framer-motion";
@@ -249,6 +250,7 @@ interface Order {
 const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const isClient = useClientOnly();
   const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "products");
 
@@ -324,6 +326,7 @@ const AdminDashboard: React.FC = () => {
   // Product form state
   const [productForm, setProductForm] = useState({
     name: "",
+    shortDescription: "",
     slug: "",
     description: "",
     descriptionArray: [] as string[],
@@ -362,6 +365,8 @@ const AdminDashboard: React.FC = () => {
     showPriceIncludingGst: false, // Default to excluding GST (industry standard)
     // Custom instructions for customers
     instructions: "",
+    // Product specialization (special features/highlights)
+    specialization: "",
     // Production sequence (custom department order for this product)
     productionSequence: [] as string[],
     // Variants - combinations of attribute values with specific images, prices, and configs
@@ -4014,6 +4019,8 @@ const AdminDashboard: React.FC = () => {
 
       const formData = new FormData();
       formData.append("name", productForm.name);
+      formData.append("shortDescription", productForm.shortDescription || "");
+      console.log('📤 SENDING shortDescription:', productForm.shortDescription, 'length:', productForm.shortDescription?.length);
       if (productForm.slug) {
         formData.append("slug", productForm.slug);
       }
@@ -4252,6 +4259,7 @@ const AdminDashboard: React.FC = () => {
       setIsProductSlugManuallyEdited(false);
       setProductForm({
         name: "",
+        shortDescription: "",
         slug: "",
         description: "",
         descriptionArray: [],
@@ -4286,6 +4294,7 @@ const AdminDashboard: React.FC = () => {
         gstPercentage: "",
         showPriceIncludingGst: false,
         instructions: "",
+        specialization: "",
         productionSequence: [] as string[],
         existingImage: "",
         showAttributePrices: true,
@@ -4460,6 +4469,7 @@ const AdminDashboard: React.FC = () => {
       setIsProductSlugManuallyEdited(true);
       setProductForm({
         name: product.name || "",
+        shortDescription: product.shortDescription || "",
         slug: product.slug || "",
         description: descriptionText,
         descriptionArray: product.descriptionArray || [],
@@ -4500,6 +4510,7 @@ const AdminDashboard: React.FC = () => {
         gstPercentage: product.gstPercentage?.toString() || "",
         showPriceIncludingGst: product.showPriceIncludingGst || false,
         instructions: product.instructions || "",
+        specialization: product.specialization || "",
         variants: product.variants && Array.isArray(product.variants) ? product.variants : [],
         productionSequence: product.productionSequence && Array.isArray(product.productionSequence)
           ? product.productionSequence
@@ -4768,6 +4779,7 @@ const AdminDashboard: React.FC = () => {
     setIsNestedSubcategoryMode(false);
     setProductForm({
       name: "",
+      shortDescription: "",
       slug: "",
       description: "",
       descriptionArray: [],
@@ -4795,6 +4807,7 @@ const AdminDashboard: React.FC = () => {
       additionalDesignCharge: "",
       gstPercentage: "",
       instructions: "",
+      specialization: "",
       quantityDiscounts: [],
       minFileWidth: "",
       maxFileWidth: "",
@@ -5871,51 +5884,82 @@ const AdminDashboard: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-cream-50">
+      {/* Mobile Header / Hamburger Menu */}
+      <div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-white border-b border-cream-200 z-40 flex items-center justify-between px-4">
+        <div className="flex items-center gap-2">
+          <div className="bg-slate-900 p-1.5 rounded-lg shadow-md">
+            <Menu
+              className="text-white cursor-pointer"
+              size={24}
+              onClick={() => setIsSidebarOpen(true)}
+            />
+          </div>
+          <span className="font-serif font-bold text-cream-900">Admin Panel</span>
+        </div>
+      </div>
+
+      {/* Backdrop for mobile */}
+      <AnimatePresence>
+        {isSidebarOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setIsSidebarOpen(false)}
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40 md:hidden"
+          />
+        )}
+      </AnimatePresence>
+
       {/* Admin Sidebar - New Professional Navigation */}
-      <AdminSidebar activeTab={activeTab} onTabChange={(tab) => {
-        updateUrl(tab);
-        setError(null);
-        setSuccess(null);
-        // Clear edit state when switching tabs
-        if (tab !== "products" && tab !== "categories") {
-          handleCancelEdit();
-        }
-        // Fetch data when switching to management tabs
-        if (tab === "manage-products") {
-          setSelectedSubCategoryFilter("");
-          fetchProducts();
-        } else if (tab === "sort-products") {
-          fetchCategories();
-          fetchSubCategories();
-          fetchProducts();
-        } else if (tab === "manage-categories") {
-          fetchCategories();
-          fetchSubCategories();
+      <AdminSidebar
+        isOpen={isSidebarOpen}
+        onClose={() => setIsSidebarOpen(false)}
+        activeTab={activeTab}
+        onTabChange={(tab) => {
+          updateUrl(tab);
+          setError(null);
+          setSuccess(null);
+          // Clear edit state when switching tabs
+          if (tab !== "products" && tab !== "categories") {
+            handleCancelEdit();
+          }
+          // Fetch data when switching to management tabs
+          if (tab === "manage-products") {
+            setSelectedSubCategoryFilter("");
+            fetchProducts();
+          } else if (tab === "sort-products") {
+            fetchCategories();
+            fetchSubCategories();
+            fetchProducts();
+          } else if (tab === "manage-categories") {
+            fetchCategories();
+            fetchSubCategories();
 
-        } else if (tab === "print-partner-requests") {
-          fetchPrintPartnerRequests();
-        } else if (tab === "orders") {
-          fetchOrders();
-        } else if (tab === "attribute-types") {
-          fetchAttributeTypes();
-        } else if (tab === "attribute-rules") {
-          fetchAttributeTypes();
-          fetchCategories();
-          fetchProducts();
-        } else if (tab === "products") {
-          fetchAttributeTypes();
-          fetchProducts();
+          } else if (tab === "print-partner-requests") {
+            fetchPrintPartnerRequests();
+          } else if (tab === "orders") {
+            fetchOrders();
+          } else if (tab === "attribute-types") {
+            fetchAttributeTypes();
+          } else if (tab === "attribute-rules") {
+            fetchAttributeTypes();
+            fetchCategories();
+            fetchProducts();
+          } else if (tab === "products") {
+            fetchAttributeTypes();
+            fetchProducts();
 
 
-        } else if (tab === "sub-attributes") {
-          fetchAttributeTypes();
-        } else if (tab === "uploads") {
-          fetchUploads();
-        }
-      }} />
+          } else if (tab === "sub-attributes") {
+            fetchAttributeTypes();
+          } else if (tab === "uploads") {
+            fetchUploads();
+          }
+        }} />
 
       {/* Main Content Area - Adjusted for Sidebar */}
-      <div className="ml-64 min-h-screen py-8">
+      <div className="ml-0 md:ml-64 min-h-screen pt-20 md:pt-8 pb-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="mb-6">
             <BackButton fallbackPath="/" label="Back" className="text-cream-600 hover:text-cream-900 mb-4" />

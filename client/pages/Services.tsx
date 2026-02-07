@@ -618,55 +618,55 @@ const DigitalPrint: React.FC = () => {
             >
               {/* Left Arrow Button - Only show if items overflow and NOT at start */}
               {filteredDigitalCategories.length > visibleItems && !digitalScrollState.isAtStart && (
-              <button
-                onClick={() => {
-                  const container = document.getElementById("digital-scroll-container");
-                  if (container) {
-                    const screenWidth = window.innerWidth;
-                    const visibleItems = getVisibleItems(screenWidth);
-                    const itemWidth = screenWidth / visibleItems;
+                <button
+                  onClick={() => {
+                    const container = document.getElementById("digital-scroll-container");
+                    if (container) {
+                      const screenWidth = window.innerWidth;
+                      const visibleItems = getVisibleItems(screenWidth);
+                      const itemWidth = screenWidth / visibleItems;
 
-                    const currentScroll = container.scrollLeft;
+                      const currentScroll = container.scrollLeft;
 
-                    // Scroll left by 1 item
-                    container.scrollTo({ left: currentScroll - itemWidth, behavior: "smooth" });
-                  }
-                  if ((window as any).digitalUpdateFromArrow) {
-                    (window as any).digitalUpdateFromArrow();
-                  }
-                }}
-                className="absolute left-2 sm:left-3 md:left-4 z-10 w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 bg-white/95 hover:bg-white active:bg-white shadow-md sm:shadow-lg rounded-full flex items-center justify-center text-gray-900 hover:text-gray-600 active:scale-95 transition-all opacity-100 sm:opacity-0 sm:group-hover/slider:opacity-100 touch-manipulation"
-                style={{ top: 'calc(50% - 1rem)' }}
-              >
-                <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6" />
-              </button>
+                      // Scroll left by 1 item
+                      container.scrollTo({ left: currentScroll - itemWidth, behavior: "smooth" });
+                    }
+                    if ((window as any).digitalUpdateFromArrow) {
+                      (window as any).digitalUpdateFromArrow();
+                    }
+                  }}
+                  className="absolute left-2 sm:left-3 md:left-4 z-10 w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 bg-white/95 hover:bg-white active:bg-white shadow-md sm:shadow-lg rounded-full flex items-center justify-center text-gray-900 hover:text-gray-600 active:scale-95 transition-all opacity-100 sm:opacity-0 sm:group-hover/slider:opacity-100 touch-manipulation"
+                  style={{ top: 'calc(50% - 1rem)' }}
+                >
+                  <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6" />
+                </button>
               )}
 
               {/* Right Arrow Button - Only show if items overflow and NOT at end */}
               {filteredDigitalCategories.length > visibleItems && !digitalScrollState.isAtEnd && (
-              <button
-                onClick={() => {
-                  const container = document.getElementById("digital-scroll-container");
-                  if (container) {
-                    const screenWidth = window.innerWidth;
-                    const visibleItems = getVisibleItems(screenWidth);
-                    const itemWidth = screenWidth / visibleItems;
+                <button
+                  onClick={() => {
+                    const container = document.getElementById("digital-scroll-container");
+                    if (container) {
+                      const screenWidth = window.innerWidth;
+                      const visibleItems = getVisibleItems(screenWidth);
+                      const itemWidth = screenWidth / visibleItems;
 
-                    const currentScroll = container.scrollLeft;
-                    const newScrollLeft = currentScroll + itemWidth;
+                      const currentScroll = container.scrollLeft;
+                      const newScrollLeft = currentScroll + itemWidth;
 
-                    // Scroll right by 1 item
-                    container.scrollTo({ left: newScrollLeft, behavior: "smooth" });
-                  }
-                  if ((window as any).digitalUpdateFromArrow) {
-                    (window as any).digitalUpdateFromArrow();
-                  }
-                }}
-                className="absolute right-2 sm:right-3 md:right-4 z-10 w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 bg-white/95 hover:bg-white active:bg-white shadow-md sm:shadow-lg rounded-full flex items-center justify-center text-gray-900 hover:text-gray-600 active:scale-95 transition-all opacity-100 sm:opacity-0 sm:group-hover/slider:opacity-100 touch-manipulation"
-                style={{ top: 'calc(50% - 1rem)' }}
-              >
-                <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6" />
-              </button>
+                      // Scroll right by 1 item
+                      container.scrollTo({ left: newScrollLeft, behavior: "smooth" });
+                    }
+                    if ((window as any).digitalUpdateFromArrow) {
+                      (window as any).digitalUpdateFromArrow();
+                    }
+                  }}
+                  className="absolute right-2 sm:right-3 md:right-4 z-10 w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 bg-white/95 hover:bg-white active:bg-white shadow-md sm:shadow-lg rounded-full flex items-center justify-center text-gray-900 hover:text-gray-600 active:scale-95 transition-all opacity-100 sm:opacity-0 sm:group-hover/slider:opacity-100 touch-manipulation"
+                  style={{ top: 'calc(50% - 1rem)' }}
+                >
+                  <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6" />
+                </button>
               )}
 
               <div
@@ -735,55 +735,55 @@ const DigitalPrint: React.FC = () => {
             >
               {/* Left Arrow Button - Only show if items overflow and NOT at start */}
               {filteredBulkCategories.length > visibleItems && !bulkScrollState.isAtStart && (
-              <button
-                onClick={() => {
-                  const container = document.getElementById("bulk-scroll-container");
-                  if (container) {
-                    const screenWidth = window.innerWidth;
-                    const visibleItems = getVisibleItems(screenWidth);
-                    const itemWidth = screenWidth / visibleItems;
+                <button
+                  onClick={() => {
+                    const container = document.getElementById("bulk-scroll-container");
+                    if (container) {
+                      const screenWidth = window.innerWidth;
+                      const visibleItems = getVisibleItems(screenWidth);
+                      const itemWidth = screenWidth / visibleItems;
 
-                    const currentScroll = container.scrollLeft;
+                      const currentScroll = container.scrollLeft;
 
-                    // Scroll left by 1 item
-                    container.scrollTo({ left: currentScroll - itemWidth, behavior: "smooth" });
-                  }
-                  if ((window as any).bulkUpdateFromArrow) {
-                    (window as any).bulkUpdateFromArrow();
-                  }
-                }}
-                className="absolute left-2 sm:left-3 md:left-4 z-10 w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 bg-white/95 hover:bg-white active:bg-white shadow-md sm:shadow-lg rounded-full flex items-center justify-center text-gray-900 hover:text-gray-600 active:scale-95 transition-all opacity-100 sm:opacity-0 sm:group-hover/slider:opacity-100 touch-manipulation"
-                style={{ top: 'calc(50% - 1rem)' }}
-              >
-                <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6" />
-              </button>
+                      // Scroll left by 1 item
+                      container.scrollTo({ left: currentScroll - itemWidth, behavior: "smooth" });
+                    }
+                    if ((window as any).bulkUpdateFromArrow) {
+                      (window as any).bulkUpdateFromArrow();
+                    }
+                  }}
+                  className="absolute left-2 sm:left-3 md:left-4 z-10 w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 bg-white/95 hover:bg-white active:bg-white shadow-md sm:shadow-lg rounded-full flex items-center justify-center text-gray-900 hover:text-gray-600 active:scale-95 transition-all opacity-100 sm:opacity-0 sm:group-hover/slider:opacity-100 touch-manipulation"
+                  style={{ top: 'calc(50% - 1rem)' }}
+                >
+                  <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6" />
+                </button>
               )}
 
               {/* Right Arrow Button - Only show if items overflow and NOT at end */}
               {filteredBulkCategories.length > visibleItems && !bulkScrollState.isAtEnd && (
-              <button
-                onClick={() => {
-                  const container = document.getElementById("bulk-scroll-container");
-                  if (container) {
-                    const screenWidth = window.innerWidth;
-                    const visibleItems = getVisibleItems(screenWidth);
-                    const itemWidth = screenWidth / visibleItems;
+                <button
+                  onClick={() => {
+                    const container = document.getElementById("bulk-scroll-container");
+                    if (container) {
+                      const screenWidth = window.innerWidth;
+                      const visibleItems = getVisibleItems(screenWidth);
+                      const itemWidth = screenWidth / visibleItems;
 
-                    const currentScroll = container.scrollLeft;
-                    const newScrollLeft = currentScroll + itemWidth;
+                      const currentScroll = container.scrollLeft;
+                      const newScrollLeft = currentScroll + itemWidth;
 
-                    // Scroll right by 1 item
-                    container.scrollTo({ left: newScrollLeft, behavior: "smooth" });
-                  }
-                  if ((window as any).bulkUpdateFromArrow) {
-                    (window as any).bulkUpdateFromArrow();
-                  }
-                }}
-                className="absolute right-2 sm:right-3 md:right-4 z-10 w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 bg-white/95 hover:bg-white active:bg-white shadow-md sm:shadow-lg rounded-full flex items-center justify-center text-gray-900 hover:text-gray-600 active:scale-95 transition-all opacity-100 sm:opacity-0 sm:group-hover/slider:opacity-100 touch-manipulation"
-                style={{ top: 'calc(50% - 1rem)' }}
-              >
-                <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6" />
-              </button>
+                      // Scroll right by 1 item
+                      container.scrollTo({ left: newScrollLeft, behavior: "smooth" });
+                    }
+                    if ((window as any).bulkUpdateFromArrow) {
+                      (window as any).bulkUpdateFromArrow();
+                    }
+                  }}
+                  className="absolute right-2 sm:right-3 md:right-4 z-10 w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 bg-white/95 hover:bg-white active:bg-white shadow-md sm:shadow-lg rounded-full flex items-center justify-center text-gray-900 hover:text-gray-600 active:scale-95 transition-all opacity-100 sm:opacity-0 sm:group-hover/slider:opacity-100 touch-manipulation"
+                  style={{ top: 'calc(50% - 1rem)' }}
+                >
+                  <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6" />
+                </button>
               )}
 
               <div

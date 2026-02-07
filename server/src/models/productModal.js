@@ -15,6 +15,7 @@ const ProductSchema = new mongoose.Schema(
     },
 
     name: { type: String, required: true },
+    shortDescription: { type: String }, // Short description displayed below product name
     slug: {
       type: String,
       required: true,
@@ -161,6 +162,8 @@ const ProductSchema = new mongoose.Schema(
 
     // Custom instructions for customers (must follow, otherwise company not responsible)
     instructions: { type: String }, // Custom instructions text that customers must follow
+    // Product specialization (special features/highlights provided by admin)
+    specialization: { type: String }, // Product specialization text highlighting special features
     // Product-specific production sequence (custom department order)
     // If not set, uses default department sequence
     productionSequence: [{

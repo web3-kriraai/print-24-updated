@@ -207,7 +207,7 @@ const SortProductsView: React.FC<SortProductsViewProps> = ({ categories, subCate
     return (
         <div className="space-y-6">
             {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
                         <ArrowUpDown size={24} className="text-purple-600" />
@@ -217,11 +217,11 @@ const SortProductsView: React.FC<SortProductsViewProps> = ({ categories, subCate
                         Set the display order for products in the product selection deck.
                     </p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                     <button
                         onClick={fetchProducts}
                         disabled={loading}
-                        className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50"
+                        className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50 text-sm font-medium"
                     >
                         <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
                         Refresh
@@ -230,7 +230,7 @@ const SortProductsView: React.FC<SortProductsViewProps> = ({ categories, subCate
                         <button
                             onClick={saveAllChanges}
                             disabled={saving}
-                            className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50"
+                            className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 text-sm font-medium whitespace-nowrap"
                         >
                             {saving ? <Loader size={16} className="animate-spin" /> : <Save size={16} />}
                             Save Changes
@@ -346,69 +346,73 @@ const SortProductsView: React.FC<SortProductsViewProps> = ({ categories, subCate
                     </div>
                 ) : (
                     <>
-                        <table className="w-full">
-                            <thead className="bg-gray-50 border-b border-gray-200">
-                                <tr>
-                                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 w-24">Order</th>
-                                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Product</th>
-                                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Category</th>
-                                    <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Price</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100">
-                                {paginatedProducts.map((product) => {
-                                    const currentOrder = editedSortOrders[product._id] ?? product.sortOrder ?? 0;
-                                    const isEdited = editedSortOrders[product._id] !== undefined;
+                        <div className="overflow-x-auto">
+                            <table className="w-full">
+                                <thead className="bg-gray-50 border-b border-gray-200">
+                                    <tr>
+                                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 w-20 sm:w-24">Order</th>
+                                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 min-w-[200px]">Product</th>
+                                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 min-w-[150px]">Category</th>
+                                        <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Price</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                    {paginatedProducts.map((product) => {
+                                        const currentOrder = editedSortOrders[product._id] ?? product.sortOrder ?? 0;
+                                        const isEdited = editedSortOrders[product._id] !== undefined;
 
-                                    return (
-                                        <motion.tr
-                                            key={product._id}
-                                            initial={{ opacity: 0 }}
-                                            animate={{ opacity: 1 }}
-                                            className={`hover:bg-gray-50 ${isEdited ? 'bg-yellow-50' : ''}`}
-                                        >
-                                            <td className="px-4 py-3">
-                                                <input
-                                                    type="number"
-                                                    min="0"
-                                                    value={currentOrder}
-                                                    onChange={(e) => handleSortOrderChange(product._id, e.target.value)}
-                                                    className={`w-20 px-2 py-1 text-center border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 ${isEdited ? 'border-amber-400 bg-amber-50' : 'border-gray-300'
-                                                        }`}
-                                                />
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
-                                                        {product.image ? (
-                                                            <img
-                                                                src={product.image}
-                                                                alt={product.name}
-                                                                className="w-full h-full object-cover"
-                                                            />
-                                                        ) : (
-                                                            <div className="w-full h-full flex items-center justify-center">
-                                                                <Package size={20} className="text-gray-400" />
-                                                            </div>
+                                        return (
+                                            <motion.tr
+                                                key={product._id}
+                                                initial={{ opacity: 0 }}
+                                                animate={{ opacity: 1 }}
+                                                className={`hover:bg-gray-50 ${isEdited ? 'bg-yellow-50' : ''}`}
+                                            >
+                                                <td className="px-4 py-3">
+                                                    <input
+                                                        type="number"
+                                                        min="0"
+                                                        value={currentOrder}
+                                                        onChange={(e) => handleSortOrderChange(product._id, e.target.value)}
+                                                        className={`w-14 sm:w-20 px-2 py-1 text-center border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm ${isEdited ? 'border-amber-400 bg-amber-50' : 'border-gray-300'
+                                                            }`}
+                                                    />
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    <div className="flex items-center gap-2 sm:gap-3">
+                                                        <div className="w-8 h-8 sm:w-12 sm:h-12 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
+                                                            {product.image ? (
+                                                                <img
+                                                                    src={product.image}
+                                                                    alt={product.name}
+                                                                    className="w-full h-full object-cover"
+                                                                />
+                                                            ) : (
+                                                                <div className="w-full h-full flex items-center justify-center">
+                                                                    <Package size={16} className="text-gray-400" />
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        <span className="font-medium text-gray-900 text-sm sm:text-base line-clamp-1">{product.name}</span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-4 py-3 text-sm text-gray-600">
+                                                    <div className="truncate max-w-[200px]">
+                                                        {getCategoryName(product.category)}
+                                                        {product.subcategory && (
+                                                            <span className="text-gray-400"> → {getCategoryName(product.subcategory)}</span>
                                                         )}
                                                     </div>
-                                                    <span className="font-medium text-gray-900">{product.name}</span>
-                                                </div>
-                                            </td>
-                                            <td className="px-4 py-3 text-sm text-gray-600">
-                                                {getCategoryName(product.category)}
-                                                {product.subcategory && (
-                                                    <span className="text-gray-400"> → {getCategoryName(product.subcategory)}</span>
-                                                )}
-                                            </td>
-                                            <td className="px-4 py-3 text-right font-medium text-gray-900">
-                                                ₹{product.basePrice}
-                                            </td>
-                                        </motion.tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
+                                                </td>
+                                                <td className="px-4 py-3 text-right font-medium text-gray-900 text-sm sm:text-base">
+                                                    ₹{product.basePrice}
+                                                </td>
+                                            </motion.tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
 
                         {/* Pagination */}
                         {totalPages > 1 && (

@@ -621,13 +621,13 @@ const ManageImageMatrix: React.FC<{
     return (
         <div className="space-y-6">
             {/* Header */}
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                    <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-                        <Grid className="text-purple-600" size={28} />
+                    <h2 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent flex items-center gap-2">
+                        <Grid className="text-purple-600" size={24} />
                         Image Matrix
                     </h2>
-                    <p className="text-gray-600 mt-1">
+                    <p className="text-gray-600 text-sm mt-1">
                         Manage pre-rendered product images for attribute combinations
                     </p>
                 </div>
@@ -636,8 +636,8 @@ const ManageImageMatrix: React.FC<{
             {/* Alerts */}
             {error && (
                 <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
-                    <AlertCircle className="text-red-500" size={20} />
-                    <span className="text-red-700">{error}</span>
+                    <AlertCircle className="text-red-500 flex-shrink-0" size={20} />
+                    <span className="text-red-700 text-sm">{error}</span>
                     <button onClick={() => setError(null)} className="ml-auto text-red-500 hover:text-red-700">
                         <X size={18} />
                     </button>
@@ -646,8 +646,8 @@ const ManageImageMatrix: React.FC<{
 
             {success && (
                 <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-center gap-3">
-                    <CheckCircle className="text-green-500" size={20} />
-                    <span className="text-green-700">{success}</span>
+                    <CheckCircle className="text-green-500 flex-shrink-0" size={20} />
+                    <span className="text-green-700 text-sm">{success}</span>
                     <button onClick={() => setSuccess(null)} className="ml-auto text-green-500 hover:text-green-700">
                         <X size={18} />
                     </button>
@@ -655,45 +655,45 @@ const ManageImageMatrix: React.FC<{
             )}
 
             {/* Product Selector */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <div className="flex items-center gap-4 flex-wrap">
-                    <div className="relative flex-1 min-w-[300px]">
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6">
+                <div className="flex flex-col xl:flex-row xl:items-end gap-6">
+                    <div className="relative flex-1">
+                        <label className="block text-sm font-medium text-gray-700 mb-2 pl-1">
                             Select Product
                         </label>
                         <div className="relative">
                             <button
                                 onClick={() => setProductDropdownOpen(!productDropdownOpen)}
-                                className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-white text-left flex items-center justify-between hover:border-gray-400 transition"
+                                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl bg-white text-left flex items-center justify-between hover:border-purple-300 transition-all duration-300 text-sm group"
                             >
-                                <span className={selectedProductId ? "text-gray-800" : "text-gray-400"}>
+                                <span className={selectedProductId ? "text-gray-800 font-medium" : "text-gray-400"}>
                                     {selectedProductId
                                         ? products.find((p) => p._id === selectedProductId)?.name || "Select..."
                                         : "Select a product..."}
                                 </span>
                                 <ChevronDown
-                                    className={`text-gray-400 transition-transform ${productDropdownOpen ? "rotate-180" : ""}`}
-                                    size={20}
+                                    className={`text-gray-400 group-hover:text-purple-500 transition-transform duration-300 ${productDropdownOpen ? "rotate-180" : ""}`}
+                                    size={18}
                                 />
                             </button>
 
                             {productDropdownOpen && (
-                                <div className="absolute z-50 w-full mt-2 bg-white border border-gray-200 rounded-lg shadow-xl max-h-80 overflow-hidden">
-                                    <div className="p-2 border-b">
+                                <div className="absolute z-50 w-full mt-2 bg-white border border-gray-100 rounded-xl shadow-xl max-h-80 overflow-hidden animate-fadeIn border-t-0">
+                                    <div className="p-2 bg-gray-50/50 border-b border-gray-100">
                                         <div className="relative">
-                                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
                                             <input
                                                 type="text"
                                                 placeholder="Search products..."
                                                 value={productSearch}
                                                 onChange={(e) => setProductSearch(e.target.value)}
-                                                className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
+                                                className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400 text-sm transition-all duration-300"
                                             />
                                         </div>
                                     </div>
-                                    <div className="max-h-60 overflow-y-auto">
+                                    <div className="max-h-60 overflow-y-auto scrollbar-thin scrollbar-thumb-purple-200 scrollbar-track-transparent">
                                         {filteredProducts.length === 0 ? (
-                                            <div className="p-4 text-gray-500 text-center">No products found</div>
+                                            <div className="p-4 text-gray-400 text-center text-sm italic">No products found</div>
                                         ) : (
                                             filteredProducts.map((product) => (
                                                 <button
@@ -703,21 +703,21 @@ const ManageImageMatrix: React.FC<{
                                                         setProductDropdownOpen(false);
                                                         setProductSearch("");
                                                     }}
-                                                    className={`w-full px-4 py-3 text-left hover:bg-gray-50 flex items-center gap-3 ${selectedProductId === product._id ? "bg-purple-50" : ""
+                                                    className={`w-full px-4 py-3 text-left hover:bg-purple-50 flex items-center gap-3 transition-colors duration-200 ${selectedProductId === product._id ? "bg-purple-50/80" : ""
                                                         }`}
                                                 >
                                                     {product.image ? (
                                                         <img
                                                             src={product.image}
                                                             alt={product.name}
-                                                            className="w-10 h-10 object-cover rounded"
+                                                            className="w-10 h-10 object-cover rounded-lg shadow-sm"
                                                         />
                                                     ) : (
-                                                        <div className="w-10 h-10 bg-gray-200 rounded flex items-center justify-center">
-                                                            <Package className="text-gray-400" size={20} />
+                                                        <div className="w-10 h-10 bg-gradient-to-br from-gray-100 to-gray-200 rounded-lg flex items-center justify-center">
+                                                            <Package className="text-gray-400" size={18} />
                                                         </div>
                                                     )}
-                                                    <span className="text-gray-800">{product.name}</span>
+                                                    <span className={`text-sm ${selectedProductId === product._id ? "text-purple-700 font-semibold" : "text-gray-700"}`}>{product.name}</span>
                                                 </button>
                                             ))
                                         )}
@@ -728,13 +728,13 @@ const ManageImageMatrix: React.FC<{
                     </div>
 
                     {selectedProductId && (
-                        <>
+                        <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto">
                             <button
                                 onClick={() => generateMatrix(stats.total > 0)}
                                 disabled={loading}
-                                className="px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg font-medium hover:from-purple-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 mt-7"
+                                className="flex-1 sm:flex-none px-6 py-2.5 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl font-medium hover:from-purple-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-all duration-300 shadow-md hover:shadow-lg hover:scale-105 active:scale-95 text-sm"
                             >
-                                {loading ? <Loader className="animate-spin" size={18} /> : <RefreshCw size={18} />}
+                                {loading ? <Loader className="animate-spin" size={16} /> : <RefreshCw size={16} />}
                                 {stats.total > 0 ? 'Regenerate Matrix' : 'Generate Matrix'}
                             </button>
 
@@ -744,18 +744,18 @@ const ManageImageMatrix: React.FC<{
                                     <button
                                         onClick={downloadTemplate}
                                         disabled={loading}
-                                        className="px-6 py-3 bg-blue-100 text-blue-700 rounded-lg font-medium hover:bg-blue-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 mt-7"
+                                        className="flex-1 sm:flex-none px-6 py-2.5 bg-blue-50 text-blue-700 rounded-xl font-medium hover:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-all duration-300 border border-blue-100 text-sm"
                                     >
-                                        <Download size={18} />
-                                        Download Template
+                                        <Download size={16} />
+                                        Template
                                     </button>
 
                                     <button
                                         onClick={() => zipFileInputRef.current?.click()}
                                         disabled={zipUploading}
-                                        className="px-6 py-3 bg-green-100 text-green-700 rounded-lg font-medium hover:bg-green-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 mt-7"
+                                        className="flex-1 sm:flex-none px-6 py-2.5 bg-green-50 text-green-700 rounded-xl font-medium hover:bg-green-100 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-all duration-300 border border-green-100 text-sm"
                                     >
-                                        {zipUploading ? <Loader className="animate-spin" size={18} /> : <UploadCloud size={18} />}
+                                        {zipUploading ? <Loader className="animate-spin" size={16} /> : <UploadCloud size={16} />}
                                         {zipUploading ? 'Uploading...' : 'Upload ZIP'}
                                     </button>
 
@@ -768,7 +768,7 @@ const ManageImageMatrix: React.FC<{
                                     />
                                 </>
                             )}
-                        </>
+                        </div>
                     )}
                 </div>
 
@@ -831,139 +831,154 @@ const ManageImageMatrix: React.FC<{
 
                 {/* Preview Info */}
                 {previewData && (
-                    <div className="mt-6 pt-6 border-t">
-                        <div className="grid grid-cols-3 gap-4">
-                            <div className="bg-gray-50 rounded-lg p-4">
-                                <div className="text-2xl font-bold text-gray-800">{previewData.attributes.length}</div>
-                                <div className="text-sm text-gray-500">Attributes</div>
+                    <div className="mt-6 pt-6 border-t border-gray-100">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div className="bg-gray-50/50 rounded-xl p-4 border border-gray-100">
+                                <div className="text-xl sm:text-2xl font-bold text-gray-800">{previewData.attributes.length}</div>
+                                <div className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Attributes</div>
                             </div>
-                            <div className="bg-green-50 rounded-lg p-4">
-                                <div className="text-2xl font-bold text-green-700">{stats.uploaded}</div>
-                                <div className="text-sm text-green-600">Uploaded</div>
+                            <div className="bg-green-50/50 rounded-xl p-4 border border-green-100">
+                                <div className="text-xl sm:text-2xl font-bold text-green-700">{stats.uploaded}</div>
+                                <div className="text-xs text-green-600 uppercase tracking-wider font-semibold">Uploaded</div>
                             </div>
-                            <div className="bg-red-50 rounded-lg p-4">
-                                <div className="text-2xl font-bold text-red-700">{stats.missing}</div>
-                                <div className="text-sm text-red-600">Missing</div>
+                            <div className="bg-red-50/50 rounded-xl p-4 border border-red-100">
+                                <div className="text-xl sm:text-2xl font-bold text-red-700">{stats.missing}</div>
+                                <div className="text-xs text-red-600 uppercase tracking-wider font-semibold">Missing</div>
                             </div>
                         </div>
 
                         {previewData.warning && (
-                            <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-lg p-3 flex items-center gap-2">
-                                <AlertCircle className="text-yellow-600" size={18} />
-                                <span className="text-yellow-700 text-sm">{previewData.warning}</span>
+                            <div className="mt-4 bg-amber-50 border border-amber-100 rounded-xl p-4 flex items-center gap-3">
+                                <AlertCircle className="text-amber-500 flex-shrink-0" size={18} />
+                                <span className="text-amber-800 text-sm">{previewData.warning}</span>
                             </div>
                         )}
 
-                        {/* Attributes breakdown with sub-attribute details */}
-                        <div className="mt-4 space-y-3">
-                            {previewData.attributes.map((attr) => (
-                                <div key={attr.id} className="bg-gray-50 rounded-lg p-3">
-                                    <div className="flex items-center gap-2 mb-2">
-                                        <span className="font-semibold text-gray-800">{attr.name}</span>
-                                        <span className="text-sm text-gray-500">
-                                            ({attr.baseValuesCount} values{attr.hasSubAttributes ? ` → ${attr.expandedValuesCount} expanded` : ''})
-                                        </span>
-                                        {attr.hasSubAttributes && (
-                                            <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded-full">
-                                                Has Sub-Attrs
-                                            </span>
-                                        )}
-                                    </div>
-                                    <div className="flex flex-wrap gap-1">
-                                        {attr.values.map((v) => (
-                                            <span
-                                                key={v.value}
-                                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs ${v.hasSubAttributes && (v.subAttributeCount || 0) > 0
-                                                    ? 'bg-purple-100 text-purple-700 border border-purple-200'
-                                                    : 'bg-white text-gray-600 border border-gray-200'
-                                                    }`}
-                                                title={v.hasSubAttributes ? `${v.subAttributeCount} sub-attributes` : 'No sub-attributes'}
-                                            >
-                                                <span>{v.label}</span>
-                                                {v.hasSubAttributes && (
-                                                    <span className="font-medium text-purple-800">
-                                                        ({v.subAttributeCount || 0})
+                        {/* Attributes breakdown */}
+                        <div className="mt-6 space-y-4">
+                            <h4 className="text-sm font-semibold text-gray-700 ml-1">Attribute Breakdown</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                {previewData.attributes.map((attr) => (
+                                    <div key={attr.id} className="bg-gray-50/50 rounded-xl p-3 border border-gray-100">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <span className="font-semibold text-gray-800 text-sm">{attr.name}</span>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-[10px] sm:text-xs text-gray-500 bg-white px-2 py-0.5 rounded-full border border-gray-100">
+                                                    {attr.expandedValuesCount} values
+                                                </span>
+                                                {attr.hasSubAttributes && (
+                                                    <span className="px-2 py-0.5 bg-purple-50 text-purple-600 text-[10px] rounded-full border border-purple-100">
+                                                        Sub-Attrs
                                                     </span>
                                                 )}
-                                            </span>
-                                        ))}
+                                            </div>
+                                        </div>
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {attr.values.slice(0, 8).map((v) => (
+                                                <span
+                                                    key={v.value}
+                                                    className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] sm:text-xs ${v.hasSubAttributes && (v.subAttributeCount || 0) > 0
+                                                        ? 'bg-purple-100/50 text-purple-700 border border-purple-200'
+                                                        : 'bg-white text-gray-600 border border-gray-100 shadow-sm'
+                                                        }`}
+                                                >
+                                                    <span className="truncate max-w-[80px] sm:max-w-[120px]">{v.label}</span>
+                                                    {v.hasSubAttributes && (
+                                                        <span className="font-bold text-purple-800">
+                                                            ({v.subAttributeCount || 0})
+                                                        </span>
+                                                    )}
+                                                </span>
+                                            ))}
+                                            {attr.values.length > 8 && (
+                                                <span className="text-[10px] text-gray-400 self-center">+{attr.values.length - 8} more</span>
+                                            )}
+                                        </div>
                                     </div>
-                                </div>
-                            ))}
+                                ))}
+                            </div>
                         </div>
                     </div>
                 )}
             </div>
 
-            {/* Bulk Upload Zone */}
-
             {/* Matrix Grid */}
             {selectedProductId && entries.length > 0 && (
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                     {/* Toolbar */}
-                    <div className="px-6 py-4 border-b flex items-center justify-between flex-wrap gap-4">
-                        <div className="flex items-center gap-3">
-                            <Filter className="text-gray-400" size={18} />
-                            <select
-                                value={statusFilter}
-                                onChange={(e) => setStatusFilter(e.target.value as any)}
-                                className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-purple-500"
-                            >
-                                <option value="">All ({stats.total})</option>
-                                <option value="UPLOADED">Uploaded ({stats.uploaded})</option>
-                                <option value="MISSING">Missing ({stats.missing})</option>
-                            </select>
+                    <div className="px-4 py-3 sm:px-6 sm:py-4 border-b border-gray-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                        <div className="flex items-center gap-3 w-full sm:w-auto">
+                            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Status:</span>
+                            <div className="relative flex-1 sm:flex-none">
+                                <select
+                                    value={statusFilter}
+                                    onChange={(e) => setStatusFilter(e.target.value as any)}
+                                    className="w-full sm:w-auto appearance-none pl-3 pr-10 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400 transition-all duration-300 font-medium"
+                                >
+                                    <option value="">All ({stats.total})</option>
+                                    <option value="UPLOADED">Uploaded ({stats.uploaded})</option>
+                                    <option value="MISSING">Missing ({stats.missing})</option>
+                                </select>
+                                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={14} />
+                            </div>
                         </div>
 
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 bg-gray-50 p-1.5 rounded-xl border border-gray-200 w-full sm:w-auto justify-center sm:justify-start">
                             <button
                                 onClick={() => setViewMode("grid")}
-                                className={`p-2 rounded ${viewMode === "grid" ? "bg-purple-100 text-purple-700" : "text-gray-400 hover:text-gray-600"}`}
+                                className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-1.5 rounded-lg text-sm font-medium transition-all duration-300 ${viewMode === "grid" ? "bg-white shadow-md text-purple-600" : "text-gray-500 hover:text-gray-700"}`}
                             >
-                                <Grid size={20} />
+                                <Grid size={16} />
+                                <span className="sm:hidden lg:inline">Grid</span>
                             </button>
                             <button
                                 onClick={() => setViewMode("list")}
-                                className={`p-2 rounded ${viewMode === "list" ? "bg-purple-100 text-purple-700" : "text-gray-400 hover:text-gray-600"}`}
+                                className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-1.5 rounded-lg text-sm font-medium transition-all duration-300 ${viewMode === "list" ? "bg-white shadow-md text-purple-600" : "text-gray-500 hover:text-gray-700"}`}
                             >
-                                <List size={20} />
+                                <List size={16} />
+                                <span className="sm:hidden lg:inline">List</span>
                             </button>
                         </div>
                     </div>
 
                     {/* Grid View */}
                     {viewMode === "grid" && (
-                        <div className="p-6 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                        <div className="p-4 sm:p-6 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
                             {entries.map((entry) => (
                                 <div
                                     key={entry._id}
-                                    className={`relative rounded-lg border-2 overflow-hidden group ${entry.status === "UPLOADED" ? "border-green-300" : "border-gray-200"
+                                    className={`group relative rounded-2xl border-2 overflow-hidden transition-all duration-300 ${entry.status === "UPLOADED" ? "border-green-400 shadow-lg shadow-green-100/50" : "border-gray-100 hover:border-purple-200"
                                         }`}
                                 >
                                     {/* Image/Placeholder */}
-                                    <div className="aspect-square bg-gray-100 flex items-center justify-center">
+                                    <div className="aspect-square bg-gray-50 flex items-center justify-center overflow-hidden">
                                         {entry.thumbnailUrl || entry.imageUrl ? (
                                             <img
                                                 src={entry.thumbnailUrl || entry.imageUrl!}
                                                 alt="Matrix image"
-                                                className="w-full h-full object-cover cursor-pointer"
+                                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 cursor-pointer"
                                                 onClick={() => setPreviewImage(entry.imageUrl)}
                                             />
                                         ) : (
-                                            <ImageIcon className="text-gray-300" size={40} />
+                                            <div className="bg-gradient-to-br from-gray-50 to-gray-100 w-full h-full flex flex-col items-center justify-center gap-2">
+                                                <ImageIcon className="text-gray-300" size={32} />
+                                                <span className="text-[10px] text-gray-400 font-medium tracking-tight">NO IMAGE</span>
+                                            </div>
                                         )}
                                     </div>
 
                                     {/* Status badge */}
                                     <div
-                                        className={`absolute top-2 right-2 w-3 h-3 rounded-full ${entry.status === "UPLOADED" ? "bg-green-500" : "bg-red-500"
+                                        className={`absolute top-2 right-2 px-1.5 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-wider ${entry.status === "UPLOADED" ? "bg-green-500 text-white" : "bg-gray-400 text-white"
                                             }`}
-                                    />
+                                    >
+                                        {entry.status}
+                                    </div>
 
                                     {/* Hover overlay */}
-                                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                                    <div className="absolute inset-0 bg-purple-900/40 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-center justify-center gap-3">
                                         {uploadingEntryId === entry._id ? (
-                                            <Loader className="animate-spin text-white" size={24} />
+                                            <Loader className="animate-spin text-white" size={20} />
                                         ) : (
                                             <>
                                                 <input
@@ -979,26 +994,26 @@ const ManageImageMatrix: React.FC<{
                                                 />
                                                 <button
                                                     onClick={() => fileInputRefs.current.get(entry._id)?.click()}
-                                                    className="p-2 bg-white rounded-full hover:bg-gray-100"
+                                                    className="p-2.5 bg-white text-purple-600 rounded-xl hover:bg-purple-600 hover:text-white transition-all duration-200 shadow-xl"
                                                     title="Upload image"
                                                 >
-                                                    <UploadIcon className="text-gray-700" size={18} />
+                                                    <UploadIcon size={16} />
                                                 </button>
                                                 {entry.imageUrl && (
                                                     <>
                                                         <button
                                                             onClick={() => setPreviewImage(entry.imageUrl)}
-                                                            className="p-2 bg-white rounded-full hover:bg-gray-100"
+                                                            className="p-2.5 bg-white text-blue-600 rounded-xl hover:bg-blue-600 hover:text-white transition-all duration-200 shadow-xl"
                                                             title="Preview"
                                                         >
-                                                            <Eye className="text-gray-700" size={18} />
+                                                            <Eye size={16} />
                                                         </button>
                                                         <button
                                                             onClick={() => clearEntryImage(entry._id)}
-                                                            className="p-2 bg-white rounded-full hover:bg-red-100"
+                                                            className="p-2.5 bg-white text-red-600 rounded-xl hover:bg-red-600 hover:text-white transition-all duration-200 shadow-xl"
                                                             title="Remove image"
                                                         >
-                                                            <Trash2 className="text-red-600" size={18} />
+                                                            <Trash2 size={16} />
                                                         </button>
                                                     </>
                                                 )}
@@ -1007,10 +1022,12 @@ const ManageImageMatrix: React.FC<{
                                     </div>
 
                                     {/* Labels */}
-                                    <div className="p-2 text-xs text-center bg-white border-t truncate">
-                                        {Object.values(entry.attributeLabels || {})
-                                            .map((v) => v.valueLabel)
-                                            .join(" | ")}
+                                    <div className="px-2 py-1.5 text-[10px] sm:text-xs text-center bg-white border-t border-gray-50 flex items-center justify-center h-10 group-hover:bg-purple-50/50 transition-colors duration-200">
+                                        <div className="truncate font-medium text-gray-600 leading-tight">
+                                            {Object.values(entry.attributeLabels || {})
+                                                .map((v) => v.valueLabel)
+                                                .join(" | ")}
+                                        </div>
                                     </div>
                                 </div>
                             ))}

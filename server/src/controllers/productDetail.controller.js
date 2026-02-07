@@ -213,6 +213,7 @@ export const getProductDetail = async (req, res) => {
         showPriceIncludingGst: product.showPriceIncludingGst,
         instructions: product.instructions,
         productionSequence: product.productionSequence,
+        specialization: product.specialization,
         showAttributePrices: product.showAttributePrices !== undefined ? product.showAttributePrices : true, // Include showAttributePrices setting
       },
       quantityConfig,
