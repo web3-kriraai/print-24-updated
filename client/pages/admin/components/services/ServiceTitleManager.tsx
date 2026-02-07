@@ -51,10 +51,17 @@ const ServiceTitleManager: React.FC<ServiceTitleManagerProps> = ({ service, onUp
     const [availableItems, setAvailableItems] = useState<any[]>([]);
     const [loadingItems, setLoadingItems] = useState(false);
     const [saving, setSaving] = useState(false);
+    const [draggedTitleId, setDraggedTitleId] = useState<string | null>(null);
+    const [draggedItemInfo, setDraggedItemInfo] = useState<{ titleId: string; itemIndex: number } | null>(null);
 
     useEffect(() => {
-        setTitles(service.titles || []);
+        // Keep titles sorted by sortOrder in state
+        const sortedTitles = [...(service.titles || [])].sort((a, b) => a.sortOrder - b.sortOrder);
+        setTitles(sortedTitles);
     }, [service]);
+
+    // Get sorted titles for rendering
+    const sortedTitles = [...titles].sort((a, b) => a.sortOrder - b.sortOrder);
 
     const handleAddTitle = () => {
         setEditingTitle(null);
@@ -128,30 +135,43 @@ const ServiceTitleManager: React.FC<ServiceTitleManagerProps> = ({ service, onUp
         }
     };
 
-    const handleTitleDragStart = (e: React.DragEvent, index: number) => {
+    const handleTitleDragStart = (e: React.DragEvent, titleId: string) => {
         e.dataTransfer.effectAllowed = 'move';
-        e.dataTransfer.setData('text/html', `title-${index}`);
+        e.dataTransfer.setData('text/plain', `title-${titleId}`);
+        setDraggedTitleId(titleId);
     };
 
-    const handleTitleDrop = async (e: React.DragEvent, dropIndex: number) => {
+    const handleTitleDragEnd = () => {
+        setDraggedTitleId(null);
+    };
+
+    const handleTitleDrop = async (e: React.DragEvent, targetTitleId: string) => {
         e.preventDefault();
-        const dragData = e.dataTransfer.getData('text/html');
+        const dragData = e.dataTransfer.getData('text/plain');
         if (!dragData.startsWith('title-')) return;
 
-        const dragIndex = parseInt(dragData.replace('title-', ''));
-        if (dragIndex === dropIndex) return;
+        const draggedId = dragData.replace('title-', '');
+        if (draggedId === targetTitleId) return;
 
-        const newTitles = [...titles];
-        const [draggedItem] = newTitles.splice(dragIndex, 1);
-        newTitles.splice(dropIndex, 0, draggedItem);
+        // Work with sorted titles
+        const currentSorted = [...titles].sort((a, b) => a.sortOrder - b.sortOrder);
+        const dragIndex = currentSorted.findIndex(t => t._id === draggedId);
+        const dropIndex = currentSorted.findIndex(t => t._id === targetTitleId);
+
+        if (dragIndex === -1 || dropIndex === -1) return;
+
+        // Reorder
+        const [draggedItem] = currentSorted.splice(dragIndex, 1);
+        currentSorted.splice(dropIndex, 0, draggedItem);
 
         // Update sort orders
-        const updatedTitles = newTitles.map((title, index) => ({
+        const updatedTitles = currentSorted.map((title, index) => ({
             ...title,
             sortOrder: index,
         }));
 
         setTitles(updatedTitles);
+        setDraggedTitleId(null);
 
         try {
             await updateService(service._id, { titles: updatedTitles });
@@ -248,36 +268,48 @@ const ServiceTitleManager: React.FC<ServiceTitleManagerProps> = ({ service, onUp
         }
     };
 
-    const handleItemDragStart = (e: React.DragEvent, titleId: string, itemIndex: number) => {
+    const handleItemDragStart = (e: React.DragEvent, titleId: string, itemId: string) => {
         e.dataTransfer.effectAllowed = 'move';
-        e.dataTransfer.setData('text/html', `item-${titleId}-${itemIndex}`);
+        e.dataTransfer.setData('text/plain', `item-${titleId}-${itemId}`);
+        setDraggedItemInfo({ titleId, itemIndex: 0 }); // Track drag state
     };
 
-    const handleItemDrop = async (e: React.DragEvent, titleId: string, dropIndex: number) => {
+    const handleItemDragEnd = () => {
+        setDraggedItemInfo(null);
+    };
+
+    const handleItemDrop = async (e: React.DragEvent, titleId: string, targetItemId: string) => {
         e.preventDefault();
         e.stopPropagation();
 
-        const dragData = e.dataTransfer.getData('text/html');
+        const dragData = e.dataTransfer.getData('text/plain');
         if (!dragData.startsWith(`item-${titleId}-`)) return;
 
-        const dragIndex = parseInt(dragData.split('-')[2]);
-        if (dragIndex === dropIndex) return;
+        const draggedItemId = dragData.replace(`item-${titleId}-`, '');
+        if (draggedItemId === targetItemId) return;
 
         const updatedTitles = titles.map(title => {
             if (title._id === titleId) {
-                const newItems = [...title.items];
-                const [draggedItem] = newItems.splice(dragIndex, 1);
-                newItems.splice(dropIndex, 0, draggedItem);
+                // Work with sorted items
+                const sortedItems = [...title.items].sort((a, b) => a.sortOrder - b.sortOrder);
+                const dragIndex = sortedItems.findIndex(item => item.id === draggedItemId);
+                const dropIndex = sortedItems.findIndex(item => item.id === targetItemId);
+
+                if (dragIndex === -1 || dropIndex === -1) return title;
+
+                const [draggedItem] = sortedItems.splice(dragIndex, 1);
+                sortedItems.splice(dropIndex, 0, draggedItem);
 
                 return {
                     ...title,
-                    items: newItems.map((item, index) => ({ ...item, sortOrder: index })),
+                    items: sortedItems.map((item, index) => ({ ...item, sortOrder: index })),
                 };
             }
             return title;
         });
 
         setTitles(updatedTitles);
+        setDraggedItemInfo(null);
 
         try {
             await updateService(service._id, { titles: updatedTitles });
@@ -421,163 +453,163 @@ const ServiceTitleManager: React.FC<ServiceTitleManagerProps> = ({ service, onUp
                 </div>
             ) : (
                 <div className="space-y-3">
-                    {titles
-                        .sort((a, b) => a.sortOrder - b.sortOrder)
-                        .map((title, index) => (
-                            <div
-                                key={title._id || index}
-                                draggable
-                                onDragStart={(e) => handleTitleDragStart(e, index)}
-                                onDragOver={(e) => e.preventDefault()}
-                                onDrop={(e) => handleTitleDrop(e, index)}
-                                className="bg-white border border-gray-200 rounded-lg p-4"
-                            >
-                                {/* Title Header */}
-                                <div className="flex items-start gap-3 mb-3">
-                                    <div className="cursor-move text-gray-400 hover:text-gray-600 mt-1">
-                                        <GripVertical size={18} />
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <h5 className="font-semibold text-gray-900">{title.title}</h5>
-                                        {title.description && (
-                                            <p className="text-sm text-gray-600 mt-1">{title.description}</p>
-                                        )}
-                                        <p className="text-xs text-gray-500 mt-1">
-                                            Sort Order: {title.sortOrder} | Items: {title.items.length}
-                                        </p>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <button
-                                            onClick={() => handleEditTitle(title)}
-                                            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                                            title="Edit Title"
-                                        >
-                                            <Edit size={16} />
-                                        </button>
-                                        <button
-                                            onClick={() => handleDeleteTitle(title._id!)}
-                                            className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
-                                            title="Delete Title"
-                                        >
-                                            <Trash2 size={16} />
-                                        </button>
-                                    </div>
+                    {sortedTitles.map((title, index) => (
+                        <div
+                            key={title._id || index}
+                            draggable
+                            onDragStart={(e) => handleTitleDragStart(e, title._id!)}
+                            onDragEnd={handleTitleDragEnd}
+                            onDragOver={(e) => e.preventDefault()}
+                            onDrop={(e) => handleTitleDrop(e, title._id!)}
+                            className={`bg-white border border-gray-200 rounded-lg p-4 ${draggedTitleId === title._id ? 'opacity-50' : ''}`}
+                        >
+                            {/* Title Header */}
+                            <div className="flex items-start gap-3 mb-3">
+                                <div className="cursor-move text-gray-400 hover:text-gray-600 mt-1">
+                                    <GripVertical size={18} />
                                 </div>
-
-                                {/* Items List */}
-                                <div className="ml-8 space-y-2">
-                                    {title.items.length > 0 && (
-                                        <div className="space-y-1">
-                                            {title.items
-                                                .sort((a, b) => a.sortOrder - b.sortOrder)
-                                                .map((item, itemIndex) => (
-                                                    <div
-                                                        key={itemIndex}
-                                                        draggable
-                                                        onDragStart={(e) => handleItemDragStart(e, title._id!, itemIndex)}
-                                                        onDragOver={(e) => e.preventDefault()}
-                                                        onDrop={(e) => handleItemDrop(e, title._id!, itemIndex)}
-                                                        className="flex items-center gap-2 bg-gray-50 p-2 rounded border border-gray-200"
-                                                    >
-                                                        <div className="cursor-move text-gray-400">
-                                                            <GripVertical size={14} />
-                                                        </div>
-                                                        <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-800 rounded">
-                                                            {item.type}
-                                                        </span>
-                                                        <span className="text-sm text-gray-700 flex-1">
-                                                            ID: {item.id}
-                                                        </span>
-                                                        <button
-                                                            onClick={() => handleRemoveItem(title._id!, itemIndex)}
-                                                            className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
-                                                        >
-                                                            <X size={14} />
-                                                        </button>
-                                                    </div>
-                                                ))}
-                                        </div>
+                                <div className="flex-1 min-w-0">
+                                    <h5 className="font-semibold text-gray-900">{title.title}</h5>
+                                    {title.description && (
+                                        <p className="text-sm text-gray-600 mt-1">{title.description}</p>
                                     )}
-
-                                    {/* Add Item Button */}
-                                    {showItemForm === title._id ? (
-                                        <div className="bg-gray-50 p-3 rounded border border-gray-200">
-                                            <div className="space-y-3">
-                                                {/* Item Type Selector */}
-                                                <div>
-                                                    <label className="block text-xs font-medium text-gray-700 mb-1">
-                                                        Item Type
-                                                    </label>
-                                                    <select
-                                                        value={itemType}
-                                                        onChange={(e) => {
-                                                            const newType = e.target.value as 'product' | 'category' | 'subcategory';
-                                                            setItemType(newType);
-                                                            loadAvailableItems(newType);
-                                                        }}
-                                                        className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                                    >
-                                                        <option value="category">Category</option>
-                                                        <option value="subcategory">Subcategory</option>
-                                                        <option value="product">Product</option>
-                                                    </select>
-                                                </div>
-
-                                                {/* Search */}
-                                                <div>
-                                                    <div className="relative">
-                                                        <Search className="absolute left-2 top-2 text-gray-400" size={16} />
-                                                        <input
-                                                            type="text"
-                                                            value={searchQuery}
-                                                            onChange={(e) => setSearchQuery(e.target.value)}
-                                                            placeholder="Search items..."
-                                                            className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                                        />
-                                                    </div>
-                                                </div>
-
-                                                {/* Available Items */}
-                                                <div className="max-h-48 overflow-y-auto space-y-1">
-                                                    {loadingItems ? (
-                                                        <div className="text-center py-4">
-                                                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900 mx-auto"></div>
-                                                        </div>
-                                                    ) : filteredItems.length === 0 ? (
-                                                        <p className="text-xs text-gray-500 text-center py-4">No items found</p>
-                                                    ) : (
-                                                        filteredItems.map((item) => (
-                                                            <button
-                                                                key={item._id}
-                                                                onClick={() => handleAddItem(title._id!, item._id)}
-                                                                className="w-full text-left px-3 py-2 text-sm bg-white border border-gray-200 rounded hover:bg-blue-50 hover:border-blue-300 transition-colors"
-                                                            >
-                                                                {item.name}
-                                                            </button>
-                                                        ))
-                                                    )}
-                                                </div>
-
-                                                <button
-                                                    onClick={() => setShowItemForm(null)}
-                                                    className="w-full px-3 py-1.5 text-sm text-gray-700 bg-gray-200 rounded hover:bg-gray-300 transition-colors"
-                                                >
-                                                    Cancel
-                                                </button>
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <button
-                                            onClick={() => handleShowItemForm(title._id!)}
-                                            className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 font-medium"
-                                        >
-                                            <Plus size={14} />
-                                            Add Item
-                                        </button>
-                                    )}
+                                    <p className="text-xs text-gray-500 mt-1">
+                                        Sort Order: {title.sortOrder} | Items: {title.items.length}
+                                    </p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={() => handleEditTitle(title)}
+                                        className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                        title="Edit Title"
+                                    >
+                                        <Edit size={16} />
+                                    </button>
+                                    <button
+                                        onClick={() => handleDeleteTitle(title._id!)}
+                                        className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
+                                        title="Delete Title"
+                                    >
+                                        <Trash2 size={16} />
+                                    </button>
                                 </div>
                             </div>
-                        ))}
+
+                            {/* Items List */}
+                            <div className="ml-8 space-y-2">
+                                {title.items.length > 0 && (
+                                    <div className="space-y-1">
+                                        {[...title.items]
+                                            .sort((a, b) => a.sortOrder - b.sortOrder)
+                                            .map((item, itemIndex) => (
+                                                <div
+                                                    key={item.id || itemIndex}
+                                                    draggable
+                                                    onDragStart={(e) => handleItemDragStart(e, title._id!, item.id)}
+                                                    onDragEnd={handleItemDragEnd}
+                                                    onDragOver={(e) => e.preventDefault()}
+                                                    onDrop={(e) => handleItemDrop(e, title._id!, item.id)}
+                                                    className="flex items-center gap-2 bg-gray-50 p-2 rounded border border-gray-200 cursor-move"
+                                                >
+                                                    <div className="cursor-move text-gray-400">
+                                                        <GripVertical size={14} />
+                                                    </div>
+                                                    <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-800 rounded">
+                                                        {item.type}
+                                                    </span>
+                                                    <span className="text-sm text-gray-700 flex-1">
+                                                        ID: {item.id}
+                                                    </span>
+                                                    <button
+                                                        onClick={() => handleRemoveItem(title._id!, itemIndex)}
+                                                        className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
+                                                    >
+                                                        <X size={14} />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                    </div>
+                                )}
+
+                                {/* Add Item Button */}
+                                {showItemForm === title._id ? (
+                                    <div className="bg-gray-50 p-3 rounded border border-gray-200">
+                                        <div className="space-y-3">
+                                            {/* Item Type Selector */}
+                                            <div>
+                                                <label className="block text-xs font-medium text-gray-700 mb-1">
+                                                    Item Type
+                                                </label>
+                                                <select
+                                                    value={itemType}
+                                                    onChange={(e) => {
+                                                        const newType = e.target.value as 'product' | 'category' | 'subcategory';
+                                                        setItemType(newType);
+                                                        loadAvailableItems(newType);
+                                                    }}
+                                                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                >
+                                                    <option value="category">Category</option>
+                                                    <option value="subcategory">Subcategory</option>
+                                                    <option value="product">Product</option>
+                                                </select>
+                                            </div>
+
+                                            {/* Search */}
+                                            <div>
+                                                <div className="relative">
+                                                    <Search className="absolute left-2 top-2 text-gray-400" size={16} />
+                                                    <input
+                                                        type="text"
+                                                        value={searchQuery}
+                                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                                        placeholder="Search items..."
+                                                        className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            {/* Available Items */}
+                                            <div className="max-h-48 overflow-y-auto space-y-1">
+                                                {loadingItems ? (
+                                                    <div className="text-center py-4">
+                                                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900 mx-auto"></div>
+                                                    </div>
+                                                ) : filteredItems.length === 0 ? (
+                                                    <p className="text-xs text-gray-500 text-center py-4">No items found</p>
+                                                ) : (
+                                                    filteredItems.map((item) => (
+                                                        <button
+                                                            key={item._id}
+                                                            onClick={() => handleAddItem(title._id!, item._id)}
+                                                            className="w-full text-left px-3 py-2 text-sm bg-white border border-gray-200 rounded hover:bg-blue-50 hover:border-blue-300 transition-colors"
+                                                        >
+                                                            {item.name}
+                                                        </button>
+                                                    ))
+                                                )}
+                                            </div>
+
+                                            <button
+                                                onClick={() => setShowItemForm(null)}
+                                                className="w-full px-3 py-1.5 text-sm text-gray-700 bg-gray-200 rounded hover:bg-gray-300 transition-colors"
+                                            >
+                                                Cancel
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <button
+                                        onClick={() => handleShowItemForm(title._id!)}
+                                        className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 font-medium"
+                                    >
+                                        <Plus size={14} />
+                                        Add Item
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    ))}
                 </div>
             )}
         </div>
@@ -585,3 +617,4 @@ const ServiceTitleManager: React.FC<ServiceTitleManagerProps> = ({ service, onUp
 };
 
 export default ServiceTitleManager;
+

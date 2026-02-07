@@ -1435,7 +1435,7 @@ const ServiceManagement: React.FC = () => {
                             </div>
                         </div>
                     ) : (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-4 max-h-[600px] overflow-y-auto pr-2 pb-2">
+                        <div className="flex flex-col gap-4 pb-2">
                             {services.map((service, index) => (
                                 <div
                                     key={service._id}
@@ -1443,10 +1443,10 @@ const ServiceManagement: React.FC = () => {
                                     onDragStart={(e) => handleDragStart(e, index)}
                                     onDragOver={handleDragOver}
                                     onDrop={(e) => handleDrop(e, index)}
-                                    className="bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-lg transition-all duration-200 hover:border-blue-300 group h-full"
+                                    className="bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-lg transition-all duration-200 hover:border-blue-300 group"
                                 >
                                     {/* Service Header */}
-                                    <div className="p-4 flex flex-col lg:flex-row items-start lg:items-center gap-4 h-full">
+                                    <div className="p-4 flex flex-col lg:flex-row items-start lg:items-center gap-4">
                                         {/* Drag Handle & Color Preview Group */}
                                         <div className="flex items-center gap-4 w-full lg:w-auto">
                                             <div className="cursor-move text-gray-400 hover:text-gray-600">
