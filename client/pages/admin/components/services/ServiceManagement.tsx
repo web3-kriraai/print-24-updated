@@ -485,30 +485,30 @@ const ServiceManagement: React.FC = () => {
     }
 
     return (
-        <div className="max-w-6xl mx-auto space-y-6 pb-12">
+        <div className="max-w-6xl mx-auto space-y-4 md:space-y-6 pb-12 px-3 md:px-6">
             {/* Professional Header */}
-            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl shadow-lg p-6">
-                <div className="flex justify-between items-center">
+            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl shadow-lg p-4 md:p-5">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                     <div>
-                        <h2 className="text-2xl font-bold text-white">Service & Review Management</h2>
-                        <p className="text-blue-100 mt-1">Manage your services, customer reviews, and features</p>
+                        <h2 className="text-lg md:text-xl font-bold text-white">Service & Review Management</h2>
+                        <p className="text-xs md:text-sm text-blue-100 mt-1">Manage your services, customer reviews, and features</p>
                     </div>
                     {activeTab === 'services' && (
                         <button
                             onClick={handleAddNew}
-                            className="flex items-center gap-2 bg-white text-blue-600 px-4 py-2.5 rounded-lg hover:bg-blue-50 transition-all shadow-md hover:shadow-lg font-medium"
+                            className="flex items-center gap-2 bg-white text-blue-600 px-3 py-2 md:px-4 md:py-2 rounded-lg hover:bg-blue-50 transition-all shadow-md hover:shadow-lg font-medium text-xs md:text-sm whitespace-nowrap"
                         >
-                            <Plus size={18} />
+                            <Plus size={16} className="md:w-[18px] md:h-[18px]" />
                             Add Service
                         </button>
                     )}
                 </div>
 
                 {/* Modern Tab Navigation */}
-                <div className="mt-6 flex gap-2">
+                <div className="mt-3 md:mt-4 flex gap-2 overflow-x-auto">
                     <button
                         onClick={() => setActiveTab('services')}
-                        className={`px-6 py-2.5 rounded-lg font-medium transition-all ${activeTab === 'services'
+                        className={`px-4 md:px-5 py-1.5 md:py-2 rounded-lg font-medium text-xs md:text-sm transition-all whitespace-nowrap ${activeTab === 'services'
                             ? 'bg-white text-blue-600 shadow-md'
                             : 'bg-blue-500/20 text-white hover:bg-blue-500/30'
                             }`}
@@ -517,7 +517,7 @@ const ServiceManagement: React.FC = () => {
                     </button>
                     <button
                         onClick={() => setActiveTab('reviews')}
-                        className={`px-6 py-2.5 rounded-lg font-medium transition-all ${activeTab === 'reviews'
+                        className={`px-4 md:px-5 py-1.5 md:py-2 rounded-lg font-medium text-xs md:text-sm transition-all whitespace-nowrap ${activeTab === 'reviews'
                             ? 'bg-white text-blue-600 shadow-md'
                             : 'bg-blue-500/20 text-white hover:bg-blue-500/30'
                             }`}
@@ -526,7 +526,7 @@ const ServiceManagement: React.FC = () => {
                     </button>
                     <button
                         onClick={() => setActiveTab('features')}
-                        className={`px-6 py-2.5 rounded-lg font-medium transition-all ${activeTab === 'features'
+                        className={`px-4 md:px-5 py-1.5 md:py-2 rounded-lg font-medium text-xs md:text-sm transition-all whitespace-nowrap ${activeTab === 'features'
                             ? 'bg-white text-blue-600 shadow-md'
                             : 'bg-blue-500/20 text-white hover:bg-blue-500/30'
                             }`}
@@ -1435,7 +1435,7 @@ const ServiceManagement: React.FC = () => {
                             </div>
                         </div>
                     ) : (
-                        <div className="space-y-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-4 max-h-[600px] overflow-y-auto pr-2 pb-2">
                             {services.map((service, index) => (
                                 <div
                                     key={service._id}
@@ -1443,23 +1443,24 @@ const ServiceManagement: React.FC = () => {
                                     onDragStart={(e) => handleDragStart(e, index)}
                                     onDragOver={handleDragOver}
                                     onDrop={(e) => handleDrop(e, index)}
-                                    className="bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-lg transition-all duration-200 hover:border-blue-300"
+                                    className="bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-lg transition-all duration-200 hover:border-blue-300 group h-full"
                                 >
                                     {/* Service Header */}
-                                    <div className="p-4 flex items-center gap-4">
-                                        {/* Drag Handle */}
-                                        <div className="cursor-move text-gray-400 hover:text-gray-600">
-                                            <GripVertical size={20} />
+                                    <div className="p-4 flex flex-col lg:flex-row items-start lg:items-center gap-4 h-full">
+                                        {/* Drag Handle & Color Preview Group */}
+                                        <div className="flex items-center gap-4 w-full lg:w-auto">
+                                            <div className="cursor-move text-gray-400 hover:text-gray-600">
+                                                <GripVertical size={20} />
+                                            </div>
+
+                                            <div
+                                                className="w-12 h-12 rounded-lg border-2 border-gray-300 flex-shrink-0"
+                                                style={{ backgroundColor: service.color }}
+                                            />
                                         </div>
 
-                                        {/* Color Preview */}
-                                        <div
-                                            className="w-12 h-12 rounded-lg border-2 border-gray-300 flex-shrink-0"
-                                            style={{ backgroundColor: service.color }}
-                                        />
-
                                         {/* Service Info */}
-                                        <div className="flex-1 min-w-0">
+                                        <div className="flex-1 min-w-0 w-full lg:w-auto">
                                             <div className="flex items-center gap-2">
                                                 <h3 className="text-lg font-semibold text-gray-900 truncate">
                                                     {service.name}
@@ -1479,7 +1480,7 @@ const ServiceManagement: React.FC = () => {
                                         </div>
 
                                         {/* Actions */}
-                                        <div className="flex items-center gap-1.5">
+                                        <div className="flex items-center gap-1.5 w-full lg:w-auto justify-end lg:justify-start mt-auto lg:mt-0">
                                             <button
                                                 onClick={() => handleToggleStatus(service)}
                                                 className={`p-2.5 rounded-lg transition-all ${service.isActive
@@ -1582,4 +1583,4 @@ const ServiceManagement: React.FC = () => {
     );
 };
 
-export default ServiceManagement;
+export default ServiceManagement; 

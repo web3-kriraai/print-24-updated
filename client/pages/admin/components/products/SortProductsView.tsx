@@ -346,72 +346,95 @@ const SortProductsView: React.FC<SortProductsViewProps> = ({ categories, subCate
                     </div>
                 ) : (
                     <>
-                        <div className="overflow-x-auto">
-                            <table className="w-full">
-                                <thead className="bg-gray-50 border-b border-gray-200">
-                                    <tr>
-                                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 w-20 sm:w-24">Order</th>
-                                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 min-w-[200px]">Product</th>
-                                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 min-w-[150px]">Category</th>
-                                        <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Price</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-100">
-                                    {paginatedProducts.map((product) => {
-                                        const currentOrder = editedSortOrders[product._id] ?? product.sortOrder ?? 0;
-                                        const isEdited = editedSortOrders[product._id] !== undefined;
+                        <div className="min-w-full">
+                            {/* Desktop Header - Only visible on LG screens */}
+                            <div className="hidden lg:grid grid-cols-12 gap-4 px-4 py-3 bg-gray-50 border-b border-gray-200 text-sm font-semibold text-gray-700">
+                                <div className="col-span-1">Order</div>
+                                <div className="col-span-5">Product</div>
+                                <div className="col-span-4">Category</div>
+                                <div className="col-span-2 text-right">Price</div>
+                            </div>
 
-                                        return (
-                                            <motion.tr
-                                                key={product._id}
-                                                initial={{ opacity: 0 }}
-                                                animate={{ opacity: 1 }}
-                                                className={`hover:bg-gray-50 ${isEdited ? 'bg-yellow-50' : ''}`}
-                                            >
-                                                <td className="px-4 py-3">
+                            {/* Products List/Grid */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-4 lg:gap-0 p-4 lg:p-0">
+                                {paginatedProducts.map((product) => {
+                                    const currentOrder = editedSortOrders[product._id] ?? product.sortOrder ?? 0;
+                                    const isEdited = editedSortOrders[product._id] !== undefined;
+
+                                    return (
+                                        <motion.div
+                                            key={product._id}
+                                            initial={{ opacity: 0 }}
+                                            animate={{ opacity: 1 }}
+                                            className={`
+                                                relative bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden
+                                                hover:shadow-md transition-all duration-200
+                                                lg:rounded-none lg:border-0 lg:border-b lg:shadow-none lg:hover:shadow-none lg:hover:bg-gray-50
+                                                ${isEdited ? 'bg-amber-50 border-amber-200 ring-1 ring-amber-200 lg:ring-0' : ''}
+                                            `}
+                                        >
+                                            <div className="p-4 lg:px-4 lg:py-3 grid grid-cols-1 lg:grid-cols-12 gap-4 items-center">
+
+                                                {/* Mobile: Header Section with Image & Name */}
+                                                <div className="lg:col-span-5 lg:order-2 flex items-center gap-3">
+                                                    <div className="w-12 h-12 lg:w-10 lg:h-10 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0 border border-gray-100">
+                                                        {product.image ? (
+                                                            <img
+                                                                src={product.image}
+                                                                alt={product.name}
+                                                                className="w-full h-full object-cover"
+                                                            />
+                                                        ) : (
+                                                            <div className="w-full h-full flex items-center justify-center">
+                                                                <Package size={16} className="text-gray-400" />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <div className="min-w-0 flex-1">
+                                                        <span className="font-semibold text-gray-900 text-base lg:text-sm block truncate">
+                                                            {product.name}
+                                                        </span>
+                                                        {/* Mobile Only Category Subtitle */}
+                                                        <div className="lg:hidden text-xs text-gray-500 truncate mt-0.5">
+                                                            {getCategoryName(product.category)}
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Order Input Area */}
+                                                <div className="lg:col-span-1 lg:order-1 flex items-center justify-between lg:justify-start">
+                                                    <span className="lg:hidden text-sm font-medium text-gray-500">Sort Order</span>
                                                     <input
                                                         type="number"
                                                         min="0"
                                                         value={currentOrder}
                                                         onChange={(e) => handleSortOrderChange(product._id, e.target.value)}
-                                                        className={`w-14 sm:w-20 px-2 py-1 text-center border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm ${isEdited ? 'border-amber-400 bg-amber-50' : 'border-gray-300'
-                                                            }`}
+                                                        className={`w-20 lg:w-full px-2 py-1.5 text-center border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm font-medium
+                                                            ${isEdited ? 'border-amber-400 bg-white ring-2 ring-amber-100' : 'border-gray-200 bg-gray-50 lg:bg-white'}
+                                                        `}
                                                     />
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    <div className="flex items-center gap-2 sm:gap-3">
-                                                        <div className="w-8 h-8 sm:w-12 sm:h-12 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
-                                                            {product.image ? (
-                                                                <img
-                                                                    src={product.image}
-                                                                    alt={product.name}
-                                                                    className="w-full h-full object-cover"
-                                                                />
-                                                            ) : (
-                                                                <div className="w-full h-full flex items-center justify-center">
-                                                                    <Package size={16} className="text-gray-400" />
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                        <span className="font-medium text-gray-900 text-sm sm:text-base line-clamp-1">{product.name}</span>
-                                                    </div>
-                                                </td>
-                                                <td className="px-4 py-3 text-sm text-gray-600">
-                                                    <div className="truncate max-w-[200px]">
-                                                        {getCategoryName(product.category)}
-                                                        {product.subcategory && (
-                                                            <span className="text-gray-400"> → {getCategoryName(product.subcategory)}</span>
-                                                        )}
-                                                    </div>
-                                                </td>
-                                                <td className="px-4 py-3 text-right font-medium text-gray-900 text-sm sm:text-base">
-                                                    ₹{product.basePrice}
-                                                </td>
-                                            </motion.tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
+                                                </div>
+
+                                                {/* Desktop Category */}
+                                                <div className="hidden lg:block lg:col-span-4 lg:order-3 text-sm text-gray-600 truncate">
+                                                    {getCategoryName(product.category)}
+                                                    {product.subcategory && (
+                                                        <span className="text-gray-400"> → {getCategoryName(product.subcategory)}</span>
+                                                    )}
+                                                </div>
+
+                                                {/* Price */}
+                                                <div className="lg:col-span-2 lg:order-4 flex items-center justify-between lg:justify-end border-t lg:border-t-0 pt-3 lg:pt-0 mt-2 lg:mt-0">
+                                                    <span className="lg:hidden text-sm font-medium text-gray-500">Base Price</span>
+                                                    <span className="font-semibold text-gray-900">
+                                                        ₹{product.basePrice.toLocaleString()}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </motion.div>
+                                    );
+                                })}
+                            </div>
                         </div>
 
                         {/* Pagination */}

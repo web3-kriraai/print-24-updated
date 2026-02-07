@@ -127,6 +127,11 @@ const ProductSchema = new mongoose.Schema(
           type: Boolean,
           default: false,
         },
+        // Whether to show price for this attribute (admin control)
+        showPrice: {
+          type: Boolean,
+          default: true,
+        },
       },
     ],
 

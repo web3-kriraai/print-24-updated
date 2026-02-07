@@ -4655,14 +4655,14 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                             <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
                               <div className="flex-1">
                                 {/* Product Header with Price */}
-                                <div className="border-b border-gray-100 flex flex-row justify-between items-center">
+                                <div className="border-b border-gray-100 flex flex-row justify-between items-center pb-4">
                                   <div>
                                     <h1 className="font-poppins text-xl sm:text-2xl md:text-3xl font-semibold text-gray-900 mb-1">
                                       {selectedProduct.name}
                                     </h1>
                                     {selectedProduct.shortDescription && selectedProduct.shortDescription.trim() !== '' && (
-                                      <div className="mt-2 mb-4">
-                                        <p className="text-[15px] md:text-[16px] text-slate-500 leading-relaxed">
+                                      <div className="mt-1 mb-2">
+                                        <p className="text-base text-gray-600 leading-relaxed font-medium" style={{ fontFamily: "'Funnel Sans', sans-serif" }}>
                                           {selectedProduct.shortDescription}
                                         </p>
                                       </div>
@@ -5479,12 +5479,15 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                         let attrId: string = '';
                                         let isRequired: boolean = false;
                                         let displayOrder: number = 0;
+                                        let showPrice: boolean = true;
 
                                         if (isInitialized && pdpAttributes.length > 0) {
                                           // PDP attribute structure
                                           attrId = attr._id;
                                           isRequired = attr.isRequired || false;
                                           displayOrder = attr.displayOrder || 0;
+                                          showPrice = attr.showPrice !== undefined ? attr.showPrice : true;
+                                          console.log(`🔍 Attribute "${attr.attributeName}" showPrice:`, attr.showPrice, '-> final:', showPrice);
                                           attributeValues = (attr.allowedValues && attr.allowedValues.length > 0)
                                             ? (attr.attributeValues || []).filter((av: any) => attr.allowedValues!.includes(av.value))
                                             : (attr.attributeValues || []);
@@ -5513,6 +5516,8 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                           attrId = attrType._id;
                                           isRequired = attr.isRequired || false;
                                           displayOrder = attr.displayOrder || 0;
+                                          showPrice = attr.showPrice !== undefined ? attr.showPrice : true;
+                                          console.log(`🔍 Legacy Attribute "${attrType.attributeName}" showPrice:`, attr.showPrice, '-> final:', showPrice);
                                           attributeValues = attr.customValues && attr.customValues.length > 0
                                             ? attr.customValues
                                             : attrType.attributeValues || [];
@@ -5584,8 +5589,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                           .filter((av: any) => av && av.value && av.label)
                                                           .map((av: any) => {
                                                             let priceDisplay = '';
-                                                            // Only show price if admin has enabled it
-                                                            if (selectedProduct && selectedProduct.showAttributePrices !== false) {
+                                                            if (showPrice) {
                                                               if (av.description) {
                                                                 const priceImpactMatch = av.description.match(/Price Impact: ₹([\d.]+)/);
                                                                 if (priceImpactMatch) {
@@ -5646,8 +5650,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                                                           {availableSubAttributes.map((subAttr) => {
                                                             const getSubAttrPriceDisplay = () => {
-                                                              // Only show price if admin has enabled it
-                                                              if (!selectedProduct || selectedProduct.showAttributePrices === false) return null;
+                                                              if (!showPrice) return null;
                                                               if (!subAttr.priceAdd || subAttr.priceAdd === 0) return null;
                                                               return `+₹${subAttr.priceAdd.toFixed(2)}/piece`;
                                                             };
@@ -5763,9 +5766,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                     .map((av: any) => {
                                                       // Format price display as per unit price
                                                       const getPriceDisplay = () => {
-                                                        // Only show price if admin has enabled it
-                                                        if (!selectedProduct || selectedProduct.showAttributePrices === false) return null;
-
+                                                        if (!showPrice) return null;
                                                         // Check for priceImpact first (new format with option usage)
                                                         if (av.description) {
                                                           const priceImpactMatch = av.description.match(/Price Impact: ₹([\d.]+)/);
@@ -6298,7 +6299,16 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                               <p className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-1">Estimated Total Value</p>
                               <div className="flex items-baseline gap-1">
                                 <span className="text-3xl font-bold text-gray-900">
-                                  ₹{(price + gstAmount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  ₹{(() => {
+                                    const totalPrice = (price + gstAmount);
+                                    const [integerPart, decimalPart] = totalPrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).split('.');
+                                    return (
+                                      <>
+                                        {integerPart}
+                                        <span className="text-xl">.{decimalPart}</span>
+                                      </>
+                                    );
+                                  })()}
                                 </span>
                                 <span className="text-xs text-gray-500 font-medium">incl. taxes</span>
                               </div>

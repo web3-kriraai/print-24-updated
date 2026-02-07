@@ -359,126 +359,136 @@ const ManageUsers: React.FC<ManageUsersProps> = ({ setError }) => {
                         </p>
                     </div>
                 ) : (
-                    <div className="overflow-x-auto">
-                        <table className="w-full">
-                            <thead>
-                                <tr className="bg-gray-50/80">
-                                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                        User
-                                    </th>
-                                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Role</th>
-                                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
-                                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Joined</th>
-                                    <th className="px-6 py-4 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100">
-                                {filteredUsers.map((user) => (
-                                    <tr key={user._id} className="hover:bg-gray-50/50 transition-colors group">
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="flex items-center gap-4">
-                                                <div className="flex items-center">
-                                                    <div className="relative">
-                                                        <div className="h-11 w-11 rounded-full bg-gradient-to-br from-indigo-100 to-purple-100 flex items-center justify-center text-indigo-600 font-bold border-2 border-white shadow-sm">
-                                                            {user.name.charAt(0).toUpperCase()}
-                                                        </div>
-                                                        {user.role === 'admin' && (
-                                                            <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full border-2 border-white"></div>
-                                                        )}
-                                                    </div>
-                                                    <div className="ml-4">
-                                                        <div className="flex items-center gap-2">
-                                                            <div className="text-sm font-semibold text-gray-900">{user.name}</div>
-                                                        </div>
-                                                        <div className="text-sm text-gray-500 flex items-center gap-1">
-                                                            <Mail size={14} />
-                                                            {user.email}
-                                                        </div>
-                                                    </div>
+                    <div className="min-w-full">
+                        {/* Desktop Header - Only visible on LG screens */}
+                        <div className="hidden lg:grid grid-cols-12 gap-4 px-6 py-4 bg-gray-50/80 border-b border-gray-100 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                            <div className="col-span-4">User</div>
+                            <div className="col-span-3">Role</div>
+                            <div className="col-span-2">Status</div>
+                            <div className="col-span-2">Joined</div>
+                            <div className="col-span-1 text-right">Actions</div>
+                        </div>
+
+                        {/* Users List/Grid */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-4 lg:gap-0 p-4 lg:p-0">
+                            {filteredUsers.map((user) => (
+                                <div
+                                    key={user._id}
+                                    className="relative bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 lg:rounded-none lg:border-0 lg:border-b lg:shadow-none lg:hover:shadow-none lg:hover:bg-gray-50/50"
+                                >
+                                    <div className="p-4 lg:px-6 lg:py-4 grid grid-cols-1 lg:grid-cols-12 gap-4 items-center">
+
+                                        {/* User Info */}
+                                        <div className="lg:col-span-4 flex items-center gap-4">
+                                            <div className="relative flex-shrink-0">
+                                                <div className="h-10 w-10 lg:h-11 lg:w-11 rounded-full bg-gradient-to-br from-indigo-100 to-purple-100 flex items-center justify-center text-indigo-600 font-bold border-2 border-white shadow-sm ring-1 ring-gray-100">
+                                                    {user.name.charAt(0).toUpperCase()}
+                                                </div>
+                                                {user.role === 'admin' && (
+                                                    <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full border-2 border-white ring-1 ring-white"></div>
+                                                )}
+                                            </div>
+                                            <div className="min-w-0 flex-1">
+                                                <div className="text-sm font-semibold text-gray-900 truncate">{user.name}</div>
+                                                <div className="text-xs lg:text-sm text-gray-500 flex items-center gap-1.5 truncate mt-0.5">
+                                                    <Mail size={12} className="flex-shrink-0 text-gray-400" />
+                                                    <span className="truncate">{user.email}</span>
                                                 </div>
                                             </div>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="relative w-40">
+                                        </div>
+
+                                        {/* Role Select */}
+                                        <div className="lg:col-span-3 flex items-center justify-between lg:justify-start gap-2">
+                                            <span className="lg:hidden text-sm font-medium text-gray-500">Role</span>
+                                            <div className="relative w-32 lg:w-40 group">
                                                 <select
                                                     value={user.role}
                                                     onChange={(e) => handleRoleChange(user._id, e.target.value)}
-                                                    className={`appearance-none w-full px-3 py-1.5 text-xs font-medium rounded-full border ${roleColors[user.role] || 'bg-gray-100 text-gray-800'} focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 cursor-pointer transition-all`}
+                                                    className={`appearance-none w-full px-3 py-1.5 text-xs font-medium rounded-full border ${roleColors[user.role] || 'bg-gray-100 text-gray-800'} border-transparent hover:border-indigo-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 cursor-pointer transition-all pr-8 shadow-sm`}
                                                 >
                                                     <option value="admin">Administrator</option>
                                                     <option value="user">Customer</option>
                                                     <option value="employee">Employee</option>
                                                 </select>
-                                                <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" size={12} />
+                                                <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none opacity-60 group-hover:opacity-100 transition-opacity" size={12} />
                                             </div>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium ${user.status === 'suspended' ? 'bg-red-100 text-red-800' : 'bg-emerald-100 text-emerald-800'}`}>
+                                        </div>
+
+                                        {/* Status Badge */}
+                                        <div className="lg:col-span-2 flex items-center justify-between lg:justify-start gap-2">
+                                            <span className="lg:hidden text-sm font-medium text-gray-500">Status</span>
+                                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium shadow-sm border border-transparent ${user.status === 'suspended' ? 'bg-red-50 text-red-700 border-red-100' : 'bg-emerald-50 text-emerald-700 border-emerald-100'}`}>
                                                 {user.status === 'suspended' ? (
                                                     <>
-                                                        <X size={12} />
+                                                        <X size={12} strokeWidth={2.5} />
                                                         Suspended
                                                     </>
                                                 ) : (
                                                     <>
-                                                        <Check size={12} />
+                                                        <Check size={12} strokeWidth={2.5} />
                                                         Active
                                                     </>
                                                 )}
                                             </span>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="text-sm text-gray-600">
-                                                {new Date(user.createdAt).toLocaleDateString('en-US', {
-                                                    month: 'short',
-                                                    day: 'numeric',
-                                                    year: 'numeric'
-                                                })}
-                                            </div>
-                                            <div className="text-xs text-gray-400">
-                                                {new Date(user.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-right">
-                                            <div className="flex items-center justify-end gap-2">
-                                                <button
-                                                    onClick={() => toast.success(`Edit ${user.name}`)}
-                                                    className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                                                    title="Edit User"
-                                                >
-                                                    <Edit size={18} />
-                                                </button>
-                                                <button
-                                                    onClick={() => handleDeleteUser(user._id)}
-                                                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                                    title="Delete User"
-                                                >
-                                                    <Trash2 size={18} />
-                                                </button>
-                                                <div className="relative">
-                                                    <button
-                                                        onClick={() => setActionMenu(actionMenu === user._id ? null : user._id)}
-                                                        className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                                                    >
-                                                        <MoreVertical size={18} />
-                                                    </button>
-                                                    {actionMenu === user._id && (
-                                                        <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg border border-gray-200 shadow-lg z-10">
-                                                            <div className="border-t border-gray-100">
-                                                                <button className="w-full px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 text-left flex items-center gap-2">
-                                                                    <Trash2 size={16} />
-                                                                    Suspend Account
-                                                                </button>
-                                                            </div>
-                                                        </div>
-                                                    )}
+                                        </div>
+
+                                        {/* Joined Date */}
+                                        <div className="lg:col-span-2 flex items-center justify-between lg:justify-start gap-2">
+                                            <span className="lg:hidden text-sm font-medium text-gray-500">Joined</span>
+                                            <div className="text-right lg:text-left">
+                                                <div className="text-sm font-medium text-gray-700">
+                                                    {new Date(user.createdAt).toLocaleDateString('en-US', {
+                                                        month: 'short',
+                                                        day: 'numeric',
+                                                        year: 'numeric'
+                                                    })}
+                                                </div>
+                                                <div className="text-xs text-gray-400 mt-0.5">
+                                                    {new Date(user.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                 </div>
                                             </div>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                        </div>
+
+                                        {/* Actions */}
+                                        <div className="lg:col-span-1 flex items-center justify-end border-t lg:border-t-0 pt-3 lg:pt-0 mt-2 lg:mt-0 gap-1">
+                                            <button
+                                                onClick={() => toast.success(`Edit ${user.name}`)}
+                                                className="p-2 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors border border-indigo-100"
+                                                title="Edit User"
+                                            >
+                                                <Edit size={16} />
+                                            </button>
+                                            <button
+                                                onClick={() => handleDeleteUser(user._id)}
+                                                className="p-2 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors border border-red-100"
+                                                title="Delete User"
+                                            >
+                                                <Trash2 size={16} />
+                                            </button>
+                                            <div className="relative">
+                                                <button
+                                                    onClick={() => setActionMenu(actionMenu === user._id ? null : user._id)}
+                                                    className="p-2 text-gray-600 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors border border-gray-200"
+                                                >
+                                                    <MoreVertical size={16} />
+                                                </button>
+                                                {actionMenu === user._id && (
+                                                    <div className="absolute right-0 bottom-full mb-1 lg:bottom-auto lg:top-full lg:mt-1 w-48 bg-white rounded-lg border border-gray-200 shadow-xl z-20 overflow-hidden ring-1 ring-black ring-opacity-5">
+                                                        <div className="py-1">
+                                                            <button className="w-full px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 text-left flex items-center gap-2 font-medium">
+                                                                <ShieldAlert size={14} />
+                                                                Suspend Account
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 )}
             </div>

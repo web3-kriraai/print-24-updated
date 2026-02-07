@@ -155,6 +155,8 @@ export const getProductDetail = async (req, res) => {
           isRangeQuantity: attrType.isRangeQuantity || false,
           stepQuantities: attrType.stepQuantities || [],
           rangeQuantities: attrType.rangeQuantities || [],
+          // Price visibility control
+          showPrice: da.showPrice !== undefined ? da.showPrice : true,
           // Product-specific overrides
           productConfig: {
             isEnabled: da.isEnabled,

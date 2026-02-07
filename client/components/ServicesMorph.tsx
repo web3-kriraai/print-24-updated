@@ -305,15 +305,15 @@ const ServicesMorph: React.FC<ServicesMorphProps> = ({ onServiceSelect, services
                                     style={{
                                         backgroundColor: isActive ? '#ffffff' : service.color,
                                         color: isActive ? service.color : '#ffffff',
-                                        borderRadius: '6px',
-                                        padding: '8px 12px',
+                                        borderRadius: '8px',
+                                        padding: '8px 14px',
                                         margin: '0',
                                         boxShadow: isActive
-                                            ? `0 10px 30px ${service.color}66, 0 4px 10px rgba(0,0,0,0.1), inset 0 0 0 2px ${service.color}`
-                                            : `0 2px 8px ${service.color}30`,
-                                        transform: isActive ? 'scale(1.05)' : 'scale(1)',
-                                        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                                        fontWeight: fontSettings.navbarNameFontWeight || '600',
+                                            ? `0 2px 4px rgba(0,0,0,0.15), 0 6px 16px -4px ${service.color}60, 0 4px 8px -2px ${service.color}40, inset 0 0 0 2px ${service.color}25, inset 0 3px 10px ${service.color}20`
+                                            : '0 1px 3px rgba(0,0,0,0.1)',
+                                        transform: 'scale(1)',
+                                        transition: 'all 0.2s ease',
+                                        fontWeight: isActive ? '700' : (fontSettings.navbarNameFontWeight || '500'),
                                         letterSpacing: '0.3px',
                                         fontSize: fontSettings.navbarNameFontSize || '0.85rem',
                                         display: 'flex',
@@ -322,7 +322,9 @@ const ServicesMorph: React.FC<ServicesMorphProps> = ({ onServiceSelect, services
                                         gap: '6px',
                                         textWrap: 'nowrap',
                                         width: navbarSettings.itemWidth || '150px',
-                                        flex: '0 0 auto'
+                                        flex: '0 0 auto',
+                                        borderBottom: isActive ? `4px solid ${service.color}` : 'none',
+                                        paddingBottom: isActive ? '4px' : '8px'
                                     }}
                                     data-target={service._id}
                                     onClick={(e) => {

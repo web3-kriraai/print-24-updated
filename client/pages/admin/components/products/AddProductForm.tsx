@@ -757,9 +757,11 @@ const AddProductForm: React.FC<AddProductFormProps> = ({
                         isEnabled: sa.isEnabled !== undefined ? sa.isEnabled : true,
                         isRequired: sa.isRequired !== undefined ? sa.isRequired : false,
                         displayOrder: sa.displayOrder !== undefined ? sa.displayOrder : 0,
+                        showPrice: sa.showPrice !== undefined ? sa.showPrice : true,
                         customValues: [],
                     }))
                 : [];
+            console.log('🔍 Sending dynamic attributes:', JSON.stringify(dynamicAttributesToSend, null, 2));
             formData.append("dynamicAttributes", JSON.stringify(dynamicAttributesToSend));
 
             // Append variants
@@ -2426,20 +2428,6 @@ const AddProductForm: React.FC<AddProductFormProps> = ({
                                 Show Price Including GST
                             </span>
                         </div>
-
-                        <div className="flex items-center gap-4 bg-slate-50/50 p-4 rounded-xl border border-slate-100">
-                            <div
-                                onClick={() => setProductForm({ ...productForm, showAttributePrices: !productForm.showAttributePrices })}
-                                className={`w-12 h-6 flex items-center rounded-full p-1 cursor-pointer transition-all ${productForm.showAttributePrices ? 'bg-sky-500 shadow-inner' : 'bg-slate-300'}`}
-                            >
-                                <div
-                                    className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform ${productForm.showAttributePrices ? 'translate-x-6' : 'translate-x-0'}`}
-                                />
-                            </div>
-                            <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                                Show Attribute Prices
-                            </span>
-                        </div>
                     </div>
 
                     <div className="mt-8 pt-8 border-t border-slate-100">
@@ -2672,6 +2660,25 @@ const AddProductForm: React.FC<AddProductFormProps> = ({
                                                         </div>
                                                     </div>
                                                     <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">Required</span>
+                                                </label>
+
+                                                <label className="flex items-center gap-2 cursor-pointer group/check">
+                                                    <div className="relative">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={sa.showPrice !== false}
+                                                            onChange={() => {
+                                                                const updated = [...selectedAttributeTypes];
+                                                                updated[index] = { ...updated[index], showPrice: updated[index].showPrice === false ? true : false };
+                                                                setSelectedAttributeTypes(updated);
+                                                            }}
+                                                            className="sr-only"
+                                                        />
+                                                        <div className={`w-10 h-5 rounded-full transition-colors ${sa.showPrice !== false ? 'bg-emerald-500' : 'bg-slate-200'}`}>
+                                                            <div className={`absolute top-1 left-1 w-3 h-3 bg-white rounded-full transition-transform ${sa.showPrice !== false ? 'translate-x-5' : 'translate-x-0'}`} />
+                                                        </div>
+                                                    </div>
+                                                    <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">Show Price</span>
                                                 </label>
 
                                                 <button
