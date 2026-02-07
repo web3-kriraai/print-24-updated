@@ -492,16 +492,16 @@ const ManageAttributeRules: React.FC<ManageAttributeRulesProps> = ({
                 <div className="absolute bottom-0 left-0 w-24 h-24 bg-gradient-to-tr from-pink-400/20 to-transparent rounded-full translate-y-12 -translate-x-12"></div>
 
                 <div className="relative z-10">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                         <div className="flex items-center gap-3">
-                            <div className="p-2 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-lg shadow-lg">
+                            <div className="p-2 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-lg shadow-lg flex-shrink-0">
                                 <Zap size={24} className="text-white" />
                             </div>
                             <div>
-                                <h2 className="text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
+                                <h2 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent leading-tight">
                                     Attribute Rules ({attributeRules.length})
                                 </h2>
-                                <p className="text-gray-600 mt-1">Define conditional logic for product attributes</p>
+                                <p className="text-gray-600 text-sm mt-0.5">Define conditional logic for product attributes</p>
                             </div>
                         </div>
                         <button
@@ -518,7 +518,7 @@ const ManageAttributeRules: React.FC<ManageAttributeRulesProps> = ({
                                 });
                                 setShowRuleBuilder(true);
                             }}
-                            className="px-6 py-3 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-xl hover:from-indigo-600 hover:to-purple-600 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 flex items-center gap-2 group"
+                            className="w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-xl hover:from-indigo-600 hover:to-purple-600 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 flex items-center justify-center gap-2 group text-sm font-medium"
                         >
                             <Plus size={18} className="group-hover:rotate-90 transition-transform duration-300" />
                             Create Rule

@@ -119,17 +119,17 @@ const ManageAttributeTypes: React.FC<ManageAttributeTypesProps> = ({
     const [imageLoading, setImageLoading] = useState<{ [key: string]: boolean }>({});
     const [currentPage, setCurrentPage] = useState(1);
     const [productFilter, setProductFilter] = useState<string>("");
-    
+
     // Duplicate modal state
     const [showDuplicateModal, setShowDuplicateModal] = useState(false);
     const [duplicateAttrId, setDuplicateAttrId] = useState<string | null>(null);
     const [duplicateName, setDuplicateName] = useState("");
     const [duplicateSystemName, setDuplicateSystemName] = useState("");
     const [duplicating, setDuplicating] = useState(false);
-    
+
     // Create/Edit modal state
     const [showCreateModal, setShowCreateModal] = useState(false);
-    
+
     const ITEMS_PER_PAGE = 10;
 
     // Get attribute IDs used by selected product
@@ -196,31 +196,28 @@ const ManageAttributeTypes: React.FC<ManageAttributeTypesProps> = ({
 
 
             {/* Attribute Types List */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-lg shadow-gray-100/50 p-8">
-                <div className="flex items-center justify-between mb-8">
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-lg shadow-gray-100/50 p-4 sm:p-8">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-8">
                     <div>
-                        <h2 className="text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
+                        <h2 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
                             All Attribute Types
                         </h2>
-                        <p className="text-gray-600 mt-1">Manage and organize your attribute types</p>
+                        <p className="text-gray-600 text-sm mt-1">Manage and organize your attribute types</p>
                     </div>
 
-                    <div className="flex items-center gap-4">
-                        <div className="relative group">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-4 lg:gap-3">
+                        <div className="relative group w-full sm:w-64 xl:w-72">
                             <input
                                 type="text"
                                 value={attributeTypeSearch}
                                 onChange={(e) => setAttributeTypeSearch(e.target.value)}
                                 placeholder="Search attributes..."
-                                className="pl-12 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500/30 focus:border-indigo-400 transition-all duration-300 w-72 group-hover:border-indigo-300"
+                                className="w-full pl-11 pr-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500/30 focus:border-indigo-400 transition-all duration-300 group-hover:border-indigo-300 text-sm"
                             />
-                            <Search size={18} className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 group-hover:text-indigo-500 transition-colors duration-300" />
-                            <div className="absolute right-4 top-1/2 transform -translate-y-1/2">
-                                <div className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                            </div>
+                            <Search size={16} className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 group-hover:text-indigo-500 transition-colors duration-300" />
                         </div>
                         {/* Product Filter Dropdown */}
-                        <div className="w-56">
+                        <div className="w-full sm:w-52 xl:w-56">
                             <Select
                                 options={[
                                     { value: "", label: "All Products" },
@@ -236,57 +233,59 @@ const ManageAttributeTypes: React.FC<ManageAttributeTypesProps> = ({
                                 searchable={true}
                             />
                         </div>
-                        <div className="px-4 py-2 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-lg">
-                            <span className="text-sm font-medium text-indigo-700">
-                                {filteredAttributeTypes.length} Types
-                            </span>
+                        <div className="flex items-center gap-3 w-full sm:w-auto">
+                            <div className="px-4 py-2 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-lg flex-1 sm:flex-none text-center">
+                                <span className="text-xs sm:text-sm font-medium text-indigo-700 whitespace-nowrap">
+                                    {filteredAttributeTypes.length} Types
+                                </span>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setEditingAttributeTypeId(null);
+                                    setAttributeTypeForm({
+                                        attributeName: "",
+                                        systemName: "",
+                                        inputStyle: "DROPDOWN",
+                                        attributeImage: null,
+                                        effectDescription: "",
+                                        simpleOptions: "",
+                                        isPriceEffect: false,
+                                        isStepQuantity: false,
+                                        isRangeQuantity: false,
+                                        isFixedQuantity: false,
+                                        priceEffectAmount: "",
+                                        stepQuantities: [],
+                                        rangeQuantities: [],
+                                        fixedQuantityMin: "",
+                                        fixedQuantityMax: "",
+                                        primaryEffectType: "INFORMATIONAL",
+                                        priceImpactPer1000: "",
+                                        fileRequirements: "",
+                                        attributeOptionsTable: [],
+                                        functionType: "GENERAL",
+                                        isPricingAttribute: false,
+                                        isFixedQuantityNeeded: false,
+                                        isFilterable: false,
+                                        attributeValues: [],
+                                        defaultValue: "",
+                                        isRequired: false,
+                                        displayOrder: 0,
+                                        isCommonAttribute: true,
+                                        applicableCategories: [],
+                                        applicableSubCategories: [],
+                                        parentAttribute: "",
+                                        showWhenParentValue: [],
+                                        hideWhenParentValue: [],
+                                    });
+                                    setShowCreateModal(true);
+                                }}
+                                className="flex-1 sm:flex-none px-4 py-2.5 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-xl hover:from-indigo-600 hover:to-purple-600 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 flex items-center justify-center gap-2 text-sm font-medium"
+                            >
+                                <Plus size={18} />
+                                Create
+                            </button>
                         </div>
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setEditingAttributeTypeId(null);
-                                setAttributeTypeForm({
-                                    attributeName: "",
-                                    systemName: "",
-                                    inputStyle: "DROPDOWN",
-                                    attributeImage: null,
-                                    effectDescription: "",
-                                    simpleOptions: "",
-                                    isPriceEffect: false,
-                                    isStepQuantity: false,
-                                    isRangeQuantity: false,
-                                    isFixedQuantity: false,
-                                    priceEffectAmount: "",
-                                    stepQuantities: [],
-                                    rangeQuantities: [],
-                                    fixedQuantityMin: "",
-                                    fixedQuantityMax: "",
-                                    primaryEffectType: "INFORMATIONAL",
-                                    priceImpactPer1000: "",
-                                    fileRequirements: "",
-                                    attributeOptionsTable: [],
-                                    functionType: "GENERAL",
-                                    isPricingAttribute: false,
-                                    isFixedQuantityNeeded: false,
-                                    isFilterable: false,
-                                    attributeValues: [],
-                                    defaultValue: "",
-                                    isRequired: false,
-                                    displayOrder: 0,
-                                    isCommonAttribute: true,
-                                    applicableCategories: [],
-                                    applicableSubCategories: [],
-                                    parentAttribute: "",
-                                    showWhenParentValue: [],
-                                    hideWhenParentValue: [],
-                                });
-                                setShowCreateModal(true);
-                            }}
-                            className="px-4 py-2.5 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-xl hover:from-indigo-600 hover:to-purple-600 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 flex items-center gap-2"
-                        >
-                            <Plus size={18} />
-                            Create
-                        </button>
                     </div>
                 </div>
 
@@ -536,15 +535,15 @@ const ManageAttributeTypes: React.FC<ManageAttributeTypesProps> = ({
                                         return;
                                     }
                                     if (!duplicateAttrId) return;
-                                    
+
                                     setDuplicating(true);
                                     const success = await handleDuplicateAttributeType(
-                                        duplicateAttrId, 
-                                        duplicateName.trim(), 
+                                        duplicateAttrId,
+                                        duplicateName.trim(),
                                         duplicateSystemName.trim() || undefined
                                     );
                                     setDuplicating(false);
-                                    
+
                                     if (success) {
                                         setShowDuplicateModal(false);
                                         setDuplicateAttrId(null);

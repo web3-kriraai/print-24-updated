@@ -16,6 +16,7 @@ import {
     LayoutDashboard,
     Star,
     Layers,
+    X,
 } from 'lucide-react';
 import { useLogo } from '../../../hooks/useSiteSettings';
 
@@ -36,9 +37,11 @@ interface NavItem {
 interface AdminSidebarProps {
     activeTab: string;
     onTabChange: (tab: string) => void;
+    isOpen: boolean;
+    onClose: () => void;
 }
 
-const AdminSidebar: React.FC<AdminSidebarProps> = ({ activeTab, onTabChange }) => {
+const AdminSidebar: React.FC<AdminSidebarProps> = ({ activeTab, onTabChange, isOpen, onClose }) => {
     const navigate = useNavigate();
     const [expandedSections, setExpandedSections] = useState<string[]>(['categories']);
     const { logo } = useLogo();
@@ -116,14 +119,13 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ activeTab, onTabChange }) =
             setExpandedSections((prev) => [...prev, sectionId]);
         }
         onTabChange(tabId);
+        onClose(); // Close sidebar on mobile after selection
     };
 
     return (
-        <motion.div
-            initial={{ x: -260 }}
-            animate={{ x: 0 }}
-            transition={{ duration: 0.3, ease: 'easeOut' }}
-            className="fixed left-0 top-0 h-screen w-64 bg-slate-900 shadow-2xl z-50 flex flex-col"
+        <div
+            className={`fixed left-0 top-0 h-screen w-64 bg-slate-900 shadow-2xl z-50 flex flex-col transition-transform duration-300 md:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'
+                }`}
             style={{
                 scrollbarWidth: 'thin',
                 scrollbarColor: '#475569 #1e293b',
@@ -132,7 +134,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ activeTab, onTabChange }) =
             {/* Scrollable Content Container */}
             <div className="flex-1 overflow-y-auto custom-scrollbar">
                 {/* Header */}
-                <div className="p-6 border-b border-slate-700/50">
+                <div className="p-6 border-b border-slate-700/50 flex items-center justify-between">
                     <Link to="/" className="flex items-center justify-center hover:opacity-80 transition-opacity">
                         <div className="bg-white p-2 rounded-xl shadow-lg">
                             <img
@@ -142,6 +144,13 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ activeTab, onTabChange }) =
                             />
                         </div>
                     </Link>
+                    {/* Close button for mobile */}
+                    <button
+                        onClick={onClose}
+                        className="md:hidden p-2 text-slate-400 hover:text-white transition-colors"
+                    >
+                        <X size={24} />
+                    </button>
                 </div>
 
                 {/* Navigation */}
@@ -243,7 +252,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ activeTab, onTabChange }) =
                     <span>Admin Dashboard v1.0</span>
                 </div>
             </div>
-        </motion.div>
+        </div>
     );
 };
 

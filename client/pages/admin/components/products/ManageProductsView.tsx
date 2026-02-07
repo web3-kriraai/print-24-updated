@@ -559,30 +559,30 @@ const ManageProductsView: React.FC<ManageProductsViewProps> = ({
             >
                 {/* Header */}
                 <div className="bg-white rounded-xl p-6 border border-gray-200">
-                    <div className="flex items-center justify-between mb-6">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
                         <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 bg-teal-100 rounded-xl flex items-center justify-center">
+                            <div className="w-12 h-12 bg-teal-100 rounded-xl flex items-center justify-center flex-shrink-0">
                                 <ShoppingBag className="text-teal-600" size={24} />
                             </div>
                             <div>
-                                <h1 className="text-2xl font-bold text-gray-900">Manage Products</h1>
-                                <p className="text-gray-600 text-sm mt-1">
+                                <h1 className="text-xl sm:text-2xl font-bold text-gray-900 leading-tight">Manage Products</h1>
+                                <p className="text-gray-600 text-xs sm:text-sm mt-0.5">
                                     {filteredProducts.length} product{filteredProducts.length === 1 ? '' : 's'} found
                                 </p>
                             </div>
                         </div>
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2 sm:gap-3">
                             <button
                                 onClick={() => fetchProducts()}
-                                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2 font-medium"
+                                className="flex-1 sm:flex-none px-3 sm:px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-center gap-2 font-medium text-sm sm:text-base"
                             >
                                 <RefreshCw size={18} />
-                                Refresh
+                                <span>Refresh</span>
                             </button>
                             <div className="flex bg-gray-100 rounded-lg p-1">
                                 <button
                                     onClick={() => setViewMode('grid')}
-                                    className={`px-3 py-2 rounded-md transition-colors ${viewMode === 'grid'
+                                    className={`p-2 sm:px-3 sm:py-2 rounded-md transition-colors ${viewMode === 'grid'
                                         ? 'bg-white text-teal-600 shadow-sm'
                                         : 'text-gray-600 hover:bg-gray-200'
                                         }`}
@@ -591,7 +591,7 @@ const ManageProductsView: React.FC<ManageProductsViewProps> = ({
                                 </button>
                                 <button
                                     onClick={() => setViewMode('list')}
-                                    className={`px-3 py-2 rounded-md transition-colors ${viewMode === 'list'
+                                    className={`p-2 sm:px-3 sm:py-2 rounded-md transition-colors ${viewMode === 'list'
                                         ? 'bg-white text-teal-600 shadow-sm'
                                         : 'text-gray-600 hover:bg-gray-200'
                                         }`}
@@ -742,7 +742,7 @@ const ManageProductsView: React.FC<ManageProductsViewProps> = ({
                         )}
                     </div>
                 ) : viewMode === 'grid' ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 p-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 p-2">
                         <AnimatePresence mode="popLayout">
                             {filteredProducts.map((product) => (
                                 <ProductItem
