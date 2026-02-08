@@ -18,6 +18,14 @@ import MyOrders from './pages/MyOrders';
 import DepartmentPortal from './pages/DepartmentPortal';
 import EmployeeDashboard from './pages/EmployeeDashboard';
 import AdminDashboard from './pages/AdminDashboard';
+import PMSDashboard from './src/pages/admin/pms/PMSDashboard';
+import UserTypeManagement from './src/pages/admin/pms/UserTypeManagement';
+import PrivilegeBundleManager from './src/pages/admin/pms/PrivilegeBundleManager';
+import ViewStyleManager from './src/pages/admin/pms/ViewStyleManager';
+import UserTypeAssignment from './src/pages/admin/pms/UserTypeAssignment';
+import PMSAuditLog from './src/pages/admin/pms/PMSAuditLog';
+import ResourceRegistry from './src/pages/admin/pms/ResourceRegistry';
+import FeatureFlagManager from './src/pages/admin/pms/FeatureFlagManager';
 import PaymentGatewayManager from './src/components/admin/PaymentGatewayManager';
 import PaymentTestPage from './src/pages/PaymentTestPage';
 import PaymentSuccess from './pages/PaymentSuccess';
@@ -72,6 +80,14 @@ export const routes = [
       { path: 'admin/test-payment', element: <PaymentTestPage />, errorElement: <ErrorBoundary /> },
       { path: 'admin/complaints', element: <AdminComplaintManagement />, errorElement: <ErrorBoundary /> },
       { path: 'admin/orders', element: <OrderManagement />, errorElement: <ErrorBoundary /> },
+      { path: 'admin/pms', element: <PMSDashboard />, errorElement: <ErrorBoundary /> },
+      { path: 'admin/pms/user-types', element: <UserTypeManagement />, errorElement: <ErrorBoundary /> },
+      { path: 'admin/pms/privileges', element: <PrivilegeBundleManager />, errorElement: <ErrorBoundary /> },
+      { path: 'admin/pms/view-styles', element: <ViewStyleManager />, errorElement: <ErrorBoundary /> },
+      { path: 'admin/pms/assignments', element: <UserTypeAssignment />, errorElement: <ErrorBoundary /> },
+      { path: 'admin/pms/audit', element: <PMSAuditLog />, errorElement: <ErrorBoundary /> },
+      { path: 'admin/pms/resources', element: <ResourceRegistry />, errorElement: <ErrorBoundary /> },
+      { path: 'admin/pms/features', element: <FeatureFlagManager />, errorElement: <ErrorBoundary /> },
       // admin/pricing and admin/pricing-hub removed - use admin/dashboard Pricing tabs instead
       { path: 'employee/dashboard', element: <EmployeeDashboard />, errorElement: <ErrorBoundary /> },
       { path: 'department-portal', element: <DepartmentPortal />, errorElement: <ErrorBoundary /> },

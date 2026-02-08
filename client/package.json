@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && vite build --ssr server.tsx --outDir dist --emptyOutDir false && node scripts/copy-ssr.js",
     "preview": "vite preview"
   },
   "dependencies": {

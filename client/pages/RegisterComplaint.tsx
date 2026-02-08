@@ -10,7 +10,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Upload, AlertCircle, CheckCircle2, FileText, Camera, Loader2 } from 'lucide-react';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_URL = (import.meta.env.VITE_API_BASE_URL || '') + '/api';
 
 // TypeScript interfaces
 interface ImageUpload {

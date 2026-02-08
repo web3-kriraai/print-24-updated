@@ -11,7 +11,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { AlertCircle, CheckCircle2, Clock, XCircle, Search, Filter } from 'lucide-react';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_URL = (import.meta.env.VITE_API_BASE_URL || '') + '/api';
 
 const AdminComplaintManagement = () => {
     const [data, setData] = useState({ complaints: [], stats: null });

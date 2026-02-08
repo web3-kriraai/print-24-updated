@@ -1,6 +1,7 @@
 import express from "express";
 import { authMiddleware, requireAdmin } from "../middlewares/authMiddleware.js";
 import { optionalAuthMiddleware } from "../middlewares/optionalAuthMiddleware.js";
+import { requirePrivilege } from "../middlewares/privilegeMiddleware.js";
 import upload from "../middlewares/upload.js";
 
 /* CATEGORY CONTROLLERS */
@@ -228,6 +229,7 @@ router.post(
   "/products",
   authMiddleware,
   requireAdmin,
+  requirePrivilege('PRODUCTS', 'create'),
   upload.single("image"), // enable file upload
   createProduct
 );
@@ -241,10 +243,11 @@ router.put(
   "/products/:id",
   authMiddleware,
   requireAdmin,
+  requirePrivilege('PRODUCTS', 'update'),
   upload.single("image"),
   updateProduct
 );
-router.delete("/products/:id", authMiddleware, requireAdmin, deleteProduct);
+router.delete("/products/:id", authMiddleware, requireAdmin, requirePrivilege('PRODUCTS', 'delete'), deleteProduct);
 
 /* =====================================
    ADMIN ROUTES
@@ -291,7 +294,7 @@ router.post("/upload-image", authMiddleware, upload.single("image"), uploadImage
 ===================================== */
 
 // User order routes
-router.post("/orders", authMiddleware, createOrder);
+router.post("/orders", authMiddleware, requirePrivilege('ORDERS', 'create'), createOrder);
 router.post("/orders/create-with-account", createOrderWithAccount); // No auth required - creates account if needed
 router.get("/orders/my-orders", authMiddleware, getMyOrders);
 router.get("/orders/:orderId", authMiddleware, getSingleOrder);
@@ -313,7 +316,7 @@ router.get("/admin/orders/stats", authMiddleware, requireAdmin, getOrderStats); 
 router.get("/admin/orders/filter-options", authMiddleware, requireAdmin, getFilterOptions); // Dynamic filter options
 router.post("/admin/orders/bulk-update", authMiddleware, requireAdmin, bulkUpdateOrders); // Bulk update
 router.post("/admin/orders/bulk-delete", authMiddleware, requireAdmin, bulkDeleteOrders); // Bulk delete
-router.post("/admin/orders/export", authMiddleware, requireAdmin, exportOrders); // Export CSV
+router.post("/admin/orders/export", authMiddleware, requireAdmin, requirePrivilege('ORDERS', 'export'), exportOrders); // Export CSV
 
 // New: Admin order approval route (ensures proper department assignment)
 router.post(
