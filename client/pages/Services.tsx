@@ -488,7 +488,7 @@ const DigitalPrint: React.FC = () => {
                         if (subCategory) {
                           // Always use ObjectId instead of slug
                           const subCategoryId = subCategory._id;
-                          navigate(`/services/${selectedCategory}/${subCategoryId}`);
+                          navigate(`/home/allservices/${selectedCategory}/${subCategoryId}`);
                         }
                       }
                     }}
@@ -692,7 +692,7 @@ const DigitalPrint: React.FC = () => {
                       transition={{ delay: index * 0.03 }}
                       className="flex-shrink-0 snap-start transition-all duration-500 ease-in-out w-1/3 sm:w-1/4 md:w-1/5 lg:w-1/6 xl:w-1/8 2xl:w-[11.11%]"
                     >
-                      <Link to={`/services/${category._id}`} className="block">
+                      <Link to={`/home/allservices/${category._id}`} className="block">
                         <div className="group flex flex-col items-center gap-0.5 p-1 rounded-lg transition-all duration-300 bg-gray-50">
                           {/* Reduced circle sizes for better mobile compatibility */}
                           <div className="w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 lg:w-32 lg:h-32 xl:w-36 xl:h-36 rounded-full overflow-hidden bg-white group-hover:bg-[#f5faf0] transition-all duration-300 shadow-sm sm:shadow-md group-hover:shadow-lg group-hover:scale-105 flex items-center justify-center">
@@ -809,7 +809,7 @@ const DigitalPrint: React.FC = () => {
                       transition={{ delay: index * 0.03 }}
                       className="flex-shrink-0 snap-start transition-all duration-500 ease-in-out w-1/3 sm:w-1/4 md:w-1/5 lg:w-1/6 xl:w-1/8 2xl:w-[11.11%]"
                     >
-                      <Link to={`/services/${category._id}`} className="block">
+                      <Link to={`/home/allservices/${category._id}`} className="block">
                         <div className="group flex flex-col items-center gap-0.5 p-1 rounded-lg transition-all duration-300 bg-gray-50">
                           {/* Reduced circle sizes for better mobile compatibility */}
                           <div className="w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 lg:w-32 lg:h-32 xl:w-36 xl:h-36 rounded-full overflow-hidden bg-white group-hover:bg-[#f5fbff] transition-all duration-300 shadow-sm sm:shadow-md group-hover:shadow-lg group-hover:scale-105 flex items-center justify-center">

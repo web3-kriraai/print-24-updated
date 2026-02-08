@@ -76,8 +76,7 @@ const Navbar: React.FC = () => {
   }, []);
 
   const navLinks = [
-    { label: "HOME", path: "/" },
-    { label: "SERVICES", path: "/services" },
+    { label: "HOME/ALL SERVICES", path: "/" },
     { label: "REVIEWS", path: "/reviews" },
     { label: "POLICY", path: "/policy" },
     { label: "ABOUT US", path: "/about" },

@@ -150,7 +150,7 @@ const VisitingCards: React.FC = () => {
                       // Safety check: Don't navigate if we are already there to prevent loops
                       if (subCategoryId !== identifier) {
                         console.log(`Only one subcategory found: ${onlySubcat.name} (${identifier}). Auto-navigating...`);
-                        navigate(`/services/${categoryId}/${identifier}`, { replace: true });
+                        navigate(`/home/allservices/${categoryId}/${identifier}`, { replace: true });
                         return;
                       }
                     }
@@ -186,8 +186,8 @@ const VisitingCards: React.FC = () => {
 
                   // Navigate to subcategory page proper
                   navigate(categoryId
-                    ? `/services/${categoryId}/${subCategoryIdForLink}`
-                    : `/services/${subCategoryIdForLink}`,
+                    ? `/home/allservices/${categoryId}/${subCategoryIdForLink}`
+                    : `/home/allservices/${subCategoryIdForLink}`,
                     { replace: true }
                   );
                   setLoading(false);
@@ -375,9 +375,9 @@ const VisitingCards: React.FC = () => {
 
               // Navigate directly to subcategory products page
               if (categoryId) {
-                navigate(`/services/${categoryId}/${subcategoryIdForLink}`, { replace: true });
+                navigate(`/home/allservices/${categoryId}/${subcategoryIdForLink}`, { replace: true });
               } else {
-                navigate(`/services/${subcategoryIdForLink}`, { replace: true });
+                navigate(`/home/allservices/${subcategoryIdForLink}`, { replace: true });
               }
               setLoading(false);
               return;
@@ -401,9 +401,9 @@ const VisitingCards: React.FC = () => {
 
               // Navigate directly to the product detail page
               if (categoryId) {
-                navigate(`/services/${categoryId}/${firstProduct._id}`, { replace: true });
+                navigate(`/home/allservices/${categoryId}/${firstProduct._id}`, { replace: true });
               } else {
-                navigate(`/services/${firstProduct._id}`, { replace: true });
+                navigate(`/home/allservices/${firstProduct._id}`, { replace: true });
               }
               setLoading(false);
               return;
@@ -711,8 +711,8 @@ const VisitingCards: React.FC = () => {
                         // Construct target URL
                         // VisitingCards and GlossProductSelection usually use /:categoryId/:subCategoryId/:nestedSubCategoryId
                         const targetUrl = categoryId && subCategoryId
-                          ? `/services/${categoryId}/${subCategoryId}/${identifier}`
-                          : `/services/${categoryId}/${identifier}`;
+                          ? `/home/allservices/${categoryId}/${subCategoryId}/${identifier}`
+                          : `/home/allservices/${categoryId}/${identifier}`;
 
                         navigate(targetUrl, { replace: true });
                         return;
@@ -899,8 +899,8 @@ const VisitingCards: React.FC = () => {
                           // Navigate to the first product with full URL structure
                           console.log(`Auto-navigating to first product: ${firstProduct.name} (${firstProductId}) from nested subcategory: ${nestedSubcat.name}`);
                           const targetUrl = categoryId
-                            ? `/services/${categoryId}/${subcategoryIdForProducts}/${nestedSubcatId}/${firstProductId}`
-                            : `/services/${subcategoryIdForProducts}/${nestedSubcatId}/${firstProductId}`;
+                            ? `/home/allservices/${categoryId}/${subcategoryIdForProducts}/${nestedSubcatId}/${firstProductId}`
+                            : `/home/allservices/${subcategoryIdForProducts}/${nestedSubcatId}/${firstProductId}`;
 
                           navigate(targetUrl, { replace: true });
                           setLoading(false);
@@ -993,11 +993,11 @@ const VisitingCards: React.FC = () => {
 
               // Navigate directly to the product detail page
               if (categoryId && hasValidSubcategory) {
-                navigate(`/services/${categoryId}/${productSubcategoryId}/${singleProduct._id}`, { replace: true });
+                navigate(`/home/allservices/${categoryId}/${productSubcategoryId}/${singleProduct._id}`, { replace: true });
               } else if (categoryId) {
-                navigate(`/services/${categoryId}/${singleProduct._id}`, { replace: true });
+                navigate(`/home/allservices/${categoryId}/${singleProduct._id}`, { replace: true });
               } else {
-                navigate(`/services/${singleProduct._id}`, { replace: true });
+                navigate(`/home/allservices/${singleProduct._id}`, { replace: true });
               }
               setLoading(false);
               return;
@@ -1027,11 +1027,11 @@ const VisitingCards: React.FC = () => {
               // Navigate directly to the first product detail page
               console.log(`Auto-navigating to first product: ${firstProduct.name} (${firstProduct._id})`);
               if (categoryId && hasValidSubcategory) {
-                navigate(`/services/${categoryId}/${productSubcategoryId}/${firstProduct._id}`, { replace: true });
+                navigate(`/home/allservices/${categoryId}/${productSubcategoryId}/${firstProduct._id}`, { replace: true });
               } else if (categoryId) {
-                navigate(`/services/${categoryId}/${firstProduct._id}`, { replace: true });
+                navigate(`/home/allservices/${categoryId}/${firstProduct._id}`, { replace: true });
               } else {
-                navigate(`/services/${firstProduct._id}`, { replace: true });
+                navigate(`/home/allservices/${firstProduct._id}`, { replace: true });
               }
               setLoading(false);
               return;
@@ -1217,8 +1217,8 @@ const VisitingCards: React.FC = () => {
             <div className="flex flex-col gap-3 text-center md:text-left">
               {/* Breadcrumb with pill style */}
               <div className="flex items-center justify-center md:justify-start gap-2 text-xs sm:text-sm font-medium">
-                <Link to="/services" className="px-3 py-1 rounded-full bg-white/60 backdrop-blur-sm text-gray-600 hover:bg-white hover:text-gray-900 transition-all duration-300 shadow-sm">
-                  Services
+                <Link to="/" className="px-3 py-1 rounded-full bg-white/60 backdrop-blur-sm text-gray-600 hover:bg-white hover:text-gray-900 transition-all duration-300 shadow-sm">
+                  Home
                 </Link>
                 <ArrowRight size={14} className="text-gray-400" />
                 <span className="px-3 py-1 rounded-full bg-gradient-to-r from-rose-500 to-purple-500 text-white font-semibold shadow-md">
@@ -1282,8 +1282,8 @@ const VisitingCards: React.FC = () => {
                     >
                       <Link
                         to={categoryId
-                          ? `/services/${categoryId}/${subCategoryIdForLink}`
-                          : `/services/${subCategoryIdForLink}`
+                          ? `/home/allservices/${categoryId}/${subCategoryIdForLink}`
+                          : `/home/allservices/${subCategoryIdForLink}`
                         }
                         className="group block h-full"
                         onClick={() => {
@@ -1441,12 +1441,12 @@ const VisitingCards: React.FC = () => {
                           >
                             <Link
                               to={categoryId && useNestedPath && currentParentSubcategoryId && currentNestedSubcategoryId
-                                ? `/services/${categoryId}/${currentParentSubcategoryId}/${currentNestedSubcategoryId}/${product._id}`
+                                ? `/home/allservices/${categoryId}/${currentParentSubcategoryId}/${currentNestedSubcategoryId}/${product._id}`
                                 : categoryId && hasValidSubcategory
-                                  ? `/services/${categoryId}/${productSubcategoryId}/${product._id}`
+                                  ? `/home/allservices/${categoryId}/${productSubcategoryId}/${product._id}`
                                   : categoryId
-                                    ? `/services/${categoryId}/${product._id}`
-                                    : `/services/${product._id}`
+                                    ? `/home/allservices/${categoryId}/${product._id}`
+                                    : `/home/allservices/${product._id}`
                               }
                               className="group block w-full"
                               onClick={() => {
@@ -1521,20 +1521,20 @@ const VisitingCards: React.FC = () => {
                   onClick={() => {
                     if (nestedSubCategoryId && subCategoryId && categoryId) {
                       // If in nested subcategory, go back to parent subcategory
-                      navigate(`/services/${categoryId}/${subCategoryId}`);
+                      navigate(`/home/allservices/${categoryId}/${subCategoryId}`);
                     } else if (categoryId) {
-                      navigate(`/services/${categoryId}`);
+                      navigate(`/home/allservices/${categoryId}`);
                     } else {
-                      navigate('/services');
+                      navigate('/home/allservices');
                     }
                     window.scrollTo(0, 0);
                   }}
                   fallbackPath={
                     nestedSubCategoryId && subCategoryId && categoryId
-                      ? `/services/${categoryId}/${subCategoryId}`
+                      ? `/home/allservices/${categoryId}/${subCategoryId}`
                       : categoryId
-                        ? `/services/${categoryId}`
-                        : "/services"
+                        ? `/home/allservices/${categoryId}`
+                        : "/home/allservices"
                   }
                   label={
                     nestedSubCategoryId
@@ -1554,13 +1554,13 @@ const VisitingCards: React.FC = () => {
                   <BackButton
                     onClick={() => {
                       if (categoryId) {
-                        navigate(`/services/${categoryId}`);
+                        navigate(`/home/allservices/${categoryId}`);
                       } else {
-                        navigate('/services');
+                        navigate('/home/allservices');
                       }
                       window.scrollTo(0, 0);
                     }}
-                    fallbackPath={categoryId ? `/services/${categoryId}` : "/services"}
+                    fallbackPath={categoryId ? `/home/allservices/${categoryId}` : "/home/allservices"}
                     label={categoryName ? `Back to ${categoryName}` : "Back to Category"}
                     className="text-gray-900 hover:text-gray-600 underline mt-2 inline-block"
                   />
@@ -1577,13 +1577,13 @@ const VisitingCards: React.FC = () => {
               <BackButton
                 onClick={() => {
                   if (categoryId) {
-                    navigate(`/services/${categoryId}`);
+                    navigate(`/home/allservices/${categoryId}`);
                   } else {
-                    navigate('/services');
+                    navigate('/home/allservices');
                   }
                   window.scrollTo(0, 0);
                 }}
-                fallbackPath={categoryId ? `/services/${categoryId}` : "/services"}
+                fallbackPath={categoryId ? `/home/allservices/${categoryId}` : "/home/allservices"}
                 label={categoryName ? `Back to ${categoryName}` : "Back to Category"}
                 className="text-gray-900 hover:text-gray-600 underline mt-2 inline-block"
               />

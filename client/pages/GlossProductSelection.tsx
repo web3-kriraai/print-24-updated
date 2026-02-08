@@ -843,7 +843,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                     ? subcategoryData.parent._id
                     : subcategoryData.parent;
                   console.log(`Nested subcategory detected in list, redirecting to include parent: ${parentId}`);
-                  navigate(`/services/${categoryId}/${parentId}/${subcategoryId}${productId ? `/${productId}` : ''}`, { replace: true });
+                  navigate(`/home/allservices/${categoryId}/${parentId}/${subcategoryId}${productId ? `/${productId}` : ''}`, { replace: true });
                   setLoading(false);
                   return; // Exit early, let the redirect handle the rest
                 }
@@ -854,13 +854,13 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                   // Replace slug with ObjectId in URL
                   if (nestedSubCategoryId) {
                     // This is a nested subcategory case - shouldn't happen here, but handle it
-                    navigate(`/services/${categoryId}/${subcategoryId}${productId ? `/${productId}` : ''}`, { replace: true });
+                    navigate(`/home/allservices/${categoryId}/${subcategoryId}${productId ? `/${productId}` : ''}`, { replace: true });
                   } else if (categoryId) {
                     // Regular subcategory case
-                    navigate(`/services/${categoryId}/${subcategoryId}${productId ? `/${productId}` : ''}`, { replace: true });
+                    navigate(`/home/allservices/${categoryId}/${subcategoryId}${productId ? `/${productId}` : ''}`, { replace: true });
                   } else {
                     // No category case
-                    navigate(`/services/${subcategoryId}${productId ? `/${productId}` : ''}`, { replace: true });
+                    navigate(`/home/allservices/${subcategoryId}${productId ? `/${productId}` : ''}`, { replace: true });
                   }
                 }
               } else if (activeSubCategoryId) {
@@ -895,7 +895,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                             ? fetchedSubcategory.parent._id
                             : fetchedSubcategory.parent;
                           console.log(`Nested subcategory detected, redirecting to include parent: ${parentId}`);
-                          navigate(`/services/${categoryId}/${parentId}/${subcategoryId}${productId ? `/${productId}` : ''}`, { replace: true });
+                          navigate(`/home/allservices/${categoryId}/${parentId}/${subcategoryId}${productId ? `/${productId}` : ''}`, { replace: true });
                           return; // Exit early, let the redirect handle the rest
                         }
 
@@ -906,13 +906,13 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                           if (nestedSubCategoryId && subCategoryId) {
                             // Nested subcategory case - preserve parent subcategory ID
                             const parentSubcategoryId = /^[0-9a-fA-F]{24}$/.test(subCategoryId) ? subCategoryId : subCategoryId; // Keep as is, will be converted if needed
-                            navigate(`/services/${categoryId}/${parentSubcategoryId}/${subcategoryId}${productId ? `/${productId}` : ''}`, { replace: true });
+                            navigate(`/home/allservices/${categoryId}/${parentSubcategoryId}/${subcategoryId}${productId ? `/${productId}` : ''}`, { replace: true });
                           } else if (categoryId) {
                             // Regular subcategory case
-                            navigate(`/services/${categoryId}/${subcategoryId}${productId ? `/${productId}` : ''}`, { replace: true });
+                            navigate(`/home/allservices/${categoryId}/${subcategoryId}${productId ? `/${productId}` : ''}`, { replace: true });
                           } else {
                             // No category case
-                            navigate(`/services/${subcategoryId}${productId ? `/${productId}` : ''}`, { replace: true });
+                            navigate(`/home/allservices/${subcategoryId}${productId ? `/${productId}` : ''}`, { replace: true });
                           }
                         }
                       }
@@ -986,8 +986,8 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                               // Navigate to the first product with full URL structure
                               console.log(`Auto-navigating to first product: ${firstProduct.name} (${firstProductId})`);
                               const targetUrl = categoryId && subCategoryId
-                                ? `/services/${categoryId}/${subCategoryId}/${firstNestedSubcatId}/${firstProductId}`
-                                : `/services/${categoryId}/${firstNestedSubcatId}/${firstProductId}`;
+                                ? `/home/allservices/${categoryId}/${subCategoryId}/${firstNestedSubcatId}/${firstProductId}`
+                                : `/home/allservices/${categoryId}/${firstNestedSubcatId}/${firstProductId}`;
 
                               navigate(targetUrl, { replace: true });
                               return; // Exit early, let the navigation handle the rest
@@ -1263,13 +1263,13 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
               if (mappedProducts.length === 1 && !productId) {
                 const singleProduct = mappedProducts[0];
                 if (categoryId && subCategoryId) {
-                  navigate(`/services/${categoryId}/${subCategoryId}/${singleProduct._id}`, { replace: true });
+                  navigate(`/home/allservices/${categoryId}/${subCategoryId}/${singleProduct._id}`, { replace: true });
                 } else if (categoryId) {
-                  navigate(`/services/${categoryId}/${singleProduct._id}`, { replace: true });
+                  navigate(`/home/allservices/${categoryId}/${singleProduct._id}`, { replace: true });
                 } else if (subCategoryId) {
-                  navigate(`/services/${subCategoryId}/${singleProduct._id}`, { replace: true });
+                  navigate(`/home/allservices/${subCategoryId}/${singleProduct._id}`, { replace: true });
                 } else {
-                  navigate(`/services/${singleProduct._id}`, { replace: true });
+                  navigate(`/home/allservices/${singleProduct._id}`, { replace: true });
                 }
                 return;
               }
@@ -1517,7 +1517,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
             // Update URL to reflect the new selection using slugs
             if (categoryId && subCategoryId) {
-              navigate(`/services/${categoryId}/${subCategoryId}/${nestedSubcategorySlug}/${productSlug}`, { replace: true });
+              navigate(`/home/allservices/${categoryId}/${subCategoryId}/${nestedSubcategorySlug}/${productSlug}`, { replace: true });
             }
 
             // Reset filters for new product
@@ -1567,13 +1567,13 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
           // Build the URL with the first product's ID
           let newUrl = '';
           if (categoryId && subCategoryId && nestedSubCategoryId) {
-            newUrl = `/services/${categoryId}/${subCategoryId}/${nestedSubCategoryId}/${firstProduct._id}`;
+            newUrl = `/home/allservices/${categoryId}/${subCategoryId}/${nestedSubCategoryId}/${firstProduct._id}`;
           } else if (categoryId && subCategoryId) {
-            newUrl = `/services/${categoryId}/${subCategoryId}/${firstProduct._id}`;
+            newUrl = `/home/allservices/${categoryId}/${subCategoryId}/${firstProduct._id}`;
           } else if (categoryId) {
-            newUrl = `/services/${categoryId}/${firstProduct._id}`;
+            newUrl = `/home/allservices/${categoryId}/${firstProduct._id}`;
           } else {
-            newUrl = `/services/${firstProduct._id}`;
+            newUrl = `/home/allservices/${firstProduct._id}`;
           }
           // Navigate to the first product's detail page
           navigate(newUrl, { replace: true });
@@ -3890,8 +3890,8 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
             // Build new URL with the selected nested subcategory and first product
             const newUrl = categoryId && subCategoryId
-              ? `/services/${categoryId}/${subCategoryId}/${nestedSubcategoryId}/${firstProduct._id}`
-              : `/services/${categoryId}/${nestedSubcategoryId}/${firstProduct._id}`;
+              ? `/home/allservices/${categoryId}/${subCategoryId}/${nestedSubcategoryId}/${firstProduct._id}`
+              : `/home/allservices/${categoryId}/${nestedSubcategoryId}/${firstProduct._id}`;
 
             // Navigate to new product (creates history entry for back button)
             navigate(newUrl, { replace: false });
@@ -4202,9 +4202,9 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
         {/* Breadcrumb Navigation */}
         <div className="mb-4 sm:mb-6">
           <div className="flex items-center flex-wrap gap-2 text-xs sm:text-sm font-medium">
-            {/* Services Link */}
+            {/* Home Link */}
             <Link
-              to="/services"
+              to="/"
               className="px-3 py-1 rounded-full bg-white/60 backdrop-blur-sm text-gray-600 hover:bg-white hover:text-gray-900 transition-all duration-300 shadow-sm"
               onClick={() => {
                 const mainNav = document.querySelector('nav');
@@ -4216,7 +4216,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                 window.scrollTo(0, 0);
               }}
             >
-              Services
+              Home
             </Link>
 
             {/* Category Link - if categoryId exists in URL */}
@@ -4224,7 +4224,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
               <>
                 <ArrowRight size={14} className="text-gray-400" />
                 <Link
-                  to={`/services/${categoryId}`}
+                  to={`/home/allservices/${categoryId}`}
                   className="px-3 py-1 rounded-full bg-white/60 backdrop-blur-sm text-gray-600 hover:bg-white hover:text-gray-900 transition-all duration-300 shadow-sm"
                   onClick={() => {
                     const mainNav = document.querySelector('nav');
@@ -4246,7 +4246,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
               <>
                 <ArrowRight size={14} className="text-gray-400" />
                 <Link
-                  to={`/services/${categoryId}/${subCategoryId}`}
+                  to={`/home/allservices/${categoryId}/${subCategoryId}`}
                   className="px-3 py-1 rounded-full bg-white/60 backdrop-blur-sm text-gray-600 hover:bg-white hover:text-gray-900 transition-all duration-300 shadow-sm"
                   onClick={() => {
                     const mainNav = document.querySelector('nav');
@@ -4268,7 +4268,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
               <>
                 <ArrowRight size={14} className="text-gray-400" />
                 <Link
-                  to={`/services/${categoryId}/${subCategoryId}/${nestedSubCategoryId}`}
+                  to={`/home/allservices/${categoryId}/${subCategoryId}/${nestedSubCategoryId}`}
                   className="px-3 py-1 rounded-full bg-white/60 backdrop-blur-sm text-gray-600 hover:bg-white hover:text-gray-900 transition-all duration-300 shadow-sm"
                   onClick={() => {
                     const mainNav = document.querySelector('nav');
@@ -4671,12 +4671,12 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
                                             // Navigate to the new product
                                             const newUrl = categoryId && subCategoryId && nestedSubCategoryId
-                                              ? `/services/${categoryId}/${subCategoryId}/${nestedSubCategoryId}/${product._id}`
+                                              ? `/home/allservices/${categoryId}/${subCategoryId}/${nestedSubCategoryId}/${product._id}`
                                               : categoryId && subCategoryId
-                                                ? `/services/${categoryId}/${subCategoryId}/${product._id}`
+                                                ? `/home/allservices/${categoryId}/${subCategoryId}/${product._id}`
                                                 : categoryId
-                                                  ? `/services/${categoryId}/${product._id}`
-                                                  : `/services/${product._id}`;
+                                                  ? `/home/allservices/${categoryId}/${product._id}`
+                                                  : `/home/allservices/${product._id}`;
                                             navigate(newUrl);
                                           }
                                         }}

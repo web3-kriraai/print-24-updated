@@ -337,10 +337,10 @@ const OrdersList: React.FC<OrdersListProps> = ({ orders, onSelectOrder }) => {
                   </span>
                   <div
                     className={`px-2.5 py-0.5 rounded-full text-xs font-medium border ${isCompleted
-                        ? "bg-green-50 text-green-700 border-green-200"
-                        : isProcessing
-                          ? "bg-orange-50 text-orange-700 border-orange-200"
-                          : "bg-slate-100 text-slate-600 border-slate-200"
+                      ? "bg-green-50 text-green-700 border-green-200"
+                      : isProcessing
+                        ? "bg-orange-50 text-orange-700 border-orange-200"
+                        : "bg-slate-100 text-slate-600 border-slate-200"
                       }`}
                   >
                     {order.status.replace("_", " ").toUpperCase()}
@@ -487,8 +487,8 @@ const OrdersList: React.FC<OrdersListProps> = ({ orders, onSelectOrder }) => {
                           <span className="text-slate-500">Balance Due</span>
                           <span
                             className={`font-bold ${order.totalPrice - (order.advancePaid || 0) > 0
-                                ? 'text-red-600'
-                                : 'text-slate-400'
+                              ? 'text-red-600'
+                              : 'text-slate-400'
                               }`}
                           >
                             {formatCurrency(order.totalPrice - (order.advancePaid || 0))}
@@ -1309,7 +1309,7 @@ const Profile: React.FC = () => {
                   <Package size={48} className="mx-auto mb-4 opacity-50 text-slate-400" />
                   <p className="text-slate-600 mb-4">You haven't placed any orders yet.</p>
                   <Link
-                    to="/services"
+                    to="/"
                     className="inline-block bg-brand-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-brand-700 transition-colors"
                   >
                     Browse Products
@@ -1358,7 +1358,7 @@ const Profile: React.FC = () => {
                 <Package size={48} className="mx-auto mb-4 opacity-50 text-slate-400" />
                 <p className="text-slate-600 mb-4">You haven't placed any orders yet.</p>
                 <Link
-                  to="/services"
+                  to="/"
                   className="inline-block bg-brand-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-brand-700 transition-colors"
                 >
                   Browse Products
@@ -1460,10 +1460,10 @@ const Profile: React.FC = () => {
                             }
                           }}
                           className={`flex-1 w-full sm:min-w-[200px] px-3 py-1.5 border rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-sm transition-colors ${emailError
-                              ? 'border-red-300 bg-red-50 focus:ring-red-500 focus:border-red-500'
-                              : newEmail.trim() && newEmail.trim() !== userData?.email && !validateEmail(newEmail)
-                                ? 'border-green-300 bg-green-50'
-                                : 'border-slate-300'
+                            ? 'border-red-300 bg-red-50 focus:ring-red-500 focus:border-red-500'
+                            : newEmail.trim() && newEmail.trim() !== userData?.email && !validateEmail(newEmail)
+                              ? 'border-green-300 bg-green-50'
+                              : 'border-slate-300'
                             }`}
                           placeholder="Enter new email"
                           autoFocus

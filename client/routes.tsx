@@ -1,4 +1,5 @@
 import React from 'react';
+import { Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
 import ErrorBoundary from './components/ErrorBoundary';
 import Home from './pages/Home';
@@ -20,6 +21,7 @@ import EmployeeDashboard from './pages/EmployeeDashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import ServiceAdmin from './pages/ServiceAdmin';
 import AboutAdmin from './pages/AboutAdmin';
+import NotFound from './pages/NotFound';
 
 // Shared routes configuration for both SSR and client
 export const routes = [
@@ -29,24 +31,25 @@ export const routes = [
     errorElement: <ErrorBoundary />,
     children: [
       { index: true, element: <Home />, errorElement: <ErrorBoundary /> },
-      { path: 'services', element: <Services />, errorElement: <ErrorBoundary /> },
-      { path: 'services/:categoryId', element: <VisitingCards />, errorElement: <ErrorBoundary /> },
-      { path: 'services/:categoryId/gloss-finish', element: <GlossProductSelection />, errorElement: <ErrorBoundary /> },
+      // Redirect /home/allservices to homepage
+      { path: 'home/allservices', element: <Navigate to="/" replace /> },
+      { path: 'home/allservices/:categoryId', element: <VisitingCards />, errorElement: <ErrorBoundary /> },
+      { path: 'home/allservices/:categoryId/gloss-finish', element: <GlossProductSelection />, errorElement: <ErrorBoundary /> },
       // Product detail routes - must come before subcategory routes to match correctly
       // Support nested subcategories: /categoryId/subCategoryId/nestedSubCategoryId/productId
       // Subcategory products list - must come BEFORE product detail routes to handle ambiguous 3-segment paths correctly
       // Support nested subcategories: /categoryId/subCategoryId/nestedSubCategoryId
       // VisitingCards will detect if the 3rd segment is a product and render GlossProductSelection if needed
-      { path: 'services/:categoryId/:subCategoryId/:nestedSubCategoryId', element: <VisitingCards />, errorElement: <ErrorBoundary /> },
-      { path: 'services/:categoryId/:subCategoryId', element: <VisitingCards />, errorElement: <ErrorBoundary /> },
+      { path: 'home/allservices/:categoryId/:subCategoryId/:nestedSubCategoryId', element: <VisitingCards />, errorElement: <ErrorBoundary /> },
+      { path: 'home/allservices/:categoryId/:subCategoryId', element: <VisitingCards />, errorElement: <ErrorBoundary /> },
 
       // Product detail routes
       // Support nested subcategories: /categoryId/subCategoryId/nestedSubCategoryId/productId
-      { path: 'services/:categoryId/:subCategoryId/:nestedSubCategoryId/:productId', element: <GlossProductSelection />, errorElement: <ErrorBoundary /> },
+      { path: 'home/allservices/:categoryId/:subCategoryId/:nestedSubCategoryId/:productId', element: <GlossProductSelection />, errorElement: <ErrorBoundary /> },
       // Product detail with subcategory: /categoryId/subCategoryId/productId
-      { path: 'services/:categoryId/:subCategoryId/:productId', element: <GlossProductSelection />, errorElement: <ErrorBoundary /> },
+      { path: 'home/allservices/:categoryId/:subCategoryId/:productId', element: <GlossProductSelection />, errorElement: <ErrorBoundary /> },
       // Product detail without subcategory: /categoryId/productId
-      { path: 'services/:categoryId/:productId', element: <GlossProductSelection />, errorElement: <ErrorBoundary /> },
+      { path: 'home/allservices/:categoryId/:productId', element: <GlossProductSelection />, errorElement: <ErrorBoundary /> },
       { path: 'upload', element: <Upload />, errorElement: <ErrorBoundary /> },
       { path: 'about', element: <About />, errorElement: <ErrorBoundary /> },
       { path: 'policy', element: <Policy />, errorElement: <ErrorBoundary /> },
@@ -63,6 +66,8 @@ export const routes = [
       { path: 'employee/dashboard', element: <EmployeeDashboard />, errorElement: <ErrorBoundary /> },
       { path: 'department-portal', element: <DepartmentPortal />, errorElement: <ErrorBoundary /> },
       { path: 'reviews', element: <Reviews />, errorElement: <ErrorBoundary /> },
+      // 404 catch-all route - must be last
+      { path: '*', element: <NotFound /> },
     ],
   },
 ];

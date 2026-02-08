@@ -95,7 +95,7 @@ const Footer: React.FC = () => {
               <h4 className="font-serif text-lg font-bold text-slate-900 mb-8 tracking-wide">Quick Links</h4>
               <ul className="space-y-4 text-[15px] font-medium text-slate-600">
                 <li><Link to="/" className="block hover:text-blue-600 hover:translate-x-2 transition-all duration-300 ease-out">Home</Link></li>
-                <li><Link to="/services" className="block hover:text-blue-600 hover:translate-x-2 transition-all duration-300 ease-out">Digital Print</Link></li>
+                <li><Link to="/home/allservices" className="block hover:text-blue-600 hover:translate-x-2 transition-all duration-300 ease-out">Digital Print</Link></li>
                 <li><Link to="/upload" className="block hover:text-blue-600 hover:translate-x-2 transition-all duration-300 ease-out">Upload Files</Link></li>
                 <li><Link to="/about" className="block hover:text-blue-600 hover:translate-x-2 transition-all duration-300 ease-out">About Us</Link></li>
               </ul>
