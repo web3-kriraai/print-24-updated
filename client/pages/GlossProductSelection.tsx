@@ -4216,7 +4216,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                 window.scrollTo(0, 0);
               }}
             >
-              Home
+              Home/All Services
             </Link>
 
             {/* Category Link - if categoryId exists in URL */}
@@ -5735,12 +5735,12 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                     <div className="relative">
                                                       <div className="absolute top-0 left-0 right-0 h-5 bg-gradient-to-b from-white to-transparent pointer-events-none z-10" />
                                                       <div className="max-h-[400px] overflow-y-auto mini-scrollbar pr-2">
-                                                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                                        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2.5 py-2">
                                                           {availableSubAttributes.map((subAttr) => {
                                                             const getSubAttrPriceDisplay = () => {
                                                               if (!showPrice) return null;
                                                               if (!subAttr.priceAdd || subAttr.priceAdd === 0) return null;
-                                                              return `+₹${subAttr.priceAdd.toFixed(2)}/piece`;
+                                                              return `+₹${subAttr.priceAdd.toFixed(2)}`;
                                                             };
                                                             const subAttrKey = `${attrId}__${selectedValue}`;
                                                             const isSubAttrSelected = selectedDynamicAttributes[subAttrKey] === subAttr.value;
@@ -5760,25 +5760,38 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                                     return next;
                                                                   });
                                                                 }}
-                                                                className={`p-3 my-3 rounded-lg border text-left transition-all ${isSubAttrSelected
-                                                                  ? "border-gray-900 bg-gray-50 ring-1 ring-gray-900"
-                                                                  : "border-gray-200 hover:border-gray-400"
+                                                                className={`group relative flex flex-col items-center p-2 rounded-xl border-2 transition-all duration-200 hover:shadow-md ${isSubAttrSelected
+                                                                  ? "border-gray-900 bg-gray-50 shadow-sm"
+                                                                  : "border-gray-200 hover:border-gray-400 hover:bg-white"
                                                                   }`}
                                                               >
+                                                                {/* Selection checkmark */}
+                                                                {isSubAttrSelected && (
+                                                                  <div className="absolute -top-1.5 -right-1.5 bg-gray-900 text-white rounded-full p-1 shadow-lg z-10">
+                                                                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                                                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                                                    </svg>
+                                                                  </div>
+                                                                )}
+                                                                {/* Square image container */}
                                                                 {subAttr.image && (
-                                                                  <div className="mb-2">
+                                                                  <div className="w-full aspect-square mb-1.5 overflow-hidden rounded-lg bg-gray-50 border border-gray-100">
                                                                     <LazyImage
                                                                       src={subAttr.image}
                                                                       alt={subAttr.label}
-                                                                      className="w-full h-24 object-cover rounded"
+                                                                      className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
                                                                       showSkeleton={true}
                                                                       skeletonVariant="image"
                                                                     />
                                                                   </div>
                                                                 )}
-                                                                <div className="text-sm font-medium">{subAttr.label}</div>
+                                                                {/* Label */}
+                                                                <div className="text-[11px] font-medium text-gray-900 leading-tight line-clamp-2 text-center w-full">
+                                                                  {subAttr.label}
+                                                                </div>
+                                                                {/* Price */}
                                                                 {getSubAttrPriceDisplay() && (
-                                                                  <div className="text-xs text-gray-600 mt-1">
+                                                                  <div className="text-[10px] font-semibold text-green-600 mt-0.5">
                                                                     {getSubAttrPriceDisplay()}
                                                                   </div>
                                                                 )}
@@ -6973,11 +6986,11 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
               {/* Content */}
               <div className="flex-1 overflow-y-auto p-4">
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 justify-items-center">
+                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3 justify-items-center">
                   {subAttrModalData.subAttributes.map((subAttr) => {
                     const getSubAttrPriceDisplay = () => {
                       if (!subAttr.priceAdd || subAttr.priceAdd === 0) return null;
-                      return `+₹${subAttr.priceAdd.toFixed(2)}/piece`;
+                      return `+₹${subAttr.priceAdd.toFixed(2)}`;
                     };
 
                     const subAttrKey = `${subAttrModalData.attributeId}__${subAttrModalData.parentValue}`;
@@ -7006,38 +7019,41 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                         }}
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
-                        className={`relative p-2 rounded-lg border-2 text-left transition-all duration-200 flex flex-col w-[140px] h-[140px] overflow-hidden ${isSelected
-                          ? "border-gray-900 bg-gray-50 text-gray-900 ring-2 ring-gray-900 ring-offset-1"
-                          : "border-gray-200 text-gray-700 hover:border-gray-400 hover:bg-gray-50 hover:shadow-md"
+                        className={`group relative p-2.5 rounded-xl border-2 transition-all duration-200 flex flex-col items-center w-full max-w-[120px] ${isSelected
+                          ? "border-gray-900 bg-gray-50 text-gray-900 ring-2 ring-gray-900 ring-offset-1 shadow-md"
+                          : "border-gray-200 text-gray-700 hover:border-gray-400 hover:bg-white hover:shadow-lg"
                           }`}
                       >
+                        {/* Selection checkmark */}
                         {isSelected && (
                           <motion.div
                             initial={{ scale: 0 }}
                             animate={{ scale: 1 }}
-                            className="absolute top-1.5 right-1.5 bg-gray-900 text-white rounded-full p-1 shadow-lg z-10"
+                            className="absolute -top-2 -right-2 bg-gray-900 text-white rounded-full p-1.5 shadow-lg z-10"
                           >
-                            <Check size={12} />
+                            <Check size={14} />
                           </motion.div>
                         )}
 
+                        {/* Square image container */}
                         {subAttr.image && (
-                          <div className="mb-1.5 overflow-hidden rounded border border-gray-200 bg-gray-50 flex-shrink-0">
+                          <div className="w-full aspect-square mb-2 overflow-hidden rounded-lg border border-gray-100 bg-gray-50">
                             <img
                               src={subAttr.image}
                               alt={subAttr.label}
-                              className="w-full h-[70px] object-cover transition-transform duration-200 hover:scale-105"
+                              className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-110"
                             />
                           </div>
                         )}
 
-                        <div className="space-y-1 flex-1 flex flex-col min-h-0">
-                          <div className="font-semibold text-xs text-gray-900 leading-tight line-clamp-2">
+                        {/* Label and Price */}
+                        <div className="space-y-1 flex flex-col items-center w-full">
+                          <div className="font-semibold text-xs text-gray-900 leading-tight line-clamp-2 text-center">
                             {subAttr.label}
                           </div>
 
                           {getSubAttrPriceDisplay() && (
-                            <div className="mt-auto pt-1 border-t border-gray-200 text-[10px] font-semibold text-gray-700 leading-tight">
+                            <div className="text-[10px] font-bold text-green-600 leading-tight">
                               {getSubAttrPriceDisplay()}
                             </div>
                           )}
