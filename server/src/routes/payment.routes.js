@@ -11,7 +11,8 @@ import {
     initializePayment,
     verifyPayment,
     getPaymentStatus,
-    getPaymentHealth
+    getPaymentHealth,
+    handlePayUCallback
 } from '../controllers/payment.controller.js';
 import { handleWebhook } from '../controllers/webhook.controller.js';
 
@@ -56,5 +57,8 @@ router.post('/webhook', express.raw({ type: 'application/json' }), (req, res, ne
 router.post('/webhook/razorpay', handleWebhook);
 router.post('/webhook/stripe', handleWebhook);
 router.post('/webhook/phonepe', handleWebhook);
+
+// Payment Gateway Redirect Callbacks
+router.post('/callback/payu', handlePayUCallback);
 
 export default router;

@@ -53,7 +53,7 @@ class PhonePeProvider extends IPaymentProvider {
             amount: this.normalizeAmount(params.amount),
             redirectUrl: `${process.env.BASE_URL || 'http://localhost:5000'}/payment/callback?gateway=phonepe`,
             redirectMode: 'POST',
-            callbackUrl: `${process.env.BASE_URL || 'http://localhost:5000'}/api/payment/webhook`,
+            callbackUrl: `${process.env.BASE_URL || `http://localhost:${process.env.PORT || 5000}`}/api/payment/webhook`,
             mobileNumber: params.customer.phone?.replace(/\D/g, ''),
             paymentInstrument: {
                 type: 'PAY_PAGE'
@@ -193,7 +193,7 @@ class PhonePeProvider extends IPaymentProvider {
             originalTransactionId: params.transactionId,
             merchantTransactionId,
             amount: this.normalizeAmount(params.amount),
-            callbackUrl: `${process.env.BASE_URL || 'http://localhost:5000'}/api/payment/webhook`
+            callbackUrl: `${process.env.BASE_URL || `http://localhost:${process.env.PORT || 5000}`}/api/payment/webhook`
         };
 
         const base64Payload = Buffer.from(JSON.stringify(payload)).toString('base64');

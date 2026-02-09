@@ -128,15 +128,29 @@ export const handleCourierWebhook = async (req, res) => {
 
         // Prepare update data
         const updateData = {
-            courierStatus: internalStatus
+            courierStatus: internalStatus,
+            // Store the original Shiprocket status for display
+            courierStatusRaw: currentStatus
         };
 
         // Handle specific statuses
-        if (internalStatus === 'delivered') {
+        const lowerInternalStatus = internalStatus?.toLowerCase() || '';
+
+        if (lowerInternalStatus === 'delivered') {
             updateData.deliveredAt = new Date();
             updateData.status = 'completed'; // Update main order status
-        } else if (internalStatus === 'rto_delivered') {
+        } else if (lowerInternalStatus === 'rto_delivered') {
             updateData.status = 'cancelled'; // Or a specific RTO status
+        }
+
+        // Set dispatchedAt if not already set and status indicates movement
+        if (!order.dispatchedAt && (
+            internalStatus === 'in_transit' ||
+            internalStatus === 'pickup_scheduled' ||
+            currentStatus === 'Shipped' ||
+            currentStatus === 'Picked Up'
+        )) {
+            updateData.dispatchedAt = new Date();
         }
 
         // Add to courier timeline

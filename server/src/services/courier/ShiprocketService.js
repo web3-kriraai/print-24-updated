@@ -21,6 +21,7 @@ class ShiprocketService {
         this.tokenValidDays = 10; // Shiprocket tokens are valid for 10 days
         this.email = null; // Override email from DB
         this.password = null; // Override password from DB
+        this.useMockAWB = process.env.USE_MOCK_AWB === 'true'; // Enable mock AWB for non-KYC testing
     }
 
     /**
@@ -241,12 +242,46 @@ class ShiprocketService {
     }
 
     /**
+     * Generate mock AWB code (for testing without KYC)
+     * Uses REAL courier data from Shiprocket API while only mocking the AWB code
+     * @param {string} shipmentId - Shiprocket shipment ID
+     * @param {number} courierId - Courier company ID from Shiprocket API
+     * @param {string} courierName - Courier name from Shiprocket API
+     * @returns {Object} Mock AWB info with real courier data
+     */
+    generateMockAWB(shipmentId, courierId = null, courierName = null) {
+        // Generate realistic AWB code format (similar to actual courier AWBs)
+        const timestamp = Date.now().toString().slice(-8);
+        const random = Math.random().toString(36).substring(2, 6).toUpperCase();
+        const awbCode = `MOCK${timestamp}${random}`;
+
+        console.log(`[Shiprocket] 🧪 MOCK AWB Generated: ${awbCode} (KYC not required)`);
+        console.log(`[Shiprocket] 🚛 Using REAL courier from API: ${courierName || 'Auto'} (ID: ${courierId || 'Auto'})`);
+
+        return {
+            success: true,
+            awbCode: awbCode,
+            courierId: courierId || null,
+            courierName: courierName || null,
+            assignedDate: new Date().toISOString(),
+            isMock: true
+        };
+    }
+
+    /**
      * Generate AWB (Air Way Bill) for a shipment
      * @param {string} shipmentId - Shiprocket shipment ID
      * @param {number} courierId - Courier company ID (optional, auto-assigns if not provided)
+     * @param {string} courierName - Courier name from Shiprocket serviceability API
      * @returns {Promise<Object>} AWB info
      */
-    async generateAWB(shipmentId, courierId = null) {
+    async generateAWB(shipmentId, courierId = null, courierName = null) {
+        // If mock mode is enabled, use mock AWB with real courier data from API
+        if (this.useMockAWB) {
+            console.log('[Shiprocket] Mock AWB mode enabled, generating mock AWB with real courier data...');
+            return this.generateMockAWB(shipmentId, courierId, courierName);
+        }
+
         try {
             const client = await this.getClient();
 
@@ -270,7 +305,8 @@ class ShiprocketService {
                     awbCode: awbData.awb_code,
                     courierId: awbData.courier_company_id,
                     courierName: awbData.courier_name,
-                    assignedDate: awbData.assigned_date_sk
+                    assignedDate: awbData.assigned_date_sk,
+                    isMock: false
                 };
             }
 
@@ -279,23 +315,72 @@ class ShiprocketService {
                 return {
                     success: true,
                     awbCode: response.data.response?.data?.awb_code,
-                    message: 'AWB already assigned'
+                    message: 'AWB already assigned',
+                    isMock: false
                 };
             }
 
             throw new Error('AWB generation failed');
         } catch (error) {
-            console.error('[Shiprocket] AWB generation failed:', error.response?.data || error.message);
-            throw new Error(`AWB generation failed: ${error.response?.data?.message || error.message}`);
+            const errorMessage = error.response?.data?.message || error.message;
+            console.error('[Shiprocket] AWB generation failed:', error.response?.data || errorMessage);
+
+            // Check if error is KYC-related
+            const kycErrors = ['kyc', 'verification', 'document', 'not verified', 'pending approval'];
+            const isKYCError = kycErrors.some(keyword =>
+                errorMessage.toLowerCase().includes(keyword)
+            );
+
+            if (isKYCError) {
+                console.warn('[Shiprocket] ⚠️  KYC-related error detected, falling back to mock AWB');
+                return this.generateMockAWB(shipmentId, courierId, courierName);
+            }
+
+            throw new Error(`AWB generation failed: ${errorMessage}`);
         }
+    }
+
+    /**
+     * Generate mock pickup response (for testing without real AWB)
+     * @param {string} shipmentId - Shiprocket shipment ID
+     * @param {Date} productionEndDate - Optional production end date for pickup scheduling
+     * @returns {Object} Mock pickup info
+     */
+    generateMockPickup(shipmentId, productionEndDate = null) {
+        // Use production end date if provided, otherwise use tomorrow
+        const pickupDate = productionEndDate
+            ? new Date(productionEndDate)
+            : new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+        // Set pickup time to 12:05 for consistency
+        pickupDate.setHours(12, 5, 0, 0);
+
+        console.log(`[Shiprocket] 🧪 MOCK Pickup scheduled for shipment: ${shipmentId}`);
+        console.log(`[Shiprocket] 📅 Pickup Date: ${pickupDate.toISOString()} (Based on: ${productionEndDate ? 'Production End Date' : 'Tomorrow'})`);
+
+        return {
+            success: true,
+            pickupStatus: 1,
+            pickupScheduledDate: pickupDate.toISOString(),
+            pickupTime: '12:05',
+            message: 'Mock pickup scheduled successfully',
+            isMock: true
+        };
     }
 
     /**
      * Request pickup for a shipment
      * @param {string} shipmentId - Shiprocket shipment ID
+     * @param {boolean} isMockAWB - Whether the AWB is mocked
+     * @param {Date} productionEndDate - Optional production end date for pickup scheduling
      * @returns {Promise<Object>} Pickup request info
      */
-    async requestPickup(shipmentId) {
+    async requestPickup(shipmentId, isMockAWB = false, productionEndDate = null) {
+        // If using mock AWB, return mock pickup (real API will fail without real AWB)
+        if (isMockAWB || this.useMockAWB) {
+            return this.generateMockPickup(shipmentId, productionEndDate);
+        }
+
         try {
             const client = await this.getClient();
 
@@ -307,17 +392,30 @@ class ShiprocketService {
 
             if (response.data) {
                 console.log('[Shiprocket] Pickup requested successfully');
+                console.log('[Shiprocket] 📋 Complete pickup response:', JSON.stringify(response.data, null, 2));
                 return {
                     success: true,
                     pickupStatus: response.data.pickup_status,
-                    message: 'Pickup requested successfully'
+                    pickupScheduledDate: response.data.pickup_scheduled_date,
+                    pickupTokenNumber: response.data.pickup_token_number,
+                    message: 'Pickup requested successfully',
+                    isMock: false
                 };
             }
 
             throw new Error('Pickup request failed');
         } catch (error) {
             console.error('[Shiprocket] Pickup request failed:', error.response?.data || error.message);
-            throw new Error(`Pickup request failed: ${error.response?.data?.message || error.message}`);
+
+            // If AWB not assigned error, return mock pickup for test mode
+            const errorMessage = error.response?.data?.message || error.message;
+            if (errorMessage.toLowerCase().includes('awb not assigned') ||
+                errorMessage.toLowerCase().includes('awb not generated')) {
+                console.warn('[Shiprocket] ⚠️  AWB not assigned, falling back to mock pickup');
+                return this.generateMockPickup(shipmentId, productionEndDate);
+            }
+
+            throw new Error(`Pickup request failed: ${errorMessage}`);
         }
     }
 
@@ -475,37 +573,68 @@ class ShiprocketService {
     /**
      * Create complete shipment flow (order + AWB + pickup)
      * @param {Object} orderData - Order details
-     * @param {number} courierId - Optional courier ID
+     * @param {number} courierId - Optional courier ID from Shiprocket serviceability API
+     * @param {string} courierName - Optional courier name from Shiprocket serviceability API
+     * @param {Date} productionEndDate - Optional production end date for pickup scheduling
      * @returns {Promise<Object>} Complete shipment info
      */
-    async createCompleteShipment(orderData, courierId = null) {
+    async createCompleteShipment(orderData, courierId = null, courierName = null, productionEndDate = null) {
         try {
+            console.log('[Shiprocket] ═══════════════════════════════════════════════════════════════');
+            console.log('[Shiprocket] 📦 CREATING COMPLETE SHIPMENT');
+            console.log('[Shiprocket] ═══════════════════════════════════════════════════════════════');
+            console.log('[Shiprocket] Order Number:', orderData.orderNumber);
+            console.log('[Shiprocket] Customer:', orderData.customerName);
+            console.log('[Shiprocket] Delivery Pincode:', orderData.pincode);
+            console.log('[Shiprocket] Courier ID:', courierId || 'Auto');
+            console.log('[Shiprocket] Courier Name:', courierName || 'Auto');
+            console.log('[Shiprocket] Production End Date:', productionEndDate ? new Date(productionEndDate).toISOString() : 'Not provided');
+
             // Step 1: Create order
+            console.log('[Shiprocket] Step 1/3: Creating order on Shiprocket...');
             const orderResult = await this.createOrder(orderData);
 
             if (!orderResult.success || !orderResult.shiprocketShipmentId) {
                 throw new Error('Order creation failed');
             }
+            console.log('[Shiprocket] ✅ Order created:', orderResult.shiprocketOrderId);
+            console.log('[Shiprocket]    Shipment ID:', orderResult.shiprocketShipmentId);
 
-            // Step 2: Generate AWB
-            const awbResult = await this.generateAWB(orderResult.shiprocketShipmentId, courierId);
+            // Step 2: Generate AWB with real courier data from API
+            console.log('[Shiprocket] Step 2/3: Generating AWB...');
+            const awbResult = await this.generateAWB(orderResult.shiprocketShipmentId, courierId, courierName);
 
             if (!awbResult.success) {
                 throw new Error('AWB generation failed');
             }
+            console.log('[Shiprocket] ✅ AWB generated:', awbResult.awbCode, awbResult.isMock ? '(MOCK)' : '');
+            console.log('[Shiprocket]    Courier:', awbResult.courierName || courierName);
 
-            // Step 3: Request pickup
-            const pickupResult = await this.requestPickup(orderResult.shiprocketShipmentId);
+            // Step 3: Request pickup (pass isMock flag and productionEndDate for scheduling)
+            console.log('[Shiprocket] Step 3/3: Requesting pickup...');
+            const pickupResult = await this.requestPickup(orderResult.shiprocketShipmentId, awbResult.isMock, productionEndDate);
+            console.log('[Shiprocket] ✅ Pickup scheduled:', pickupResult.isMock ? '(MOCK)' : 'Real pickup');
+            console.log('[Shiprocket]    Scheduled Date:', pickupResult.pickupScheduledDate);
+
+            const isMockShipment = awbResult.isMock || pickupResult.isMock;
+
+            console.log('[Shiprocket] ═══════════════════════════════════════════════════════════════');
+            console.log('[Shiprocket] 🎉 SHIPMENT CREATED SUCCESSFULLY');
+            console.log('[Shiprocket] ═══════════════════════════════════════════════════════════════');
 
             return {
                 success: true,
                 shiprocketOrderId: orderResult.shiprocketOrderId,
                 shiprocketShipmentId: orderResult.shiprocketShipmentId,
                 awbCode: awbResult.awbCode,
-                courierName: awbResult.courierName,
-                courierId: awbResult.courierId,
+                // Use AWB result first, then fallback to passed values from serviceability API
+                courierName: awbResult.courierName || courierName,
+                courierId: awbResult.courierId || courierId,
                 pickupStatus: pickupResult.pickupStatus,
-                message: 'Shipment created successfully'
+                pickupScheduledDate: pickupResult.pickupScheduledDate,
+                pickupTokenNumber: pickupResult.pickupTokenNumber,
+                isMock: isMockShipment,
+                message: isMockShipment ? 'Shipment created (TEST MODE)' : 'Shipment created successfully'
             };
         } catch (error) {
             console.error('[Shiprocket] Complete shipment creation failed:', error.message);

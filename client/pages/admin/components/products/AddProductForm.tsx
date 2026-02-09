@@ -52,6 +52,7 @@ import { formatCurrency, calculateOrderBreakdown, OrderForCalculation } from "..
 import { API_BASE_URL_WITH_API as API_BASE_URL } from "../../../../lib/apiConfig";
 import { scrollToInvalidField } from "../../../../lib/validationUtils";
 import HierarchicalCategorySelector from "../categories/HierarchicalCategorySelector";
+import { SequenceSelector } from "../../../../components/SequenceSelector";
 
 // Interfaces (Duplicated from AdminDashboard to maintain "as is" logic)
 interface Category {
@@ -784,6 +785,16 @@ const AddProductForm: React.FC<AddProductFormProps> = ({
             if (productForm.maxFileSizeMB) {
                 formData.append("maxFileSizeMB", productForm.maxFileSizeMB);
             }
+
+            // Production days
+            if (productForm.productionDays) {
+                formData.append("productionDays", productForm.productionDays.toString());
+            }
+
+            // Production timeline (quantity-based ranges)
+            if (productForm.productionTimeline && productForm.productionTimeline.length > 0) {
+                formData.append("productionTimeline", JSON.stringify(productForm.productionTimeline));
+            }
             if (productForm.minFileWidth) {
                 formData.append("minFileWidth", productForm.minFileWidth);
             }
@@ -812,9 +823,14 @@ const AddProductForm: React.FC<AddProductFormProps> = ({
                 formData.append("instructions", productForm.instructions);
             }
 
-            // Append production sequence
+            // Append production sequence (legacy - auto-populated from assignedSequence)
             if (productForm.productionSequence && productForm.productionSequence.length > 0) {
                 formData.append("productionSequence", JSON.stringify(productForm.productionSequence));
+            }
+
+            // Append assigned sequence (NEW - preferred method)
+            if (productForm.assignedSequence) {
+                formData.append("assignedSequence", productForm.assignedSequence);
             }
 
             const url = editingProductId
@@ -910,6 +926,8 @@ const AddProductForm: React.FC<AddProductFormProps> = ({
                 },
                 quantityDiscounts: [],
                 maxFileSizeMB: "",
+                productionDays: 7, // Default production days
+                productionTimeline: [], // Quantity-based production timeline ranges
                 minFileWidth: "",
                 maxFileWidth: "",
                 minFileHeight: "",
@@ -921,6 +939,7 @@ const AddProductForm: React.FC<AddProductFormProps> = ({
                 showPriceIncludingGst: false,
                 instructions: "",
                 productionSequence: [] as string[],
+                assignedSequence: "", // NEW: Sequence assignment
             });
             setOptionsTable([]);
             setFilterPricesEnabled(false);
@@ -1197,10 +1216,10 @@ const AddProductForm: React.FC<AddProductFormProps> = ({
                                                 className="mt-6 pt-6 border-t border-slate-100"
                                             >
                                                 <div className="flex items-center justify-between mb-4">
-                                                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                                                    <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
                                                         <div className="w-1.5 h-1.5 rounded-full bg-sky-500" />
                                                         {productForm.image ? 'Previewing New Image' : 'Current Product Image'}
-                                                    </p>
+                                                    </div>
                                                     {productForm.image && (
                                                         <button
                                                             type="button"
@@ -1915,6 +1934,22 @@ const AddProductForm: React.FC<AddProductFormProps> = ({
                         )}
                     </div>
 
+                    {/* Production Sequence Selector */}
+                    {productForm.category && (
+                        <div className="mt-8 pt-8 border-t border-slate-100">
+                            <SequenceSelector
+                                selectedCategory={productForm.category}
+                                selectedSubcategory={productForm.nestedSubcategory || productForm.subcategory}
+                                selectedSequence={productForm.assignedSequence || ""}
+                                onSequenceChange={(sequenceId) => {
+                                    setProductForm({ ...productForm, assignedSequence: sequenceId });
+                                }}
+                                apiBaseUrl={API_BASE_URL}
+                                getAuthHeaders={() => getAuthHeaders(false)}
+                            />
+                        </div>
+                    )}
+
                     {/* Show existing products in selected category */}
                     {productForm.category && (
                         <div className="mt-8 pt-8 border-t border-slate-100">
@@ -2140,6 +2175,122 @@ const AddProductForm: React.FC<AddProductFormProps> = ({
                                 className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-sky-500/10 focus:border-sky-400 transition-all outline-none"
                                 placeholder="e.g., 5000"
                             />
+                        </div>
+
+                        {/* Quantity-Based Production Timeline */}
+                        <div className="md:col-span-2">
+                            <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200">
+                                <div className="flex items-center justify-between mb-3">
+                                    <div className="flex items-center gap-2">
+                                        <Clock className="w-4 h-4 text-blue-600" />
+                                        <label className="block text-xs font-bold text-blue-700 uppercase tracking-wider">
+                                            Quantity-Based Production Timeline <span className="text-red-500">*</span>
+                                        </label>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const newTimeline = [...(productForm.productionTimeline || [])];
+                                            newTimeline.push({ minQuantity: '', maxQuantity: '', productionDays: '' });
+                                            setProductForm({ ...productForm, productionTimeline: newTimeline });
+                                        }}
+                                        className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 transition"
+                                    >
+                                        <Plus className="w-3 h-3" /> Add Range
+                                    </button>
+                                </div>
+
+                                {/* Timeline Table */}
+                                {productForm.productionTimeline && productForm.productionTimeline.length > 0 ? (
+                                    <div className="space-y-2">
+                                        {productForm.productionTimeline.map((range: any, index: number) => (
+                                            <div key={index} className="grid grid-cols-12 gap-2 items-center bg-white p-2 rounded-lg border border-blue-100">
+                                                <div className="col-span-3">
+                                                    <label className="text-xs text-gray-600">Min Qty</label>
+                                                    <input
+                                                        type="number"
+                                                        min="1"
+                                                        value={range.minQuantity}
+                                                        onChange={(e) => {
+                                                            const updated = [...productForm.productionTimeline];
+                                                            updated[index].minQuantity = parseInt(e.target.value) || '';
+                                                            setProductForm({ ...productForm, productionTimeline: updated });
+                                                        }}
+                                                        className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-400"
+                                                        placeholder="1"
+                                                    />
+                                                </div>
+                                                <div className="col-span-3">
+                                                    <label className="text-xs text-gray-600">Max Qty</label>
+                                                    <input
+                                                        type="number"
+                                                        min="1"
+                                                        value={range.maxQuantity}
+                                                        onChange={(e) => {
+                                                            const updated = [...productForm.productionTimeline];
+                                                            updated[index].maxQuantity = e.target.value ? parseInt(e.target.value) : '';
+                                                            setProductForm({ ...productForm, productionTimeline: updated });
+                                                        }}
+                                                        className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-400"
+                                                        placeholder="∞"
+                                                    />
+                                                </div>
+                                                <div className="col-span-4">
+                                                    <label className="text-xs text-gray-600">Production Days</label>
+                                                    <input
+                                                        type="number"
+                                                        min="1"
+                                                        max="90"
+                                                        value={range.productionDays}
+                                                        onChange={(e) => {
+                                                            const updated = [...productForm.productionTimeline];
+                                                            updated[index].productionDays = parseInt(e.target.value) || '';
+                                                            setProductForm({ ...productForm, productionTimeline: updated });
+                                                        }}
+                                                        className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-400"
+                                                        placeholder="Days"
+                                                    />
+                                                </div>
+                                                <div className="col-span-2 flex justify-end">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            const updated = productForm.productionTimeline.filter((_: any, i: number) => i !== index);
+                                                            setProductForm({ ...productForm, productionTimeline: updated });
+                                                        }}
+                                                        className="p-1.5 text-red-600 hover:bg-red-50 rounded transition"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-4 text-gray-500 text-sm">
+                                        No ranges defined. Click "Add Range" to set quantity-based production times.
+                                    </div>
+                                )}
+
+                                {/* Fallback Field */}
+                                <div className="mt-3 pt-3 border-t border-blue-200">
+                                    <label className="text-xs text-gray-600 block mb-1">Fallback Production Days (if no range matches)</label>
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        max="90"
+                                        value={productForm.productionDays || 7}
+                                        onChange={(e) => setProductForm({ ...productForm, productionDays: parseInt(e.target.value) || 7 })}
+                                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400"
+                                        placeholder="Default: 7 days"
+                                    />
+                                </div>
+
+                                <p className="text-xs text-gray-600 mt-3 flex items-start gap-1">
+                                    <Info className="w-3 h-3 mt-0.5 flex-shrink-0" />
+                                    <span>Define production time based on order quantity. E.g., 1-100 units = 5 days, 101-500 = 10 days. Leave max quantity empty for unlimited.</span>
+                                </p>
+                            </div>
                         </div>
 
                         <div>
@@ -3408,6 +3559,29 @@ const AddProductForm: React.FC<AddProductFormProps> = ({
                         </div>
                     </div>
                 )}
+
+                {/* Production Sequence Selection */}
+                <div className="p-6 bg-gradient-to-br from-slate-50 to-sky-50/30 border border-slate-200 rounded-2xl shadow-sm">
+                    <div className="flex items-center gap-3 mb-4">
+                        <div className="p-2 bg-sky-500 rounded-xl text-white">
+                            <Package size={20} />
+                        </div>
+                        <div>
+                            <h3 className="text-sm font-bold text-slate-800">Production Workflow</h3>
+                            <p className="text-xs text-slate-500">Assign a sequence for automated department routing</p>
+                        </div>
+                    </div>
+                    <SequenceSelector
+                        selectedCategory={productForm.category}
+                        selectedSubcategory={productForm.subcategory || productForm.nestedSubcategory}
+                        selectedSequence={productForm.assignedSequence}
+                        onSequenceChange={(sequenceId) => {
+                            setProductForm({ ...productForm, assignedSequence: sequenceId });
+                        }}
+                        apiBaseUrl={API_BASE_URL}
+                        getAuthHeaders={() => getAuthHeaders(true)}
+                    />
+                </div>
 
                 <button
                     type="submit"

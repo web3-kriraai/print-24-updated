@@ -144,8 +144,9 @@ interface Order {
 }
 
 // Format currency helper
-const formatCurrency = (amount: number): string => {
-  return `₹${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const formatCurrency = (amount: number | undefined | null): string => {
+  const value = amount || 0;
+  return `₹${value.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };
 
 // Subcategory Image Component with error handling
@@ -325,7 +326,8 @@ const OrdersList: React.FC<OrdersListProps> = ({ orders, onSelectOrder }) => {
                   {order.product?.name || "Product"}
                 </h3>
                 <p className="text-sm text-slate-500 mt-1">
-                  {order.quantity.toLocaleString()} units • {order.finish}
+                  {/* order.quantity might be undefined */}
+                  {(order.quantity || 0).toLocaleString()} units • {order.finish}
                 </p>
               </div>
 
@@ -337,10 +339,10 @@ const OrdersList: React.FC<OrdersListProps> = ({ orders, onSelectOrder }) => {
                   </span>
                   <div
                     className={`px-2.5 py-0.5 rounded-full text-xs font-medium border ${isCompleted
-                        ? "bg-green-50 text-green-700 border-green-200"
-                        : isProcessing
-                          ? "bg-orange-50 text-orange-700 border-orange-200"
-                          : "bg-slate-100 text-slate-600 border-slate-200"
+                      ? "bg-green-50 text-green-700 border-green-200"
+                      : isProcessing
+                        ? "bg-orange-50 text-orange-700 border-orange-200"
+                        : "bg-slate-100 text-slate-600 border-slate-200"
                       }`}
                   >
                     {order.status.replace("_", " ").toUpperCase()}
@@ -410,7 +412,7 @@ const OrdersList: React.FC<OrdersListProps> = ({ orders, onSelectOrder }) => {
                     <div className="flex justify-between items-center pb-2 border-b border-slate-100">
                       <div className="text-slate-600">
                         <span>
-                          Base Price ({order.quantity.toLocaleString()} ×{' '}
+                          Base Price ({(order.quantity || 0).toLocaleString()} ×{' '}
                           {formatCurrency(order.product?.basePrice || 0)})
                         </span>
                       </div>
@@ -487,8 +489,8 @@ const OrdersList: React.FC<OrdersListProps> = ({ orders, onSelectOrder }) => {
                           <span className="text-slate-500">Balance Due</span>
                           <span
                             className={`font-bold ${order.totalPrice - (order.advancePaid || 0) > 0
-                                ? 'text-red-600'
-                                : 'text-slate-400'
+                              ? 'text-red-600'
+                              : 'text-slate-400'
                               }`}
                           >
                             {formatCurrency(order.totalPrice - (order.advancePaid || 0))}
@@ -1460,10 +1462,10 @@ const Profile: React.FC = () => {
                             }
                           }}
                           className={`flex-1 w-full sm:min-w-[200px] px-3 py-1.5 border rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-sm transition-colors ${emailError
-                              ? 'border-red-300 bg-red-50 focus:ring-red-500 focus:border-red-500'
-                              : newEmail.trim() && newEmail.trim() !== userData?.email && !validateEmail(newEmail)
-                                ? 'border-green-300 bg-green-50'
-                                : 'border-slate-300'
+                            ? 'border-red-300 bg-red-50 focus:ring-red-500 focus:border-red-500'
+                            : newEmail.trim() && newEmail.trim() !== userData?.email && !validateEmail(newEmail)
+                              ? 'border-green-300 bg-green-50'
+                              : 'border-slate-300'
                             }`}
                           placeholder="Enter new email"
                           autoFocus

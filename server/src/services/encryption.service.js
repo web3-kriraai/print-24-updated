@@ -20,7 +20,10 @@ class EncryptionService {
     _initKey() {
         if (this.keyInitialized) return;
 
-        const keyHex = process.env.ENCRYPTION_KEY;
+        // Sanitize key (remove quotes if present)
+        const keyHex = process.env.ENCRYPTION_KEY ?
+            process.env.ENCRYPTION_KEY.replace(/^["']|["']$/g, '').trim() :
+            undefined;
 
         if (!keyHex) {
             console.warn('⚠️ ENCRYPTION_KEY not set. Payment secrets will not be encrypted.');

@@ -138,9 +138,9 @@ const ManageSequences: React.FC<ManageSequencesProps> = ({
 
             const payload = {
                 name: sequenceForm.name,
-                categoryId: sequenceForm.categoryId || null,
-                subCategoryId: sequenceForm.subCategoryId || null,
-                attributeTypeIds: sequenceForm.attributeTypeIds,
+                category: sequenceForm.categoryId || null,
+                subcategory: sequenceForm.subCategoryId || null,
+                attributes: sequenceForm.attributeTypeIds,
                 departments: sequenceForm.selectedDepartments.map((deptId, index) => ({
                     department: deptId,
                     order: index + 1
@@ -371,36 +371,7 @@ const ManageSequences: React.FC<ManageSequencesProps> = ({
                     </div>
 
                     {/* Category/Subcategory */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="space-y-2">
-                            <label className="block text-sm font-semibold text-gray-700">Category</label>
-                            <select
-                                value={sequenceForm.categoryId}
-                                onChange={(e) => setSequenceForm({ ...sequenceForm, categoryId: e.target.value, subCategoryId: "" })}
-                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-4 focus:ring-gray-200 transition-all bg-white"
-                            >
-                                <option value="">Select Category (Optional)</option>
-                                {categories.map(cat => (
-                                    <option key={cat._id} value={cat._id}>{cat.name}</option>
-                                ))}
-                            </select>
-                        </div>
-                        <div className="space-y-2">
-                            <label className="block text-sm font-semibold text-gray-700">Subcategory</label>
-                            <select
-                                value={sequenceForm.subCategoryId}
-                                onChange={(e) => setSequenceForm({ ...sequenceForm, subCategoryId: e.target.value })}
-                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-4 focus:ring-gray-200 transition-all bg-white"
-                            >
-                                <option value="">Select Subcategory (Optional)</option>
-                                {subCategories
-                                    .filter(sub => !sequenceForm.categoryId || sub.parentCategory === sequenceForm.categoryId || (sub.parentCategory && sub.parentCategory._id === sequenceForm.categoryId))
-                                    .map(sub => (
-                                        <option key={sub._id} value={sub._id}>{sub.name}</option>
-                                    ))}
-                            </select>
-                        </div>
-                    </div>
+                    {/* Category/Subcategory Removed as per instruction */}
 
                     {/* Departments Selection */}
                     <div className="space-y-3">

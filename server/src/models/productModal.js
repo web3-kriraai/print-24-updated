@@ -129,6 +129,37 @@ const ProductSchema = new mongoose.Schema(
       },
     ],
 
+    /* =======================
+       PRODUCTION TIMELINE (Quantity-Based)
+    ======================= */
+    productionTimeline: [
+      {
+        minQuantity: {
+          type: Number,
+          required: true,
+          min: 1,
+        },
+        maxQuantity: {
+          type: Number,
+          required: false, // null means unlimited
+        },
+        productionDays: {
+          type: Number,
+          required: true,
+          min: 1,
+          max: 90,
+        },
+      },
+    ],
+
+    // Fallback for products without quantity ranges
+    productionDays: {
+      type: Number,
+      default: 7,
+      min: 1,
+      max: 90,
+    },
+
     // Quantity discount tiers (for dynamic quantity-based pricing)
     quantityDiscounts: [
       {
@@ -154,12 +185,21 @@ const ProductSchema = new mongoose.Schema(
 
     // Custom instructions for customers (must follow, otherwise company not responsible)
     instructions: { type: String }, // Custom instructions text that customers must follow
-    // Product-specific production sequence (custom department order)
-    // If not set, uses default department sequence
+
+    // LEGACY: Product-specific production sequence (custom department order)
+    // Kept for backward compatibility - will be auto-populated from assignedSequence
     productionSequence: [{
       type: mongoose.Schema.Types.ObjectId,
       ref: "Department",
     }],
+
+    // NEW: Assigned approval sequence (preferred over manual productionSequence)
+    // When set, productionSequence will be auto-populated from sequence departments
+    assignedSequence: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Sequence",
+      default: null,
+    },
 
     /* =======================
        NEW FIELDS - Zoho Integration

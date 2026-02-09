@@ -1,12 +1,14 @@
 import Order from "../models/orderModal.js";
 import Product from "../models/productModal.js";
 import Department from "../models/departmentModal.js";
+import Sequence from "../models/sequenceModal.js";
 import { User } from "../models/User.js";
 import sharp from "sharp";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import PricingService from "../services/pricing/PricingService.js";
 import ModifierEngine from "../services/ModifierEngine.js";
+import invoiceService from "../services/invoiceService.js";
 // Email service temporarily disabled - uncomment when email configuration is ready
 // import { sendAccountCreationEmail, sendOrderConfirmationEmail } from "../utils/emailService.js";
 
@@ -130,10 +132,124 @@ export const createOrder = async (req, res) => {
     const random = Math.floor(Math.random() * 10000);
     const orderNumber = `ORD-${timestamp}-${String(random).padStart(4, "0")}`;
 
-    // DO NOT initialize department statuses at order creation
-    // Department statuses will be created only after admin approval
-    // Order status is "request" - waiting for admin approval
+    // AUTO-ASSIGN TO DEPARTMENTS (removed admin approval requirement)
+    // Fetch product's production sequence from assignedSequence or productionSequence
     let departmentStatuses = [];
+    let currentDepartment = null;
+    let currentDepartmentIndex = null;
+    const productionTimeline = [];
+
+    // Fetch the full product with sequence populated
+    const productWithSequence = await Product.findById(productId)
+      .populate({
+        path: "assignedSequence",
+        populate: {
+          path: "departments.department",
+          model: "Department",
+        },
+      })
+      .populate("productionSequence");
+
+    // Get departments from either assignedSequence or productionSequence
+    let departmentsInOrder = [];
+    if (productWithSequence.assignedSequence && productWithSequence.assignedSequence.departments) {
+      // Use assignedSequence (preferred)
+      departmentsInOrder = productWithSequence.assignedSequence.departments
+        .sort((a, b) => a.order - b.order)
+        .map((d) => d.department);
+    } else if (productWithSequence.productionSequence && productWithSequence.productionSequence.length > 0) {
+      // Fallback to productionSequence
+      departmentsInOrder = productWithSequence.productionSequence;
+    }
+
+    if (departmentsInOrder.length > 0) {
+      const now = new Date();
+      const firstDept = departmentsInOrder[0];
+
+      // Initialize ALL departments as 'pending' with first one as 'assigned'
+      departmentStatuses = departmentsInOrder.map((dept, index) => ({
+        department: dept._id,
+        status: index === 0 ? "pending" : "pending",
+        whenAssigned: index === 0 ? now : null,
+        startedAt: null,
+        completedAt: null,
+        pausedAt: null,
+        operator: null,
+        notes: null,
+      }));
+
+      // Set current department to first
+      currentDepartment = firstDept._id;
+      currentDepartmentIndex = 0;
+
+      // Add to production timeline
+      productionTimeline.push({
+        department: firstDept._id,
+        action: "requested",
+        timestamp: now,
+        operator: null,
+        notes: `Order automatically assigned to ${firstDept.name} department`,
+      });
+
+      console.log(`🚀 Auto-assigned order ${orderNumber} to ${firstDept.name} (index 0)`);
+    } else {
+      console.warn(`⚠️ Product ${productId} has no production sequence - order will need manual assignment`);
+    }
+
+    // ========== CALCULATE PRODUCTION TIMELINE (Quantity-Based) ==========
+
+    // Calculate production dates based on order quantity and product's production timeline
+    const productWithProduction = await Product.findById(productId).select('productionTimeline productionDays');
+
+    let productionDaysForOrder = productWithProduction?.productionDays || 7; // Default fallback
+
+    // Check if product has quantity-based production timeline
+    if (productWithProduction?.productionTimeline && productWithProduction.productionTimeline.length > 0) {
+      // Find matching production timeline based on order quantity
+      const matchingTimeline = productWithProduction.productionTimeline.find(timeline => {
+        const isAboveMin = quantity >= timeline.minQuantity;
+        const isBelowMax = timeline.maxQuantity ? quantity <= timeline.maxQuantity : true;
+        return isAboveMin && isBelowMax;
+      });
+
+      if (matchingTimeline) {
+        productionDaysForOrder = matchingTimeline.productionDays;
+        console.log(`📊 Quantity-based production: ${quantity} units → ${productionDaysForOrder} days (range: ${matchingTimeline.minQuantity}-${matchingTimeline.maxQuantity || '∞'})`);
+      } else {
+        console.warn(`⚠️ No matching production timeline for quantity ${quantity}, using default ${productionDaysForOrder} days`);
+      }
+    }
+
+    // Calculate dates
+    const productionStart = new Date();
+    const productionEnd = new Date();
+    // IMPORTANT: Ensure productionDaysForOrder is a number, not a string
+    const productionDaysNum = parseInt(productionDaysForOrder, 10) || 7;
+    productionEnd.setDate(productionEnd.getDate() + productionDaysNum);
+
+    // Get shipment days from selected courier (from frontend serviceability check) or use default
+    // The selectedCourier should be sent from frontend after checking Shiprocket serviceability
+    const selectedCourier = req.body.selectedCourier;
+    // IMPORTANT: Ensure estimatedShipmentDays is a number, not a string (avoid "3" + 3 = "33")
+    const estimatedShipmentDays = parseInt(selectedCourier?.estimatedDays, 10) || 5; // Fallback to 5 days
+
+    // Calculate estimated delivery date: production end date + shipment transit days from courier
+    const estimatedDelivery = new Date(productionEnd);
+    estimatedDelivery.setDate(estimatedDelivery.getDate() + estimatedShipmentDays);
+
+    console.log(`\n╔════════════════════════════════════════════════════════════════╗`);
+    console.log(`║ 📊 DELIVERY DATE CALCULATION - Order ${orderNumber}`);
+    console.log(`╠════════════════════════════════════════════════════════════════╣`);
+    console.log(`║ Order Quantity: ${quantity} units`);
+    console.log(`║ Production Days: ${productionDaysNum} days`);
+    console.log(`║ Production Start: ${productionStart.toISOString().split('T')[0]} (${productionStart.toDateString()})`);
+    console.log(`║ Production End: ${productionEnd.toISOString().split('T')[0]} (${productionEnd.toDateString()})`);
+    console.log(`║ Courier Selected: ${selectedCourier?.courierName || 'None (using default)'}`);
+    console.log(`║ Shipment Days: ${estimatedShipmentDays} days ${selectedCourier?.estimatedDays ? '(from courier)' : '(default fallback)'}`);
+    console.log(`║ Estimated Delivery: ${estimatedDelivery.toISOString().split('T')[0]} (${estimatedDelivery.toDateString()})`);
+    console.log(`║ Total Days: ${productionDaysNum + estimatedShipmentDays} days (${productionDaysNum}d production + ${estimatedShipmentDays}d shipment)`);
+    console.log(`╚════════════════════════════════════════════════════════════════╝\n`);
+
 
     // Process selected options - enhance with description and image from product
     let enhancedSelectedOptions = [];
@@ -192,11 +308,22 @@ export const createOrder = async (req, res) => {
             }
           }
         }
+        // Get the attribute type ID (support both formats)
+        const attrTypeId = attr.attributeTypeId || attr.attributeType?._id || attr.attributeType || null;
+        const attrValue = attr.attributeValue !== undefined ? attr.attributeValue : (attr.value !== undefined ? attr.value : null);
+        const attrName = attr.attributeName || attr.attributeType?.attributeName || "Attribute";
+
         processedDynamicAttributes.push({
-          attributeTypeId: attr.attributeTypeId || attr.attributeType?._id || null,
-          attributeName: attr.attributeName || attr.attributeType?.attributeName || "Attribute",
-          attributeValue: attr.attributeValue !== undefined ? attr.attributeValue : null,
-          label: attr.label || attr.attributeValue?.toString() || null,
+          // Support both ObjectId and String formats
+          attributeType: attrTypeId,
+          attributeTypeId: attrTypeId,
+          attributeName: attrName,
+          // Auto-generate pricingKey for pricing engine
+          pricingKey: attr.pricingKey || `${attrName}_${attrValue}`,
+          // Support both field names
+          value: attrValue,
+          attributeValue: attrValue,
+          label: attr.label || attrValue?.toString() || null,
           priceMultiplier: attr.priceMultiplier || null,
           priceAdd: attr.priceAdd || 0,
           description: attr.description || null,
@@ -359,7 +486,7 @@ export const createOrder = async (req, res) => {
       selectedDynamicAttributes: processedDynamicAttributes,
       priceSnapshot: {
         basePrice: pricingResult.basePrice,
-        unitPrice: pricingResult.basePrice,
+        unitPrice: pricingResult.unitPrice,
         quantity: pricingResult.quantity,
         appliedModifiers: pricingResult.appliedModifiers,
         subtotal: pricingResult.subtotal,
@@ -374,19 +501,71 @@ export const createOrder = async (req, res) => {
       mobileNumber,
       uploadedDesign: processedDesign,
       notes: notes || "",
-      status: "request",
+      status: departmentStatuses.length > 0 ? "approved" : "requested", // Auto-approve if departments assigned
       departmentStatuses: departmentStatuses,
+      currentDepartment: currentDepartment,
+      currentDepartmentIndex: currentDepartmentIndex,
+      productionTimeline: productionTimeline,
       advancePaid: req.body.advancePaid ? parseFloat(req.body.advancePaid) : 0,
-      paymentStatus: req.body.paymentStatus || "pending",
+      paymentStatus: req.body.paymentStatus?.toUpperCase() || "PENDING",
       paymentGatewayInvoiceId: req.body.paymentGatewayInvoiceId || null,
+
+      // Store selected courier with estimated delivery days from Shiprocket serviceability
+      selectedCourier: selectedCourier ? {
+        courierId: selectedCourier.courierId,
+        courierName: selectedCourier.courierName,
+        estimatedDays: selectedCourier.estimatedDays,
+        rate: selectedCourier.rate
+      } : null,
+
       paperGSM: req.body.paperGSM || null,
       paperQuality: req.body.paperQuality || null,
       laminationType: req.body.laminationType || null,
       specialEffects: req.body.specialEffects || [],
+      productionStartDate: productionStart,  // Calculated above based on quantity
+      productionEndDate: productionEnd,  // Calculated above based on quantity
+      estimatedDeliveryDate: estimatedDelivery,  // Production end + shipment days
     };
 
     const order = new Order(orderData);
     await order.save();
+
+    // Create pricing calculation logs for audit trail
+    if (pricingResult.appliedModifiers && pricingResult.appliedModifiers.length > 0) {
+      try {
+        const PricingCalculationLog = (await import("../models/PricingCalculationLogschema.js")).default;
+
+        for (const modifier of pricingResult.appliedModifiers) {
+          // Map the modifier source to valid scope enum
+          const scopeMap = {
+            'GLOBAL': 'GLOBAL',
+            'ZONE': 'ZONE',
+            'ZONE_BOOK': 'ZONE',
+            'SEGMENT': 'SEGMENT',
+            'PRODUCT': 'PRODUCT',
+            'ATTRIBUTE': 'ATTRIBUTE',
+            'PROMO_CODE': 'GLOBAL',
+            'FIXED': 'GLOBAL',
+          };
+          const scope = scopeMap[modifier.source] || 'GLOBAL';
+
+          await PricingCalculationLog.create({
+            order: order._id,
+            pricingKey: modifier.pricingKey || `${modifier.source}_${modifier.modifierType}`,
+            modifier: modifier.modifierId || null,
+            scope: scope,
+            beforeAmount: modifier.beforeAmount || pricingResult.basePrice,
+            afterAmount: modifier.afterAmount || pricingResult.subtotal,
+            reason: modifier.reason || `${modifier.modifierType} modifier applied`,
+            appliedAt: new Date(),
+          });
+        }
+        console.log(`📝 Created ${pricingResult.appliedModifiers.length} pricing audit logs for order ${order.orderNumber}`);
+      } catch (logError) {
+        console.error("Failed to create pricing logs:", logError);
+        // Don't fail the order creation if logging fails
+      }
+    }
 
     // FIX 4: Increment promo usage count (CRITICAL)
     const promoModifierIds = pricingResult.appliedModifiers
@@ -405,10 +584,10 @@ export const createOrder = async (req, res) => {
       ]
     });
     await order.populate("user", "name email");
-    await order.populate({
-      path: "departmentStatuses.department",
-      select: "name sequence",
-    });
+    // Populate currentDepartment if it exists
+    if (order.currentDepartment) {
+      await order.populate("currentDepartment", "name sequence");
+    }
 
     res.status(201).json({
       message: "Order created successfully",
@@ -603,8 +782,61 @@ export const createOrderWithAccount = async (req, res) => {
     const random = Math.floor(Math.random() * 10000);
     const orderNumber = `ORD-${timestamp}-${String(random).padStart(4, "0")}`;
 
-    // DO NOT initialize department statuses at order creation
+    // AUTO-ASSIGN TO DEPARTMENTS (same logic as createOrder)
     let departmentStatuses = [];
+    let currentDepartment = null;
+    let currentDepartmentIndex = null;
+    const productionTimeline = [];
+
+    // Fetch the full product with sequence populated
+    const productWithSequence = await Product.findById(productId)
+      .populate({
+        path: "assignedSequence",
+        populate: {
+          path: "departments.department",
+          model: "Department",
+        },
+      })
+      .populate("productionSequence");
+
+    // Get departments from either assignedSequence or productionSequence
+    let departmentsInOrder = [];
+    if (productWithSequence.assignedSequence && productWithSequence.assignedSequence.departments) {
+      departmentsInOrder = productWithSequence.assignedSequence.departments
+        .sort((a, b) => a.order - b.order)
+        .map((d) => d.department);
+    } else if (productWithSequence.productionSequence && productWithSequence.productionSequence.length > 0) {
+      departmentsInOrder = productWithSequence.productionSequence;
+    }
+
+    if (departmentsInOrder.length > 0) {
+      const now = new Date();
+      const firstDept = departmentsInOrder[0];
+
+      departmentStatuses = departmentsInOrder.map((dept, index) => ({
+        department: dept._id,
+        status: index === 0 ? "pending" : "pending",
+        whenAssigned: index === 0 ? now : null,
+        startedAt: null,
+        completedAt: null,
+        pausedAt: null,
+        operator: null,
+        notes: null,
+      }));
+
+      currentDepartment = firstDept._id;
+      currentDepartmentIndex = 0;
+
+      productionTimeline.push({
+        department: firstDept._id,
+        action: "assigned",
+        timestamp: now,
+        operator: null,
+        notes: `Order automatically assigned to ${firstDept.name} department`,
+      });
+
+      console.log(`🚀 Auto-assigned order ${orderNumber} to ${firstDept.name} (createOrderWithAccount)`);
+    }
 
     // Process selected options - enhance with description and image from product
     let enhancedSelectedOptions = [];
@@ -755,6 +987,40 @@ export const createOrderWithAccount = async (req, res) => {
       promoCodes: promoCodes || [],
     });
 
+    // ========== CALCULATE PRODUCTION TIMELINE (Quantity-Based) ==========
+    const productWithProduction = await Product.findById(productId).select('productionTimeline productionDays');
+    let productionDaysForOrder = productWithProduction?.productionDays || 7; // Default fallback
+
+    // Check if product has quantity-based production timeline
+    if (productWithProduction?.productionTimeline && productWithProduction.productionTimeline.length > 0) {
+      const matchingTimeline = productWithProduction.productionTimeline.find(timeline => {
+        const isAboveMin = quantity >= timeline.minQuantity;
+        const isBelowMax = timeline.maxQuantity ? quantity <= timeline.maxQuantity : true;
+        return isAboveMin && isBelowMax;
+      });
+
+      if (matchingTimeline) {
+        productionDaysForOrder = matchingTimeline.productionDays;
+        console.log(`📊 [createOrderWithAccount] Quantity-based production: ${quantity} units → ${productionDaysForOrder} days`);
+      }
+    }
+
+    // Calculate dates - IMPORTANT: Use parseInt to avoid string concatenation bugs
+    const productionStart = new Date();
+    const productionEnd = new Date();
+    const productionDaysNum = parseInt(productionDaysForOrder, 10) || 7;
+    productionEnd.setDate(productionEnd.getDate() + productionDaysNum);
+
+    // Get shipment days from selected courier - use parseInt to avoid "3" + 3 = "33" bug
+    const selectedCourier = req.body.selectedCourier;
+    const estimatedShipmentDays = parseInt(selectedCourier?.estimatedDays, 10) || 5;
+
+    // Calculate estimated delivery date
+    const estimatedDelivery = new Date(productionEnd);
+    estimatedDelivery.setDate(estimatedDelivery.getDate() + estimatedShipmentDays);
+
+    console.log(`[createOrderWithAccount] Production: ${productionDaysNum}d, Shipment: ${estimatedShipmentDays}d, Delivery: ${estimatedDelivery.toISOString().split('T')[0]}`);
+
     // Create order with immutable priceSnapshot
     const orderData = {
       user: user._id,
@@ -767,7 +1033,7 @@ export const createOrderWithAccount = async (req, res) => {
       selectedDynamicAttributes: processedDynamicAttributes,
       priceSnapshot: {
         basePrice: pricingResult.basePrice,
-        unitPrice: pricingResult.basePrice,
+        unitPrice: pricingResult.unitPrice,
         quantity: pricingResult.quantity,
         appliedModifiers: pricingResult.appliedModifiers,
         subtotal: pricingResult.subtotal,
@@ -782,10 +1048,23 @@ export const createOrderWithAccount = async (req, res) => {
       mobileNumber,
       uploadedDesign: processedDesign,
       notes: notes || "",
-      status: "request",
+      status: departmentStatuses.length > 0 ? "approved" : "requested", // Auto-approve if departments assigned
       departmentStatuses: departmentStatuses,
+      currentDepartment: currentDepartment,
+      currentDepartmentIndex: currentDepartmentIndex,
+      productionTimeline: productionTimeline,
+      // Production and delivery dates - calculated above
+      selectedCourier: selectedCourier ? {
+        courierId: selectedCourier.courierId,
+        courierName: selectedCourier.courierName,
+        estimatedDays: parseInt(selectedCourier.estimatedDays, 10) || 5,
+        rate: selectedCourier.rate
+      } : null,
+      productionStartDate: productionStart,
+      productionEndDate: productionEnd,
+      estimatedDeliveryDate: estimatedDelivery,
       advancePaid: advancePaid ? parseFloat(advancePaid) : 0,
-      paymentStatus: paymentStatus || "pending",
+      paymentStatus: paymentStatus?.toUpperCase() || "PENDING",
       paymentGatewayInvoiceId: paymentGatewayInvoiceId || null,
       paperGSM: paperGSM || null,
       paperQuality: paperQuality || null,
@@ -795,6 +1074,43 @@ export const createOrderWithAccount = async (req, res) => {
 
     const order = new Order(orderData);
     await order.save();
+
+    // Create pricing calculation logs for audit trail
+    if (pricingResult.appliedModifiers && pricingResult.appliedModifiers.length > 0) {
+      try {
+        const PricingCalculationLog = (await import("../models/PricingCalculationLogschema.js")).default;
+
+        for (const modifier of pricingResult.appliedModifiers) {
+          // Map the modifier source to valid scope enum
+          const scopeMap = {
+            'GLOBAL': 'GLOBAL',
+            'ZONE': 'ZONE',
+            'ZONE_BOOK': 'ZONE',
+            'SEGMENT': 'SEGMENT',
+            'PRODUCT': 'PRODUCT',
+            'ATTRIBUTE': 'ATTRIBUTE',
+            'PROMO_CODE': 'GLOBAL',
+            'FIXED': 'GLOBAL',
+          };
+          const scope = scopeMap[modifier.source] || 'GLOBAL';
+
+          await PricingCalculationLog.create({
+            order: order._id,
+            pricingKey: modifier.pricingKey || `${modifier.source}_${modifier.modifierType}`,
+            modifier: modifier.modifierId || null,
+            scope: scope,
+            beforeAmount: modifier.beforeAmount || pricingResult.basePrice,
+            afterAmount: modifier.afterAmount || pricingResult.subtotal,
+            reason: modifier.reason || `${modifier.modifierType} modifier applied`,
+            appliedAt: new Date(),
+          });
+        }
+        console.log(`📝 Created ${pricingResult.appliedModifiers.length} pricing audit logs for order ${order.orderNumber}`);
+      } catch (logError) {
+        console.error("Failed to create pricing logs:", logError);
+        // Don't fail the order creation if logging fails
+      }
+    }
 
     // FIX 4: Increment promo usage count (CRITICAL)
     const promoModifierIds = pricingResult.appliedModifiers
@@ -813,11 +1129,10 @@ export const createOrderWithAccount = async (req, res) => {
         { path: "productionSequence", select: "name sequence" }
       ]
     });
-    await order.populate("user", "name email");
-    await order.populate({
-      path: "departmentStatuses.department",
-      select: "name sequence",
-    });
+    // Populate currentDepartment if it exists
+    if (order.currentDepartment) {
+      await order.populate("currentDepartment", "name sequence");
+    }
 
     // Email service temporarily disabled - uncomment when email configuration is ready
     // await sendOrderConfirmationEmail(
@@ -913,18 +1228,18 @@ export const getSingleOrder = async (req, res) => {
         select: "name sequence",
       })
       .populate({
-        path: "designerAssigned",
-        select: "name email",
+        path: "departmentStatuses.department",
+        select: "name sequence",
       })
       .populate({
-        path: "packedBy",
+        path: "departmentStatuses.operator",
         select: "name email",
       })
-      .populate({
-        path: "designTimeline.operator",
-        select: "name email",
-      })
-      // Note: departmentStatuses and productionTimeline fields removed from schema per user request
+      // designerSessionId populated only if exists in schema (commented out to fix error)
+      // .populate({
+      //   path: "designerSessionId",
+      //   select: "designerId status",
+      // })
       .lean(); // Use lean() for faster queries - returns plain JavaScript objects
 
     if (!order) {
@@ -1201,14 +1516,10 @@ export const updateOrderStatus = async (req, res) => {
       ]
     });
     await order.populate("user", "name email");
-    await order.populate({
-      path: "departmentStatuses.department",
-      select: "name sequence",
-    });
-    await order.populate({
-      path: "departmentStatuses.operator",
-      select: "name email",
-    });
+    // Populate currentDepartment if it exists
+    if (order.currentDepartment) {
+      await order.populate("currentDepartment", "name sequence");
+    }
 
     // Convert uploaded design buffers to base64
     const orderObj = order.toObject();
@@ -1257,6 +1568,43 @@ export const cancelOrder = async (req, res) => {
   } catch (error) {
     console.error("Cancel order error:", error);
     res.status(500).json({ error: "Failed to cancel order." });
+  }
+};
+
+/**
+ * Generate PDF invoice for an order
+ */
+export const generateInvoice = async (req, res) => {
+  try {
+    const orderId = req.params.orderId; // Changed from req.params.id to match route
+
+    // Fetch order with populated fields
+    const order = await Order.findById(orderId)
+      .populate('product')
+      .populate('user', 'name email');
+
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
+    // Authorization Check
+    if (req.user && order.user && req.user.id !== order.user._id.toString() && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Unauthorized access to this order' });
+    }
+
+    // Generate PDF
+    const pdfDoc = invoiceService.generateInvoice(order);
+
+    // Set response headers
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename=invoice-${order.orderNumber}.pdf`);
+
+    // Pipe the PDF document to response
+    pdfDoc.pipe(res);
+
+  } catch (error) {
+    console.error('Generate invoice error:', error);
+    res.status(500).json({ error: 'Failed to generate invoice' });
   }
 };
 

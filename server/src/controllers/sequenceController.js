@@ -1,5 +1,6 @@
 import Sequence from "../models/sequenceModal.js";
 import Department from "../models/departmentModal.js";
+import SubCategory from "../models/subcategoryModal.js";
 
 // Create a new sequence
 export const createSequence = async (req, res) => {
@@ -10,19 +11,30 @@ export const createSequence = async (req, res) => {
       return res.status(400).json({ error: "Sequence name is required." });
     }
 
-    if (!category || !subcategory) {
-      return res.status(400).json({ error: "Category and subcategory are required." });
-    }
+    // Category and subcategory are now optional
+    // if (!category || !subcategory) {
+    //   return res.status(400).json({ error: "Category and subcategory are required." });
+    // }
 
     if (!departments || !Array.isArray(departments) || departments.length === 0) {
       return res.status(400).json({ error: "At least one department is required." });
     }
 
-    // Validate departments array - should be array of department IDs
-    const departmentEntries = departments.map((deptId, index) => ({
-      department: deptId,
-      order: index + 1,
-    }));
+    // Validate departments array - handle both array of IDs and array of objects
+    const departmentEntries = departments.map((dept, index) => {
+      // If it's already an object with department field (from frontend), use it
+      if (typeof dept === 'object' && dept.department) {
+        return {
+          department: dept.department,
+          order: dept.order || index + 1
+        };
+      }
+      // If it's just an ID (backward compatibility), map it
+      return {
+        department: dept,
+        order: index + 1,
+      };
+    });
 
     const sequenceData = {
       name: name.trim(),
@@ -67,7 +79,7 @@ export const createSequence = async (req, res) => {
 export const getAllSequences = async (req, res) => {
   try {
     const { category, subcategory } = req.query;
-    
+
     let query = {};
     if (category) {
       query.category = category;
@@ -135,11 +147,20 @@ export const getSingleSequence = async (req, res) => {
 export const getSequenceBySubcategory = async (req, res) => {
   try {
     const { subcategoryId } = req.params;
-    
-    const sequence = await Sequence.findOne({ 
-      subcategory: subcategoryId,
-      isDefault: true 
-    })
+
+    // Find the subcategory to get its parent category ID
+    const subCategory = await SubCategory.findById(subcategoryId);
+    const categoryId = subCategory ? subCategory.category : null;
+
+    const query = {
+      $or: [
+        { subcategory: subcategoryId }, // Specific match
+        { subcategory: null, category: categoryId }, // Match parent category
+        { subcategory: null, category: null } // Global match
+      ]
+    };
+
+    const sequences = await Sequence.find(query)
       .populate('category', 'name')
       .populate('subcategory', 'name')
       .populate({
@@ -150,19 +171,12 @@ export const getSequenceBySubcategory = async (req, res) => {
           select: 'name email'
         }
       })
-      .populate('attributes', 'attributeName inputStyle primaryEffectType isPricingAttribute');
-
-    if (!sequence) {
-      // Return null if no default sequence found
-      return res.json({
-        success: true,
-        data: null,
-      });
-    }
+      .populate('attributes', 'attributeName inputStyle primaryEffectType isPricingAttribute')
+      .sort({ createdAt: -1 });
 
     return res.json({
       success: true,
-      data: sequence,
+      data: sequences, // Return array
     });
   } catch (err) {
     console.log("GET SEQUENCE BY SUBCATEGORY ERROR ===>", err);

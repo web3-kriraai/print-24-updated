@@ -16,6 +16,8 @@ import pricingAdminRoutes from "./routes/admin/pricingAdminRoutes.js";
 import pricingAdvancedRoutes from "./routes/admin/pricingAdvancedRoutes.js";
 import courierRoutes from "./routes/courierRoutes.js";
 import logisticsAdminRoutes from "./routes/logisticsAdmin.routes.js";
+import paymentRoutes from "./routes/payment.routes.js";
+import adminPaymentGatewayRoutes from "./routes/admin/payment-gateways.routes.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -134,6 +136,11 @@ app.use("/api/admin", pricingAdvancedRoutes);    // Advanced pricing features
 app.use("/api/admin", logisticsAdminRoutes);     // Logistics provider management
 console.log("[Server] ✅ Logistics admin routes registered");
 
+// Payment routes
+app.use("/api/payment", paymentRoutes);          // Customer payment operations
+app.use("/api/admin/payment-gateways", adminPaymentGatewayRoutes); // Admin gateway management
+console.log("[Server] ✅ Payment routes registered");
+
 // Generic API routes (must be after specific routes)
 app.use("/api", apiRoutes);
 app.use("/api", uploadRoutes);
@@ -222,13 +229,38 @@ mongoose
     retryWrites: true,
     w: 'majority'
   })
-  .then(() => {
+  .then(async () => {
     console.log("✅ MongoDB connected successfully");
+
+    // Initialize payment services
+    try {
+      const { paymentRouter } = await import('./services/payment/index.js');
+      const reconciliationService = (await import('./services/reconciliation.service.js')).default;
+
+      // Load payment providers from database
+      await paymentRouter.loadProviders();
+      console.log("✅ Payment providers loaded");
+
+      // Start reconciliation service (every 15 minutes)
+      reconciliationService.schedule();
+      console.log("✅ Reconciliation service started");
+
+      // Graceful shutdown for reconciliation
+      process.on('SIGTERM', () => {
+        console.log('⏹️ SIGTERM received, stopping reconciliation service...');
+        reconciliationService.stop();
+      });
+    } catch (error) {
+      console.warn("⚠️ Payment services initialization failed:", error.message);
+      console.warn("   Payment features may not work correctly");
+    }
+
     const port = process.env.PORT || 5000;
     app.listen(port, () => {
       console.log(`========================================`);
       console.log(`🚀 Backend Server running on port ${port}`);
       console.log(`📦 API Mode - Access: http://localhost:${port}/api`);
+      console.log(`💳 Payment Gateway Module: Active`);
       console.log(`========================================`);
     });
   })

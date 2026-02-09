@@ -8,19 +8,20 @@
 
 import express from 'express';
 import {
-    checkServiceability,
-    createShipment,
-    getTracking,
-    getTrackingByOrder,
-    cancelShipment,
-    selectBestCourier,
-    getPickupLocations,
-    createUserShipment
+   checkServiceability,
+   createShipment,
+   getTracking,
+   getTrackingByOrder,
+   cancelShipment,
+   selectBestCourier,
+   getPickupLocations,
+   createUserShipment,
+   triggerAutoShipment
 } from '../controllers/courierController.js';
 import {
-    handleCourierWebhook,
-    verifyWebhookSignature,
-    testWebhook
+   handleCourierWebhook,
+   verifyWebhookSignature,
+   testWebhook
 } from '../controllers/courierWebhook.controller.js';
 import { authMiddleware as protect, requireAdmin as adminOnly } from '../middlewares/authMiddleware.js';
 
@@ -80,6 +81,13 @@ router.post('/create-user-shipment/:orderId', protect, createUserShipment);
 router.post('/create-shipment/:orderId', protect, adminOnly, createShipment);
 
 /**
+ * Trigger automatic shipment creation for an order
+ * Uses the centralized ShipmentService
+ * POST /api/courier/trigger-shipment/:orderId
+ */
+router.post('/trigger-shipment/:orderId', protect, adminOnly, triggerAutoShipment);
+
+/**
  * Cancel shipment
  * POST /api/courier/cancel-shipment/:orderId
  */
@@ -91,16 +99,24 @@ router.post('/cancel-shipment/:orderId', protect, adminOnly, cancelShipment);
  */
 router.get('/pickup-locations', protect, adminOnly, getPickupLocations);
 
+
 /* =======================
    WEBHOOK ENDPOINTS (No auth - called by 3PL)
 ======================= */
 
 /**
  * Courier status update webhook
- * POST /api/courier/webhook
+ * POST /api/courier/webhook OR /api/webhooks/webhook
  * Called by Shiprocket when shipment status changes
  */
 router.post('/webhook', verifyWebhookSignature, handleCourierWebhook);
+
+/**
+ * Courier status update webhook (alias)
+ * POST /api/webhooks/courier-update
+ * This is the documented endpoint for courier updates
+ */
+router.post('/courier-update', verifyWebhookSignature, handleCourierWebhook);
 
 /**
  * Test webhook endpoint (for debugging)

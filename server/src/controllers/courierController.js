@@ -643,6 +643,48 @@ function extractState(address) {
     return 'Gujarat';
 }
 
+/**
+ * Trigger automatic shipment creation (Admin endpoint)
+ * POST /api/courier/trigger-shipment/:orderId
+ * This is used to retry or manually trigger shipment for orders
+ * that didn't get auto-shipped after payment
+ */
+export const triggerAutoShipment = async (req, res) => {
+    try {
+        const { orderId } = req.params;
+
+        console.log('[CourierController] Manual shipment trigger for order:', orderId);
+
+        // Dynamic import to avoid circular dependency
+        const { createOrderShipment } = await import('../services/ShipmentService.js');
+
+        const result = await createOrderShipment(orderId);
+
+        if (result.success) {
+            res.json({
+                success: true,
+                message: result.alreadyExists
+                    ? 'Shipment already exists for this order'
+                    : 'Shipment created successfully',
+                shiprocketOrderId: result.shiprocketOrderId,
+                awbCode: result.awbCode,
+                trackingUrl: result.trackingUrl
+            });
+        } else {
+            res.status(400).json({
+                success: false,
+                error: result.error || 'Failed to create shipment'
+            });
+        }
+    } catch (error) {
+        console.error('[CourierController] Trigger shipment failed:', error.message);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+};
+
 export default {
     checkServiceability,
     createShipment,
@@ -651,5 +693,6 @@ export default {
     cancelShipment,
     selectBestCourier,
     getPickupLocations,
-    createUserShipment
+    createUserShipment,
+    triggerAutoShipment
 };

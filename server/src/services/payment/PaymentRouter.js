@@ -287,6 +287,7 @@ class PaymentRouter {
                 gateway_order_id: result.gatewayOrderId,
                 checkout_data: result.checkoutData,
                 checkout_url: result.checkoutUrl,
+                redirect_required: result.redirectRequired || false,
                 expires_at: result.expiresAt
             };
 

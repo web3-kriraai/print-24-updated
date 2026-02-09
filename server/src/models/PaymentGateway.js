@@ -63,10 +63,6 @@ const PaymentGatewaySchema = new mongoose.Schema({
     type: String,
     select: false
   },
-  webhook_secret: {
-    type: String,
-    select: false
-  },
 
   // Gateway capabilities
   supported_countries: [{
@@ -161,7 +157,6 @@ PaymentGatewaySchema.pre('save', function (next) {
 
   encryptIfNeeded('live_secret_key');
   encryptIfNeeded('test_secret_key');
-  encryptIfNeeded('webhook_secret');
 
   next();
 });
@@ -195,13 +190,7 @@ PaymentGatewaySchema.methods.getSecretKey = function () {
   return encryptionService.decrypt(encryptedKey);
 };
 
-/**
- * Get the webhook secret (decrypted)
- * @returns {string} Decrypted webhook secret
- */
-PaymentGatewaySchema.methods.getWebhookSecret = function () {
-  return encryptionService.decrypt(this.webhook_secret);
-};
+
 
 /**
  * Get masked versions of keys for admin display
@@ -216,8 +205,7 @@ PaymentGatewaySchema.methods.getMaskedKeys = function () {
     test_public_key: this.test_public_key
       ? encryptionService.maskSecret(this.test_public_key)
       : null,
-    test_secret_key: this.test_secret_key ? '••••••••' : null,
-    webhook_secret: this.webhook_secret ? '••••••••' : null
+    test_secret_key: this.test_secret_key ? '••••••••' : null
   };
 };
 
@@ -229,7 +217,6 @@ PaymentGatewaySchema.methods.getProviderConfig = function () {
   return {
     publicKey: this.getPublicKey(),
     secretKey: this.getSecretKey(),
-    webhookSecret: this.getWebhookSecret(),
     mode: this.mode,
     isSandbox: this.mode === 'SANDBOX',
     ...this.config
@@ -248,7 +235,7 @@ PaymentGatewaySchema.statics.getActiveGateways = function () {
   return this.find({
     is_active: true
   })
-    .select('+live_public_key +live_secret_key +test_public_key +test_secret_key +webhook_secret')
+    .select('+live_public_key +live_secret_key +test_public_key +test_secret_key')
     .sort({ priority: 1 });
 };
 
@@ -259,7 +246,7 @@ PaymentGatewaySchema.statics.getActiveGateways = function () {
  */
 PaymentGatewaySchema.statics.getByNameWithCredentials = function (name) {
   return this.findOne({ name })
-    .select('+live_public_key +live_secret_key +test_public_key +test_secret_key +webhook_secret');
+    .select('+live_public_key +live_secret_key +test_public_key +test_secret_key');
 };
 
 /**

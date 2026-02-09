@@ -30,6 +30,9 @@ import {
   AlertTriangle,
   Image as ImageIcon,
   Info,
+  ExternalLink,
+  Copy,
+  MapPin,
 } from "lucide-react";
 import { API_BASE_URL_WITH_API as API_BASE_URL } from "../lib/apiConfig";
 
@@ -137,6 +140,25 @@ interface Order {
   pincode?: string;
   mobileNumber?: string;
   notes?: string;
+  // Courier tracking fields
+  awbCode?: string;
+  courierPartner?: string;
+  courierStatus?: string;
+  courierTimeline?: Array<{
+    status: string;
+    location: string;
+    timestamp: string;
+    notes?: string;
+  }>;
+  courierTrackingUrl?: string;
+  courierCharges?: {
+    freightCharge: number;
+    codCharges: number;
+    totalCharge: number;
+  };
+  dispatchedAt?: string;
+  deliveredAt?: string;
+  shiprocketShipmentId?: string;
 }
 
 const EmployeeDashboard: React.FC = () => {
@@ -159,7 +181,7 @@ const EmployeeDashboard: React.FC = () => {
   useEffect(() => {
     const token = localStorage.getItem("token");
     const user = localStorage.getItem("user");
-    
+
     if (!token || !user) {
       navigate("/login");
       return;
@@ -168,7 +190,7 @@ const EmployeeDashboard: React.FC = () => {
     try {
       const parsedUser = JSON.parse(user);
       setUserData(parsedUser);
-      
+
       if (parsedUser.role !== "emp" && parsedUser.role !== "admin") {
         navigate("/");
         return;
@@ -202,7 +224,7 @@ const EmployeeDashboard: React.FC = () => {
 
   const fetchMyDepartments = async () => {
     if (!userData) return;
-    
+
     setLoading(true);
     try {
       const response = await fetch(`${API_BASE_URL}/departments?isEnabled=true`, {
@@ -216,31 +238,31 @@ const EmployeeDashboard: React.FC = () => {
       const data = await response.json();
       const allDepts = data.data || data || [];
       const currentUserId = userData.id || userData._id;
-      
+
       if (!currentUserId) {
         console.error("User ID not found in userData:", userData);
         setError("User ID not found. Please log in again.");
         setLoading(false);
         return;
       }
-      
+
       const ALL_EMPLOYEES_DEPARTMENT_ID = "69327f9850162220fa7bff29";
-      
+
       const myDepts = allDepts.filter((dept: any) => {
         if (dept._id === ALL_EMPLOYEES_DEPARTMENT_ID) {
           return true;
         }
-        
+
         if (!dept.operators || dept.operators.length === 0) {
           return true;
         }
-        
+
         const isAssigned = dept.operators.some((op: any) => {
           const opId = typeof op === 'object' ? (op._id || op.id || String(op)) : String(op);
           const matches = String(opId) === String(currentUserId);
           return matches;
         });
-        
+
         return isAssigned;
       });
 
@@ -339,7 +361,7 @@ const EmployeeDashboard: React.FC = () => {
 
       setSuccess(`Order ${action === "complete" ? "completed" : action === "start" ? "started" : action === "resume" ? "resumed" : `${action}ed`} successfully`);
       fetchDepartmentOrders(selectedDepartment._id);
-      
+
       setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to perform action");
@@ -385,6 +407,27 @@ const EmployeeDashboard: React.FC = () => {
     }
   };
 
+  // Courier status configuration for display
+  const getCourierStatusConfig = (status?: string) => {
+    const statusLower = status?.toLowerCase() || '';
+    if (statusLower.includes('delivered')) {
+      return { bg: 'bg-green-50', text: 'text-green-700', border: 'border-green-200', icon: 'text-green-600', label: 'Delivered' };
+    }
+    if (statusLower.includes('out_for_delivery') || statusLower.includes('out for delivery')) {
+      return { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200', icon: 'text-blue-600', label: 'Out for Delivery' };
+    }
+    if (statusLower.includes('in_transit') || statusLower.includes('transit')) {
+      return { bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-200', icon: 'text-indigo-600', label: 'In Transit' };
+    }
+    if (statusLower.includes('pickup') || statusLower.includes('picked')) {
+      return { bg: 'bg-yellow-50', text: 'text-yellow-700', border: 'border-yellow-200', icon: 'text-yellow-600', label: 'Pickup Scheduled' };
+    }
+    if (statusLower.includes('cancelled') || statusLower.includes('rto')) {
+      return { bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200', icon: 'text-red-600', label: 'Cancelled/RTO' };
+    }
+    return { bg: 'bg-slate-50', text: 'text-slate-700', border: 'border-slate-200', icon: 'text-slate-600', label: status || 'Pending' };
+  };
+
   // Calculate dashboard stats
   const dashboardStats = {
     pending: orders.filter((o) => {
@@ -428,12 +471,11 @@ const EmployeeDashboard: React.FC = () => {
       <div className="fixed top-4 left-4 z-50">
         <BackButton fallbackPath="/" label="Back to Home" className="bg-white shadow-md px-4 py-2 rounded-lg text-slate-600 hover:text-slate-900" />
       </div>
-      
+
       {/* Sidebar */}
       <aside
-        className={`${
-          sidebarOpen ? "w-64" : "w-20"
-        } bg-white border-r border-slate-200 transition-all duration-300 flex flex-col`}
+        className={`${sidebarOpen ? "w-64" : "w-20"
+          } bg-white border-r border-slate-200 transition-all duration-300 flex flex-col`}
       >
         {/* Logo */}
         <div className="p-6 border-b border-slate-200">
@@ -617,11 +659,10 @@ const EmployeeDashboard: React.FC = () => {
                   <button
                     key={dept._id}
                     onClick={() => setSelectedDepartment(dept)}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      selectedDepartment?._id === dept._id
-                        ? "bg-blue-600 text-white"
-                        : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                    }`}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${selectedDepartment?._id === dept._id
+                      ? "bg-blue-600 text-white"
+                      : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                      }`}
                   >
                     {dept.name}
                   </button>
@@ -641,11 +682,10 @@ const EmployeeDashboard: React.FC = () => {
                       <button
                         key={status}
                         onClick={() => setStatusFilter(status)}
-                        className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                          statusFilter === status
-                            ? "bg-slate-900 text-white"
-                            : "text-slate-600 hover:bg-slate-50"
-                        }`}
+                        className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${statusFilter === status
+                          ? "bg-slate-900 text-white"
+                          : "text-slate-600 hover:bg-slate-50"
+                          }`}
                       >
                         {status === "all" ? "All" : status.replace("_", " ").toUpperCase()}
                       </button>
@@ -891,85 +931,85 @@ const EmployeeDashboard: React.FC = () => {
 
               {/* Modal Content */}
               <div className="p-6 space-y-6">
-                  {/* Action Buttons */}
-                  {(() => {
-                    const order = fullOrderDetails || selectedOrder;
-                    const ds = getDepartmentStatus(order);
-                    const status = ds?.status || "pending";
-                    
-                    return (
-                      <div className="flex gap-3">
-                        {status === "pending" && (
+                {/* Action Buttons */}
+                {(() => {
+                  const order = fullOrderDetails || selectedOrder;
+                  const ds = getDepartmentStatus(order);
+                  const status = ds?.status || "pending";
+
+                  return (
+                    <div className="flex gap-3">
+                      {status === "pending" && (
+                        <button
+                          onClick={() => {
+                            handleDepartmentAction(order._id, "start");
+                            setShowOrderModal(false);
+                          }}
+                          className="flex-1 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center gap-2 font-medium"
+                        >
+                          <Play className="w-5 h-5" />
+                          Start
+                        </button>
+                      )}
+                      {status === "in_progress" && (
+                        <>
                           <button
                             onClick={() => {
-                              handleDepartmentAction(order._id, "start");
+                              handleDepartmentAction(order._id, "pause");
+                              setShowOrderModal(false);
+                            }}
+                            className="flex-1 px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors flex items-center justify-center gap-2 font-medium"
+                          >
+                            <Pause className="w-5 h-5" />
+                            Pause
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (window.confirm("Are you sure you want to stop this job?")) {
+                                handleDepartmentAction(order._id, "stop");
+                                setShowOrderModal(false);
+                              }
+                            }}
+                            className="flex-1 px-6 py-3 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition-colors flex items-center justify-center gap-2 font-medium"
+                          >
+                            <Square className="w-5 h-5" />
+                            Stop / Finish
+                          </button>
+                        </>
+                      )}
+                      {status === "paused" && (
+                        <>
+                          <button
+                            onClick={() => {
+                              handleDepartmentAction(order._id, "resume");
                               setShowOrderModal(false);
                             }}
                             className="flex-1 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center gap-2 font-medium"
                           >
                             <Play className="w-5 h-5" />
-                            Start
+                            Resume
                           </button>
-                        )}
-                        {status === "in_progress" && (
-                          <>
-                            <button
-                              onClick={() => {
-                                handleDepartmentAction(order._id, "pause");
+                          <button
+                            onClick={() => {
+                              if (window.confirm("Are you sure you want to stop this job?")) {
+                                handleDepartmentAction(order._id, "stop");
                                 setShowOrderModal(false);
-                              }}
-                              className="flex-1 px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors flex items-center justify-center gap-2 font-medium"
-                            >
-                              <Pause className="w-5 h-5" />
-                              Pause
-                            </button>
-                            <button
-                              onClick={() => {
-                                if (window.confirm("Are you sure you want to stop this job?")) {
-                                  handleDepartmentAction(order._id, "stop");
-                                  setShowOrderModal(false);
-                                }
-                              }}
-                              className="flex-1 px-6 py-3 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition-colors flex items-center justify-center gap-2 font-medium"
-                            >
-                              <Square className="w-5 h-5" />
-                              Stop / Finish
-                            </button>
-                          </>
-                        )}
-                        {status === "paused" && (
-                          <>
-                            <button
-                              onClick={() => {
-                                handleDepartmentAction(order._id, "resume");
-                                setShowOrderModal(false);
-                              }}
-                              className="flex-1 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center gap-2 font-medium"
-                            >
-                              <Play className="w-5 h-5" />
-                              Resume
-                            </button>
-                            <button
-                              onClick={() => {
-                                if (window.confirm("Are you sure you want to stop this job?")) {
-                                  handleDepartmentAction(order._id, "stop");
-                                  setShowOrderModal(false);
-                                }
-                              }}
-                              className="flex-1 px-6 py-3 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition-colors flex items-center justify-center gap-2 font-medium"
-                            >
-                              <Square className="w-5 h-5" />
-                              Stop / Finish
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    );
-                  })()}
+                              }
+                            }}
+                            className="flex-1 px-6 py-3 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition-colors flex items-center justify-center gap-2 font-medium"
+                          >
+                            <Square className="w-5 h-5" />
+                            Stop / Finish
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 {(() => {
                   const order = fullOrderDetails || selectedOrder;
-                  
+
                   return (
                     <>
                       {/* Customer Information */}
@@ -1025,8 +1065,8 @@ const EmployeeDashboard: React.FC = () => {
                                   {typeof order.product.subcategory === "object" && order.product.subcategory.category
                                     ? `${order.product.subcategory.category.name} • ${order.product.subcategory.name}`
                                     : typeof order.product.subcategory === "object"
-                                    ? order.product.subcategory.name
-                                    : order.product.subcategory}
+                                      ? order.product.subcategory.name
+                                      : order.product.subcategory}
                                 </p>
                               </div>
                             )}
@@ -1034,16 +1074,16 @@ const EmployeeDashboard: React.FC = () => {
                               <p>Quantity: {order.quantity.toLocaleString()} units</p>
                               {order.finish && <p>Finish: {order.finish}</p>}
                               {order.shape && <p>Shape: {order.shape}</p>}
-                              {order.product?.basePrice && (
-                                <p>Base Price: ₹{order.product.basePrice.toFixed(2)}</p>
+                              {order.product?.basePrice !== undefined && (
+                                <p>Base Price: ₹{Number(order.product.basePrice).toFixed(2)}</p>
                               )}
                               <p className="font-semibold text-slate-900 mt-2">
-                                Total: ₹{order.totalPrice.toFixed(2)}
+                                Total: ₹{(order.totalPrice || 0).toFixed(2)}
                               </p>
                             </div>
                           </div>
                         </div>
-                        
+
                         {/* Product Description */}
                         {order.product?.description && (
                           <div className="mt-4 pt-4 border-t border-slate-200">
@@ -1051,7 +1091,7 @@ const EmployeeDashboard: React.FC = () => {
                             <p className="text-sm text-slate-600">{order.product.description}</p>
                           </div>
                         )}
-                        
+
                         {/* Product Instructions */}
                         {order.product?.instructions && (
                           <div className="mt-4 pt-4 border-t border-slate-200">
@@ -1072,12 +1112,12 @@ const EmployeeDashboard: React.FC = () => {
                               // Handle different data structures
                               const name = opt?.optionName || opt?.name || "Option";
                               const priceAdd = typeof opt?.priceAdd === 'number' ? opt.priceAdd : (typeof opt?.priceAdd === 'string' ? parseFloat(opt.priceAdd) || 0 : 0);
-                              
+
                               // Skip if name is just "Option" and price is 0 (likely invalid data)
                               if (name === "Option" && priceAdd === 0) {
                                 return null;
                               }
-                              
+
                               return (
                                 <div
                                   key={idx}
@@ -1113,8 +1153,8 @@ const EmployeeDashboard: React.FC = () => {
                             const priceAdd = typeof opt?.priceAdd === 'number' ? opt.priceAdd : (typeof opt?.priceAdd === 'string' ? parseFloat(opt.priceAdd) || 0 : 0);
                             return !(name === "Option" && priceAdd === 0);
                           }).length === 0 && (
-                            <p className="text-sm text-slate-500 italic text-center py-4">No valid options found</p>
-                          )}
+                              <p className="text-sm text-slate-500 italic text-center py-4">No valid options found</p>
+                            )}
                         </div>
                       ) : null}
 
@@ -1255,21 +1295,19 @@ const EmployeeDashboard: React.FC = () => {
                               <div key={idx} className="flex items-start gap-4">
                                 <div className="flex flex-col items-center">
                                   <div
-                                    className={`w-3 h-3 rounded-full ${
-                                      isCompleted
-                                        ? "bg-green-500"
-                                        : isInProgress
+                                    className={`w-3 h-3 rounded-full ${isCompleted
+                                      ? "bg-green-500"
+                                      : isInProgress
                                         ? "bg-blue-500 animate-pulse"
                                         : isPending
-                                        ? "bg-yellow-500"
-                                        : "bg-slate-300"
-                                    }`}
+                                          ? "bg-yellow-500"
+                                          : "bg-slate-300"
+                                      }`}
                                   />
                                   {idx < order.departmentStatuses!.length - 1 && (
                                     <div
-                                      className={`w-0.5 h-12 ${
-                                        isCompleted ? "bg-green-500" : "bg-slate-200"
-                                      }`}
+                                      className={`w-0.5 h-12 ${isCompleted ? "bg-green-500" : "bg-slate-200"
+                                        }`}
                                     />
                                   )}
                                 </div>
@@ -1299,11 +1337,156 @@ const EmployeeDashboard: React.FC = () => {
                   ) : null;
                 })()}
 
+                {/* Courier Status Panel */}
+                {(() => {
+                  const order = fullOrderDetails || selectedOrder;
+                  const hasCourierData = order.awbCode || order.courierPartner || order.courierStatus ||
+                    (order.courierTimeline && order.courierTimeline.length > 0);
+
+                  if (!hasCourierData) return null;
+
+                  const statusConfig = getCourierStatusConfig(order.courierStatus);
+
+                  return (
+                    <div className="bg-slate-50 rounded-xl p-6 border border-slate-200">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-2">
+                          <Truck className={`w-5 h-5 ${statusConfig.icon}`} />
+                          <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wide">
+                            Courier Status
+                          </h3>
+                        </div>
+                        {order.courierStatus && (
+                          <span className={`px-3 py-1 rounded-full text-xs font-semibold ${statusConfig.bg} ${statusConfig.text} border ${statusConfig.border}`}>
+                            {statusConfig.label}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        {/* AWB Code */}
+                        {order.awbCode && (
+                          <div className={`p-4 rounded-lg ${statusConfig.bg} border ${statusConfig.border}`}>
+                            <p className="text-xs text-slate-500 mb-1">AWB Code</p>
+                            <div className="flex items-center gap-2">
+                              <p className="font-mono text-lg font-bold text-slate-900">
+                                {order.awbCode}
+                              </p>
+                              <button
+                                onClick={() => {
+                                  navigator.clipboard.writeText(order.awbCode!);
+                                }}
+                                className="p-1.5 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 transition-colors"
+                                title="Copy AWB Code"
+                              >
+                                <Copy className="w-3.5 h-3.5 text-slate-600" />
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Courier Partner */}
+                        {order.courierPartner && (
+                          <div className="p-4 rounded-lg bg-white border border-slate-200">
+                            <p className="text-xs text-slate-500 mb-1">Courier Partner</p>
+                            <p className="text-lg font-semibold text-slate-900">{order.courierPartner}</p>
+                            {order.shiprocketShipmentId && (
+                              <p className="text-xs text-slate-500 mt-1">Shipment ID: {order.shiprocketShipmentId}</p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Delivery Info */}
+                      {(order.dispatchedAt || order.deliveredAt) && (
+                        <div className="grid grid-cols-2 gap-4 mb-4">
+                          {order.dispatchedAt && (
+                            <div className="flex items-center gap-2 text-sm">
+                              <Calendar className="w-4 h-4 text-slate-400" />
+                              <span className="text-slate-600">Dispatched:</span>
+                              <span className="font-medium text-slate-900">
+                                {new Date(order.dispatchedAt).toLocaleDateString()}
+                              </span>
+                            </div>
+                          )}
+                          {order.deliveredAt && (
+                            <div className="flex items-center gap-2 text-sm">
+                              <CheckCircle2 className="w-4 h-4 text-green-500" />
+                              <span className="text-slate-600">Delivered:</span>
+                              <span className="font-medium text-green-700">
+                                {new Date(order.deliveredAt).toLocaleDateString()}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Courier Timeline */}
+                      {order.courierTimeline && order.courierTimeline.length > 0 && (
+                        <div className="mb-4">
+                          <h4 className="text-xs font-semibold text-slate-500 mb-3 flex items-center gap-2">
+                            <Clock className="w-3.5 h-3.5" />
+                            Tracking Updates
+                          </h4>
+                          <div className="space-y-2 max-h-48 overflow-y-auto">
+                            {order.courierTimeline
+                              .slice()
+                              .reverse()
+                              .slice(0, 5)
+                              .map((event, idx) => (
+                                <div
+                                  key={idx}
+                                  className={`flex gap-3 p-3 rounded-lg border ${idx === 0 ? `${statusConfig.bg} ${statusConfig.border}` : 'bg-white border-slate-200'}`}
+                                >
+                                  <div className={`w-2 h-2 rounded-full mt-1.5 ${idx === 0 ? 'bg-green-500' : 'bg-slate-400'}`} />
+                                  <div className="flex-1 min-w-0">
+                                    <p className={`text-sm font-medium ${idx === 0 ? statusConfig.text : 'text-slate-800'}`}>
+                                      {event.status}
+                                    </p>
+                                    <div className="flex items-center gap-2 text-xs text-slate-500 mt-1">
+                                      {event.location && (
+                                        <span className="flex items-center gap-1">
+                                          <MapPin className="w-3 h-3" />
+                                          {event.location}
+                                        </span>
+                                      )}
+                                      {event.location && event.timestamp && <span>•</span>}
+                                      {event.timestamp && (
+                                        <span>
+                                          {new Date(event.timestamp).toLocaleDateString()} at{' '}
+                                          {new Date(event.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        </span>
+                                      )}
+                                    </div>
+                                    {event.notes && <p className="text-xs text-slate-500 mt-1">{event.notes}</p>}
+                                  </div>
+                                </div>
+                              ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Track Shipment Link */}
+                      {order.courierTrackingUrl && (
+                        <a
+                          href={order.courierTrackingUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white py-3 px-6 rounded-lg font-medium transition-all shadow-sm"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                          Track Shipment on Shiprocket
+                        </a>
+                      )}
+                    </div>
+                  );
+                })()}
+
                 {/* User Uploaded Images */}
                 {(() => {
                   const order = fullOrderDetails || selectedOrder;
                   const hasAttachments = order.uploadedDesign?.frontImage || order.uploadedDesign?.backImage;
-                  
+
                   return hasAttachments ? (
                     <div className="bg-slate-50 rounded-xl p-6 border border-slate-200">
                       <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wide mb-4">

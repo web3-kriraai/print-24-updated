@@ -34,11 +34,20 @@ const ShippingEstimate: React.FC<ShippingEstimateProps> = ({
     const [serviceability, setServiceability] = useState<CourierServiceability | null>(null);
     const [showAllCouriers, setShowAllCouriers] = useState(false);
 
-    const checkServiceability = useCallback(async () => {
-        if (!deliveryPincode || deliveryPincode.length !== 6) {
+    // Use ref to cache last checked pincode and prevent duplicate calls
+    const lastCheckedPincodeRef = React.useRef<string>('');
+
+    const checkServiceability = useCallback(async (pincodeToCheck: string) => {
+        if (!pincodeToCheck || pincodeToCheck.length !== 6) {
             setServiceability(null);
             return;
         }
+
+        // Prevent duplicate calls for same pincode
+        if (lastCheckedPincodeRef.current === pincodeToCheck) {
+            return;
+        }
+        lastCheckedPincodeRef.current = pincodeToCheck;
 
         setLoading(true);
         setError(null);
@@ -46,7 +55,7 @@ const ShippingEstimate: React.FC<ShippingEstimateProps> = ({
         try {
             const result = await courierApi.checkServiceability(
                 pickupPincode,
-                deliveryPincode,
+                pincodeToCheck,
                 weight,
                 paymentMode
             );
@@ -59,17 +68,19 @@ const ShippingEstimate: React.FC<ShippingEstimateProps> = ({
         } catch (err: any) {
             setError(err.message || 'Failed to check serviceability');
             setServiceability(null);
+            // Reset last checked so user can retry
+            lastCheckedPincodeRef.current = '';
         } finally {
             setLoading(false);
         }
-    }, [deliveryPincode, pickupPincode, weight, paymentMode]);
+    }, [pickupPincode, weight, paymentMode]); // Removed deliveryPincode - passed as argument
 
     useEffect(() => {
         const debounceTimer = setTimeout(() => {
             if (deliveryPincode && deliveryPincode.length === 6) {
-                checkServiceability();
+                checkServiceability(deliveryPincode);
             }
-        }, 500);
+        }, 800); // Increased debounce time
 
         return () => clearTimeout(debounceTimer);
     }, [deliveryPincode, checkServiceability]);

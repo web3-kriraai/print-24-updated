@@ -85,37 +85,19 @@ export const approveOrderForProduction = async (req, res) => {
             order.departmentStatuses = [];
         }
 
-        // Check if first department already has a status entry
-        let deptStatusIndex = order.departmentStatuses.findIndex(
-            (ds) => {
-                const deptId = typeof ds.department === 'object'
-                    ? ds.department._id?.toString()
-                    : ds.department?.toString();
-                return deptId === firstDept._id.toString();
-            }
-        );
-
-        if (deptStatusIndex === -1) {
-            // Create new department status entry
-            order.departmentStatuses.push({
-                department: firstDept._id,
-                status: 'pending', // Waiting for department to start
-                whenAssigned: now,
-                startedAt: null,
-                pausedAt: null,
-                completedAt: null,
-                stoppedAt: null,
-                operator: null,
-                notes: '',
-            });
-        } else {
-            // Update existing entry to pending
-            const existingStatus = order.departmentStatuses[deptStatusIndex];
-            existingStatus.status = 'pending';
-            if (!existingStatus.whenAssigned) {
-                existingStatus.whenAssigned = now;
-            }
-        }
+        // Initialize ALL departments in the sequence as pending
+        // This gives complete visibility into the workflow from the start
+        order.departmentStatuses = departmentsInOrder.map((dept, index) => ({
+            department: dept._id,
+            status: index === 0 ? 'pending' : 'pending',  // First one is assigned and pending
+            whenAssigned: index === 0 ? now : null,        // Only first department is assigned now
+            startedAt: null,
+            pausedAt: null,
+            completedAt: null,
+            stoppedAt: null,
+            operator: null,
+            notes: '',
+        }));
 
         // Set current department tracking
         order.currentDepartment = firstDept._id;

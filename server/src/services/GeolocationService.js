@@ -7,11 +7,150 @@ import { Country, State, City } from 'country-state-city';
  * Provides IP-based geolocation and pincode mapping services
  * 
  * Features:
- * - IP → Location detection
+ * - IP → Location detection (with Google Geocoding API)
  * - Pincode → Location lookup
  * - Location → Pincode ranges (for known regions)
+ * - GPS → Pincode (reverse geocoding)
  */
 class GeolocationService {
+    constructor() {
+        this.googleApiKey = process.env.GCP_GEOLOCATION_API_KEY;
+        this.useGoogleAPI = process.env.USE_GOOGLE_GEOLOCATION !== 'false'; // Default to true
+        this.requestCache = new Map(); // Simple in-memory cache
+        this.cacheTimeout = 3600000; // 1 hour
+    }
+
+    /**
+     * Google Geocoding API - Reverse Geocode (Coordinates to Address)
+     * @param {number} lat - Latitude
+     * @param {number} lng - Longitude
+     * @returns {Promise<Object|null>} Location data with accurate pincode
+     */
+    async reverseGeocodeGoogle(lat, lng) {
+        if (!this.googleApiKey) {
+            console.warn('⚠️ Google API key not configured, skipping Google geocoding');
+            return null;
+        }
+
+        try {
+            const cacheKey = `google_reverse_${lat}_${lng}`;
+            const cached = this.getFromCache(cacheKey);
+            if (cached) {
+                console.log('✅ Using cached Google geocoding result');
+                return cached;
+            }
+
+            const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${this.googleApiKey}`;
+
+            console.log(`🌍 Calling Google Geocoding API for: ${lat}, ${lng}`);
+            const response = await fetch(url);
+            const data = await response.json();
+
+            if (data.status !== 'OK' || !data.results || data.results.length === 0) {
+                console.warn(`⚠️ Google Geocoding failed: ${data.status} - ${data.error_message || 'No results'}`);
+                return null;
+            }
+
+            const result = data.results[0];
+
+            // Extract components
+            const getComponent = (types) => {
+                const component = result.address_components.find(c =>
+                    types.some(type => c.types.includes(type))
+                );
+                return component?.long_name || null;
+            };
+
+            const pincode = getComponent(['postal_code']);
+            const city = getComponent(['locality', 'administrative_area_level_2']);
+            const state = getComponent(['administrative_area_level_1']);
+            const country = getComponent(['country']);
+
+            const locationData = {
+                pincode: pincode,
+                city: city,
+                state: state,
+                country: country,
+                formatted_address: result.formatted_address,
+                coordinates: { lat, lng },
+                source: 'google-geocoding',
+                accuracy: 'high'
+            };
+
+            // Cache the result
+            this.setCache(cacheKey, locationData);
+
+            console.log(`✅ Google Geocoding success: ${city}, ${state} - ${pincode}`);
+            return locationData;
+
+        } catch (error) {
+            console.error('❌ Google Geocoding API error:', error.message);
+            return null;
+        }
+    }
+
+    /**
+     * Get accurate pincode from IP using Google API
+     * @param {string} ipAddress - IP address
+     * @returns {Promise<Object>} Location data with pincode
+     */
+    async getPincodeFromIPGoogle(ipAddress) {
+        try {
+            // Step 1: Get approximate location from geoip-lite
+            const geoData = this.detectFromIP(ipAddress);
+
+            if (!geoData || !geoData.coordinates) {
+                console.log('⚠️ No coordinates from geoip-lite, using local fallback');
+                return this.getPincodeFromIP(ipAddress);
+            }
+
+            // Step 2: Use Google Geocoding to get accurate pincode
+            const [lat, lng] = geoData.coordinates;
+            const googleData = await this.reverseGeocodeGoogle(lat, lng);
+
+            if (googleData && googleData.pincode) {
+                return {
+                    pincode: googleData.pincode,
+                    city: googleData.city || geoData.city,
+                    state: googleData.state || geoData.regionName,
+                    country: googleData.country || geoData.countryName,
+                    coordinates: { lat, lng },
+                    source: 'google-hybrid',
+                    accuracy: 'high'
+                };
+            }
+
+            // Fallback to local mapping
+            console.log('⚠️ Google API failed, using local mapping');
+            return this.getPincodeFromIP(ipAddress);
+
+        } catch (error) {
+            console.error('❌ Error in getPincodeFromIPGoogle:', error);
+            return this.getPincodeFromIP(ipAddress);
+        }
+    }
+
+    /**
+     * Smart cache management
+     */
+    getFromCache(key) {
+        const cached = this.requestCache.get(key);
+        if (!cached) return null;
+
+        if (Date.now() - cached.timestamp > this.cacheTimeout) {
+            this.requestCache.delete(key);
+            return null;
+        }
+
+        return cached.data;
+    }
+
+    setCache(key, data) {
+        this.requestCache.set(key, {
+            data,
+            timestamp: Date.now()
+        });
+    }
     /**
      * Detect location from IP address
      * @param {string} ipAddress - IP address to lookup
@@ -481,12 +620,23 @@ class GeolocationService {
     /**
      * Get pincode from IP address
      * Wrapper method called by geolocationController
+     * Uses Google API if enabled, falls back to local lookup
      * 
      * @param {string} ip - IP address
      * @returns {Object} Location data with pincode
      */
     async getPincodeFromIP(ip) {
         try {
+            // Use Google API if enabled and key is available
+            if (this.useGoogleAPI && this.googleApiKey) {
+                const googleResult = await this.getPincodeFromIPGoogle(ip);
+                if (googleResult && googleResult.pincode) {
+                    return googleResult;
+                }
+                console.log('⚠️ Google API failed, falling back to local lookup');
+            }
+
+            // Local lookup fallback
             const locationData = this.detectFromIP(ip);
 
             if (!locationData) {
@@ -497,7 +647,8 @@ class GeolocationService {
                     city: defaultLoc.city,
                     state: defaultLoc.regionName,
                     country: defaultLoc.countryName,
-                    source: 'default-fallback'
+                    source: 'default-fallback',
+                    accuracy: 'low'
                 };
             }
 
@@ -506,7 +657,8 @@ class GeolocationService {
                 city: locationData.city || null,
                 state: locationData.regionName || null,
                 country: locationData.countryName || null,
-                source: locationData.source || 'ip-geolocation'
+                source: locationData.source || 'ip-geolocation',
+                accuracy: 'medium'
             };
         } catch (error) {
             console.error('Error in getPincodeFromIP:', error);
@@ -515,7 +667,8 @@ class GeolocationService {
                 city: 'Surat',
                 state: 'Gujarat',
                 country: 'India',
-                source: 'error-fallback'
+                source: 'error-fallback',
+                accuracy: 'low'
             };
         }
     }
@@ -523,6 +676,7 @@ class GeolocationService {
     /**
      * Get pincode from GPS coordinates
      * Called by geolocationController for reverse geocoding
+     * Uses Google Geocoding API for accurate results
      * 
      * @param {number} lat - Latitude
      * @param {number} lng - Longitude
@@ -532,8 +686,25 @@ class GeolocationService {
         try {
             console.log(`📍 Reverse geocoding GPS: ${lat}, ${lng}`);
 
-            // For now, use a simple bounding box check for major Indian cities
-            // In production, you would call a reverse geocoding API
+            // Try Google Geocoding API first
+            if (this.useGoogleAPI && this.googleApiKey) {
+                const googleData = await this.reverseGeocodeGoogle(lat, lng);
+                if (googleData && googleData.pincode) {
+                    return {
+                        pincode: googleData.pincode,
+                        city: googleData.city,
+                        state: googleData.state,
+                        country: googleData.country,
+                        formatted_address: googleData.formatted_address,
+                        coordinates: { lat, lng },
+                        source: 'google-geocoding',
+                        accuracy: 'high'
+                    };
+                }
+                console.log('⚠️ Google geocoding failed, using local fallback');
+            }
+
+            // Fallback: Use local bounding box check for major Indian cities
             const location = this.getCityFromCoordinates(lat, lng);
 
             if (location) {
@@ -542,18 +713,21 @@ class GeolocationService {
                     city: location.city,
                     state: location.state,
                     country: 'India',
-                    source: 'gps-geocoding'
+                    coordinates: { lat, lng },
+                    source: 'gps-local',
+                    accuracy: 'medium'
                 };
             }
 
-            // Fallback to default location
+            // Final fallback to default location
             const defaultLoc = this.getDefaultLocation();
             return {
                 pincode: defaultLoc.zipCode,
                 city: defaultLoc.city,
                 state: defaultLoc.regionName,
                 country: defaultLoc.countryName,
-                source: 'gps-fallback'
+                source: 'gps-fallback',
+                accuracy: 'low'
             };
         } catch (error) {
             console.error('Error in getPincodeFromGPS:', error);
@@ -562,7 +736,8 @@ class GeolocationService {
                 city: 'Surat',
                 state: 'Gujarat',
                 country: 'India',
-                source: 'error-fallback'
+                source: 'error-fallback',
+                accuracy: 'low'
             };
         }
     }
@@ -603,9 +778,10 @@ class GeolocationService {
      * Called by geolocationController for admin cache management
      */
     clearCache() {
-        // Currently no caching implemented
-        // This is a placeholder for future cache implementation
-        console.log('📍 Geolocation cache cleared (no active cache)');
+        const cacheSize = this.requestCache.size;
+        this.requestCache.clear();
+        console.log(`📍 Geolocation cache cleared (${cacheSize} entries removed)`);
+        return cacheSize;
     }
 }
 

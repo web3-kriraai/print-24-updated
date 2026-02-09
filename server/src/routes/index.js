@@ -71,13 +71,37 @@ import {
   getAllOrders,
   updateOrderStatus,
   cancelOrder,
+  generateInvoice
 } from "../controllers/orderController.js";
+
+/* INVOICE CONTROLLER (Moved to orderController) */
+// import { generateInvoice } from "../controllers/invoiceController.js";
+
+
 
 /* ORDER APPROVAL CONTROLLERS */
 import {
   approveOrderForProduction,
   checkOrderDepartmentStatus,
 } from "../controllers/orderApprovalController.js";
+
+/* DEPARTMENT APPROVAL CONTROLLERS */
+import {
+  approveDepartment,
+  startDepartmentWork,
+  pauseDepartmentWork,
+} from "../controllers/departmentApproval.controller.js";
+
+/* DELIVERY & EDD CONTROLLERS */
+import {
+  getDeliverySettings,
+  updateDeliverySettings,
+  addGeoZone,
+  updateGeoZone,
+  deleteGeoZone,
+  addHoliday,
+  calculateEDDForProducts,
+} from "../controllers/deliveryController.js";
 
 /* SUBCATEGORY CONTROLLERS */
 import {
@@ -282,8 +306,8 @@ router.get("/admin/users", authMiddleware, adminAuth, getAllUsers);
 
 router.get("/admin/employees", authMiddleware, adminAuth, getAllEmployees);
 
-router.put(
-  "/admin/update-user-role",
+router.patch(
+  "/admin/users/:userId/role",
   authMiddleware,
   adminAuth,
   updateUserRole
@@ -320,6 +344,8 @@ router.post("/orders/create-with-account", createOrderWithAccount); // No auth r
 router.get("/orders/my-orders", authMiddleware, getMyOrders);
 router.get("/orders/:orderId", authMiddleware, getSingleOrder);
 router.put("/orders/:orderId/cancel", authMiddleware, cancelOrder);
+router.get("/orders/:orderId/invoice", authMiddleware, generateInvoice);
+
 
 // Admin order routes
 router.get("/admin/orders", authMiddleware, adminAuth, getAllOrders);
@@ -336,6 +362,25 @@ router.post(
   authMiddleware,
   adminAuth,
   approveOrderForProduction
+);
+
+// New: Department approval workflow routes
+router.post(
+  "/orders/:orderId/departments/:deptId/approve",
+  authMiddleware,
+  approveDepartment
+);
+
+router.post(
+  "/orders/:orderId/departments/:deptId/start",
+  authMiddleware,
+  startDepartmentWork
+);
+
+router.post(
+  "/orders/:orderId/departments/:deptId/pause",
+  authMiddleware,
+  pauseDepartmentWork
 );
 
 // New: Diagnostic route to check why order isn't showing in employee dashboard
@@ -414,13 +459,19 @@ router.post(
    SEQUENCE ROUTES
 ===================================== */
 
-router.post("/sequences", authMiddleware, adminAuth, createSequence);
+/* =====================================
+   SEQUENCE ROUTES
+===================================== */
 
-router.get("/sequences", getAllSequences);
+router.post("/admin/sequences", authMiddleware, adminAuth, createSequence);
+router.get("/admin/sequences", authMiddleware, adminAuth, getAllSequences);
+
+router.get("/sequences", getAllSequences); // Public/Shared? Or Admin? Keeping as is based on existing, but create/update/delete should be admin
 router.get("/sequences/subcategory/:subcategoryId", getSequenceBySubcategory);
 router.get("/sequences/:id", getSingleSequence);
-router.put("/sequences/:id", authMiddleware, adminAuth, updateSequence);
-router.delete("/sequences/:id", authMiddleware, adminAuth, deleteSequence);
+
+router.put("/admin/sequences/:id", authMiddleware, adminAuth, updateSequence);
+router.delete("/admin/sequences/:id", authMiddleware, adminAuth, deleteSequence);
 
 /* =====================================
    SERVICE ROUTES
@@ -447,6 +498,33 @@ router.get("/geocoding/reverse", reverseGeocode);
 
 // Forward geocoding - search by postalcode/address
 router.get("/geocoding/search", searchGeocode);
+
+/* =====================================
+   GEOLOCATION ROUTES (Google API)
+===================================== */
+
+import geolocationRouter from './geolocation.js';
+router.use('/geolocation', geolocationRouter);
+
+
+/* =====================================
+   DELIVERY & EDD ROUTES
+===================================== */
+
+// Public - Calculate EDD for products
+router.post("/delivery/calculate-edd", calculateEDDForProducts);
+
+// Admin - Delivery settings
+router.get("/delivery/settings", authMiddleware, adminAuth, getDeliverySettings);
+router.put("/delivery/settings", authMiddleware, adminAuth, updateDeliverySettings);
+
+// Admin - Geo zone management
+router.post("/delivery/zones", authMiddleware, adminAuth, addGeoZone);
+router.put("/delivery/zones/:zoneId", authMiddleware, adminAuth, updateGeoZone);
+router.delete("/delivery/zones/:zoneId", authMiddleware, adminAuth, deleteGeoZone);
+
+// Admin - Holiday management
+router.post("/delivery/holidays", authMiddleware, adminAuth, addHoliday);
 
 /* =====================================
    SITE SETTINGS ROUTES

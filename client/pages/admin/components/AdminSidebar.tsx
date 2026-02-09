@@ -18,6 +18,8 @@ import {
     Star,
     Layers,
     DollarSign,
+    CreditCard,
+    Truck,
 } from 'lucide-react';
 import { useLogo } from '../../../hooks/useSiteSettings';
 
@@ -91,6 +93,14 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ activeTab, onTabChange }) =
             ],
         },
         {
+            id: 'delivery',
+            label: 'Delivery',
+            icon: <Truck size={20} />,
+            subItems: [
+                { id: 'delivery-settings', label: 'Delivery Settings' },
+            ],
+        },
+        {
             id: 'attributes',
             label: 'Attributes',
             icon: <Settings size={20} />,
@@ -112,6 +122,14 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ activeTab, onTabChange }) =
                 { id: 'pricing-audit-log', label: 'Audit Log' },
                 { id: 'smart-view', label: 'Smart View' },
                 { id: 'price-modifiers', label: 'Price Modifiers' },
+            ],
+        },
+        {
+            id: 'payments',
+            label: 'Payments',
+            icon: <CreditCard size={20} />,
+            subItems: [
+                { id: 'payment-gateways', label: 'Payment Gateways' },
             ],
         },
         {

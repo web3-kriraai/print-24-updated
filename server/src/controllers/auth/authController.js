@@ -65,6 +65,7 @@ export const registerUser = async (req, res) => {
       password: hashed,
       role: "user",
       userType: "customer", // Default to customer for regular signup
+      signupIntent: "CUSTOMER", // Default signup intent
     });
 
     // Create JWT

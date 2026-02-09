@@ -76,6 +76,12 @@ import PricingAuditLog from "../components/admin/pricing/PricingAuditLog";
 import SmartViewMatrix from "../src/components/admin/SmartViewMatrix";
 import { ModifierRuleBuilder } from "../components/admin/pricing/ModifierRuleBuilder";
 
+// Payment Management
+import PaymentGatewayManager from "../src/components/admin/PaymentGatewayManager";
+
+// Delivery Management
+import DeliveryManagement from "./admin/DeliveryManagement";
+
 // Simple placeholder image as data URI (1x1 transparent pixel)
 const PLACEHOLDER_IMAGE = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150'%3E%3Crect width='150' height='150' fill='%23f5f5f5'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='%23999' font-family='sans-serif' font-size='14'%3ENo Image%3C/text%3E%3C/svg%3E";
 const PLACEHOLDER_IMAGE_LARGE = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect width='400' height='400' fill='%23f5f5f5'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='%23999' font-family='sans-serif' font-size='18'%3EImage Not Available%3C/text%3E%3C/svg%3E";
@@ -4273,6 +4279,15 @@ const AdminDashboard: React.FC = () => {
             .map((dept: any) => typeof dept === 'object' && dept !== null ? (dept._id || "") : (dept || ""))
             .filter((id: string) => id) // Filter out empty IDs
           : [],
+        assignedSequence: product.assignedSequence && typeof product.assignedSequence === 'object' ? product.assignedSequence._id : (product.assignedSequence || ""),
+        productionDays: product.productionDays || 7,
+        productionTimeline: product.productionTimeline && Array.isArray(product.productionTimeline)
+          ? product.productionTimeline.map((range: any) => ({
+            minQuantity: range.minQuantity,
+            maxQuantity: range.maxQuantity,
+            productionDays: range.productionDays
+          }))
+          : [],
         existingImage: product.image || "",
       });
 
@@ -5685,7 +5700,7 @@ const AdminDashboard: React.FC = () => {
           </AnimatePresence>
 
           {/* Tab Content */}
-          <div className={["services", "site-settings", "print-partner-requests", "corporate-requests","price-books","user-segments","product-availability","pricing-audit-log","geo-zones","smart-view","price-modifiers"].includes(activeTab) ? "w-full" : "bg-white rounded-2xl shadow-lg p-6"}>
+          <div className={["services", "site-settings", "print-partner-requests", "corporate-requests", "price-books", "user-segments", "product-availability", "pricing-audit-log", "geo-zones", "smart-view", "price-modifiers"].includes(activeTab) ? "w-full" : "bg-white rounded-2xl shadow-lg p-6"}>
 
             {activeTab === "products" && (
               <AddProductForm
@@ -7580,6 +7595,16 @@ const AdminDashboard: React.FC = () => {
         )}
         {activeTab === "price-modifiers" && (
           <ModifierRuleBuilder />
+        )}
+
+        {/* Payment Gateway Management */}
+        {activeTab === "payment-gateways" && (
+          <PaymentGatewayManager />
+        )}
+
+        {/* Delivery Management */}
+        {activeTab === "delivery-settings" && (
+          <DeliveryManagement />
         )}
 
         {/* Create Employee Modal (for Department Section) */}

@@ -13,6 +13,7 @@ import { useDynamicPricing } from '../src/hooks/useDynamicPricing';
 import ProductPriceBox from '../components/ProductPriceBox';
 import courierService from '../src/services/courierService';
 import ShippingEstimate from '../src/components/shipping/ShippingEstimate';
+import PaymentConfirmationModal from '../src/components/PaymentConfirmationModal';
 
 interface SubCategory {
   _id: string;
@@ -178,6 +179,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
   const [estimatedDeliveryDate, setEstimatedDeliveryDate] = useState<string | null>(null);
   const [deliveryLocationSource, setDeliveryLocationSource] = useState<string>("");
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   // Delivery information states
   const [customerName, setCustomerName] = useState<string>("");
   const [customerEmail, setCustomerEmail] = useState<string>("");
@@ -192,6 +194,8 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
   const [price, setPrice] = useState(0);
   const [subtotal, setSubtotal] = useState(0);
   const [gstAmount, setGstAmount] = useState(0);
+  const [shippingCost, setShippingCost] = useState(0);
+  const [selectedCourier, setSelectedCourier] = useState<any>(null);
   const [additionalDesignCharge, setAdditionalDesignCharge] = useState(0);
   const [appliedDiscount, setAppliedDiscount] = useState<number | null>(null);
   // Track individual charges for order summary
@@ -1616,8 +1620,17 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
     if (selectedProduct) {
       // DYNAMIC PRICING: Use price from pricing engine API if available
       // The pricing engine applies Price Books, Geo Zones, User Segments, and Modifiers
+      // If we have dynamic pricing data, use it directly and skip manual calculation to avoid double counting
+      if (dynamicPriceData && dynamicPriceData.pricing) {
+        setSubtotal(dynamicPriceData.pricing.subtotal);
+        setGstAmount(dynamicPriceData.pricing.gstAmount);
+        setPrice(dynamicPriceData.pricing.subtotal);
+        setPerUnitPriceExcludingGst(dynamicPriceData.pricing.subtotal / Math.max(1, quantity));
+        return;
+      }
+
       // Falls back to product's static basePrice if API hasn't responded yet
-      let basePrice = dynamicPriceData?.pricing?.basePrice ?? selectedProduct.basePrice;
+      let basePrice = selectedProduct.basePrice;
 
       // Apply range-wise price multiplier if applicable (applied first, before other multipliers)
       if (selectedProduct.filters?.orderQuantity?.quantityType === "RANGE_WISE" &&
@@ -2041,7 +2054,8 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
     // Validate file type
     if (!file.type.startsWith("image/")) {
-      alert("Please upload an image file");
+      const errorKey = side === "front" ? "frontDesign" : "backDesign";
+      setFieldErrors(prev => ({ ...prev, [errorKey]: "Please upload an image file" }));
       e.target.value = ""; // Clear the input
       return;
     }
@@ -2053,7 +2067,8 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
     const maxSizeMB = instructionRules.maxSizeMB || selectedProduct?.maxFileSizeMB || 10;
     const maxSizeBytes = maxSizeMB * 1024 * 1024;
     if (file.size > maxSizeBytes) {
-      alert(`File size must be less than ${maxSizeMB} MB as specified in the instructions`);
+      const errorKey = side === "front" ? "frontDesign" : "backDesign";
+      setFieldErrors(prev => ({ ...prev, [errorKey]: `File size must be less than ${maxSizeMB} MB` }));
       e.target.value = ""; // Clear the input
       return;
     }
@@ -2067,7 +2082,8 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
       const fileName = file.name.toLowerCase();
       const extension = fileName.substring(fileName.lastIndexOf('.') + 1);
       if (extension === 'cdr' || extension === 'jpg' || extension === 'jpeg') {
-        alert("CDR and JPG files are not accepted for this product as per instructions. Please use PNG, PDF, or other formats.");
+        const errorKey = side === "front" ? "frontDesign" : "backDesign";
+        setFieldErrors(prev => ({ ...prev, [errorKey]: "CDR and JPG files are not accepted. Please use PNG, PDF, or other formats." }));
         e.target.value = ""; // Clear the input
         return;
       }
@@ -2081,7 +2097,8 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
         extension.includes(format.toLowerCase())
       );
       if (!isAllowed) {
-        alert(`Only ${instructionRules.allowedFormats.join(', ').toUpperCase()} files are accepted as per instructions.`);
+        const errorKey = side === "front" ? "frontDesign" : "backDesign";
+        setFieldErrors(prev => ({ ...prev, [errorKey]: `Only ${instructionRules.allowedFormats.join(', ').toUpperCase()} files are accepted.` }));
         e.target.value = ""; // Clear the input
         return;
       }
@@ -2120,12 +2137,20 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
         }
 
         if (validationErrors.length > 0) {
-          alert(validationErrors.join("\n"));
+          const errorKey = side === "front" ? "frontDesign" : "backDesign";
+          setFieldErrors(prev => ({ ...prev, [errorKey]: validationErrors.join(" ") }));
           e.target.value = ""; // Clear the input
           return;
         }
 
         // Dimensions are valid, proceed with file upload
+        const successErrorKey = side === "front" ? "frontDesign" : "backDesign";
+        setFieldErrors(prev => {
+          const newErrors = { ...prev };
+          delete newErrors[successErrorKey];
+          return newErrors;
+        });
+
         if (side === "front") {
           setFrontDesignFile(file);
           const reader = new FileReader();
@@ -2145,13 +2170,21 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
       img.onerror = () => {
         URL.revokeObjectURL(objectUrl);
-        alert("Failed to load image. Please check the file format.");
+        const errorKey = side === "front" ? "frontDesign" : "backDesign";
+        setFieldErrors(prev => ({ ...prev, [errorKey]: "Failed to load image. Please check the file format." }));
         e.target.value = ""; // Clear the input
       };
 
       img.src = objectUrl;
     } else {
-      // No dimension validation needed, proceed directly
+      // No dimension validation needed, proceed directly and clear any errors
+      const errorKey = side === "front" ? "frontDesign" : "backDesign";
+      setFieldErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[errorKey];
+        return newErrors;
+      });
+
       if (side === "front") {
         setFrontDesignFile(file);
         const reader = new FileReader();
@@ -2511,7 +2544,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
         }
       }
     }
-    if (!selectedPrintingOption) {
+    if (!selectedPrintingOption && selectedProduct?.filters?.printingOption && selectedProduct.filters.printingOption.length > 0) {
       validationErrors.push('Please select a printing option');
       if (!firstErrorField.current) {
         const printingOptionField = document.querySelector('[data-field="printingOption"]') as HTMLElement;
@@ -2524,7 +2557,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
         }
       }
     }
-    if (!selectedDeliverySpeed) {
+    if (!selectedDeliverySpeed && selectedProduct?.filters?.deliverySpeed && selectedProduct.filters.deliverySpeed.length > 0) {
       validationErrors.push('Please select a delivery speed');
       if (!firstErrorField.current) {
         const deliverySpeedField = document.querySelector('[data-field="deliverySpeed"]') as HTMLElement;
@@ -2672,6 +2705,11 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
   // Process payment and create order
   const handlePaymentAndOrder = async () => {
+    // Clear previous errors
+    setPaymentError(null);
+    setFieldErrors({});
+    const errors: Record<string, string> = {};
+
     // Validate product and design first
     if (!selectedProduct) {
       setPaymentError("Please select a product.");
@@ -2707,12 +2745,18 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
           if (attrType) {
             const value = selectedDynamicAttributes[attrType._id];
             if (!value || (Array.isArray(value) && value.length === 0)) {
-              setPaymentError(`${attrType.attributeName} is required.`);
-              return;
+              errors[attrType._id] = `${attrType.attributeName} is required.`;
             }
           }
         }
       }
+    }
+
+    // If field errors exist, display them and stop
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      setPaymentError("Please fill in all required fields.");
+      return;
     }
 
     // Validate delivery information
@@ -3056,7 +3100,14 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
         shape: selectedDeliverySpeed,
         selectedOptions: selectedOptions,
         selectedDynamicAttributes: selectedDynamicAttributesArray, // Send complete attribute information
-        totalPrice: price + gstAmount, // Store total including GST for order
+        totalPrice: price + gstAmount + shippingCost, // Store total including GST and shipping for order
+        shippingCost: shippingCost, // Shipping cost breakdown
+        selectedCourier: selectedCourier ? {
+          courierId: selectedCourier.courierId,
+          courierName: selectedCourier.courierName,
+          estimatedDays: selectedCourier.estimatedDays,
+          rate: selectedCourier.rate
+        } : null,
         // Delivery information collected at checkout
         pincode: pincode.trim(),
         address: address.trim(),
@@ -3792,17 +3843,41 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                     </div>
                   </motion.div>
 
-                  {/* Price Breakdown Section - Under Product Image */}
+                  {/* Order Summary Section - Under Product Image */}
                   {selectedProduct && (
                     <div className="mt-4 bg-white rounded-xl border border-gray-200 shadow-sm p-4">
                       <ProductPriceBox
                         productId={selectedProduct._id}
                         quantity={quantity}
-                        selectedDynamicAttributes={Object.entries(selectedDynamicAttributes || {}).map(([key, value]) => ({
-                          attributeType: key,
-                          value: value
-                        }))}
-                        showBreakdown={true}
+                        selectedDynamicAttributes={Object.entries(selectedDynamicAttributes || {}).map(([key, value]) => {
+                          // Find attribute name and value label
+                          const attrDef = pdpAttributes.find(a => a._id === key) ||
+                            selectedProduct?.dynamicAttributes?.find(a =>
+                              typeof a.attributeType === 'object' && a.attributeType._id === key
+                            )?.attributeType as any;
+
+                          let displayValue = value;
+
+                          if (attrDef && attrDef.attributeValues) {
+                            if (Array.isArray(value)) {
+                              displayValue = value.map(v => {
+                                const valObj = attrDef.attributeValues.find((av: any) => av.value === v);
+                                return valObj ? valObj.label : v;
+                              }).join(', ');
+                            } else {
+                              const valObj = attrDef.attributeValues.find((av: any) => av.value === value);
+                              if (valObj) displayValue = valObj.label;
+                            }
+                          } else if (value instanceof File) {
+                            displayValue = value.name;
+                          }
+
+                          return {
+                            attributeType: attrDef ? attrDef.attributeName : key,
+                            value: displayValue
+                          };
+                        })}
+                        showBreakdown={false}
                         priceData={dynamicPriceData}
                       />
                     </div>
@@ -4127,22 +4202,8 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                             </button>
                           </div>
 
-                          {/* Price & Delivery Section - Enhanced Layout */}
+                          {/* Delivery Section */}
                           <div className="bg-gradient-to-br from-gray-50 to-white rounded-2xl border border-gray-200 shadow-lg p-4 sm:p-6 mb-6">
-                            {/* Price Box - Full Width */}
-                            <div className="mb-4">
-                              <ProductPriceBox
-                                productId={selectedProduct._id}
-                                quantity={quantity}
-                                selectedDynamicAttributes={Object.entries(selectedDynamicAttributes || {}).map(([key, value]) => ({
-                                  attributeType: key,
-                                  value: value
-                                }))}
-                                showBreakdown={false}
-                                priceData={dynamicPriceData}
-                              />
-                            </div>
-
                             {/* Delivery Check Button */}
                             <button
                               onClick={() => setIsDeliveryOpen(!isDeliveryOpen)}
@@ -4172,6 +4233,18 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                     pickupPincode="395006"
                                     weight={0.5} // Estimate weight or calculate based on quantity
                                     className="shadow-sm"
+                                    onCourierSelect={(courier) => {
+                                      if (courier) {
+                                        // Apply free shipping for orders above threshold
+                                        const FREE_SHIPPING_THRESHOLD = 999;
+                                        const isFreeShipping = price >= FREE_SHIPPING_THRESHOLD;
+                                        setSelectedCourier(courier);
+                                        setShippingCost(isFreeShipping ? 0 : courier.rate);
+                                      } else {
+                                        setSelectedCourier(null);
+                                        setShippingCost(0);
+                                      }
+                                    }}
                                   />
                                   <p className="text-xs text-gray-500 mt-2 italic">
                                     * Enter your delivery pincode in the address section below for accurate estimates.
@@ -5378,6 +5451,12 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                       );
                                                     })
                                                 )}
+                                                {fieldErrors[attrId] && (
+                                                  <div className="mt-2 text-sm text-red-600 flex items-center gap-1">
+                                                    <AlertCircle size={14} />
+                                                    <span>{fieldErrors[attrId]}</span>
+                                                  </div>
+                                                )}
                                               </div>
                                             )}
 
@@ -5402,6 +5481,12 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                   placeholder={`Enter ${attrType.attributeName}`}
                                                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-gray-500"
                                                 />
+                                                {fieldErrors[attrId] && (
+                                                  <div className="mt-1 text-sm text-red-600 flex items-center gap-1">
+                                                    <AlertCircle size={14} />
+                                                    <span>{fieldErrors[attrId]}</span>
+                                                  </div>
+                                                )}
                                               </div>
                                             )}
 
@@ -5426,6 +5511,12 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                   placeholder={`Enter ${attrType.attributeName}`}
                                                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-gray-500"
                                                 />
+                                                {fieldErrors[attrId] && (
+                                                  <div className="mt-1 text-sm text-red-600 flex items-center gap-1">
+                                                    <AlertCircle size={14} />
+                                                    <span>{fieldErrors[attrId]}</span>
+                                                  </div>
+                                                )}
                                               </div>
                                             )}
 
@@ -5570,12 +5661,32 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                           <div className="flex justify-between items-end mb-4">
                             <div>
                               <p className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-1">Total Price</p>
-                              <div className="flex items-baseline gap-1">
-                                <span className="text-3xl font-bold text-gray-900">
-                                  ₹{(price + gstAmount).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                                </span>
-                                <span className="text-xs text-gray-500 font-medium">incl. taxes</span>
-                              </div>
+                              {dynamicPriceLoading ? (
+                                <div className="animate-pulse space-y-2">
+                                  <div className="h-4 bg-gray-200 rounded w-24"></div>
+                                  <div className="h-8 bg-gray-200 rounded w-32"></div>
+                                </div>
+                              ) : dynamicPriceError ? (
+                                <div className="flex items-center gap-1 text-red-600">
+                                  <AlertCircle size={16} />
+                                  <span className="text-sm">Error loading price</span>
+                                </div>
+                              ) : (
+                                <div className="flex flex-col">
+                                  <div className="flex items-baseline gap-1">
+                                    <span className="text-3xl font-bold text-gray-900">
+                                      ₹{(price + gstAmount + shippingCost).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                                    </span>
+                                    <span className="text-xs text-gray-500 font-medium">incl. taxes</span>
+                                  </div>
+                                  {shippingCost > 0 && (
+                                    <span className="text-xs text-gray-500">+ ₹{shippingCost.toLocaleString('en-IN')} shipping</span>
+                                  )}
+                                  {selectedCourier && shippingCost === 0 && price >= 999 && (
+                                    <span className="text-xs text-green-600 font-medium">🎉 Free Shipping</span>
+                                  )}
+                                </div>
+                              )}
                             </div>
                             <div className="text-right text-xs text-green-600 font-medium flex flex-col items-end">
                               <span className="flex items-center gap-1">
@@ -5633,7 +5744,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
       {/* Payment Confirmation Modal */}
       <AnimatePresence>
         {
-          showPaymentModal && (
+          false && showPaymentModal && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -5879,6 +5990,80 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
           )
         }
       </AnimatePresence >
+
+      {/* PaymentConfirmationModal Component */}
+      <PaymentConfirmationModal
+        isOpen={showPaymentModal}
+        onClose={() => {
+          setShowPaymentModal(false);
+          setPaymentError(null);
+        }}
+        onConfirm={async (paymentData) => {
+          // Update customer data from modal if provided
+          if (paymentData.customerName) setCustomerName(paymentData.customerName);
+          if (paymentData.customerEmail) setCustomerEmail(paymentData.customerEmail);
+          if (paymentData.pincode) setPincode(paymentData.pincode);
+          if (paymentData.address) setAddress(paymentData.address);
+          if (paymentData.mobileNumber) setMobileNumber(paymentData.mobileNumber);
+          // Note: Actual processing is now handled inside the modal via handlePaymentAndOrder
+        }}
+        productId={selectedProduct?._id || ''}
+        productName={selectedProduct?.name || 'Loading...'}
+        quantity={quantity}
+        selectedDynamicAttributes={Object.entries(selectedDynamicAttributes)
+          .filter(([key, value]) => value !== null && value !== undefined && !key.includes('_images'))
+          .map(([key, value]) => {
+            const attr = selectedProduct?.dynamicAttributes?.find(
+              (a) => (typeof a.attributeType === 'object' ? a.attributeType?._id : a.attributeType) === key
+            );
+            const attrType = typeof attr?.attributeType === 'object' ? attr.attributeType : null;
+            const attrValues = attr?.customValues?.length ? attr.customValues : attrType?.attributeValues || [];
+            const selectedValue = attrValues.find((av: any) => av.value === value);
+            return {
+              attributeType: key,
+              value: value,
+              name: attrType?.attributeName || 'Attribute',
+              label: selectedValue?.label || String(value)
+            };
+          })
+        }
+        customerName={customerName}
+        setCustomerName={setCustomerName}
+        customerEmail={customerEmail}
+        setCustomerEmail={setCustomerEmail}
+        pincode={pincode}
+        setPincode={setPincode}
+        address={address}
+        setAddress={setAddress}
+        mobileNumber={mobileNumber}
+        setMobileNumber={setMobileNumber}
+        estimatedDeliveryDate={estimatedDeliveryDate || undefined}
+        deliveryLocationSource={deliveryLocationSource || undefined}
+        onGetLocation={handleGetLocation}
+        isGettingLocation={isGettingLocation}
+        gstPercentage={selectedProduct?.gstPercentage}
+
+        // Pass all data required for order processing
+        selectedProduct={selectedProduct}
+        frontDesignFile={frontDesignFile}
+        frontDesignPreview={frontDesignPreview}
+        backDesignFile={backDesignFile}
+        backDesignPreview={backDesignPreview}
+        rawSelectedDynamicAttributes={selectedDynamicAttributes}
+        pdpSubAttributes={pdpSubAttributes}
+        selectedProductOptions={selectedProductOptions}
+        selectedPrintingOption={selectedPrintingOption}
+        selectedDeliverySpeed={selectedDeliverySpeed}
+        promoCodes={[]}
+        orderNotes={orderNotes}
+        price={price}
+        gstAmount={gstAmount}
+        shippingCost={shippingCost}
+        onShippingChange={(cost, courier) => {
+          setShippingCost(cost);
+          setSelectedCourier(courier);
+        }}
+      />
 
       {/* Full Size Image Modal */}
       <AnimatePresence>

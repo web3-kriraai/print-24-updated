@@ -2,8 +2,8 @@ import Order from '../models/orderModal.js';
 import Department from '../models/departmentModal.js';
 
 /**
- * Format order into 5-stage timeline for customer view
- * Handles all edge cases and missing data
+ * Format order into dynamic timeline for customer view
+ * Timeline: Order Placed → [Dynamic Departments] → Courier (with pickup date from productionEndDate)
  */
 export const formatOrderTimeline = (order) => {
     if (!order) {
@@ -11,11 +11,12 @@ export const formatOrderTimeline = (order) => {
     }
 
     const timeline = [];
+    let stageNumber = 1;
 
     // Stage 1: Order Placed (Always completed if order exists)
     timeline.push({
         stage: 'Order Placed',
-        stageNumber: 1,
+        stageNumber: stageNumber++,
         status: 'completed',
         timestamp: order.createdAt,
         details: {
@@ -28,20 +29,42 @@ export const formatOrderTimeline = (order) => {
         }
     });
 
-    // Stage 2: Design & File Preparation
-    const designStage = getDesignStage(order);
-    timeline.push(designStage);
+    // Dynamic Department Stages (Stage 2 to N)
+    if (order.departmentStatuses && order.departmentStatuses.length > 0) {
+        order.departmentStatuses.forEach(ds => {
+            const deptName = ds.department?.name || 'Department';
+            let status = 'pending';
+            let timestamp = null;
 
-    // Stage 3: Production
-    const productionStage = getProductionStage(order);
-    timeline.push(productionStage);
+            if (ds.status === 'completed') {
+                status = 'completed';
+                timestamp = ds.completedAt;
+            } else if (ds.status === 'in_progress') {
+                status = 'in_progress';
+                timestamp = ds.startedAt;
+            } else if (ds.status === 'pending' && ds.whenAssigned) {
+                timestamp = ds.whenAssigned;
+            }
 
-    // Stage 4: Packing & Dispatch
-    const packingStage = getPackingStage(order);
-    timeline.push(packingStage);
+            timeline.push({
+                stage: deptName,
+                stageNumber: stageNumber++,
+                status: status,
+                timestamp: timestamp,
+                details: {
+                    operator: ds.operator?.name || 'Not assigned',
+                    whenAssigned: ds.whenAssigned,
+                    startedAt: ds.startedAt,
+                    completedAt: ds.completedAt,
+                    notes: ds.notes || ''
+                }
+            });
+        });
+    }
 
-    // Stage 5: Courier & Delivery
+    // Final Stage: Courier & Delivery (uses productionEndDate as pickup date)
     const courierStage = getCourierStage(order);
+    courierStage.stageNumber = stageNumber;
     timeline.push(courierStage);
 
     return timeline;
@@ -251,30 +274,51 @@ const getPackingStage = (order) => {
 
 /**
  * Get Courier & Delivery stage
+ * Uses productionEndDate as the scheduled pickup date
  */
 const getCourierStage = (order) => {
     const stage = {
-        stage: 'Courier & Delivery',
-        stageNumber: 5,
+        stage: 'Courier',
+        stageNumber: 5, // Will be overwritten by formatOrderTimeline
         status: 'pending',
         timestamp: null,
         details: {}
     };
 
-    if (order.dispatchedAt || order.courierPartner || order.trackingId) {
+    // Use productionEndDate as the pickup scheduled date
+    const pickupDate = order.productionEndDate || order.pickupDetails?.scheduledPickupTime;
+    if (pickupDate) {
+        stage.details.pickupScheduledDate = pickupDate;
+    }
+
+    // Check if all departments are completed
+    const allDepartmentsCompleted = order.departmentStatuses?.every(ds => ds.status === 'completed') ?? false;
+
+    if (order.dispatchedAt || order.courierPartner || order.trackingId || order.awbCode || order.courierStatus) {
         stage.status = 'in_progress';
-        stage.timestamp = order.dispatchedAt;
+        stage.timestamp = pickupDate || order.dispatchedAt;
         stage.details.dispatchedAt = order.dispatchedAt;
         stage.details.courierPartner = order.courierPartner || 'To be assigned';
-        stage.details.trackingId = order.trackingId || 'Pending';
-        stage.details.courierStatus = order.courierStatus || 'in_transit';
+        stage.details.trackingId = order.trackingId || order.awbCode || 'Pending';
+        stage.details.courierStatus = order.courierStatus || 'PENDING';
         stage.details.trackingUrl = order.courierTrackingUrl;
+        stage.details.awbCode = order.awbCode;
+        stage.details.statusLabel = order.courierStatus ?
+            order.courierStatus.replace(/_/g, ' ').split(' ')
+                .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ')
+            : 'Pickup Scheduled';
+    } else if (allDepartmentsCompleted && pickupDate) {
+        // Departments completed, shipment scheduled
+        stage.status = 'pending';
+        stage.timestamp = pickupDate;
+        stage.details.statusLabel = 'Pickup Scheduled';
     }
 
     if (order.deliveredAt) {
         stage.status = 'completed';
         stage.timestamp = order.deliveredAt;
         stage.details.deliveredAt = order.deliveredAt;
+        stage.details.statusLabel = 'Delivered';
     }
 
     // Add courier timeline if exists

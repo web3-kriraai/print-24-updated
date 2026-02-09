@@ -12,15 +12,22 @@ export const authMiddleware = async (req, res, next) => {
       return res.status(500).json({ error: "Server configuration error. Please contact administrator." });
     }
 
-    const authHeader = req.headers.authorization;
-    console.log(`[AuthMiddleware] Auth header present: ${!!authHeader}`);
+    let token;
 
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      console.log("[AuthMiddleware] No Bearer token in header");
-      return res.status(401).json({ error: "No token provided" });
+    // Check Authorization header first
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      token = authHeader.split(" ")[1];
+    }
+    // Fallback to query parameter (needed for file downloads/direct links)
+    else if (req.query.token) {
+      token = req.query.token;
     }
 
-    const token = authHeader.split(" ")[1];
+    if (!token) {
+      console.log("[AuthMiddleware] No token found in header or query");
+      return res.status(401).json({ error: "No token provided" });
+    }
     if (!token) {
       console.log("[AuthMiddleware] Token is empty after split");
       return res.status(401).json({ error: "Token is missing" });

@@ -1,6 +1,7 @@
 import Product from "../models/productModal.js";
 import Category from "../models/categoryModal.js";
 import SubCategory from "../models/subcategoryModal.js";
+import Sequence from "../models/sequenceModal.js";
 import cloudinary from "../config/cloudinary.js";
 import streamifier from "streamifier";
 
@@ -223,7 +224,10 @@ export const createProduct = async (req, res) => {
       gstPercentage,
       showPriceIncludingGst,
       instructions,
-      productionSequence
+      productionSequence,
+      assignedSequence,  // NEW: Sequence assignment
+      productionDays,  // NEW: Production timeline
+      productionTimeline  // NEW: Quantity-based production ranges
     } = req.body;
 
     // ========== VALIDATION ==========
@@ -275,9 +279,27 @@ export const createProduct = async (req, res) => {
     if (!prodSeqResult.success) {
       return res.status(400).json({ error: prodSeqResult.error });
     }
-    const parsedProductionSequence = Array.isArray(prodSeqResult.data)
+    let parsedProductionSequence = Array.isArray(prodSeqResult.data)
       ? prodSeqResult.data.filter(id => validateObjectId(id))
       : [];
+
+    // ========== HANDLE SEQUENCE ASSIGNMENT ==========
+
+    // If assignedSequence is provided, auto-populate productionSequence from sequence
+    let assignedSequenceId = null;
+    if (assignedSequence && validateObjectId(assignedSequence)) {
+      const sequence = await Sequence.findById(assignedSequence);
+      if (sequence) {
+        assignedSequenceId = assignedSequence;
+        // Auto-populate productionSequence from sequence departments (in order)
+        parsedProductionSequence = sequence.departments
+          .sort((a, b) => a.order - b.order)
+          .map(d => d.department);
+        console.log(`✅ Sequence assigned: ${sequence.name}, departments: ${parsedProductionSequence.length}`);
+      } else {
+        console.warn(`⚠️ Assigned sequence ${assignedSequence} not found, ignoring`);
+      }
+    }
 
     // ========== IMAGE UPLOAD ==========
 
@@ -330,7 +352,34 @@ export const createProduct = async (req, res) => {
       showPriceIncludingGst: showPriceIncludingGst === true || showPriceIncludingGst === 'true',
       instructions: instructions || "",
       productionSequence: parsedProductionSequence,
+      assignedSequence: assignedSequenceId,  // NEW: Store sequence reference
+      productionDays: productionDays ? parseInt(productionDays) : 7,  // NEW: Production days with default
     };
+
+    // Parse and add production timeline (quantity-based ranges)
+    if (productionTimeline) {
+      try {
+        const parsedTimeline = typeof productionTimeline === 'string' ? JSON.parse(productionTimeline) : productionTimeline;
+        console.log('[ProductController] Parsed productionTimeline:', parsedTimeline);
+        if (Array.isArray(parsedTimeline) && parsedTimeline.length > 0) {
+          productData.productionTimeline = parsedTimeline.map(range => ({
+            minQuantity: parseInt(range.minQuantity) || 1,
+            maxQuantity: range.maxQuantity ? parseInt(range.maxQuantity) : null,
+            productionDays: parseInt(range.productionDays) || 7
+          })).filter(range => range.minQuantity > 0 && range.productionDays > 0);
+          console.log('[ProductController] ✅ ProductionTimeline set:', productData.productionTimeline);
+        } else {
+          productData.productionTimeline = [];
+          console.log('[ProductController] ⚠️ ProductionTimeline is empty array');
+        }
+      } catch (err) {
+        console.error('[ProductController] ❌ Error parsing productionTimeline:', err);
+        productData.productionTimeline = [];
+      }
+    } else {
+      productData.productionTimeline = [];
+      console.log('[ProductController] ⚠️ No productionTimeline provided, using empty array');
+    }
 
     // Add fileRules only if defined
     if (fileRules) {
@@ -359,6 +408,15 @@ export const createProduct = async (req, res) => {
         path: "dynamicAttributes.attributeType",
         model: "AttributeType",
         select: "_id attributeName inputStyle primaryEffectType isPricingAttribute attributeValues defaultValue isRequired isFilterable displayOrder isStepQuantity isRangeQuantity stepQuantities rangeQuantities"
+      })
+      .populate({
+        path: "assignedSequence",
+        select: "_id name category subcategory departments",
+        populate: {
+          path: "departments.department",
+          model: "Department",
+          select: "_id name sequence"
+        }
       });
 
     console.log(`✅ Product created: ${product.name} (ID: ${product._id})`);
@@ -547,6 +605,15 @@ export const getSingleProduct = async (req, res) => {
           path: "productionSequence",
           model: "Department",
           select: "_id name description sequence isEnabled"
+        })
+        .populate({
+          path: "assignedSequence",
+          select: "_id name category subcategory departments",
+          populate: {
+            path: "departments.department",
+            model: "Department",
+            select: "_id name sequence"
+          }
         });
     }
 
@@ -1004,7 +1071,10 @@ export const updateProduct = async (req, res) => {
       gstPercentage,
       showPriceIncludingGst,
       instructions,
-      productionSequence
+      productionSequence,
+      assignedSequence,  // NEW: Sequence assignment
+      productionDays,  // NEW: Production timeline
+      productionTimeline  // NEW: Quantity-based production ranges
     } = req.body;
     const productId = req.params.id;
 
@@ -1105,9 +1175,33 @@ export const updateProduct = async (req, res) => {
     if (!prodSeqResult.success) {
       return res.status(400).json({ error: prodSeqResult.error });
     }
-    const parsedProductionSequence = productionSequence !== undefined
+    let parsedProductionSequence = productionSequence !== undefined
       ? (Array.isArray(prodSeqResult.data) ? prodSeqResult.data.filter(id => validateObjectId(id)) : [])
       : product.productionSequence;
+
+    // ========== HANDLE SEQUENCE ASSIGNMENT ==========
+
+    // If assignedSequence is provided, auto-populate productionSequence from sequence
+    let assignedSequenceId = product.assignedSequence; // Default to existing value
+    if (assignedSequence !== undefined) {
+      if (assignedSequence && validateObjectId(assignedSequence)) {
+        const sequence = await Sequence.findById(assignedSequence);
+        if (sequence) {
+          assignedSequenceId = assignedSequence;
+          // Auto-populate productionSequence from sequence departments (in order)
+          parsedProductionSequence = sequence.departments
+            .sort((a, b) => a.order - b.order)
+            .map(d => d.department);
+          console.log(`✅ Sequence updated: ${sequence.name}, departments: ${parsedProductionSequence.length}`);
+        } else {
+          console.warn(`⚠️ Assigned sequence ${assignedSequence} not found, keeping previous value`);
+        }
+      } else if (assignedSequence === "" || assignedSequence === null) {
+        // Explicitly clearing the sequence
+        assignedSequenceId = null;
+        console.log(`✅ Sequence cleared for product update`);
+      }
+    }
 
     // ========== IMAGE UPLOAD ==========
 
@@ -1177,7 +1271,31 @@ export const updateProduct = async (req, res) => {
       showPriceIncludingGst: showPriceIncludingGst !== undefined ? (showPriceIncludingGst === true || showPriceIncludingGst === 'true') : product.showPriceIncludingGst,
       instructions: instructions !== undefined ? instructions : product.instructions,
       productionSequence: parsedProductionSequence,
+      assignedSequence: assignedSequenceId,  // NEW: Store sequence reference
+      productionDays: productionDays !== undefined ? parseInt(productionDays) : product.productionDays,  // NEW: Production days
     };
+
+    // Parse and update production timeline (quantity-based ranges)
+    if (productionTimeline !== undefined) {
+      try {
+        const parsedTimeline = typeof productionTimeline === 'string' ? JSON.parse(productionTimeline) : productionTimeline;
+        console.log('[ProductController UPDATE] Parsed productionTimeline:', parsedTimeline);
+        if (Array.isArray(parsedTimeline) && parsedTimeline.length > 0) {
+          updateData.productionTimeline = parsedTimeline.map(range => ({
+            minQuantity: parseInt(range.minQuantity) || 1,
+            maxQuantity: range.maxQuantity ? parseInt(range.maxQuantity) : null,
+            productionDays: parseInt(range.productionDays) || 7
+          })).filter(range => range.minQuantity > 0 && range.productionDays > 0);
+          console.log('[ProductController UPDATE] ✅ ProductionTimeline set:', updateData.productionTimeline);
+        } else {
+          updateData.productionTimeline = [];
+          console.log('[ProductController UPDATE] ⚠️ ProductionTimeline is empty array');
+        }
+      } catch (err) {
+        console.error('[ProductController UPDATE] ❌ Error parsing productionTimeline:', err);
+        updateData.productionTimeline = product.productionTimeline;  // Keep existing on error
+      }
+    }
 
     if (fileRulesUpdate) {
       updateData.fileRules = fileRulesUpdate;
@@ -1205,6 +1323,15 @@ export const updateProduct = async (req, res) => {
         path: "dynamicAttributes.attributeType",
         model: "AttributeType",
         select: "_id attributeName inputStyle primaryEffectType isPricingAttribute attributeValues"
+      })
+      .populate({
+        path: "assignedSequence",
+        select: "_id name category subcategory departments",
+        populate: {
+          path: "departments.department",
+          model: "Department",
+          select: "_id name sequence"
+        }
       });
 
     console.log(`✅ Product updated: ${updatedProduct.name} (ID: ${productId})`);
