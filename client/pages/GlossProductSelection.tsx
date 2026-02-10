@@ -4216,7 +4216,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                 window.scrollTo(0, 0);
               }}
             >
-              Home/All Services
+              Home
             </Link>
 
             {/* Category Link - if categoryId exists in URL */}
