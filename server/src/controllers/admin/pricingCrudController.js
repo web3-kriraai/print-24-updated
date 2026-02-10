@@ -312,18 +312,29 @@ export const updateUserSegment = async (req, res) => {
     try {
         const UserSegment = (await import('../../models/UserSegment.js')).default;
         const { id } = req.params;
-        const { name, code, description, priority, isDefault, isActive } = req.body;
+        const { name, code, description, priority, isDefault, isActive,
+                signupForm, requiresApproval, isPubliclyVisible, icon, color } = req.body;
 
         // If setting as default, unset others
         if (isDefault) {
             await UserSegment.updateMany({}, { isDefault: false });
         }
 
+        const updateData = { name, code, description, priority, isDefault, isActive,
+                             requiresApproval, isPubliclyVisible, icon, color };
+
+        // Handle signupForm - set to null if empty string, otherwise set the ObjectId
+        if (signupForm && signupForm !== '') {
+            updateData.signupForm = signupForm;
+        } else {
+            updateData.signupForm = null;
+        }
+
         const userSegment = await UserSegment.findByIdAndUpdate(
             id,
-            { name, code, description, priority, isDefault, isActive },
+            updateData,
             { new: true }
-        );
+        ).populate('signupForm', 'name code');
 
         if (!userSegment) {
             return res.status(404).json({ success: false, message: 'User segment not found' });

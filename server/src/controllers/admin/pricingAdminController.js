@@ -553,7 +553,7 @@ export const getGeoZones = async (req, res) => {
 
 export const getUserSegments = async (req, res) => {
     try {
-        const segments = await UserSegment.find().sort({ name: 1 });
+        const segments = await UserSegment.find().sort({ name: 1 }).populate('signupForm', 'name code');
         res.json({ success: true, segments });
     } catch (error) {
         console.error('Get user segments error:', error);

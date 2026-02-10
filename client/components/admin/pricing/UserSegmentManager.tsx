@@ -1,6 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2, Users, Save, X, Star, ShieldCheck, Lock } from 'lucide-react';
 
+interface SignupForm {
+    _id: string;
+    name: string;
+    code: string;
+}
+
 interface UserSegment {
     _id: string;
     name: string;
@@ -9,6 +15,11 @@ interface UserSegment {
     isDefault: boolean;
     isActive: boolean;
     isSystem?: boolean;
+    signupForm?: SignupForm;
+    requiresApproval?: boolean;
+    isPubliclyVisible?: boolean;
+    icon?: string;
+    color?: string;
 }
 
 /**
@@ -23,6 +34,7 @@ interface UserSegment {
  */
 const UserSegmentManager: React.FC = () => {
     const [segments, setSegments] = useState<UserSegment[]>([]);
+    const [forms, setForms] = useState<SignupForm[]>([]);
     const [loading, setLoading] = useState(false);
     const [showModal, setShowModal] = useState(false);
     const [editingSegment, setEditingSegment] = useState<UserSegment | null>(null);
@@ -34,11 +46,17 @@ const UserSegmentManager: React.FC = () => {
         description: '',
         isDefault: false,
         isActive: true,
+        signupForm: '',
+        requiresApproval: false,
+        isPubliclyVisible: true,
+        icon: '',
+        color: '',
     });
 
     // Fetch user segments
     useEffect(() => {
         fetchSegments();
+        fetchForms();
     }, []);
 
     const fetchSegments = async () => {
@@ -59,6 +77,24 @@ const UserSegmentManager: React.FC = () => {
             console.error('Failed to fetch user segments:', error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const fetchForms = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            const response = await fetch('/api/admin/forms', {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                },
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setForms(data.forms || []);
+            }
+        } catch (error) {
+            console.error('Failed to fetch forms:', error);
         }
     };
 
@@ -128,6 +164,11 @@ const UserSegmentManager: React.FC = () => {
             description: segment.description || '',
             isDefault: segment.isDefault,
             isActive: segment.isActive,
+            signupForm: segment.signupForm?._id || '',
+            requiresApproval: segment.requiresApproval || false,
+            isPubliclyVisible: segment.isPubliclyVisible !== undefined ? segment.isPubliclyVisible : true,
+            icon: segment.icon || '',
+            color: segment.color || '',
         });
         setShowModal(true);
     };
@@ -139,6 +180,11 @@ const UserSegmentManager: React.FC = () => {
             description: '',
             isDefault: false,
             isActive: true,
+            signupForm: '',
+            requiresApproval: false,
+            isPubliclyVisible: true,
+            icon: '',
+            color: '',
         });
         setEditingSegment(null);
     };
@@ -324,6 +370,83 @@ const UserSegmentManager: React.FC = () => {
                                 <p className="text-xs text-gray-500 ml-6 mt-1">
                                     New users will be assigned to this segment by default
                                 </p>
+                            </div>
+
+                            {/* Signup Form */}
+                            <div className="mb-4">
+                                <label className="block text-sm font-medium mb-2">Signup Form</label>
+                                <select
+                                    value={formData.signupForm}
+                                    onChange={(e) => setFormData({ ...formData, signupForm: e.target.value })}
+                                    className="w-full border rounded-lg px-3 py-2"
+                                >
+                                    <option value="">No form assigned</option>
+                                    {forms.map((form) => (
+                                        <option key={form._id} value={form._id}>
+                                            {form.name} ({form.code})
+                                        </option>
+                                    ))}
+                                </select>
+                                <p className="text-xs text-gray-500 mt-1">
+                                    Form users will fill when applying for this segment
+                                </p>
+                            </div>
+
+                            {/* Requires Approval */}
+                            <div className="mb-4">
+                                <label className="flex items-center gap-2">
+                                    <input
+                                        type="checkbox"
+                                        checked={formData.requiresApproval}
+                                        onChange={(e) => setFormData({ ...formData, requiresApproval: e.target.checked })}
+                                        className="rounded"
+                                    />
+                                    <span className="text-sm font-medium">Requires Admin Approval</span>
+                                </label>
+                                <p className="text-xs text-gray-500 ml-6 mt-1">
+                                    Applications must be reviewed by admin before approval
+                                </p>
+                            </div>
+
+                            {/* Publicly Visible */}
+                            <div className="mb-4">
+                                <label className="flex items-center gap-2">
+                                    <input
+                                        type="checkbox"
+                                        checked={formData.isPubliclyVisible}
+                                        onChange={(e) => setFormData({ ...formData, isPubliclyVisible: e.target.checked })}
+                                        className="rounded"
+                                    />
+                                    <span className="text-sm font-medium">Publicly Visible</span>
+                                </label>
+                                <p className="text-xs text-gray-500 ml-6 mt-1">
+                                    Show this segment on public signup page
+                                </p>
+                            </div>
+
+                            {/* Icon & Color */}
+                            <div className="grid grid-cols-2 gap-4 mb-4">
+                                <div>
+                                    <label className="block text-sm font-medium mb-2">Icon (emoji)</label>
+                                    <input
+                                        type="text"
+                                        value={formData.icon}
+                                        onChange={(e) => setFormData({ ...formData, icon: e.target.value })}
+                                        className="w-full border rounded-lg px-3 py-2"
+                                        placeholder="e.g., 👤 💼 🏢"
+                                        maxLength={2}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium mb-2">Color (hex)</label>
+                                    <input
+                                        type="text"
+                                        value={formData.color}
+                                        onChange={(e) => setFormData({ ...formData, color: e.target.value })}
+                                        className="w-full border rounded-lg px-3 py-2"
+                                        placeholder="e.g., #3B82F6"
+                                    />
+                                </div>
                             </div>
 
                             {/* Active Status */}

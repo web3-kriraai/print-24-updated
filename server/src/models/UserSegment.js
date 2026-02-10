@@ -62,6 +62,39 @@ const UserSegmentSchema = new mongoose.Schema({
     default: false,
     index: true,
   },
+
+  // ========== Dynamic Form System ==========
+  
+  // Associated signup form
+  signupForm: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "SignupForm",
+  },
+
+  // Does this segment require admin approval?
+  requiresApproval: {
+    type: Boolean,
+    default: false,
+  },
+
+  // Is this segment visible on public signup page?
+  isPubliclyVisible: {
+    type: Boolean,
+    default: true,
+    index: true,
+  },
+
+  // Icon/emoji for display (optional)
+  icon: {
+    type: String,
+    trim: true,
+  },
+
+  // Color for UI display (optional)
+  color: {
+    type: String,
+    trim: true,
+  },
 }, { timestamps: true });
 
 /* =========================

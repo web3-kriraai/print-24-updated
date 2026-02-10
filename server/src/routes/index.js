@@ -474,5 +474,16 @@ router.use("/complaints", complaintRoutes);
 // Webhook routes (for multi-channel complaint registration)
 router.use("/webhooks", webhookRoutes);
 
+/* =====================================
+   OTP VERIFICATION ROUTES
+   Added: 2026-02-10
+===================================== */
+
+// Import OTP routes
+import otpRoutes from "./otpRoutes.js";
+
+// OTP routes (public - for email verification during signup)
+router.use("/otp", otpRoutes);
+
 export default router;
 

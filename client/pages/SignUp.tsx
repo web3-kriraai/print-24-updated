@@ -1,453 +1,577 @@
-import React, { useState, Suspense, lazy } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User, Building2, Briefcase, Loader, ArrowLeft, Mail, Lock, AlertCircle } from 'lucide-react';
-import BackButton from '../components/BackButton';
+import { 
+  Loader, ArrowLeft, Mail, Lock, AlertCircle, CheckCircle, 
+  Users, Shield, Briefcase, Building, UserCheck, Sparkles,
+  ChevronRight, Clock, ShieldCheck, FileText, Award
+} from 'lucide-react';
+import DynamicFormRenderer from '../components/DynamicFormRenderer';
+import axios from 'axios';
 
-// Lazy load heavy components for code splitting
-const EmailVerification = lazy(() => import('../components/EmailVerification'));
-const CorporateForm = lazy(() => import('../components/CorporateForm'));
-const PrintPartnerForm = lazy(() => import('../components/PrintPartnerForm'));
+interface UserSegment {
+  _id: string;
+  code: string;
+  name: string;
+  description?: string;
+  icon?: string;
+  color?: string;
+  requiresApproval: boolean;
+  signupForm?: {
+    _id: string;
+    name: string;
+    code: string;
+    fields: any[];
+    instructions?: string;
+    submissionSettings?: {
+      successMessage?: string;
+    };
+  };
+}
 
-type SignupIntent = 'CUSTOMER' | 'PRINT_PARTNER' | 'CORPORATE' | '';
-type SignupStep = 'role-selection' | 'email-entry' | 'email-verification' | 'password-setup' | 'business-details' | 'success';
+type SignupStep = 'segment-selection' | 'form-filling' | 'success';
 
 const SignUp: React.FC = () => {
   const navigate = useNavigate();
 
-  const [step, setStep] = useState<SignupStep>('role-selection');
-  const [intent, setIntent] = useState<SignupIntent>('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [isLoading, setIsLoading] = useState(false);
+  const [step, setStep] = useState<SignupStep>('segment-selection');
+  const [segments, setSegments] = useState<UserSegment[]>([]);
+  const [selectedSegment, setSelectedSegment] = useState<UserSegment | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
 
-  // Role selection options
-  const roleOptions = [
-    {
-      id: 'CUSTOMER',
-      title: 'Personal / Customer',
-      description: 'For individual printing needs',
-      icon: User,
-      color: 'bg-blue-50 hover:bg-blue-100 border-blue-200',
-    },
-    {
-      id: 'PRINT_PARTNER',
-      title: 'Print Partner',
-      description: 'Join as a printing service provider',
-      icon: Briefcase,
-      color: 'bg-purple-50 hover:bg-purple-100 border-purple-200',
-    },
-    {
-      id: 'CORPORATE',
-      title: 'Corporate Member',
-      description: 'For businesses and organizations',
-      icon: Building2,
-      color: 'bg-green-50 hover:bg-green-100 border-green-200',
-    },
-  ];
+  useEffect(() => {
+    fetchSegments();
+  }, []);
 
-  const handleRoleSelect = (selectedIntent: SignupIntent) => {
-    setIntent(selectedIntent);
-    setStep('email-entry');
-  };
-
-  const handleEmailSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!email.trim() || !/\S+@\S+\.\S+/.test(email)) {
-      setErrors({ email: 'Please enter a valid email address' });
-      return;
-    }
-
-    setErrors({});
-    setStep('email-verification');
-  };
-
-  const handleEmailVerified = () => {
-    // After email is verified, move to password setup for customers
-    // or business details for partners/corporate
-    if (intent === 'CUSTOMER') {
-      setStep('password-setup');
-    } else {
-      setStep('business-details');
-    }
-  };
-
-  const handlePasswordSetup = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    const newErrors: Record<string, string> = {};
-
-    if (!password || password.length < 6) {
-      newErrors.password = 'Password must be at least 6 characters';
-    }
-
-    if (password !== confirmPassword) {
-      newErrors.confirmPassword = 'Passwords do not match';
-    }
-
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
-      return;
-    }
-
-    setIsLoading(true);
-    setErrors({});
-
+  const fetchSegments = async () => {
     try {
-      // Create customer account with verified email
-      const response = await fetch('http://localhost:5000/api/auth/complete-customer-signup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        setErrors({ general: data.message || 'Signup failed' });
-        setIsLoading(false);
-        return;
-      }
-
-      // If backend returns token and user, store them and redirect
-      if (data.token && data.user) {
-        localStorage.setItem('token', data.token);
-        localStorage.setItem('user', JSON.stringify(data.user));
-        navigate('/');
-      } else {
-        // Otherwise show success screen and redirect to login
-        setStep('success');
-      }
-      setIsLoading(false);
-    } catch (error) {
-      setErrors({ general: 'Server error. Please try again.' });
-      setIsLoading(false);
+      setLoading(true);
+      const response = await axios.get('/api/user-segments/public');
+      setSegments(response.data.segments || []);
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to load segments');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleBusinessFormSuccess = () => {
+  const handleSegmentSelect = async (segment: UserSegment) => {
+    try {
+      setLoading(true);
+      setError('');
+
+      // Fetch the full segment details including form
+      const response = await axios.get(`/api/user-segments/${segment.code}/form`);
+      
+      // Check if segment has a form
+      if (response.data.form) {
+        setSelectedSegment({
+          ...response.data.segment,
+          signupForm: response.data.form,
+        });
+        setStep('form-filling');
+      } else {
+        setError('This segment does not have a signup form configured yet.');
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to load signup form');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleFormSuccess = (data: any) => {
+    setSuccessMessage(
+      data.message ||
+        selectedSegment?.signupForm?.submissionSettings?.successMessage ||
+        'Application submitted successfully!'
+    );
     setStep('success');
+    
+    // Redirect to login page after 2 seconds
+    setTimeout(() => {
+      navigate('/login');
+    }, 2000);
+  };
+
+  const handleFormError = (errorMsg: string) => {
+    setError(errorMsg);
   };
 
   const handleBack = () => {
-    if (step === 'email-entry') {
-      setStep('role-selection');
-      setIntent('');
-    } else if (step === 'email-verification') {
-      setStep('email-entry');
-    } else if (step === 'password-setup' || step === 'business-details') {
-      setStep('email-verification');
+    if (step === 'form-filling') {
+      setStep('segment-selection');
+      setSelectedSegment(null);
+      setError('');
+    } else {
+      navigate('/');
     }
   };
 
+  const getSegmentIcon = (iconString?: string) => {
+    const iconMap: { [key: string]: React.ReactNode } = {
+      'user': <Users className="w-6 h-6" />,
+      'shield': <Shield className="w-6 h-6" />,
+      'briefcase': <Briefcase className="w-6 h-6" />,
+      'building': <Building className="w-6 h-6" />,
+      'user-check': <UserCheck className="w-6 h-6" />,
+      'award': <Award className="w-6 h-6" />,
+    };
+
+    if (iconString && iconMap[iconString]) {
+      return iconMap[iconString];
+    }
+    
+    // Default fallback icon
+    return <Users className="w-6 h-6" />;
+  };
+
+  const steps = [
+    { id: 1, name: 'Select Role', status: step === 'segment-selection' ? 'current' : step === 'form-filling' || step === 'success' ? 'complete' : 'upcoming' },
+    { id: 2, name: 'Complete Form', status: step === 'form-filling' ? 'current' : step === 'success' ? 'complete' : 'upcoming' },
+    { id: 3, name: 'Confirmation', status: step === 'success' ? 'current' : 'upcoming' },
+  ];
+
   return (
-    <div className="min-h-screen bg-linear-to-br from-cream-50 via-white to-cream-100 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-4xl mx-auto">
-        {/* Back Button */}
-        {step !== 'role-selection' && step !== 'success' && (
-          <button
-            onClick={handleBack}
-            className="mb-6 flex items-center gap-2 text-cream-600 hover:text-cream-900 transition-colors"
-          >
-            <ArrowLeft className="h-5 w-5" />
-            Back
-          </button>
-        )}
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-6xl mx-auto">
+        {/* Header */}
+        <div className="text-center mb-12">
+          <div className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-full border border-blue-100 mb-4">
+            <Sparkles className="w-4 h-4 text-blue-600" />
+            <span className="text-sm font-medium text-blue-700">Join Our Platform</span>
+          </div>
+          <h1 className="text-4xl font-bold text-gray-900 mb-3 bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+            Create Your Account
+          </h1>
+          <p className="text-gray-600 text-lg max-w-2xl mx-auto">
+            Choose your role and start your journey with us
+          </p>
+        </div>
 
-        <AnimatePresence mode="wait">
-          {/* Step 1: Role Selection */}
-          {step === 'role-selection' && (
-            <motion.div
-              key="role-selection"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="text-center"
-            >
-              <h1 className="font-serif text-3xl sm:text-4xl font-bold text-cream-900 mb-4">
-                Join Prints24
-              </h1>
-              <p className="text-cream-600 mb-12">Choose how you'd like to sign up</p>
+        {/* Progress Steps */}
+        <div className="mb-12">
+          <div className="relative">
+            <div className="absolute top-1/2 left-0 right-0 h-1 bg-gray-200 -translate-y-1/2 rounded-full"></div>
+            <div 
+              className="absolute top-1/2 left-0 h-1 bg-gradient-to-r from-blue-500 to-indigo-500 -translate-y-1/2 rounded-full transition-all duration-500"
+              style={{ 
+                width: step === 'segment-selection' ? '16.66%' : 
+                       step === 'form-filling' ? '66.66%' : '100%' 
+              }}
+            ></div>
+            <div className="relative flex justify-between">
+              {steps.map((stepItem, index) => (
+                <div key={stepItem.id} className="relative z-10">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all duration-300 shadow-sm ${
+                    stepItem.status === 'complete' 
+                      ? 'bg-gradient-to-r from-blue-500 to-indigo-500 border-blue-500 text-white shadow-lg' 
+                      : stepItem.status === 'current'
+                      ? 'bg-white border-blue-500 text-blue-600 shadow-md'
+                      : 'bg-white border-gray-300 text-gray-400'
+                  }`}>
+                    {stepItem.status === 'complete' ? (
+                      <CheckCircle className="w-5 h-5" />
+                    ) : (
+                      <span className="font-semibold">{stepItem.id}</span>
+                    )}
+                  </div>
+                  <span className={`absolute top-full left-1/2 transform -translate-x-1/2 mt-3 text-sm font-medium whitespace-nowrap ${
+                    stepItem.status === 'current' ? 'text-blue-600' : 'text-gray-500'
+                  }`}>
+                    {stepItem.name}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {roleOptions.map((option) => {
-                  const Icon = option.icon;
-                  return (
-                    <motion.button
-                      key={option.id}
-                      onClick={() => handleRoleSelect(option.id as SignupIntent)}
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      className={`p-6 rounded-2xl border-2 ${option.color} transition-all text-left`}
-                    >
-                      <Icon className="h-12 w-12 mb-4 text-cream-900" />
-                      <h3 className="font-semibold text-lg text-cream-900 mb-2">
-                        {option.title}
-                      </h3>
-                      <p className="text-sm text-cream-600">{option.description}</p>
-                    </motion.button>
-                  );
-                })}
+        <div className="bg-white rounded-2xl shadow-xl overflow-hidden max-w-4xl mx-auto">
+          {/* Card Header */}
+          <div className="border-b border-gray-100 px-8 py-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <button
+                  onClick={handleBack}
+                  className="mr-4 flex items-center text-gray-600 hover:text-gray-900 transition-colors p-2 rounded-lg hover:bg-gray-50"
+                >
+                  <ArrowLeft className="w-5 h-5" />
+                </button>
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900">
+                    {step === 'segment-selection' && 'Choose Your Role'}
+                    {step === 'form-filling' && `Sign Up as ${selectedSegment?.name}`}
+                    {step === 'success' && 'Congratulations!'}
+                  </h2>
+                  <p className="text-gray-600">
+                    {step === 'segment-selection' && 'Select the option that best describes your role'}
+                    {step === 'form-filling' && 'Please fill in your details below'}
+                    {step === 'success' && 'Your application has been processed'}
+                  </p>
+                </div>
               </div>
-            </motion.div>
-          )}
-
-          {/* Step 2: Email Entry */}
-          {step === 'email-entry' && (
-            <motion.div
-              key="email-entry"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="max-w-md mx-auto"
-            >
-              <div className="bg-white rounded-2xl shadow-xl p-8">
-                <h2 className="font-serif text-2xl font-bold text-cream-900 mb-2">
-                  Enter Your Email
-                </h2>
-                <p className="text-cream-600 mb-6">
-                  We'll send you a verification code
-                </p>
-
-                <form onSubmit={handleEmailSubmit} className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-cream-700 mb-1">
-                      Email Address
-                    </label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <Mail className="h-5 w-5 text-cream-400" />
-                      </div>
-                      <input
-                        type="email"
-                        value={email}
-                        onChange={(e) => {
-                          setEmail(e.target.value);
-                          setErrors({});
-                        }}
-                        className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${errors.email
-                          ? "border-red-300 focus:ring-red-500 focus:border-red-500"
-                          : "border-cream-200 focus:ring-cream-900 focus:border-cream-900"
-                          } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
-                        placeholder="your@email.com"
-                        autoFocus
-                      />
-                    </div>
-                    {errors.email && (
-                      <p className="mt-1 text-xs text-red-500">{errors.email}</p>
-                    )}
-                  </div>
-
-                  <button
-                    type="submit"
-                    className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-bold rounded-xl text-cream-50 bg-cream-900 hover:bg-cream-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cream-500 transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5"
-                  >
-                    Continue
-                  </button>
-                </form>
+              <div className="text-sm text-gray-500 bg-gray-50 px-3 py-1.5 rounded-full">
+                Step {step === 'segment-selection' ? 1 : step === 'form-filling' ? 2 : 3} of 3
               </div>
-            </motion.div>
-          )}
+            </div>
+          </div>
 
-          {/* Step 3: Email Verification */}
-          {step === 'email-verification' && (
-            <motion.div
-              key="email-verification"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="bg-white rounded-2xl shadow-xl p-8"
-            >
-              <Suspense
-                fallback={
-                  <div className="flex items-center justify-center py-12">
-                    <Loader className="h-8 w-8 animate-spin text-cream-900" />
-                  </div>
-                }
-              >
-                <EmailVerification
-                  email={email}
-                  onVerified={handleEmailVerified}
-                  onBack={handleBack}
-                />
-              </Suspense>
-            </motion.div>
-          )}
-
-          {/* Step 4: Password Setup (Customer Only) */}
-          {step === 'password-setup' && (
-            <motion.div
-              key="password-setup"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="max-w-md mx-auto"
-            >
-              <div className="bg-white rounded-2xl shadow-xl p-8">
-                <h2 className="font-serif text-2xl font-bold text-cream-900 mb-2">
-                  Create Your Password
-                </h2>
-                <p className="text-cream-600 mb-6">
-                  Secure your account with a strong password
-                </p>
-
-                <form onSubmit={handlePasswordSetup} className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-cream-700 mb-1">
-                      Password
-                    </label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <Lock className="h-5 w-5 text-cream-400" />
+          {/* Card Body */}
+          <div className="p-8">
+            {/* Error Display */}
+            <AnimatePresence>
+              {error && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="mb-6"
+                >
+                  <div className="bg-gradient-to-r from-red-50 to-pink-50 border-l-4 border-red-500 p-4 rounded-r-lg">
+                    <div className="flex items-start">
+                      <AlertCircle className="flex-shrink-0 h-5 w-5 text-red-500 mt-0.5" />
+                      <div className="ml-3">
+                        <p className="text-sm text-red-700 font-medium">{error}</p>
                       </div>
-                      <input
-                        type="password"
-                        value={password}
-                        onChange={(e) => {
-                          setPassword(e.target.value);
-                          setErrors({});
-                        }}
-                        className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${errors.password
-                          ? "border-red-300 focus:ring-red-500 focus:border-red-500"
-                          : "border-cream-200 focus:ring-cream-900 focus:border-cream-900"
-                          } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
-                        placeholder="Enter password"
-                      />
                     </div>
-                    {errors.password && (
-                      <p className="mt-1 text-xs text-red-500">{errors.password}</p>
-                    )}
                   </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
-                  <div>
-                    <label className="block text-sm font-medium text-cream-700 mb-1">
-                      Confirm Password
-                    </label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <Lock className="h-5 w-5 text-cream-400" />
-                      </div>
-                      <input
-                        type="password"
-                        value={confirmPassword}
-                        onChange={(e) => {
-                          setConfirmPassword(e.target.value);
-                          setErrors({});
-                        }}
-                        className={`appearance-none relative block w-full px-3 py-3 pl-10 border ${errors.confirmPassword
-                          ? "border-red-300 focus:ring-red-500 focus:border-red-500"
-                          : "border-cream-200 focus:ring-cream-900 focus:border-cream-900"
-                          } placeholder-cream-300 text-cream-900 rounded-xl focus:outline-none focus:ring-1 sm:text-sm transition-all`}
-                        placeholder="Confirm password"
-                      />
-                    </div>
-                    {errors.confirmPassword && (
-                      <p className="mt-1 text-xs text-red-500">{errors.confirmPassword}</p>
-                    )}
-                  </div>
-
-                  {errors.general && (
-                    <div className="bg-red-50 border border-red-100 text-red-600 px-4 py-3 rounded-lg text-sm flex items-center gap-2">
-                      <AlertCircle size={16} />
-                      {errors.general}
-                    </div>
-                  )}
-
-                  <button
-                    type="submit"
-                    disabled={isLoading}
-                    className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-bold rounded-xl text-cream-50 bg-cream-900 hover:bg-cream-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cream-500 transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 disabled:opacity-70 disabled:cursor-not-allowed"
+            {/* Loading State */}
+            {loading && step === 'segment-selection' ? (
+              <div className="py-16 text-center">
+                <div className="relative">
+                  <Loader className="animate-spin mx-auto mb-4 text-blue-600 w-12 h-12" />
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-blue-100/30 to-transparent animate-pulse"></div>
+                </div>
+                <p className="text-gray-600 font-medium">Loading account types...</p>
+                <p className="text-sm text-gray-500 mt-2">Please wait a moment</p>
+              </div>
+            ) : (
+              <AnimatePresence mode="wait">
+                {/* Step 1: Segment Selection */}
+                {step === 'segment-selection' && (
+                  <motion.div
+                    key="segment-selection"
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 20 }}
+                    className="space-y-6"
                   >
-                    {isLoading ? (
+                    {segments.length > 0 ? (
                       <>
-                        <Loader className="animate-spin h-5 w-5 mr-2" />
-                        Creating Account...
+                        <div className="mb-6">
+                          <div className="flex items-center gap-2 text-sm text-gray-500 mb-2">
+                            <Users className="w-4 h-4" />
+                            <span>Available Account Types</span>
+                            <span className="text-gray-300 mx-2">•</span>
+                            <span>{segments.length} options</span>
+                          </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          {segments.map((segment) => (
+                            <motion.button
+                              key={segment._id}
+                              onClick={() => handleSegmentSelect(segment)}
+                              whileHover={{ y: -4, scale: 1.02 }}
+                              whileTap={{ scale: 0.98 }}
+                              className="group relative bg-white p-6 rounded-xl shadow-sm border border-gray-200 hover:shadow-lg transition-all duration-300 text-left overflow-hidden"
+                            >
+                              {/* Background Gradient Overlay on Hover */}
+                              <div className="absolute inset-0 bg-gradient-to-br from-transparent to-blue-50 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                              
+                              <div className="relative flex flex-col h-full">
+                                {/* Icon and Color Bar */}
+                                <div className="mb-4">
+                                  <div 
+                                    className="w-12 h-12 rounded-xl flex items-center justify-center mb-4"
+                                    style={{ 
+                                      backgroundColor: segment.color ? `${segment.color}15` : '#eff6ff',
+                                      color: segment.color || '#3b82f6'
+                                    }}
+                                  >
+                                    {getSegmentIcon(segment.icon)}
+                                  </div>
+                                  
+                                  {/* Title */}
+                                  <h3 className="text-lg font-semibold text-gray-900 mb-2 group-hover:text-blue-700 transition-colors">
+                                    {segment.name}
+                                  </h3>
+
+                                  {/* Description */}
+                                  {segment.description && (
+                                    <p className="text-sm text-gray-600 mb-4 line-clamp-2">
+                                      {segment.description}
+                                    </p>
+                                  )}
+                                </div>
+
+                                {/* Spacer and Bottom Section */}
+                                <div className="mt-auto">
+                                  {/* Requires Approval Badge */}
+                                  {segment.requiresApproval ? (
+                                    <div className="flex items-center justify-between">
+                                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 border border-yellow-200">
+                                        <Shield className="w-3 h-3" />
+                                        Requires Approval
+                                      </span>
+                                      <ChevronRight className="w-5 h-5 text-gray-300 group-hover:text-blue-500 transition-colors group-hover:translate-x-1" />
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center justify-between">
+                                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200">
+                                        <CheckCircle className="w-3 h-3" />
+                                        Instant Access
+                                      </span>
+                                      <ChevronRight className="w-5 h-5 text-gray-300 group-hover:text-blue-500 transition-colors group-hover:translate-x-1" />
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </motion.button>
+                          ))}
+                        </div>
+
+                        {/* Help Text */}
+                        <div className="mt-8 pt-6 border-t border-gray-100">
+                          <div className="flex items-start gap-3 text-sm text-gray-500">
+                            <ShieldCheck className="w-4 h-4 text-green-500 mt-0.5" />
+                            <p>All account types are verified and secured. Choose the one that best fits your needs.</p>
+                          </div>
+                        </div>
                       </>
                     ) : (
-                      'Complete Signup'
+                      /* No Segments Available */
+                      <div className="text-center py-12 border-2 border-dashed border-gray-300 rounded-xl bg-gray-50/50">
+                        <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                        <p className="text-gray-600 mb-2">No account types available</p>
+                        <p className="text-sm text-gray-500 mb-4">Please check back later or contact our support team</p>
+                        <button
+                          onClick={() => navigate('/')}
+                          className="text-blue-600 hover:text-blue-700 font-medium inline-flex items-center gap-2"
+                        >
+                          <ArrowLeft className="w-4 h-4" />
+                          Return to Home
+                        </button>
+                      </div>
                     )}
-                  </button>
-                </form>
-              </div>
-            </motion.div>
-          )}
-
-          {/* Step 5: Business Details (Print Partner / Corporate) */}
-          {step === 'business-details' && (
-            <motion.div
-              key="business-details"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="bg-white rounded-2xl shadow-xl p-8"
-            >
-              <Suspense
-                fallback={
-                  <div className="flex items-center justify-center py-12">
-                    <Loader className="h-8 w-8 animate-spin text-cream-900" />
-                  </div>
-                }
-              >
-                {intent === 'CORPORATE' ? (
-                  <CorporateForm
-                    onBack={handleBack}
-                    onSuccess={handleBusinessFormSuccess}
-                  />
-                ) : (
-                  <PrintPartnerForm onBack={handleBack} />
+                  </motion.div>
                 )}
-              </Suspense>
-            </motion.div>
-          )}
 
-          {/* Step 6: Success */}
-          {step === 'success' && (
-            <motion.div
-              key="success"
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="max-w-md mx-auto text-center"
-            >
-              <div className="bg-white rounded-2xl shadow-xl p-8">
-                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <svg
-                    className="w-8 h-8 text-green-600"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
+                {/* Step 2: Form Filling */}
+                {step === 'form-filling' && selectedSegment?.signupForm && (
+                  <motion.div
+                    key="form-filling"
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 20 }}
                   >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M5 13l4 4L19 7"
+                    {/* Segment Info Banner */}
+                    <div className="mb-8 p-5 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-100 shadow-sm">
+                      <div className="flex items-start gap-4">
+                        <div 
+                          className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
+                          style={{ 
+                            backgroundColor: selectedSegment.color ? `${selectedSegment.color}20` : '#dbeafe',
+                            color: selectedSegment.color || '#3b82f6'
+                          }}
+                        >
+                          {getSegmentIcon(selectedSegment.icon)}
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <h3 className="font-bold text-gray-900">Signing up as: {selectedSegment.name}</h3>
+                            {selectedSegment.requiresApproval && (
+                              <span className="inline-flex items-center gap-1 px-2 py-1 bg-yellow-100 text-yellow-700 text-xs font-medium rounded-full">
+                                <Clock className="w-3 h-3" />
+                                Approval Required
+                              </span>
+                            )}
+                          </div>
+                          {selectedSegment.description && (
+                            <p className="text-sm text-gray-600">{selectedSegment.description}</p>
+                          )}
+                          <div className="flex items-center gap-4 mt-3">
+                            <div className="flex items-center gap-1 text-xs text-blue-600">
+                              <FileText className="w-3 h-3" />
+                              <span>Complete the form below</span>
+                            </div>
+                            <div className="flex items-center gap-1 text-xs text-green-600">
+                              <ShieldCheck className="w-3 h-3" />
+                              <span>Secure & encrypted</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Dynamic Form */}
+                    <DynamicFormRenderer
+                      key={selectedSegment.code}
+                      formSchema={selectedSegment.signupForm}
+                      userSegmentCode={selectedSegment.code}
+                      onSuccess={handleFormSuccess}
+                      onError={handleFormError}
                     />
-                  </svg>
+                  </motion.div>
+                )}
+
+                {/* Step 3: Success */}
+                {step === 'success' && (
+                  <motion.div
+                    key="success"
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    className="py-12 text-center"
+                  >
+                    {/* Success Icon */}
+                    <div className="relative mx-auto w-24 h-24 mb-8">
+                      <div className="absolute inset-0 bg-gradient-to-br from-green-100 to-emerald-100 rounded-full animate-pulse"></div>
+                      <div className="relative w-full h-full rounded-full bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center shadow-lg">
+                        <CheckCircle className="w-12 h-12 text-white" />
+                      </div>
+                      <div className="absolute -top-2 -right-2 w-8 h-8 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full flex items-center justify-center shadow-md">
+                        <Sparkles className="w-4 h-4 text-white" />
+                      </div>
+                    </div>
+
+                    {/* Success Message */}
+                    <h2 className="text-3xl font-bold text-gray-900 mb-4">
+                      {selectedSegment?.requiresApproval
+                        ? 'Application Submitted! 🎉'
+                        : 'Account Created Successfully! 🎉'}
+                    </h2>
+
+                    <p className="text-gray-600 mb-8 max-w-md mx-auto text-lg">{successMessage}</p>
+
+                    {/* Approval Required Content */}
+                    {selectedSegment?.requiresApproval ? (
+                      <div className="space-y-6 max-w-md mx-auto">
+                        <div className="p-5 bg-gradient-to-r from-yellow-50 to-amber-50 border border-yellow-200 rounded-xl">
+                          <div className="flex items-start gap-3">
+                            <div className="p-2 rounded-lg bg-yellow-100">
+                              <Clock className="w-5 h-5 text-yellow-600" />
+                            </div>
+                            <div className="text-left">
+                              <h4 className="font-semibold text-yellow-800 mb-2">What happens next?</h4>
+                              <ul className="text-sm text-yellow-700 space-y-2">
+                                <li className="flex items-start gap-2">
+                                  <div className="w-1.5 h-1.5 rounded-full bg-yellow-500 mt-1.5"></div>
+                                  <span>Our team will review your application</span>
+                                </li>
+                                <li className="flex items-start gap-2">
+                                  <div className="w-1.5 h-1.5 rounded-full bg-yellow-500 mt-1.5"></div>
+                                  <span>You'll receive an email notification once approved</span>
+                                </li>
+                                <li className="flex items-start gap-2">
+                                  <div className="w-1.5 h-1.5 rounded-full bg-yellow-500 mt-1.5"></div>
+                                  <span>This usually takes 24-48 business hours</span>
+                                </li>
+                              </ul>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {/* Action Buttons */}
+                        <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4">
+                          <button
+                            onClick={() => navigate('/my-applications')}
+                            className="group relative bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-8 py-3.5 rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all duration-300 font-medium shadow-md hover:shadow-lg flex-1 max-w-xs mx-auto"
+                          >
+                            <span className="flex items-center justify-center gap-2">
+                              <FileText className="w-4 h-4" />
+                              View Application Status
+                            </span>
+                          </button>
+                          <button
+                            onClick={() => navigate('/')}
+                            className="border border-gray-300 text-gray-700 px-8 py-3.5 rounded-xl hover:bg-gray-50 transition-colors font-medium flex-1 max-w-xs mx-auto"
+                          >
+                            Return to Homepage
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      /* Instant Access Content */
+                      <div className="space-y-6 max-w-md mx-auto">
+                        <div className="p-5 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl">
+                          <div className="flex items-start gap-3">
+                            <div className="p-2 rounded-lg bg-green-100">
+                              <CheckCircle className="w-5 h-5 text-green-600" />
+                            </div>
+                            <div className="text-left">
+                              <h4 className="font-semibold text-green-800 mb-2">You're all set!</h4>
+                              <p className="text-sm text-green-700">
+                                Your account is now active. You can log in immediately and start exploring all the features.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {/* Primary Action Button */}
+                        <button
+                          onClick={() => navigate('/login')}
+                          className="group relative bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-10 py-4 rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all duration-300 font-medium shadow-lg hover:shadow-xl text-lg w-full max-w-xs mx-auto"
+                        >
+                          <span className="flex items-center justify-center gap-2">
+                            <Lock className="w-5 h-5" />
+                            Proceed to Login
+                            <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                          </span>
+                        </button>
+                      </div>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            )}
+          </div>
+
+          {/* Card Footer */}
+          {step !== 'success' && (
+            <div className="border-t border-gray-100 px-8 py-6 bg-gray-50/50">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-sm text-gray-600">
+                  <ShieldCheck className="w-4 h-4 text-green-500" />
+                  <span>Secure & encrypted registration</span>
                 </div>
-
-                <h2 className="font-serif text-2xl font-bold text-cream-900 mb-2">
-                  {intent === 'CUSTOMER' ? 'Welcome to Prints24!' : 'Application Submitted!'}
-                </h2>
-
-                <p className="text-cream-600 mb-6">
-                  {intent === 'CUSTOMER'
-                    ? 'Your account has been created successfully. You can now login and start ordering.'
-                    : 'Your application has been submitted for review. We will notify you once approved.'}
-                </p>
-
-                <button
-                  onClick={() => navigate('/login')}
-                  className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-bold rounded-xl text-cream-50 bg-cream-900 hover:bg-cream-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cream-500 transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5"
-                >
-                  {intent === 'CUSTOMER' ? 'Go to Login' : 'Return to Home'}
-                </button>
+                <div className="text-sm text-gray-500">
+                  Need assistance?{' '}
+                  <button
+                    onClick={() => navigate('/support')}
+                    className="text-blue-600 hover:text-blue-700 font-medium"
+                  >
+                    Contact Support
+                  </button>
+                </div>
               </div>
-            </motion.div>
+            </div>
           )}
-        </AnimatePresence>
+        </div>
+
+        {/* Footer Note */}
+        <div className="text-center mt-8">
+          <p className="text-sm text-gray-500">
+            By creating an account, you agree to our{' '}
+            <button className="text-blue-600 hover:text-blue-700 font-medium">
+              Terms of Service
+            </button>{' '}
+            and{' '}
+            <button className="text-blue-600 hover:text-blue-700 font-medium">
+              Privacy Policy
+            </button>
+          </p>
+          <p className="text-xs text-gray-400 mt-2">
+            © {new Date().getFullYear()} Your Platform. All rights reserved.
+          </p>
+        </div>
       </div>
     </div>
   );

@@ -49,6 +49,8 @@ import ModifierRuleBuilder from "../components/admin/pricing/ModifierRuleBuilder
 import PricingAuditLog from "../components/admin/pricing/PricingAuditLog";
 import GeoZoneManager from "../components/admin/pricing/GeoZoneManager";
 import UserSegmentManager from "../components/admin/pricing/UserSegmentManager";
+import FormBuilder from "../components/admin/pricing/FormBuilder";
+import SegmentApplicationManager from "../components/admin/pricing/SegmentApplicationManager";
 import ProductAvailabilityManager from "../components/admin/pricing/ProductAvailabilityManager";
 import SmartViewMatrix from "../src/components/admin/SmartViewMatrix";
 import ConflictDetectionModal from "../src/components/admin/ConflictDetectionModal";
@@ -6567,6 +6569,8 @@ const AdminDashboard: React.FC = () => {
     { id: "pricing-modifiers", label: "Pricing Modifiers", icon: DollarSign },
     { id: "geo-zones", label: "Geo Zones", icon: MapPin },
     { id: "user-segments", label: "User Segments", icon: Users },
+    { id: "form-builder", label: "Form Builder", icon: Edit },
+    { id: "segment-applications", label: "Segment Applications", icon: Users },
     { id: "product-availability", label: "Product Availability", icon: Package },
     { id: "pricing-logs", label: "Audit Logs", icon: FileText },
     { id: "virtual-pricing", label: "🌟 Virtual Pricing (Smart View)", icon: DollarSign },
@@ -15129,6 +15133,8 @@ const AdminDashboard: React.FC = () => {
           {activeTab === "pricing-modifiers" && <ModifierRuleBuilder />}
           {activeTab === "geo-zones" && <GeoZoneManager />}
           {activeTab === "user-segments" && <UserSegmentManager />}
+          {activeTab === "form-builder" && <FormBuilder />}
+          {activeTab === "segment-applications" && <SegmentApplicationManager />}
           {activeTab === "product-availability" && <ProductAvailabilityManager />}
           {activeTab === "pricing-preview" && <PricingPreviewPanel />}
           {activeTab === "pricing-logs" && <PricingAuditLog />}

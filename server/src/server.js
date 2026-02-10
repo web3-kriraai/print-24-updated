@@ -14,6 +14,8 @@ import pricingAdminRoutes from "./routes/admin/pricingAdminRoutes.js";
 import userContextRoutes from "./routes/userContextRoutes.js";
 import geolocationRoutes from "./routes/geolocation.js";
 import currencyRoutes from "./routes/currencyRoutes.js";
+import formBuilderRoutes from "./routes/formBuilderRoutes.js";
+import segmentApplicationRoutes from "./routes/segmentApplicationRoutes.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -108,6 +110,10 @@ app.use("/api/pricing", pricingRoutes);
 app.use("/api/user", userContextRoutes);  // User context API
 app.use("/api/geolocation", geolocationRoutes);  // Geolocation API
 app.use("/api/currency", currencyRoutes);  // Currency conversion API
+
+// Dynamic Forms System Routes
+app.use("/api/admin/forms", formBuilderRoutes);  // Form builder (admin)
+app.use("/api", segmentApplicationRoutes);  // Segment applications (public + admin)
 
 // Serve static files from client dist (for production)
 // Try production path first (Docker), then fall back to local dev path

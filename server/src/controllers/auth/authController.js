@@ -146,17 +146,24 @@ export const loginUser = async (req, res) => {
     }
 
     if (!user) {
+      console.log(`❌ Login failed: User not found for email: ${email || mobileNumber}`);
       return res.status(404).json({ message: "User not found." });
     }
 
+    console.log(`🔍 Login attempt for: ${user.email}`);
+    console.log(`   - User ID: ${user._id}`);
+    console.log(`   - Has password hash: ${!!user.password}`);
+    console.log(`   - Password hash length: ${user.password?.length || 0}`);
+    console.log(`   - Is bcrypt hash: ${user.password?.startsWith('$2b$') || false}`);
+
     // Compare password
     const match = await bcrypt.compare(password, user.password);
+    console.log(`   - Password match result: ${match}`);
+    
     if (!match) {
       // Log for debugging (remove in production or make it conditional)
-      if (process.env.NODE_ENV === 'development') {
-        console.log("Password comparison failed for user:", user.email || user.mobileNumber);
-        console.log("User password hash exists:", !!user.password);
-      }
+      console.log(`❌ Password comparison failed for user: ${user.email || user.mobileNumber}`);
+      console.log(`   - Input password length: ${password?.length}`);
       return res.status(401).json({ message: "Invalid credentials." });
     }
 

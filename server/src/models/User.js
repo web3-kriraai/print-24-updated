@@ -13,11 +13,22 @@ const userSchema = new mongoose.Schema(
     userSegment: { type: mongoose.Schema.Types.ObjectId, ref: "UserSegment" },
     approvalStatus: { type: String, enum: ["pending", "approved", "rejected"], default: "pending" },
     userType: { type: String, enum: ["customer", "print partner", "corporate"], default: "customer" },
+    
+    // ========== Dynamic Segment System ==========
+    // Replaced hardcoded signupIntent enum with flexible segment code
     signupIntent: {
       type: String,
-      enum: ["CUSTOMER", "PRINT_PARTNER", "CORPORATE"],
-      required: true
+      // No longer an enum - can be any segment code (CUSTOMER, PRINT_PARTNER, CORPORATE, VIP, etc.)
+      uppercase: true,
+      trim: true,
     },
+    
+    // Application reference (if user applied through a form)
+    segmentApplication: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "SegmentApplication",
+    },
+    
     // Email verification fields
     isEmailVerified: { type: Boolean, default: false },
     emailOtp: { type: String }, // Hashed OTP
