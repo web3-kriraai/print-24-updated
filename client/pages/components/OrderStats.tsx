@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import {
     ShoppingCart, CreditCard, AlertTriangle, DollarSign, Clock
 } from 'lucide-react';
+import { API_BASE_URL } from '../../lib/apiConfig';
 
 interface Stats {
     totalOrders: number;
@@ -11,8 +12,6 @@ interface Stats {
     todayRevenue: number;
     avgProcessingTime: number;
 }
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 const OrderStats: React.FC = () => {
     const [stats, setStats] = useState<Stats>({
@@ -31,7 +30,7 @@ const OrderStats: React.FC = () => {
     const fetchStats = async () => {
         try {
             const token = localStorage.getItem('token');
-            const response = await fetch(`${API_URL}/api/admin/orders/stats`, {
+            const response = await fetch(`${API_BASE_URL}/api/admin/orders/stats`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                 },

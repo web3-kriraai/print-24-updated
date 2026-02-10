@@ -6,6 +6,7 @@ import {
     Search, Filter, Download, RefreshCw, ChevronLeft, ChevronRight,
     MoreVertical, CheckSquare, Square, Loader2
 } from 'lucide-react';
+import { API_BASE_URL } from '../../lib/apiConfig';
 import OrderStats from '../components/OrderStats';
 import OrderFilters from '../components/OrderFilters';
 import OrderTable from '../components/OrderTable';
@@ -77,10 +78,8 @@ interface Pagination {
     pages: number;
 }
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-
 const OrderManagement: React.FC = () => {
-    // State Management
+
     const [orders, setOrders] = useState<Order[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -144,7 +143,7 @@ const OrderManagement: React.FC = () => {
             params.append('sortOrder', sortConfig.direction);
 
             const token = localStorage.getItem('token');
-            const response = await fetch(`${API_URL}/api/admin/orders/list?${params.toString()}`, {
+            const response = await fetch(`${API_BASE_URL}/api/admin/orders/list?${params.toString()}`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json',
@@ -374,7 +373,7 @@ const OrderManagement: React.FC = () => {
                             onStatusUpdate={async (status) => {
                                 try {
                                     const token = localStorage.getItem('token');
-                                    const response = await fetch(`${API_URL}/api/admin/orders/bulk-update`, {
+                                    const response = await fetch(`${API_BASE_URL}/api/admin/orders/bulk-update`, {
                                         method: 'POST',
                                         headers: {
                                             'Authorization': `Bearer ${token}`,
@@ -403,7 +402,7 @@ const OrderManagement: React.FC = () => {
                             onPaymentUpdate={async (paymentStatus) => {
                                 try {
                                     const token = localStorage.getItem('token');
-                                    const response = await fetch(`${API_URL}/api/admin/orders/bulk-update`, {
+                                    const response = await fetch(`${API_BASE_URL}/api/admin/orders/bulk-update`, {
                                         method: 'POST',
                                         headers: {
                                             'Authorization': `Bearer ${token}`,
@@ -432,7 +431,7 @@ const OrderManagement: React.FC = () => {
                             onExport={async () => {
                                 try {
                                     const token = localStorage.getItem('token');
-                                    const response = await fetch(`${API_URL}/api/admin/orders/export`, {
+                                    const response = await fetch(`${API_BASE_URL}/api/admin/orders/export`, {
                                         method: 'POST',
                                         headers: {
                                             'Authorization': `Bearer ${token}`,
@@ -468,7 +467,7 @@ const OrderManagement: React.FC = () => {
                             onDelete={async () => {
                                 try {
                                     const token = localStorage.getItem('token');
-                                    const response = await fetch(`${API_URL}/api/admin/orders/bulk-delete`, {
+                                    const response = await fetch(`${API_BASE_URL}/api/admin/orders/bulk-delete`, {
                                         method: 'POST',
                                         headers: {
                                             'Authorization': `Bearer ${token}`,
