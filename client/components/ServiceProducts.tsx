@@ -136,35 +136,6 @@ const ServiceProducts: React.FC<ServiceProductsProps> = ({ service }) => {
         <div className="w-full bg-white py-12">
             <div className="max-w-[1920px] mx-auto px-2 sm:px-3 lg:px-4">
 
-                {/* Main Header - Only show if there is content */}
-                {(serviceData.serviceHeading || serviceData.serviceDescription) && (
-                    <div className="text-center mb-12">
-                        {serviceData.serviceHeading && (
-                            <motion.h2
-                                key={serviceData._id}
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ duration: 0.5 }}
-                                className="text-3xl md:text-4xl font-bold uppercase mb-4"
-                                style={{ color: serviceData.color }}
-                            >
-                                {serviceData.serviceHeading}
-                            </motion.h2>
-                        )}
-                        {serviceData.serviceDescription && (
-                            <motion.p
-                                key={serviceData.serviceDescription}
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                transition={{ duration: 0.5, delay: 0.2 }}
-                                className="text-gray-600 text-lg max-w-3xl mx-auto"
-                            >
-                                {serviceData.serviceDescription}
-                            </motion.p>
-                        )}
-                    </div>
-                )}
-
                 {/* Titles and Items */}
                 {sortedTitles.length === 0 ? (
                     <div className="text-center py-12 bg-gray-50 rounded-lg">
@@ -183,26 +154,17 @@ const ServiceProducts: React.FC<ServiceProductsProps> = ({ service }) => {
                                 // Sort items by sortOrder
                                 const sortedItems = [...(title.items || [])].sort((a, b) => a.sortOrder - b.sortOrder);
 
-                                // Only show title header if there are multiple titles
-                                const shouldShowTitleHeader = sortedTitles.length > 1;
-
                                 return (
                                     <div key={title._id || index} className="max-w-[1440px] mx-auto mb-16 last:mb-0">
-
-                                        {/* Title Header - Only show when multiple titles exist */}
-                                        {shouldShowTitleHeader && (
-                                            <div className="mb-8 flex flex-col items-center text-center">
-                                                <div
-                                                    className="inline-block px-8 py-3 rounded-full text-white font-bold text-lg uppercase shadow-md mb-1"
-                                                    style={{ backgroundColor: serviceData.color }}
+                                        {/* Title Header - Admin controlled sections */}
+                                        {title.title && (
+                                            <div className="mb-12 flex flex-col items-center text-center">
+                                                <h2
+                                                    className="text-3xl md:text-4xl font-bold uppercase mb-4"
+                                                    style={{ color: serviceData.color }}
                                                 >
                                                     {title.title}
-                                                </div>
-                                                {title.description && (
-                                                    <div className="px-8 py-2 bg-gray-200 text-gray-700 font-medium inline-block rounded-full text-sm">
-                                                        {title.description}
-                                                    </div>
-                                                )}
+                                                </h2>
                                             </div>
                                         )}
 
@@ -327,18 +289,20 @@ const ServiceProducts: React.FC<ServiceProductsProps> = ({ service }) => {
                                 );
                             })}
                         </motion.div>
-                    </AnimatePresence>
+                    </AnimatePresence >
                 )}
 
-            </div>
+            </div >
 
             {/* Service-Specific Reviews */}
-            {!loadingReviews && reviews.length > 0 && (
-                <div className="mt-16">
-                    <CustomerReviews reviews={reviews} serviceId={service._id} limit={6} />
-                </div>
-            )}
-        </div>
+            {
+                !loadingReviews && reviews.length > 0 && (
+                    <div className="mt-16">
+                        <CustomerReviews reviews={reviews} serviceId={service._id} limit={6} />
+                    </div>
+                )
+            }
+        </div >
     );
 };
 

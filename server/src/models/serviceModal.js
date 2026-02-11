@@ -20,7 +20,7 @@ const serviceItemSchema = new mongoose.Schema({
 const serviceTitleSchema = new mongoose.Schema({
     title: {
         type: String,
-        required: true,
+        required: false,
         trim: true
     },
     description: {
