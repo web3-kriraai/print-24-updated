@@ -292,6 +292,34 @@ const OrderSchema = new mongoose.Schema(
     ],
 
     /* =====================
+       BULK ORDER TRACKING
+    ====================== */
+    isBulkChild: {
+      type: Boolean,
+      default: false,
+      index: true,
+      // True if this order was created from bulk processing
+    },
+
+    bulkParentOrderId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Order",
+      // Reference to the parent order in bulk hierarchy
+    },
+
+    bulkOrderRef: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "BulkOrder",
+      // Reference to the BulkOrder that created this
+    },
+
+    designSequence: {
+      type: Number,
+      // Position of this design in the bulk (1-30)
+      // Used for display order and tracking
+    },
+
+    /* =====================
        DESIGNER SERVICE
     ====================== */
     designerSessionId: {

@@ -485,5 +485,26 @@ import otpRoutes from "./otpRoutes.js";
 // OTP routes (public - for email verification during signup)
 router.use("/otp", otpRoutes);
 
-export default router;
+/* =====================================
+   USER FEATURE CHECK ROUTES
+   Added: 2026-02-11
+===================================== */
 
+// Import user routes
+import userRoutes from "./userRoutes.js";
+
+// User routes (requires authentication)
+router.use("/user", userRoutes);
+
+/* =====================================
+   BULK ORDER ROUTES
+   Added: 2026-02-11
+===================================== */
+
+// Import bulk order routes
+import bulkOrderRoutes from "./bulkOrderRoutes.js";
+
+// Bulk order routes (requires authentication + feature permission)
+router.use("/bulk-orders", bulkOrderRoutes);
+
+export default router;

@@ -1,0 +1,7 @@
+                            </div>
+                          </div>
+                        )
+
+                         {/* Place Order Button - Only show for single mode */}
+                         {orderMode === 'single' && (
+                           <div className="mt-4 pt-4 border-t border-cream-100">

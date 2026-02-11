@@ -24,4 +24,21 @@ export const uploadDesignFiles = upload.fields([
   { name: "backImage", maxCount: 1 }
 ]);
 
+// PDF upload for bulk orders
+const pdfFileFilter = (req, file, cb) => {
+  if (file.mimetype === "application/pdf") {
+    cb(null, true);
+  } else {
+    cb(new Error("Only PDF files are allowed for bulk uploads!"), false);
+  }
+};
+
+export const uploadPDF = multer({
+  storage: storage,
+  fileFilter: pdfFileFilter,
+  limits: {
+    fileSize: 100 * 1024 * 1024 // 100MB for PDFs
+  }
+});
+
 export default upload;
