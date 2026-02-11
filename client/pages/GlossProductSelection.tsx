@@ -3,7 +3,7 @@ import { Link, useParams, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowRight, Check, Truck, Upload as UploadIcon, FileImage, CreditCard, X, Info, Lock, AlertCircle, MapPin, Zap, Square, Circle, FileText, UploadCloud } from 'lucide-react';
 import { Select, SelectOption } from '@/components/ui/select';
-import { ProductDetailSkeleton, Skeleton } from '@/components/ui/Skeleton';
+import { ProductImageSkeleton, AttributeCardSkeleton, Skeleton } from '@/components/ui/Skeleton';
 import { LazyImage, CloudinaryLazyImage } from '@/components/ui/LazyImage';
 import { API_BASE_URL_WITH_API as API_BASE_URL } from '../lib/apiConfig';
 import { applyAttributeRules, type AttributeRule, type Attribute } from '../utils/attributeRuleEngine';
@@ -608,6 +608,10 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
   // Fetch subcategory and products
   useEffect(() => {
     const fetchData = async () => {
+      // Flag to control if loading should be stopped in finally block
+      // We don't want to stop loading if we're redirecting to another URL
+      let shouldStopLoading = true;
+
       try {
         setLoading(true);
         setError(null);
@@ -843,14 +847,15 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                     ? subcategoryData.parent._id
                     : subcategoryData.parent;
                   console.log(`Nested subcategory detected in list, redirecting to include parent: ${parentId}`);
+                  shouldStopLoading = false;
                   navigate(`/home/allservices/${categoryId}/${parentId}/${subcategoryId}${productId ? `/${productId}` : ''}`, { replace: true });
-                  setLoading(false);
                   return; // Exit early, let the redirect handle the rest
                 }
 
                 // If URL contains slug instead of ObjectId, redirect to use ObjectId
                 const isSlug = activeSubCategoryId && !/^[0-9a-fA-F]{24}$/.test(activeSubCategoryId);
                 if (isSlug && subcategoryId && subcategoryId !== activeSubCategoryId) {
+                  shouldStopLoading = false;
                   // Replace slug with ObjectId in URL
                   if (nestedSubCategoryId) {
                     // This is a nested subcategory case - shouldn't happen here, but handle it
@@ -895,6 +900,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                             ? fetchedSubcategory.parent._id
                             : fetchedSubcategory.parent;
                           console.log(`Nested subcategory detected, redirecting to include parent: ${parentId}`);
+                          shouldStopLoading = false;
                           navigate(`/home/allservices/${categoryId}/${parentId}/${subcategoryId}${productId ? `/${productId}` : ''}`, { replace: true });
                           return; // Exit early, let the redirect handle the rest
                         }
@@ -902,6 +908,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                         // If URL contains slug instead of ObjectId, redirect to use ObjectId
                         const isSlug = activeSubCategoryId && !/^[0-9a-fA-F]{24}$/.test(activeSubCategoryId);
                         if (isSlug && subcategoryId && subcategoryId !== activeSubCategoryId) {
+                          shouldStopLoading = false;
                           // Replace slug with ObjectId in URL
                           if (nestedSubCategoryId && subCategoryId) {
                             // Nested subcategory case - preserve parent subcategory ID
@@ -984,11 +991,11 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                               const firstProductId = firstProduct._id;
 
                               // Navigate to the first product with full URL structure
-                              console.log(`Auto-navigating to first product: ${firstProduct.name} (${firstProductId})`);
                               const targetUrl = categoryId && subCategoryId
                                 ? `/home/allservices/${categoryId}/${subCategoryId}/${firstNestedSubcatId}/${firstProductId}`
                                 : `/home/allservices/${categoryId}/${firstNestedSubcatId}/${firstProductId}`;
 
+                              shouldStopLoading = false;
                               navigate(targetUrl, { replace: true });
                               return; // Exit early, let the navigation handle the rest
                             }
@@ -1262,6 +1269,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
               // AUTO-SKIP: If only one product, navigate directly to its detail page
               if (mappedProducts.length === 1 && !productId) {
                 const singleProduct = mappedProducts[0];
+                shouldStopLoading = false;
                 if (categoryId && subCategoryId) {
                   navigate(`/home/allservices/${categoryId}/${subCategoryId}/${singleProduct._id}`, { replace: true });
                 } else if (categoryId) {
@@ -1292,7 +1300,9 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
         // Only set error for critical issues that prevent the page from working
         // Subcategory not found is not a critical error - user can still browse
       } finally {
-        setLoading(false);
+        if (shouldStopLoading) {
+          setLoading(false);
+        }
       }
     };
 
@@ -4345,11 +4355,14 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
         {/* Loading State */}
 
-        {loading && (
+
+        {/* Loading State - Removed blocking loader */}
+        {/* {loading && (
           <div className="py-8">
             <ProductDetailSkeleton />
           </div>
-        )}
+        )} */}
+
 
         {/* Error State */}
         {error && !loading && (
@@ -4382,8 +4395,8 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
           </div>
         )}
 
-        {/* Main Content - Only show if not loading and no error */}
-        {!loading && !error && !pdpLoading && !pdpError && (
+        {/* Main Content - Show even during loading for granular skeletons */}
+        {/* !loading && */ !error && (
           <>
             {/* Main Layout: 50/50 Split - Left Image + Summary, Right Config / Products */}
             <div className="flex flex-col lg:flex-row gap-6 sm:gap-8 lg:gap-12 min-h-[600px]">
@@ -4400,6 +4413,11 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
                     <div className="w-full h-full flex items-center justify-center ">
                       {(() => {
+                        // Granular Loading: Show ProductImageSkeleton if loading
+                        if (loading) {
+                          return <ProductImageSkeleton className="w-full h-full" />;
+                        }
+
                         // Get the image to display based on selected attributes
                         // Priority order:
                         // 1. Matrix-resolved image (pre-rendered combination from admin)
@@ -4485,6 +4503,11 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                           }
                         }
 
+                        // Granular Loading: Show ProductImageSkeleton if loading
+                        if (loading || pdpLoading) {
+                          return <ProductImageSkeleton className="w-full h-full" />;
+                        }
+
                         return (
                           <LazyImage
                             src={displayImage}
@@ -4506,95 +4529,109 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                     </div>
                   </motion.div>
 
-                  {/* Compact Order Summary - shown when a product is selected */}
-                  {selectedProduct && (
+                  {/* Compact Order Summary - shown when a product is selected or loading */}
+                  {(loading || pdpLoading || selectedProduct) && (
                     <div className="bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-gray-100 p-4 sm:p-5 md:p-6">
-                      <div className="flex items-center justify-between mb-3">
-                        <h2 className="text-sm sm:text-base font-semibold text-gray-900">
-                          Order Summary
-                        </h2>
-                        <span className="text-xs text-white0">
-                          Live estimate
-                        </span>
-                      </div>
-
-                      <div className="space-y-2 text-xs sm:text-sm text-gray-800">
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Product</span>
-                          <span className="font-medium text-right line-clamp-1 ml-2">
-                            {selectedProduct.name}
-                          </span>
+                      {loading || pdpLoading ? (
+                        <div className="space-y-4">
+                          <Skeleton variant="text" className="w-32 h-6 mb-4" />
+                          <div className="space-y-3">
+                            <div className="flex justify-between"><Skeleton variant="text" className="w-20 h-4" /><Skeleton variant="text" className="w-24 h-4" /></div>
+                            <div className="flex justify-between"><Skeleton variant="text" className="w-20 h-4" /><Skeleton variant="text" className="w-16 h-4" /></div>
+                            <div className="flex justify-between"><Skeleton variant="text" className="w-20 h-4" /><Skeleton variant="text" className="w-20 h-4" /></div>
+                            <div className="border-t pt-3 flex justify-between"><Skeleton variant="text" className="w-24 h-5" /><Skeleton variant="text" className="w-24 h-5" /></div>
+                          </div>
                         </div>
+                      ) : (
+                        <>
+                          <div className="flex items-center justify-between mb-3">
+                            <h2 className="text-sm sm:text-base font-semibold text-gray-900">
+                              Order Summary
+                            </h2>
+                            <span className="text-xs text-white0">
+                              Live estimate
+                            </span>
+                          </div>
 
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Quantity</span>
-                          <span className="font-medium">
-                            {(quantity || 0).toLocaleString()}
-                          </span>
-                        </div>
+                          <div className="space-y-2 text-xs sm:text-sm text-gray-800">
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">Product</span>
+                              <span className="font-medium text-right line-clamp-1 ml-2">
+                                {selectedProduct.name}
+                              </span>
+                            </div>
 
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Base price</span>
-                          <span className="font-medium">
-                            ₹{(baseSubtotalBeforeDiscount || 0).toFixed(2)}
-                          </span>
-                        </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">Quantity</span>
+                              <span className="font-medium">
+                                {(quantity || 0).toLocaleString()}
+                              </span>
+                            </div>
 
-                        {dynamicAttributesCharges.length > 0 && (
-                          <>
-                            {dynamicAttributesCharges.map((attrCharge, idx) => (
-                              <div key={idx} className="flex justify-between">
-                                <span className="text-gray-600 text-[11px]">
-                                  {attrCharge.name}: {attrCharge.label}
-                                </span>
-                                <span className="font-medium text-[11px]">
-                                  ₹{attrCharge.charge.toFixed(2)}
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">Base price</span>
+                              <span className="font-medium">
+                                ₹{(baseSubtotalBeforeDiscount || 0).toFixed(2)}
+                              </span>
+                            </div>
+
+                            {dynamicAttributesCharges.length > 0 && (
+                              <>
+                                {dynamicAttributesCharges.map((attrCharge, idx) => (
+                                  <div key={idx} className="flex justify-between">
+                                    <span className="text-gray-600 text-[11px]">
+                                      {attrCharge.name}: {attrCharge.label}
+                                    </span>
+                                    <span className="font-medium text-[11px]">
+                                      ₹{attrCharge.charge.toFixed(2)}
+                                    </span>
+                                  </div>
+                                ))}
+                              </>
+                            )}
+
+                            {additionalDesignCharge > 0 && (
+                              <div className="flex justify-between">
+                                <span className="text-gray-600">Design charge</span>
+                                <span className="font-medium">
+                                  ₹{additionalDesignCharge.toFixed(2)}
                                 </span>
                               </div>
-                            ))}
-                          </>
-                        )}
+                            )}
 
-                        {additionalDesignCharge > 0 && (
-                          <div className="flex justify-between">
-                            <span className="text-gray-600">Design charge</span>
-                            <span className="font-medium">
-                              ₹{additionalDesignCharge.toFixed(2)}
-                            </span>
+                            {gstAmount > 0 && (
+                              <div className="flex justify-between">
+                                <span className="text-gray-600">
+                                  GST ({selectedProduct.gstPercentage || 18}%)
+                                </span>
+                                <span className="font-medium">
+                                  ₹{gstAmount.toFixed(2)}
+                                </span>
+                              </div>
+                            )}
+
+                            {appliedDiscount !== null && appliedDiscount > 0 && (
+                              <div className="flex justify-between text-green-700">
+                                <span>Discount</span>
+                                <span>-{appliedDiscount.toFixed(1)}%</span>
+                              </div>
+                            )}
+
+                            <div className="border-t border-gray-200 mt-3 pt-3 flex justify-between items-center">
+                              <span className="text-xs sm:text-sm font-semibold text-gray-700">
+                                Estimated Total Value
+                              </span>
+                              <span className="text-base sm:text-lg font-bold text-gray-900">
+                                ₹{(price + gstAmount).toFixed(2)}
+                              </span>
+                            </div>
+
+                            <p className="text-[11px] text-white0 mt-1">
+                              Final price may adjust slightly based on selected options and taxes at checkout.
+                            </p>
                           </div>
-                        )}
-
-                        {gstAmount > 0 && (
-                          <div className="flex justify-between">
-                            <span className="text-gray-600">
-                              GST ({selectedProduct.gstPercentage || 18}%)
-                            </span>
-                            <span className="font-medium">
-                              ₹{gstAmount.toFixed(2)}
-                            </span>
-                          </div>
-                        )}
-
-                        {appliedDiscount !== null && appliedDiscount > 0 && (
-                          <div className="flex justify-between text-green-700">
-                            <span>Discount</span>
-                            <span>-{appliedDiscount.toFixed(1)}%</span>
-                          </div>
-                        )}
-
-                        <div className="border-t border-gray-200 mt-3 pt-3 flex justify-between items-center">
-                          <span className="text-xs sm:text-sm font-semibold text-gray-700">
-                            Estimated Total Value
-                          </span>
-                          <span className="text-base sm:text-lg font-bold text-gray-900">
-                            ₹{(price + gstAmount).toFixed(2)}
-                          </span>
-                        </div>
-
-                        <p className="text-[11px] text-white0 mt-1">
-                          Final price may adjust slightly based on selected options and taxes at checkout.
-                        </p>
-                      </div>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>
@@ -4603,163 +4640,173 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
               {/* Right Side: Product List or Product Details */}
               <div className="lg:w-1/2">
                 <div className="bg-white p-4 sm:p-6 md:p-8 rounded-2xl sm:rounded-3xl shadow-lg border border-gray-100 min-h-[600px] lg:min-h-[700px] flex flex-col">
-                  {!selectedProduct ? (
-                    /* Loading state - auto-redirecting to first product */
-                    <div className="flex items-center justify-center py-12 min-h-[400px]">
-                      <div className="text-center space-y-4">
-                        <Skeleton variant="circular" className="w-10 h-10 mx-auto" animation="pulse" />
-                        <p className="text-gray-600 text-lg">Loading product details...</p>
-                      </div>
-                    </div>
-                  ) : (
-                    /* Product Filters and Order Form */
-                    <AnimatePresence mode="wait">
-                      <motion.div
-                        key={selectedProduct._id || selectedProduct.id}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -20 }}
-                        transition={{ duration: 0.3 }}
-                        className="flex flex-col h-full"
-                      >
-                        <div className="flex-1 overflow-y-auto pr-2">
-                          {/* POP-OUT DECK VARIANT SELECTOR */}
-                          {categoryProducts.length > 1 && (
-                            <div className="mb-3 relative z-10">
-                              {/* Header Row */}
-                              <div className="flex justify-between items-center ">
-                                <p className="text-[10px] font-bold text-red-500 bg-red-50 px-2 py-0.5 rounded uppercase tracking-widest">Select Product</p>
-                              </div>
-
-                              {/* Deck Container */}
-                              <div className={`relative w-full flex items-center overflow-visible ${categoryProducts.length > 8 ? 'h-48' : 'h-44'}`}>
-                                {/* Scroll Container with overlapping stacking cards */}
-                                {/* On mobile: hidden scroll for touch-friendly swipe. On desktop with 8+ products: show slim scrollbar */}
-                                <div
-                                  id="deck-scroll-container"
-                                  ref={deckScrollRef}
-                                  className={`flex items-center overflow-x-auto pl-4 pr-16 pb-4 -space-x-4 w-full h-full pt-10 cursor-grab ${categoryProducts.length > 8 ? 'hide-scroll md:scrollbar-thin' : 'hide-scroll'}`}
-                                  onMouseDown={handleDeckMouseDown}
-                                  onMouseMove={handleDeckMouseMove}
-                                  onMouseUp={handleDeckMouseUp}
-                                  onMouseLeave={handleDeckMouseLeave}
-                                  onScroll={handleDeckScroll}
-                                >
-                                  {categoryProducts.map((product, index) => {
-                                    const isCurrentProduct = product._id === selectedProduct._id;
-                                    const productImage = product.image || selectedSubCategory?.image || '/Glossy.png';
-
-                                    return (
-                                      <div
-                                        key={product._id}
-                                        id={`deck-card-${product._id}`}
-                                        onClick={(e) => {
-                                          // Prevent click if user was dragging
-                                          if (hasDraggedRef.current) {
-                                            e.preventDefault();
-                                            e.stopPropagation();
-                                            return;
-                                          }
-                                          if (!isCurrentProduct) {
-                                            // Scroll clicked card into center view
-                                            const cardElement = e.currentTarget;
-                                            cardElement.scrollIntoView({
-                                              behavior: 'smooth',
-                                              block: 'nearest',
-                                              inline: 'center'
-                                            });
-
-                                            // Navigate to the new product
-                                            const newUrl = categoryId && subCategoryId && nestedSubCategoryId
-                                              ? `/home/allservices/${categoryId}/${subCategoryId}/${nestedSubCategoryId}/${product._id}`
-                                              : categoryId && subCategoryId
-                                                ? `/home/allservices/${categoryId}/${subCategoryId}/${product._id}`
-                                                : categoryId
-                                                  ? `/home/allservices/${categoryId}/${product._id}`
-                                                  : `/home/allservices/${product._id}`;
-                                            navigate(newUrl);
-                                          }
-                                        }}
-                                        className={`deck-card flex-shrink-0 w-24 h-32 rounded-xl border-2 cursor-pointer p-2 flex flex-col items-center justify-center gap-1 select-none bg-white hover:z-50 ${isCurrentProduct ? 'active border-blue-600 shadow-xl' : 'border-gray-200 shadow-sm'
-                                          }`}
-                                        style={{
-                                          zIndex: isCurrentProduct ? 50 : (10 - Math.abs(index - categoryProducts.findIndex(p => p._id === selectedProduct._id))),
-                                          transition: 'all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1)',
-                                        }}
-                                      >
-                                        {/* Blue checkmark badge */}
-                                        <div
-                                          className={`check-badge absolute -top-2 -right-2 bg-blue-600 text-white rounded-full p-1 shadow-md z-30 transition-all duration-300 ${isCurrentProduct ? 'opacity-100 scale-100' : 'opacity-0 scale-50'
-                                            }`}
-                                        >
-                                          <Check size={10} />
-                                        </div>
-
-                                        {/* Product Image */}
-                                        <div className="w-14 h-14 rounded-lg overflow-hidden border border-gray-100 shadow-sm relative z-10 pointer-events-none bg-gray-50">
-                                          <LazyImage
-                                            src={productImage}
-                                            alt={product.name}
-                                            className="w-full h-full object-cover"
-                                            fallbackSrc={selectedSubCategory?.image || '/Glossy.png'}
-                                            showSkeleton={true}
-                                            skeletonVariant="rectangular"
-                                          />
-                                        </div>
-
-                                        {/* Label */}
-                                        <div className="text-center w-full pointer-events-none mt-0.5">
-                                          <span className={`block text-[9px] font-bold uppercase tracking-tight leading-tight line-clamp-2 text-gray-900`}>
-                                            {product.name}
-                                          </span>
-                                        </div>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-
-                                {/* Fade Gradients */}
-                                <div className="absolute left-0 top-0 bottom-0 w-10 bg-gradient-to-r from-white to-transparent pointer-events-none z-20"></div>
-                                <div className="absolute right-0 top-0 bottom-0 w-10 bg-gradient-to-l from-white to-transparent pointer-events-none z-20"></div>
-                              </div>
-
-                              {/* Slim Line Scroll Indicator for Deck - Only show when scrollable */}
-                              {categoryProducts.length > 1 && deckScrollWidth > deckClientWidth && (
-                                <div className="w-full max-w-[200px] mx-auto h-0.5 bg-gray-100 rounded-full mt-[-5px] mb-4 overflow-hidden relative z-30">
-                                  <div
-                                    className="h-full bg-gray-400 rounded-full transition-all duration-100 ease-out"
-                                    style={{
-                                      width: `${(deckClientWidth / deckScrollWidth) * 100}%`,
-                                      transform: `translateX(${(deckScrollLeft / (deckScrollWidth - deckClientWidth)) * ((deckScrollWidth / deckClientWidth - 1) * 100)}%)`
-                                    }}
-                                  />
-                                </div>
-                              )}
+                  {/* Product Filters and Order Form */}
+                  <AnimatePresence mode="wait">
+                    <motion.div
+                      key={selectedProduct?._id || 'loading-state'}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -20 }}
+                      transition={{ duration: 0.3 }}
+                      className="flex flex-col h-full"
+                    >
+                      <div className="flex-1 overflow-y-auto pr-2">
+                        {/* POP-OUT DECK VARIANT SELECTOR */}
+                        {categoryProducts.length > 1 && (
+                          <div className="mb-3 relative z-10">
+                            {/* Header Row */}
+                            <div className="flex justify-between items-center ">
+                              <p className="text-[10px] font-bold text-red-500 bg-red-50 px-2 py-0.5 rounded uppercase tracking-widest">Select Product</p>
                             </div>
-                          )}
 
-                          {/* Product Header */}
-                          <div className="mb-3 sm:mb-4 relative">
-                            <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
-                              <div className="flex-1">
-                                {/* Product Header with Price */}
-                                <div className="border-b border-gray-100 flex flex-row justify-between items-center pb-4">
-                                  <div>
-                                    <h1 className="font-arial-rounded text-xl sm:text-2xl md:text-3xl font-semibold text-gray-900 mb-1">
-                                      {selectedProduct.name}
-                                    </h1>
-                                    {selectedProduct.shortDescription && selectedProduct.shortDescription.trim() !== '' && (
-                                      <div className="mt-1 mb-2">
-                                        <p className="text-base text-gray-600 leading-relaxed font-medium" style={{ fontFamily: "'Funnel Sans', sans-serif" }}>
-                                          {selectedProduct.shortDescription}
-                                        </p>
+                            {/* Deck Container */}
+                            <div className={`relative w-full flex items-center overflow-visible ${categoryProducts.length > 8 ? 'h-48' : 'h-44'}`}>
+                              {/* Scroll Container with overlapping stacking cards */}
+                              {/* On mobile: hidden scroll for touch-friendly swipe. On desktop with 8+ products: show slim scrollbar */}
+                              <div
+                                id="deck-scroll-container"
+                                ref={deckScrollRef}
+                                className={`flex items-center overflow-x-auto pl-4 pr-16 pb-4 -space-x-4 w-full h-full pt-10 cursor-grab ${categoryProducts.length > 8 ? 'hide-scroll md:scrollbar-thin' : 'hide-scroll'}`}
+                                onMouseDown={handleDeckMouseDown}
+                                onMouseMove={handleDeckMouseMove}
+                                onMouseUp={handleDeckMouseUp}
+                                onMouseLeave={handleDeckMouseLeave}
+                                onScroll={handleDeckScroll}
+                              >
+                                {categoryProducts.map((product, index) => {
+                                  const isCurrentProduct = product._id === selectedProduct?._id;
+                                  const productImage = product.image || selectedSubCategory?.image || '/Glossy.png';
+
+                                  return (
+                                    <div
+                                      key={product._id}
+                                      id={`deck-card-${product._id}`}
+                                      onClick={(e) => {
+                                        // Prevent click if user was dragging
+                                        if (hasDraggedRef.current) {
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          return;
+                                        }
+                                        if (!isCurrentProduct) {
+                                          // Scroll clicked card into center view
+                                          const cardElement = e.currentTarget;
+                                          cardElement.scrollIntoView({
+                                            behavior: 'smooth',
+                                            block: 'nearest',
+                                            inline: 'center'
+                                          });
+
+                                          // Navigate to the new product
+                                          const newUrl = categoryId && subCategoryId && nestedSubCategoryId
+                                            ? `/home/allservices/${categoryId}/${subCategoryId}/${nestedSubCategoryId}/${product._id}`
+                                            : categoryId && subCategoryId
+                                              ? `/home/allservices/${categoryId}/${subCategoryId}/${product._id}`
+                                              : categoryId
+                                                ? `/home/allservices/${categoryId}/${product._id}`
+                                                : `/home/allservices/${product._id}`;
+                                          navigate(newUrl);
+                                        }
+                                      }}
+                                      className={`deck-card flex-shrink-0 w-24 h-32 rounded-xl border-2 cursor-pointer p-2 flex flex-col items-center justify-center gap-1 select-none bg-white hover:z-50 ${isCurrentProduct ? 'active border-blue-600 shadow-xl' : 'border-gray-200 shadow-sm'
+                                        }`}
+                                      style={{
+                                        zIndex: isCurrentProduct ? 50 : (10 - Math.abs(index - categoryProducts.findIndex(p => p._id === selectedProduct._id))),
+                                        transition: 'all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1)',
+                                      }}
+                                    >
+                                      {/* Blue checkmark badge */}
+                                      <div
+                                        className={`check-badge absolute -top-2 -right-2 bg-blue-600 text-white rounded-full p-1 shadow-md z-30 transition-all duration-300 ${isCurrentProduct ? 'opacity-100 scale-100' : 'opacity-0 scale-50'
+                                          }`}
+                                      >
+                                        <Check size={10} />
                                       </div>
-                                    )}
+
+                                      {/* Product Image */}
+                                      <div className="w-14 h-14 rounded-lg overflow-hidden border border-gray-100 shadow-sm relative z-10 pointer-events-none bg-gray-50">
+                                        <LazyImage
+                                          src={productImage}
+                                          alt={product.name}
+                                          className="w-full h-full object-cover"
+                                          fallbackSrc={selectedSubCategory?.image || '/Glossy.png'}
+                                          showSkeleton={true}
+                                          skeletonVariant="rectangular"
+                                        />
+                                      </div>
+
+                                      {/* Label */}
+                                      <div className="text-center w-full pointer-events-none mt-0.5">
+                                        <span className={`block text-[9px] font-bold uppercase tracking-tight leading-tight line-clamp-2 text-gray-900`}>
+                                          {product.name}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+
+                              {/* Fade Gradients */}
+                              <div className="absolute left-0 top-0 bottom-0 w-10 bg-gradient-to-r from-white to-transparent pointer-events-none z-20"></div>
+                              <div className="absolute right-0 top-0 bottom-0 w-10 bg-gradient-to-l from-white to-transparent pointer-events-none z-20"></div>
+                            </div>
+
+                            {/* Slim Line Scroll Indicator for Deck - Only show when scrollable */}
+                            {categoryProducts.length > 1 && deckScrollWidth > deckClientWidth && (
+                              <div className="w-full max-w-[200px] mx-auto h-0.5 bg-gray-100 rounded-full mt-[-5px] mb-4 overflow-hidden relative z-30">
+                                <div
+                                  className="h-full bg-gray-400 rounded-full transition-all duration-100 ease-out"
+                                  style={{
+                                    width: `${(deckClientWidth / deckScrollWidth) * 100}%`,
+                                    transform: `translateX(${(deckScrollLeft / (deckScrollWidth - deckClientWidth)) * ((deckScrollWidth / deckClientWidth - 1) * 100)}%)`
+                                  }}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Product Header */}
+                        <div className="mb-3 sm:mb-4 relative">
+                          <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
+                            <div className="flex-1">
+                              {/* Product Header with Price */}
+                              <div className="border-b border-gray-100 flex flex-row justify-between items-center pb-4">
+                                <div className="w-full">
+                                  {loading || pdpLoading ? (
+                                    <div className="space-y-2 w-full">
+                                      <Skeleton variant="text" className="h-8 w-3/4 mb-2" />
+                                      <Skeleton variant="text" className="h-4 w-1/2" />
+                                    </div>
+                                  ) : (
+                                    <>
+                                      <h1 className="font-arial-rounded text-xl sm:text-2xl md:text-3xl font-semibold text-gray-900 mb-1">
+                                        {selectedProduct.name}
+                                      </h1>
+                                      {selectedProduct.shortDescription && selectedProduct.shortDescription.trim() !== '' && (
+                                        <div className="mt-1 mb-2">
+                                          <p className="text-base text-gray-600 leading-relaxed font-medium" style={{ fontFamily: "'Funnel Sans', sans-serif" }}>
+                                            {selectedProduct.shortDescription}
+                                          </p>
+                                        </div>
+                                      )}
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Product Variants Filter - Only shown when nested subcategories exist */}
+                              {loading || pdpLoading ? (
+                                <div className="mb-4 bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+                                  <Skeleton variant="text" className="w-32 h-4 mb-3" />
+                                  <div className="flex flex-wrap gap-2">
+                                    <Skeleton variant="rectangular" className="w-24 h-10 rounded-lg" />
+                                    <Skeleton variant="rectangular" className="w-24 h-10 rounded-lg" />
+                                    <Skeleton variant="rectangular" className="w-24 h-10 rounded-lg" />
                                   </div>
                                 </div>
-
-                                {/* Product Variants Filter - Only shown when nested subcategories exist */}
-                                {availableNestedSubcategories.length > 0 && (
+                              ) : (
+                                availableNestedSubcategories.length > 0 && (
                                   <div className="mb-4 bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
                                     <h3 className="text-xs font-bold text-gray-900 mb-3 tracking-wide uppercase">PRODUCT VARIANTS</h3>
                                     <div className="flex flex-wrap gap-2">
@@ -4781,10 +4828,17 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                       })}
                                     </div>
                                   </div>
-                                )}
+                                )
+                              )}
 
-                                {/* Info Sections Row - Buttons displayed in a single row */}
-                                <div className="mt-4 mb-2">
+                              {/* Info Sections Row - Buttons displayed in a single row */}
+                              <div className="mt-4 mb-2">
+                                {loading || pdpLoading ? (
+                                  <div className="flex flex-wrap gap-2 mb-2">
+                                    <Skeleton variant="rectangular" className="w-40 h-10 rounded-lg" />
+                                    <Skeleton variant="rectangular" className="w-32 h-10 rounded-lg" />
+                                  </div>
+                                ) : (
                                   <div className="flex flex-wrap gap-2 mb-2">
                                     {/* Product Description Button - Only show if description exists */}
                                     {(selectedProduct.description || (selectedProduct.descriptionArray && selectedProduct.descriptionArray.length > 0)) && (
@@ -4837,32 +4891,33 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                       </button>
                                     )}
                                   </div>
+                                )}
 
-                                  {/* Product Description Expandable Section */}
-                                  <AnimatePresence>
-                                    {isDescriptionOpen && (selectedProduct.description || (selectedProduct.descriptionArray && selectedProduct.descriptionArray.length > 0)) && (
-                                      <motion.div
-                                        initial={{ opacity: 0, height: 0 }}
-                                        animate={{ opacity: 1, height: "auto" }}
-                                        exit={{ opacity: 0, height: 0 }}
-                                        transition={{ duration: 0.3, ease: "easeInOut" }}
-                                        className="overflow-hidden mb-2"
-                                      >
-                                        <div className="p-4 sm:p-6 bg-blue-50 border border-blue-200 rounded-lg">
-                                          <h4 className="text-sm font-bold text-blue-900 mb-3 flex items-center gap-2">
-                                            <FileText size={16} />
-                                            Product Description
-                                          </h4>
-                                          <div className="text-xs sm:text-sm text-blue-800">
-                                            {(() => {
-                                              // First check if description contains HTML (prioritize description field)
-                                              if (selectedProduct.description) {
-                                                const hasHTML = /<[a-z][\s\S]*>/i.test(selectedProduct.description);
-                                                if (hasHTML) {
-                                                  // Render HTML description exactly as provided by admin
-                                                  return (
-                                                    <>
-                                                      <style>{`
+                                {/* Product Description Expandable Section */}
+                                <AnimatePresence>
+                                  {isDescriptionOpen && selectedProduct && (selectedProduct.description || (selectedProduct.descriptionArray && selectedProduct.descriptionArray.length > 0)) && (
+                                    <motion.div
+                                      initial={{ opacity: 0, height: 0 }}
+                                      animate={{ opacity: 1, height: "auto" }}
+                                      exit={{ opacity: 0, height: 0 }}
+                                      transition={{ duration: 0.3, ease: "easeInOut" }}
+                                      className="overflow-hidden mb-2"
+                                    >
+                                      <div className="p-4 sm:p-6 bg-blue-50 border border-blue-200 rounded-lg">
+                                        <h4 className="text-sm font-bold text-blue-900 mb-3 flex items-center gap-2">
+                                          <FileText size={16} />
+                                          Product Description
+                                        </h4>
+                                        <div className="text-xs sm:text-sm text-blue-800">
+                                          {(() => {
+                                            // First check if description contains HTML (prioritize description field)
+                                            if (selectedProduct.description) {
+                                              const hasHTML = /<[a-z][\s\S]*>/i.test(selectedProduct.description);
+                                              if (hasHTML) {
+                                                // Render HTML description exactly as provided by admin
+                                                return (
+                                                  <>
+                                                    <style>{`
                                                         .product-description-html {
                                                           color: #1e3a8a;
                                                           line-height: 1.6;
@@ -4901,817 +4956,1041 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                           margin-bottom: 0.125rem;
                                                         }
                                                       `}</style>
-                                                      <div
-                                                        className="product-description-html"
-                                                        dangerouslySetInnerHTML={{ __html: selectedProduct.description }}
-                                                      />
-                                                    </>
+                                                    <div
+                                                      className="product-description-html"
+                                                      dangerouslySetInnerHTML={{ __html: selectedProduct.description }}
+                                                    />
+                                                  </>
+                                                );
+                                              }
+                                            }
+
+                                            // Use descriptionArray if available, otherwise use description
+                                            if (selectedProduct.descriptionArray && Array.isArray(selectedProduct.descriptionArray) && selectedProduct.descriptionArray.length > 0) {
+                                              // Render descriptionArray with formatting
+                                              const renderTextWithBold = (text: string) => {
+                                                const parts = text.split(/(\*\*.*?\*\*)/g);
+                                                return parts.map((part, idx) => {
+                                                  if (part.startsWith('**') && part.endsWith('**')) {
+                                                    const boldText = part.slice(2, -2);
+                                                    return <strong key={idx} className="font-bold text-blue-900">{boldText}</strong>;
+                                                  }
+                                                  return <span key={idx}>{part}</span>;
+                                                });
+                                              };
+
+                                              // Ensure descriptionArray is displayed left to right (correct order)
+                                              // Reverse the array if it's stored in reverse order
+                                              const descriptionLines = [...selectedProduct.descriptionArray].reverse();
+                                              return descriptionLines.map((desc, i) => {
+                                                if (desc.includes(':')) {
+                                                  return (
+                                                    <div key={i} className="mt-1.5 first:mt-0">
+                                                      <p className="font-semibold text-blue-900 mb-1">
+                                                        {renderTextWithBold(desc)}
+                                                      </p>
+                                                    </div>
+                                                  );
+                                                } else if (desc.startsWith('→') || desc.startsWith('->') || desc.startsWith('•')) {
+                                                  const cleanDesc = desc.replace(/^[→•\-]+\s*/, '').trim();
+                                                  return (
+                                                    <p key={i} className="flex items-start leading-tight">
+                                                      <span className="mr-1.5 text-blue-600 mt-0.5">→</span>
+                                                      <span>{renderTextWithBold(cleanDesc)}</span>
+                                                    </p>
+                                                  );
+                                                } else {
+                                                  return (
+                                                    <p key={i} className="flex items-start leading-tight">
+                                                      <span className="mr-1.5 text-blue-600 mt-0.5">→</span>
+                                                      <span>{renderTextWithBold(desc)}</span>
+                                                    </p>
                                                   );
                                                 }
-                                              }
-
-                                              // Use descriptionArray if available, otherwise use description
-                                              if (selectedProduct.descriptionArray && Array.isArray(selectedProduct.descriptionArray) && selectedProduct.descriptionArray.length > 0) {
-                                                // Render descriptionArray with formatting
-                                                const renderTextWithBold = (text: string) => {
-                                                  const parts = text.split(/(\*\*.*?\*\*)/g);
-                                                  return parts.map((part, idx) => {
-                                                    if (part.startsWith('**') && part.endsWith('**')) {
-                                                      const boldText = part.slice(2, -2);
-                                                      return <strong key={idx} className="font-bold text-blue-900">{boldText}</strong>;
-                                                    }
-                                                    return <span key={idx}>{part}</span>;
-                                                  });
-                                                };
-
-                                                // Ensure descriptionArray is displayed left to right (correct order)
-                                                // Reverse the array if it's stored in reverse order
-                                                const descriptionLines = [...selectedProduct.descriptionArray].reverse();
-                                                return descriptionLines.map((desc, i) => {
-                                                  if (desc.includes(':')) {
-                                                    return (
-                                                      <div key={i} className="mt-1.5 first:mt-0">
-                                                        <p className="font-semibold text-blue-900 mb-1">
-                                                          {renderTextWithBold(desc)}
-                                                        </p>
-                                                      </div>
-                                                    );
-                                                  } else if (desc.startsWith('→') || desc.startsWith('->') || desc.startsWith('•')) {
-                                                    const cleanDesc = desc.replace(/^[→•\-]+\s*/, '').trim();
-                                                    return (
-                                                      <p key={i} className="flex items-start leading-tight">
-                                                        <span className="mr-1.5 text-blue-600 mt-0.5">→</span>
-                                                        <span>{renderTextWithBold(cleanDesc)}</span>
-                                                      </p>
-                                                    );
-                                                  } else {
-                                                    return (
-                                                      <p key={i} className="flex items-start leading-tight">
-                                                        <span className="mr-1.5 text-blue-600 mt-0.5">→</span>
-                                                        <span>{renderTextWithBold(desc)}</span>
-                                                      </p>
-                                                    );
+                                              });
+                                            } else if (selectedProduct.description) {
+                                              // Render plain text description with formatting (HTML already handled above)
+                                              const descriptionLines = selectedProduct.description.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+                                              const renderTextWithBold = (text: string) => {
+                                                const parts = text.split(/(\*\*.*?\*\*)/g);
+                                                return parts.map((part, idx) => {
+                                                  if (part.startsWith('**') && part.endsWith('**')) {
+                                                    const boldText = part.slice(2, -2);
+                                                    return <strong key={idx} className="font-bold text-blue-900">{boldText}</strong>;
                                                   }
+                                                  return <span key={idx}>{part}</span>;
                                                 });
-                                              } else if (selectedProduct.description) {
-                                                // Render plain text description with formatting (HTML already handled above)
-                                                const descriptionLines = selectedProduct.description.split('\n').map(line => line.trim()).filter(line => line.length > 0);
-                                                const renderTextWithBold = (text: string) => {
-                                                  const parts = text.split(/(\*\*.*?\*\*)/g);
-                                                  return parts.map((part, idx) => {
-                                                    if (part.startsWith('**') && part.endsWith('**')) {
-                                                      const boldText = part.slice(2, -2);
-                                                      return <strong key={idx} className="font-bold text-blue-900">{boldText}</strong>;
-                                                    }
-                                                    return <span key={idx}>{part}</span>;
-                                                  });
-                                                };
-                                                return descriptionLines.map((desc, i) => {
-                                                  if (desc.includes(':')) {
-                                                    return (
-                                                      <div key={i} className="mt-1.5 first:mt-0">
-                                                        <p className="font-semibold text-blue-900 mb-1">
-                                                          {renderTextWithBold(desc)}
-                                                        </p>
-                                                      </div>
-                                                    );
-                                                  } else if (desc.startsWith('→') || desc.startsWith('->') || desc.startsWith('•')) {
-                                                    const cleanDesc = desc.replace(/^[→•\-]+\s*/, '').trim();
-                                                    return (
-                                                      <p key={i} className="flex items-start leading-tight">
-                                                        <span className="mr-1.5 text-blue-600 mt-0.5">→</span>
-                                                        <span>{renderTextWithBold(cleanDesc)}</span>
+                                              };
+                                              return descriptionLines.map((desc, i) => {
+                                                if (desc.includes(':')) {
+                                                  return (
+                                                    <div key={i} className="mt-1.5 first:mt-0">
+                                                      <p className="font-semibold text-blue-900 mb-1">
+                                                        {renderTextWithBold(desc)}
                                                       </p>
-                                                    );
-                                                  } else {
-                                                    return (
-                                                      <p key={i} className="flex items-start leading-tight">
-                                                        <span className="mr-1.5 text-blue-600 mt-0.5">→</span>
-                                                        <span>{renderTextWithBold(desc)}</span>
-                                                      </p>
-                                                    );
-                                                  }
-                                                });
-                                              } else {
-                                                return <p className="text-blue-700 italic">No description available</p>;
-                                              }
-                                            })()}
-                                          </div>
+                                                    </div>
+                                                  );
+                                                } else if (desc.startsWith('→') || desc.startsWith('->') || desc.startsWith('•')) {
+                                                  const cleanDesc = desc.replace(/^[→•\-]+\s*/, '').trim();
+                                                  return (
+                                                    <p key={i} className="flex items-start leading-tight">
+                                                      <span className="mr-1.5 text-blue-600 mt-0.5">→</span>
+                                                      <span>{renderTextWithBold(cleanDesc)}</span>
+                                                    </p>
+                                                  );
+                                                } else {
+                                                  return (
+                                                    <p key={i} className="flex items-start leading-tight">
+                                                      <span className="mr-1.5 text-blue-600 mt-0.5">→</span>
+                                                      <span>{renderTextWithBold(desc)}</span>
+                                                    </p>
+                                                  );
+                                                }
+                                              });
+                                            } else {
+                                              return <p className="text-blue-700 italic">No description available</p>;
+                                            }
+                                          })()}
                                         </div>
-                                      </motion.div>
-                                    )}
-                                  </AnimatePresence>
+                                      </div>
+                                    </motion.div>
+                                  )}
+                                </AnimatePresence>
 
-                                  {/* Instructions Expandable Section */}
-                                  <AnimatePresence>
-                                    {isInstructionsOpen && (
-                                      <motion.div
-                                        initial={{ opacity: 0, height: 0 }}
-                                        animate={{ opacity: 1, height: "auto" }}
-                                        exit={{ opacity: 0, height: 0 }}
-                                        transition={{ duration: 0.3, ease: "easeInOut" }}
-                                        className="overflow-hidden"
-                                      >
-                                        <div className="mb-2 p-4 sm:p-6 bg-yellow-50 border border-yellow-200 rounded-lg">
-                                          <h4 className="text-sm font-bold text-yellow-900 mb-3 flex items-center gap-2">
-                                            <Info size={16} />
-                                            Important Instructions - Please Read Carefully
-                                          </h4>
+                                {/* Instructions Expandable Section */}
+                                <AnimatePresence>
+                                  {isInstructionsOpen && (
+                                    <motion.div
+                                      initial={{ opacity: 0, height: 0 }}
+                                      animate={{ opacity: 1, height: "auto" }}
+                                      exit={{ opacity: 0, height: 0 }}
+                                      transition={{ duration: 0.3, ease: "easeInOut" }}
+                                      className="overflow-hidden"
+                                    >
+                                      <div className="mb-2 p-4 sm:p-6 bg-yellow-50 border border-yellow-200 rounded-lg">
+                                        <h4 className="text-sm font-bold text-yellow-900 mb-3 flex items-center gap-2">
+                                          <Info size={16} />
+                                          Important Instructions - Please Read Carefully
+                                        </h4>
 
-                                          {/* Custom Instructions from Admin */}
-                                          {selectedProduct.instructions && (
-                                            <div className="mb-4 p-3 bg-red-50 border-2 border-red-300 rounded-lg">
-                                              <p className="text-xs font-bold text-red-900 mb-2 flex items-center gap-2">
-                                                <X size={14} className="text-red-600" />
-                                                CRITICAL: Company Not Responsible If Instructions Not Followed
-                                              </p>
-                                              <div className="text-xs sm:text-sm text-red-800 whitespace-pre-line">
-                                                {selectedProduct.instructions}
+                                        {/* Custom Instructions from Admin */}
+                                        {selectedProduct.instructions && (
+                                          <div className="mb-4 p-3 bg-red-50 border-2 border-red-300 rounded-lg">
+                                            <p className="text-xs font-bold text-red-900 mb-2 flex items-center gap-2">
+                                              <X size={14} className="text-red-600" />
+                                              CRITICAL: Company Not Responsible If Instructions Not Followed
+                                            </p>
+                                            <div className="text-xs sm:text-sm text-red-800 whitespace-pre-line">
+                                              {selectedProduct.instructions}
+                                            </div>
+                                          </div>
+                                        )}
+
+
+
+                                        <div className="space-y-3 text-xs sm:text-sm text-yellow-800">
+                                          {/* File Upload Constraints */}
+                                          {(selectedProduct.maxFileSizeMB || selectedProduct.minFileWidth || selectedProduct.maxFileWidth || selectedProduct.minFileHeight || selectedProduct.maxFileHeight || selectedProduct.blockCDRandJPG) && (
+                                            <div>
+                                              <p className="font-semibold text-yellow-900 mb-2">File Upload Requirements:</p>
+                                              <div className="space-y-1 ml-4">
+                                                {selectedProduct.maxFileSizeMB && (
+                                                  <p>• Maximum file size: <strong>{selectedProduct.maxFileSizeMB} MB</strong></p>
+                                                )}
+                                                {(selectedProduct.minFileWidth || selectedProduct.maxFileWidth || selectedProduct.minFileHeight || selectedProduct.maxFileHeight) && (
+                                                  <div>
+                                                    <p>• File dimensions:</p>
+                                                    <div className="ml-4 space-y-1">
+                                                      {(selectedProduct.minFileWidth || selectedProduct.maxFileWidth) && (
+                                                        <p>
+                                                          - Width: <strong>
+                                                            {selectedProduct.minFileWidth && selectedProduct.maxFileWidth
+                                                              ? `${selectedProduct.minFileWidth} - ${selectedProduct.maxFileWidth} pixels`
+                                                              : selectedProduct.minFileWidth
+                                                                ? `Minimum ${selectedProduct.minFileWidth} pixels`
+                                                                : selectedProduct.maxFileWidth
+                                                                  ? `Maximum ${selectedProduct.maxFileWidth} pixels`
+                                                                  : "Any"}
+                                                          </strong>
+                                                        </p>
+                                                      )}
+                                                      {(selectedProduct.minFileHeight || selectedProduct.maxFileHeight) && (
+                                                        <p>
+                                                          - Height: <strong>
+                                                            {selectedProduct.minFileHeight && selectedProduct.maxFileHeight
+                                                              ? `${selectedProduct.minFileHeight} - ${selectedProduct.maxFileHeight} pixels`
+                                                              : selectedProduct.minFileHeight
+                                                                ? `Minimum ${selectedProduct.minFileHeight} pixels`
+                                                                : selectedProduct.maxFileHeight
+                                                                  ? `Maximum ${selectedProduct.maxFileHeight} pixels`
+                                                                  : "Any"}
+                                                          </strong>
+                                                        </p>
+                                                      )}
+                                                    </div>
+                                                  </div>
+                                                )}
+                                                {selectedProduct.blockCDRandJPG && (
+                                                  <p>• <strong>CDR and JPG files are not accepted</strong> for this product</p>
+                                                )}
                                               </div>
                                             </div>
                                           )}
 
-
-
-                                          <div className="space-y-3 text-xs sm:text-sm text-yellow-800">
-                                            {/* File Upload Constraints */}
-                                            {(selectedProduct.maxFileSizeMB || selectedProduct.minFileWidth || selectedProduct.maxFileWidth || selectedProduct.minFileHeight || selectedProduct.maxFileHeight || selectedProduct.blockCDRandJPG) && (
-                                              <div>
-                                                <p className="font-semibold text-yellow-900 mb-2">File Upload Requirements:</p>
-                                                <div className="space-y-1 ml-4">
-                                                  {selectedProduct.maxFileSizeMB && (
-                                                    <p>• Maximum file size: <strong>{selectedProduct.maxFileSizeMB} MB</strong></p>
-                                                  )}
-                                                  {(selectedProduct.minFileWidth || selectedProduct.maxFileWidth || selectedProduct.minFileHeight || selectedProduct.maxFileHeight) && (
-                                                    <div>
-                                                      <p>• File dimensions:</p>
-                                                      <div className="ml-4 space-y-1">
-                                                        {(selectedProduct.minFileWidth || selectedProduct.maxFileWidth) && (
-                                                          <p>
-                                                            - Width: <strong>
-                                                              {selectedProduct.minFileWidth && selectedProduct.maxFileWidth
-                                                                ? `${selectedProduct.minFileWidth} - ${selectedProduct.maxFileWidth} pixels`
-                                                                : selectedProduct.minFileWidth
-                                                                  ? `Minimum ${selectedProduct.minFileWidth} pixels`
-                                                                  : selectedProduct.maxFileWidth
-                                                                    ? `Maximum ${selectedProduct.maxFileWidth} pixels`
-                                                                    : "Any"}
-                                                            </strong>
-                                                          </p>
-                                                        )}
-                                                        {(selectedProduct.minFileHeight || selectedProduct.maxFileHeight) && (
-                                                          <p>
-                                                            - Height: <strong>
-                                                              {selectedProduct.minFileHeight && selectedProduct.maxFileHeight
-                                                                ? `${selectedProduct.minFileHeight} - ${selectedProduct.maxFileHeight} pixels`
-                                                                : selectedProduct.minFileHeight
-                                                                  ? `Minimum ${selectedProduct.minFileHeight} pixels`
-                                                                  : selectedProduct.maxFileHeight
-                                                                    ? `Maximum ${selectedProduct.maxFileHeight} pixels`
-                                                                    : "Any"}
-                                                            </strong>
-                                                          </p>
-                                                        )}
-                                                      </div>
-                                                    </div>
-                                                  )}
-                                                  {selectedProduct.blockCDRandJPG && (
-                                                    <p>• <strong>CDR and JPG files are not accepted</strong> for this product</p>
-                                                  )}
-                                                </div>
+                                          {/* Additional Settings */}
+                                          {(selectedProduct.additionalDesignCharge || selectedProduct.gstPercentage) && (
+                                            <div>
+                                              <p className="font-semibold text-yellow-900 mb-2">Additional Charges:</p>
+                                              <div className="space-y-1 ml-4">
+                                                {selectedProduct.additionalDesignCharge && selectedProduct.additionalDesignCharge > 0 && (
+                                                  <p>• Additional Design Charge: <strong>₹{selectedProduct.additionalDesignCharge.toFixed(2)}</strong> (applied if design help is needed)</p>
+                                                )}
+                                                {selectedProduct.gstPercentage && selectedProduct.gstPercentage > 0 && (
+                                                  <p>• GST: <strong>{selectedProduct.gstPercentage}%</strong> (applied on subtotal + design charge)</p>
+                                                )}
                                               </div>
-                                            )}
+                                            </div>
+                                          )}
 
-                                            {/* Additional Settings */}
-                                            {(selectedProduct.additionalDesignCharge || selectedProduct.gstPercentage) && (
-                                              <div>
-                                                <p className="font-semibold text-yellow-900 mb-2">Additional Charges:</p>
-                                                <div className="space-y-1 ml-4">
-                                                  {selectedProduct.additionalDesignCharge && selectedProduct.additionalDesignCharge > 0 && (
-                                                    <p>• Additional Design Charge: <strong>₹{selectedProduct.additionalDesignCharge.toFixed(2)}</strong> (applied if design help is needed)</p>
-                                                  )}
-                                                  {selectedProduct.gstPercentage && selectedProduct.gstPercentage > 0 && (
-                                                    <p>• GST: <strong>{selectedProduct.gstPercentage}%</strong> (applied on subtotal + design charge)</p>
-                                                  )}
-                                                </div>
-                                              </div>
-                                            )}
-
-                                            {!selectedProduct.instructions && !selectedProduct.maxFileSizeMB && !selectedProduct.minFileWidth && !selectedProduct.maxFileWidth && !selectedProduct.minFileHeight && !selectedProduct.maxFileHeight && !selectedProduct.blockCDRandJPG && !selectedProduct.additionalDesignCharge && !selectedProduct.gstPercentage && (
-                                              <p className="text-yellow-700 italic">No special instructions for this product.</p>
-                                            )}
-                                          </div>
+                                          {!selectedProduct.instructions && !selectedProduct.maxFileSizeMB && !selectedProduct.minFileWidth && !selectedProduct.maxFileWidth && !selectedProduct.minFileHeight && !selectedProduct.maxFileHeight && !selectedProduct.blockCDRandJPG && !selectedProduct.additionalDesignCharge && !selectedProduct.gstPercentage && (
+                                            <p className="text-yellow-700 italic">No special instructions for this product.</p>
+                                          )}
                                         </div>
-                                      </motion.div>
-                                    )}
-                                  </AnimatePresence>
+                                      </div>
+                                    </motion.div>
+                                  )}
+                                </AnimatePresence>
 
-                                  {/* Specialization Expandable Section */}
-                                  <AnimatePresence>
-                                    {isSpecializationOpen && selectedProduct.specialization && (
-                                      <motion.div
-                                        initial={{ opacity: 0, height: 0 }}
-                                        animate={{ opacity: 1, height: "auto" }}
-                                        exit={{ opacity: 0, height: 0 }}
-                                        transition={{ duration: 0.3, ease: "easeInOut" }}
-                                        className="overflow-hidden"
-                                      >
-                                        <div className="mb-2 p-4 sm:p-6 bg-red-50 border border-red-200 rounded-lg">
-                                          <h4 className="text-sm font-bold text-red-900 mb-3 flex items-center gap-2">
-                                            <Info size={16} />
-                                            Product Specialization
-                                          </h4>
-                                          <div className="text-xs sm:text-sm text-red-800 whitespace-pre-line">
-                                            {selectedProduct.specialization}
-                                          </div>
+                                {/* Specialization Expandable Section */}
+                                <AnimatePresence>
+                                  {isSpecializationOpen && selectedProduct.specialization && (
+                                    <motion.div
+                                      initial={{ opacity: 0, height: 0 }}
+                                      animate={{ opacity: 1, height: "auto" }}
+                                      exit={{ opacity: 0, height: 0 }}
+                                      transition={{ duration: 0.3, ease: "easeInOut" }}
+                                      className="overflow-hidden"
+                                    >
+                                      <div className="mb-2 p-4 sm:p-6 bg-red-50 border border-red-200 rounded-lg">
+                                        <h4 className="text-sm font-bold text-red-900 mb-3 flex items-center gap-2">
+                                          <Info size={16} />
+                                          Product Specialization
+                                        </h4>
+                                        <div className="text-xs sm:text-sm text-red-800 whitespace-pre-line">
+                                          {selectedProduct.specialization}
                                         </div>
-                                      </motion.div>
-                                    )}
-                                  </AnimatePresence>
+                                      </div>
+                                    </motion.div>
+                                  )}
+                                </AnimatePresence>
+                              </div>
+                            </div>
+
+                          </div>
+                        </div>
+
+                        {(() => {
+                          // Granular Loading: Show Skeletons for Options/Attributes
+                          if (loading || pdpLoading) {
+                            return (
+                              <div className="space-y-6 mt-4">
+                                {/* Section 1 Skeleton */}
+                                <div className="space-y-3">
+                                  <Skeleton variant="text" className="w-32 h-4" />
+                                  <div className="grid grid-cols-2 gap-3">
+                                    {[1, 2, 3, 4].map(i => (
+                                      <Skeleton key={i} variant="rectangular" className="h-12 rounded-xl" />
+                                    ))}
+                                  </div>
+                                </div>
+
+                                {/* Section 2 Skeleton (Dropdowns) */}
+                                <div className="space-y-4">
+                                  <AttributeCardSkeleton />
+                                  <AttributeCardSkeleton />
+                                  <AttributeCardSkeleton />
+                                </div>
+
+                                {/* Quantity Skeleton */}
+                                <div className="space-y-3">
+                                  <Skeleton variant="text" className="w-40 h-4" />
+                                  <Skeleton variant="rectangular" className="h-12 rounded-lg" />
                                 </div>
                               </div>
+                            );
+                          }
 
-                            </div>
-                          </div>
+                          if (!selectedProduct) return null;
 
-                          {(() => {
-                            // Calculate section numbers dynamically based on visible sections
-                            let sectionNum = 1;
-                            const hasOptions = selectedProduct.options && selectedProduct.options.length > 0;
-                            const hasPrintingOption = selectedProduct.filters?.printingOption && selectedProduct.filters.printingOption.length > 0;
-                            const hasTextureType = selectedProduct.filters?.textureType && selectedProduct.filters.textureType.length > 0;
-                            const hasDeliverySpeed = selectedProduct.filters?.deliverySpeed && selectedProduct.filters.deliverySpeed.length > 0;
+                          // Calculate section numbers dynamically based on visible sections
+                          let sectionNum = 1;
+                          const hasOptions = selectedProduct.options && selectedProduct.options.length > 0;
+                          const hasPrintingOption = selectedProduct.filters?.printingOption && selectedProduct.filters.printingOption.length > 0;
+                          const hasTextureType = selectedProduct.filters?.textureType && selectedProduct.filters.textureType.length > 0;
+                          const hasDeliverySpeed = selectedProduct.filters?.deliverySpeed && selectedProduct.filters.deliverySpeed.length > 0;
 
-                            return (
-                              <>
-                                {/* Product Options (from options table) */}
-                                {hasOptions && (
-                                  <div className="mb-3 sm:mb-4">
-                                    <label className="block text-xs sm:text-sm font-bold text-gray-900 mb-2 sm:mb-3 uppercase tracking-wider">
-                                      {sectionNum++}. Product Options
-                                    </label>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
-                                      {selectedProduct.options.map((option: any, idx: number) => {
-                                        const isSelected = selectedProductOptions.includes(option.name);
-                                        return (
-                                          <button
-                                            key={idx}
-                                            type="button"
-                                            onClick={() => {
-                                              if (isSelected) {
-                                                setSelectedProductOptions(selectedProductOptions.filter(name => name !== option.name));
-                                              } else {
-                                                setSelectedProductOptions([...selectedProductOptions, option.name]);
-                                              }
-                                            }}
-                                            className={`p-4 rounded-xl border text-left transition-all duration-200 relative shadow-sm hover:shadow-md ${isSelected
-                                              ? "border-slate-800 bg-slate-50 text-slate-900 ring-1 ring-slate-800"
-                                              : "border-slate-200 text-slate-600 hover:border-slate-400 hover:bg-slate-50"
-                                              }`}
-                                          >
-                                            {isSelected && (
-                                              <div className="absolute top-2 right-2">
-                                                <Check size={18} className="text-slate-900" />
-                                              </div>
-                                            )}
-                                            <div className="font-bold text-sm mb-1">{option.name}</div>
-                                            {option.description && (
-                                              <p className="text-xs text-gray-600 mt-1">
-                                                {option.description}
-                                              </p>
-                                            )}
-                                            {option.priceAdd !== undefined && option.priceAdd !== 0 && (
-                                              <p className="text-xs text-gray-700 mt-1 font-medium">
-                                                {option.priceAdd > 0 ? '+' : ''}₹{typeof option.priceAdd === 'number' ? option.priceAdd.toFixed(2) : parseFloat(option.priceAdd).toFixed(2)} per 1000 units
-                                              </p>
-                                            )}
-                                            {option.image && (
-                                              <img
-                                                src={option.image}
-                                                alt={option.name}
-                                                className="w-full h-24 object-cover rounded-lg mt-2"
-                                              />
-                                            )}
-                                          </button>
-                                        );
-                                      })}
-                                    </div>
-                                  </div>
-                                )}
-
-                                {/* Printing Option - Auto-skip if only one option */}
-                                {hasPrintingOption && selectedProduct.filters.printingOption.length > 1 && (
-                                  <div className="mb-3 sm:mb-4" data-section="printingOption">
-                                    <label className="block text-xs sm:text-sm font-bold text-gray-900 mb-2 sm:mb-3 uppercase tracking-wider">
-                                      {sectionNum++}. Printing Option
-                                    </label>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
-                                      {selectedProduct.filters.printingOption.map((option) => {
-                                        // Check if filter prices are enabled and get price
-                                        const filterPricesEnabled = selectedProduct.filters?.filterPricesEnabled || false;
-                                        let priceInfo = null;
-                                        if (filterPricesEnabled && selectedProduct.filters?.printingOptionPrices) {
-                                          const priceData = selectedProduct.filters.printingOptionPrices.find((p: any) => p.name === option);
-                                          if (priceData && priceData.priceAdd !== undefined && priceData.priceAdd !== 0) {
-                                            priceInfo = priceData.priceAdd;
-                                          }
-                                        }
-
-                                        return (
-                                          <button
-                                            key={option}
-                                            data-field="printingOption"
-                                            onClick={() => setSelectedPrintingOption(option)}
-                                            className={`p-4 rounded-xl border text-left transition-all duration-200 relative shadow-sm hover:shadow-md ${selectedPrintingOption === option
-                                              ? "border-blue-500 bg-blue-50/50 text-blue-900 ring-1 ring-blue-500"
-                                              : "border-slate-200 text-slate-600 hover:border-blue-300 hover:bg-blue-50/30"
-                                              }`}
-                                          >
-                                            {selectedPrintingOption === option && (
-                                              <div className="absolute top-2 right-2">
-                                                <Check size={18} className="text-blue-600" />
-                                              </div>
-                                            )}
-                                            <div className="font-bold text-sm">{option}</div>
-                                            {priceInfo !== null && (
-                                              <div className="text-xs text-gray-600 mt-1">
-                                                {priceInfo > 0 ? '+' : ''}₹{Math.abs(priceInfo).toFixed(2)} per 1000 units
-                                              </div>
-                                            )}
-                                          </button>
-                                        );
-                                      })}
-                                    </div>
-                                  </div>
-                                )}
-
-                                {/* Texture Type (if applicable) - Auto-skip if only one option */}
-                                {hasTextureType && selectedProduct.filters.textureType.length > 1 && (
-                                  <div className="mb-3 sm:mb-4">
-                                    <label className="block text-xs sm:text-sm font-bold text-gray-900 mb-2 sm:mb-3 uppercase tracking-wider">
-                                      {sectionNum++}. Texture Type
-                                    </label>
-                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
-                                      {selectedProduct.filters.textureType.map((texture) => {
-                                        // Check if filter prices are enabled and get price
-                                        const filterPricesEnabled = selectedProduct.filters?.filterPricesEnabled || false;
-                                        let priceInfo = null;
-                                        if (filterPricesEnabled && selectedProduct.filters?.textureTypePrices) {
-                                          const priceData = selectedProduct.filters.textureTypePrices.find((p: any) => p.name === texture);
-                                          if (priceData && priceData.priceAdd !== undefined && priceData.priceAdd !== 0) {
-                                            priceInfo = priceData.priceAdd;
-                                          }
-                                        }
-
-                                        return (
-                                          <button
-                                            key={texture}
-                                            onClick={() => setSelectedTextureType(texture)}
-                                            className={`p-3 rounded-xl border text-xs sm:text-sm font-medium transition-all duration-200 relative shadow-sm hover:shadow-md ${selectedTextureType === texture
-                                              ? "border-purple-500 bg-purple-50/50 text-purple-900 ring-1 ring-purple-500"
-                                              : "border-slate-200 text-slate-600 hover:border-purple-300 hover:bg-purple-50/30"
-                                              }`}
-                                          >
-                                            {selectedTextureType === texture && (
-                                              <div className="absolute top-1 right-1">
-                                                <Check size={16} className="text-purple-600" />
-                                              </div>
-                                            )}
-                                            <div>{texture}</div>
-                                            {priceInfo !== null && (selectedProduct.showAttributePrices !== false) && (
-                                              <div className="text-xs text-gray-600 mt-1">
-                                                {priceInfo > 0 ? '+' : ''}₹{Math.abs(priceInfo).toFixed(2)}/1k
-                                              </div>
-                                            )}
-                                          </button>
-                                        );
-                                      })}
-                                    </div>
-                                  </div>
-                                )}
-
-                                {/* Delivery Speed - Auto-skip if only one option */}
-                                {hasDeliverySpeed && selectedProduct.filters.deliverySpeed.length > 1 && (
-                                  <div className="mb-3 sm:mb-4" data-section="deliverySpeed">
-                                    <label className="block text-xs sm:text-sm font-bold text-gray-900 mb-2 sm:mb-3 uppercase tracking-wider">
-                                      {sectionNum++}. Delivery Speed
-                                    </label>
-                                    <div className="grid grid-cols-2 gap-2 sm:gap-3">
-                                      {selectedProduct.filters.deliverySpeed.map((speed) => {
-                                        // Check if filter prices are enabled and get price
-                                        const filterPricesEnabled = selectedProduct.filters?.filterPricesEnabled || false;
-                                        let priceInfo = null;
-                                        if (filterPricesEnabled && selectedProduct.filters?.deliverySpeedPrices) {
-                                          const priceData = selectedProduct.filters.deliverySpeedPrices.find((p: any) => p.name === speed);
-                                          if (priceData && priceData.priceAdd !== undefined && priceData.priceAdd !== 0) {
-                                            priceInfo = priceData.priceAdd;
-                                          }
-                                        }
-
-                                        return (
-                                          <button
-                                            key={speed}
-                                            data-field="deliverySpeed"
-                                            onClick={() => setSelectedDeliverySpeed(speed)}
-                                            className={`p-4 rounded-xl border text-left transition-all duration-200 relative shadow-sm hover:shadow-md ${selectedDeliverySpeed === speed
-                                              ? "border-emerald-500 bg-emerald-50/50 text-emerald-900 ring-1 ring-emerald-500"
-                                              : "border-slate-200 text-slate-600 hover:border-emerald-300 hover:bg-emerald-50/30"
-                                              }`}
-                                          >
-                                            {selectedDeliverySpeed === speed && (
-                                              <div className="absolute top-2 right-2">
-                                                <Check size={18} className="text-emerald-600" />
-                                              </div>
-                                            )}
-                                            <div className="font-bold text-sm">{speed}</div>
-                                            {priceInfo !== null && (selectedProduct.showAttributePrices !== false) && (
-                                              <div className="text-xs text-gray-600 mt-1">
-                                                {priceInfo > 0 ? '+' : ''}₹{Math.abs(priceInfo).toFixed(2)} per 1000 units
-                                              </div>
-                                            )}
-                                          </button>
-                                        );
-                                      })}
-                                    </div>
-                                  </div>
-                                )}
-
-                                {/* Quantity Selection */}
-                                <div className="mb-3 sm:mb-4" data-section="quantity">
-                                  <div className="flex items-center gap-4">
-                                    <label className="text-xs sm:text-sm font-bold text-gray-900 uppercase tracking-wider shrink-0" style={{ minWidth: '200px' }}>
-                                      {sectionNum++}. Select Quantity
-                                    </label>
-                                    <div className="flex-1">
-                                      <Select
-                                        options={generateQuantities(selectedProduct).map((q) => ({
-                                          value: q,
-                                          label: q.toLocaleString()
-                                        }))}
-                                        value={quantity}
-                                        onValueChange={(value) => setQuantity(Number(value))}
-                                        placeholder="Select quantity"
-                                        className="w-full"
-                                        colorTheme="amber"
-                                      />
-                                    </div>
-                                  </div>
-
-                                  {(() => {
-                                    // PRIORITY 1: Check if active quantity constraints from rules exist
-                                    if (activeQuantityConstraints) {
-                                      const { min, max, step } = activeQuantityConstraints;
+                          return (
+                            <>
+                              {/* Product Options (from options table) */}
+                              {hasOptions && (
+                                <div className="mb-3 sm:mb-4">
+                                  <label className="block text-xs sm:text-sm font-bold text-gray-900 mb-2 sm:mb-3 uppercase tracking-wider">
+                                    {sectionNum++}. Product Options
+                                  </label>
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
+                                    {selectedProduct.options.map((option: any, idx: number) => {
+                                      const isSelected = selectedProductOptions.includes(option.name);
                                       return (
-                                        <div className="text-xs sm:text-sm text-gray-600 mb-2">
-                                          <span className="font-medium">Quantity Rules Applied:</span> Min: {min.toLocaleString()}, Max: {max.toLocaleString()}, Step: {step.toLocaleString()}
-                                        </div>
-                                      );
-                                    }
-
-                                    // PRIORITY 2: Check if any selected attribute has step/range quantity settings
-                                    let attributeQuantityInfo: any = null;
-                                    let attributeName = '';
-
-                                    // Check PDP attributes first (if initialized)
-                                    if (isInitialized && pdpAttributes.length > 0) {
-                                      for (const attr of pdpAttributes) {
-                                        if (!attr.isVisible) continue;
-
-                                        const selectedValue = selectedDynamicAttributes[attr._id];
-                                        if (!selectedValue) continue;
-
-                                        // Check if this attribute has step/range quantity settings
-                                        if ((attr as any).isStepQuantity && (attr as any).stepQuantities && (attr as any).stepQuantities.length > 0) {
-                                          attributeQuantityInfo = {
-                                            type: 'STEP_WISE',
-                                            stepQuantities: (attr as any).stepQuantities
-                                          };
-                                          attributeName = attr.attributeName;
-                                          break;
-                                        }
-
-                                        if ((attr as any).isRangeQuantity && (attr as any).rangeQuantities && (attr as any).rangeQuantities.length > 0) {
-                                          attributeQuantityInfo = {
-                                            type: 'RANGE_WISE',
-                                            rangeQuantities: (attr as any).rangeQuantities
-                                          };
-                                          attributeName = attr.attributeName;
-                                          break;
-                                        }
-                                      }
-                                    }
-
-                                    // Fallback to product attributes if PDP not available
-                                    if (!attributeQuantityInfo && selectedProduct && selectedProduct.dynamicAttributes) {
-                                      for (const attr of selectedProduct.dynamicAttributes) {
-                                        if (!attr.isEnabled) continue;
-
-                                        const attrType = typeof attr.attributeType === 'object' ? attr.attributeType : null;
-                                        if (!attrType) continue;
-
-                                        const selectedValue = selectedDynamicAttributes[attrType._id];
-                                        if (!selectedValue) continue;
-
-                                        // Check if this attribute has step/range quantity settings
-                                        if ((attrType as any).isStepQuantity && (attrType as any).stepQuantities && (attrType as any).stepQuantities.length > 0) {
-                                          attributeQuantityInfo = {
-                                            type: 'STEP_WISE',
-                                            stepQuantities: (attrType as any).stepQuantities
-                                          };
-                                          attributeName = attrType.attributeName;
-                                          break;
-                                        }
-
-                                        if ((attrType as any).isRangeQuantity && (attrType as any).rangeQuantities && (attrType as any).rangeQuantities.length > 0) {
-                                          attributeQuantityInfo = {
-                                            type: 'RANGE_WISE',
-                                            rangeQuantities: (attrType as any).rangeQuantities
-                                          };
-                                          attributeName = attrType.attributeName;
-                                          break;
-                                        }
-                                      }
-                                    }
-
-                                    // If attribute has quantity settings, use those
-                                    if (attributeQuantityInfo) {
-                                      if (attributeQuantityInfo.type === 'STEP_WISE') {
-                                        const stepQuantities = attributeQuantityInfo.stepQuantities
-                                          .map((step: any) => {
-                                            const qty = typeof step === 'object' ? parseFloat(step.quantity) : parseFloat(step);
-                                            return isNaN(qty) ? 0 : qty;
-                                          })
-                                          .filter((qty: number) => qty > 0)
-                                          .sort((a: number, b: number) => a - b);
-
-                                        return (
-                                          <div className="text-xs sm:text-sm text-gray-600 mb-2">
-                                            <span className="font-medium">{attributeName}:</span> Available quantities: {stepQuantities.map(q => q.toLocaleString()).join(", ")}
-                                          </div>
-                                        );
-                                      } else if (attributeQuantityInfo.type === 'RANGE_WISE') {
-                                        return (
-                                          <div className="text-xs sm:text-sm text-gray-600 mb-2 space-y-1">
-                                            <div className="font-medium mb-1">{attributeName}:</div>
-                                            {attributeQuantityInfo.rangeQuantities.map((range: any, idx: number) => {
-                                              const min = typeof range === 'object' ? parseFloat(range.min) : 0;
-                                              const max = typeof range === 'object' && range.max ? parseFloat(range.max) : null;
-                                              const price = typeof range === 'object' ? parseFloat(range.price) : 0;
-
-                                              return (
-                                                <div key={idx}>
-                                                  {range.label || `${min.toLocaleString()}${max ? ` - ${max.toLocaleString()}` : "+"} units`}
-                                                  {price > 0 && (selectedProduct.showAttributePrices !== false) && (
-                                                    <span className="ml-2 text-green-600">
-                                                      (₹{price.toFixed(2)})
-                                                    </span>
-                                                  )}
-                                                </div>
-                                              );
-                                            })}
-                                          </div>
-                                        );
-                                      }
-                                    }
-
-                                    // Fallback to product's quantity configuration
-                                    const orderQuantity = selectedProduct.filters.orderQuantity;
-                                    const quantityType = orderQuantity.quantityType || "SIMPLE";
-
-                                    if (quantityType === "STEP_WISE" && orderQuantity.stepWiseQuantities && orderQuantity.stepWiseQuantities.length > 0) {
-                                      return (
-                                        <div className="text-xs sm:text-sm text-gray-600 mb-2">
-                                          Available quantities: {orderQuantity.stepWiseQuantities.sort((a, b) => a - b).map(q => q.toLocaleString()).join(", ")}
-                                        </div>
-                                      );
-                                    } else if (quantityType === "RANGE_WISE" && orderQuantity.rangeWiseQuantities && orderQuantity.rangeWiseQuantities.length > 0) {
-                                      return (
-                                        <div className="text-xs sm:text-sm text-gray-600 mb-2 space-y-1">
-                                          {orderQuantity.rangeWiseQuantities.map((range, idx) => (
-                                            <div key={idx}>
-                                              {range.label || `${range.min.toLocaleString()}${range.max ? ` - ${range.max.toLocaleString()}` : "+"} units`}
-                                              {range.priceMultiplier !== 1.0 && (selectedProduct.showAttributePrices !== false) && (
-                                                <span className="ml-2 text-green-600">
-                                                  ({range.priceMultiplier > 1 ? "+" : ""}{((range.priceMultiplier - 1) * 100).toFixed(0)}% price)
-                                                </span>
-                                              )}
+                                        <button
+                                          key={idx}
+                                          type="button"
+                                          onClick={() => {
+                                            if (isSelected) {
+                                              setSelectedProductOptions(selectedProductOptions.filter(name => name !== option.name));
+                                            } else {
+                                              setSelectedProductOptions([...selectedProductOptions, option.name]);
+                                            }
+                                          }}
+                                          className={`p-4 rounded-xl border text-left transition-all duration-200 relative shadow-sm hover:shadow-md ${isSelected
+                                            ? "border-slate-800 bg-slate-50 text-slate-900 ring-1 ring-slate-800"
+                                            : "border-slate-200 text-slate-600 hover:border-slate-400 hover:bg-slate-50"
+                                            }`}
+                                        >
+                                          {isSelected && (
+                                            <div className="absolute top-2 right-2">
+                                              <Check size={18} className="text-slate-900" />
                                             </div>
-                                          ))}
-                                        </div>
-                                      );
-                                    } else {
-                                      return (
-                                        <></>
-                                      );
-                                    }
-                                  })()}
-                                  {appliedDiscount !== null && appliedDiscount > 0 && (
-                                    <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded-lg">
-                                      <p className="text-xs sm:text-sm text-green-800 font-medium">
-                                        🎉 You're saving {appliedDiscount}% on this order! (Bulk discount applied)
-                                      </p>
-                                    </div>
-                                  )}
-                                  {selectedProduct.quantityDiscounts && selectedProduct.quantityDiscounts.length > 0 && (
-                                    <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                                      <p className="text-xs font-medium text-blue-900 mb-2">Available Quantity Discounts:</p>
-                                      <div className="space-y-1">
-                                        {selectedProduct.quantityDiscounts.map((discount: any, idx: number) => {
-                                          const minQty = discount.minQuantity || 0;
-                                          const maxQty = discount.maxQuantity;
-                                          const discountPct = discount.discountPercentage || 0;
-                                          const range = maxQty
-                                            ? `${minQty.toLocaleString()} - ${maxQty.toLocaleString()} units`
-                                            : `${minQty.toLocaleString()}+ units`;
-                                          return (
-                                            <p key={idx} className="text-xs text-blue-800">
-                                              • {range}: <strong>{discountPct}% off</strong>
+                                          )}
+                                          <div className="font-bold text-sm mb-1">{option.name}</div>
+                                          {option.description && (
+                                            <p className="text-xs text-gray-600 mt-1">
+                                              {option.description}
                                             </p>
-                                          );
-                                        })}
-                                      </div>
-                                    </div>
-                                  )}
+                                          )}
+                                          {option.priceAdd !== undefined && option.priceAdd !== 0 && (
+                                            <p className="text-xs text-gray-700 mt-1 font-medium">
+                                              {option.priceAdd > 0 ? '+' : ''}₹{typeof option.priceAdd === 'number' ? option.priceAdd.toFixed(2) : parseFloat(option.priceAdd).toFixed(2)} per 1000 units
+                                            </p>
+                                          )}
+                                          {option.image && (
+                                            <LazyImage
+                                              src={option.image}
+                                              alt={option.name}
+                                              className="w-full h-full object-cover transition-transform duration-200 hover:scale-105 rounded-lg mt-2"
+                                              showSkeleton={true}
+                                              skeletonVariant="rectangular"
+                                            />
+                                          )}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Printing Option - Auto-skip if only one option */}
+                              {hasPrintingOption && selectedProduct.filters.printingOption.length > 1 && (
+                                <div className="mb-3 sm:mb-4" data-section="printingOption">
+                                  <label className="block text-xs sm:text-sm font-bold text-gray-900 mb-2 sm:mb-3 uppercase tracking-wider">
+                                    {sectionNum++}. Printing Option
+                                  </label>
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
+                                    {selectedProduct.filters.printingOption.map((option) => {
+                                      // Check if filter prices are enabled and get price
+                                      const filterPricesEnabled = selectedProduct.filters?.filterPricesEnabled || false;
+                                      let priceInfo = null;
+                                      if (filterPricesEnabled && selectedProduct.filters?.printingOptionPrices) {
+                                        const priceData = selectedProduct.filters.printingOptionPrices.find((p: any) => p.name === option);
+                                        if (priceData && priceData.priceAdd !== undefined && priceData.priceAdd !== 0) {
+                                          priceInfo = priceData.priceAdd;
+                                        }
+                                      }
+
+                                      return (
+                                        <button
+                                          key={option}
+                                          data-field="printingOption"
+                                          onClick={() => setSelectedPrintingOption(option)}
+                                          className={`p-4 rounded-xl border text-left transition-all duration-200 relative shadow-sm hover:shadow-md ${selectedPrintingOption === option
+                                            ? "border-blue-500 bg-blue-50/50 text-blue-900 ring-1 ring-blue-500"
+                                            : "border-slate-200 text-slate-600 hover:border-blue-300 hover:bg-blue-50/30"
+                                            }`}
+                                        >
+                                          {selectedPrintingOption === option && (
+                                            <div className="absolute top-2 right-2">
+                                              <Check size={18} className="text-blue-600" />
+                                            </div>
+                                          )}
+                                          <div className="font-bold text-sm">{option}</div>
+                                          {priceInfo !== null && (
+                                            <div className="text-xs text-gray-600 mt-1">
+                                              {priceInfo > 0 ? '+' : ''}₹{Math.abs(priceInfo).toFixed(2)} per 1000 units
+                                            </div>
+                                          )}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Texture Type (if applicable) - Auto-skip if only one option */}
+                              {hasTextureType && selectedProduct.filters.textureType.length > 1 && (
+                                <div className="mb-3 sm:mb-4">
+                                  <label className="block text-xs sm:text-sm font-bold text-gray-900 mb-2 sm:mb-3 uppercase tracking-wider">
+                                    {sectionNum++}. Texture Type
+                                  </label>
+                                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+                                    {selectedProduct.filters.textureType.map((texture) => {
+                                      // Check if filter prices are enabled and get price
+                                      const filterPricesEnabled = selectedProduct.filters?.filterPricesEnabled || false;
+                                      let priceInfo = null;
+                                      if (filterPricesEnabled && selectedProduct.filters?.textureTypePrices) {
+                                        const priceData = selectedProduct.filters.textureTypePrices.find((p: any) => p.name === texture);
+                                        if (priceData && priceData.priceAdd !== undefined && priceData.priceAdd !== 0) {
+                                          priceInfo = priceData.priceAdd;
+                                        }
+                                      }
+
+                                      return (
+                                        <button
+                                          key={texture}
+                                          onClick={() => setSelectedTextureType(texture)}
+                                          className={`p-3 rounded-xl border text-xs sm:text-sm font-medium transition-all duration-200 relative shadow-sm hover:shadow-md ${selectedTextureType === texture
+                                            ? "border-purple-500 bg-purple-50/50 text-purple-900 ring-1 ring-purple-500"
+                                            : "border-slate-200 text-slate-600 hover:border-purple-300 hover:bg-purple-50/30"
+                                            }`}
+                                        >
+                                          {selectedTextureType === texture && (
+                                            <div className="absolute top-1 right-1">
+                                              <Check size={16} className="text-purple-600" />
+                                            </div>
+                                          )}
+                                          <div>{texture}</div>
+                                          {priceInfo !== null && (selectedProduct.showAttributePrices !== false) && (
+                                            <div className="text-xs text-gray-600 mt-1">
+                                              {priceInfo > 0 ? '+' : ''}₹{Math.abs(priceInfo).toFixed(2)}/1k
+                                            </div>
+                                          )}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Delivery Speed - Auto-skip if only one option */}
+                              {hasDeliverySpeed && selectedProduct.filters.deliverySpeed.length > 1 && (
+                                <div className="mb-3 sm:mb-4" data-section="deliverySpeed">
+                                  <label className="block text-xs sm:text-sm font-bold text-gray-900 mb-2 sm:mb-3 uppercase tracking-wider">
+                                    {sectionNum++}. Delivery Speed
+                                  </label>
+                                  <div className="grid grid-cols-2 gap-2 sm:gap-3">
+                                    {selectedProduct.filters.deliverySpeed.map((speed) => {
+                                      // Check if filter prices are enabled and get price
+                                      const filterPricesEnabled = selectedProduct.filters?.filterPricesEnabled || false;
+                                      let priceInfo = null;
+                                      if (filterPricesEnabled && selectedProduct.filters?.deliverySpeedPrices) {
+                                        const priceData = selectedProduct.filters.deliverySpeedPrices.find((p: any) => p.name === speed);
+                                        if (priceData && priceData.priceAdd !== undefined && priceData.priceAdd !== 0) {
+                                          priceInfo = priceData.priceAdd;
+                                        }
+                                      }
+
+                                      return (
+                                        <button
+                                          key={speed}
+                                          data-field="deliverySpeed"
+                                          onClick={() => setSelectedDeliverySpeed(speed)}
+                                          className={`p-4 rounded-xl border text-left transition-all duration-200 relative shadow-sm hover:shadow-md ${selectedDeliverySpeed === speed
+                                            ? "border-emerald-500 bg-emerald-50/50 text-emerald-900 ring-1 ring-emerald-500"
+                                            : "border-slate-200 text-slate-600 hover:border-emerald-300 hover:bg-emerald-50/30"
+                                            }`}
+                                        >
+                                          {selectedDeliverySpeed === speed && (
+                                            <div className="absolute top-2 right-2">
+                                              <Check size={18} className="text-emerald-600" />
+                                            </div>
+                                          )}
+                                          <div className="font-bold text-sm">{speed}</div>
+                                          {priceInfo !== null && (selectedProduct.showAttributePrices !== false) && (
+                                            <div className="text-xs text-gray-600 mt-1">
+                                              {priceInfo > 0 ? '+' : ''}₹{Math.abs(priceInfo).toFixed(2)} per 1000 units
+                                            </div>
+                                          )}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Quantity Selection */}
+                              <div className="mb-3 sm:mb-4" data-section="quantity">
+                                <div className="flex items-center gap-4">
+                                  <label className="text-xs sm:text-sm font-bold text-gray-900 uppercase tracking-wider shrink-0" style={{ minWidth: '200px' }}>
+                                    {sectionNum++}. Select Quantity
+                                  </label>
+                                  <div className="flex-1">
+                                    <Select
+                                      options={generateQuantities(selectedProduct).map((q) => ({
+                                        value: q,
+                                        label: q.toLocaleString()
+                                      }))}
+                                      value={quantity}
+                                      onValueChange={(value) => setQuantity(Number(value))}
+                                      placeholder="Select quantity"
+                                      className="w-full"
+                                      colorTheme="amber"
+                                    />
+                                  </div>
                                 </div>
 
-                                {/* Dynamic Attributes */}
                                 {(() => {
-                                  // Use PDP attributes with rule evaluation if available, otherwise fallback to product attributes
-                                  let attributesToRender: any[] = [];
-
-                                  if (isInitialized && pdpAttributes.length > 0) {
-                                    // Apply rules to get evaluated attributes
-                                    const ruleResult = applyAttributeRules({
-                                      attributes: pdpAttributes,
-                                      rules: pdpRules,
-                                      selectedValues: { ...selectedDynamicAttributes } as Record<string, string | number | boolean | File | any[] | null>,
-                                    });
-
-                                    // Filter to only visible attributes
-                                    attributesToRender = ruleResult.attributes
-                                      .filter((attr) => attr.isVisible)
-                                      .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
-                                  } else if (selectedProduct.dynamicAttributes) {
-                                    // Fallback to product attributes
-                                    attributesToRender = selectedProduct.dynamicAttributes
-                                      .filter((attr) => attr.isEnabled)
-                                      .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+                                  // PRIORITY 1: Check if active quantity constraints from rules exist
+                                  if (activeQuantityConstraints) {
+                                    const { min, max, step } = activeQuantityConstraints;
+                                    return (
+                                      <div className="text-xs sm:text-sm text-gray-600 mb-2">
+                                        <span className="font-medium">Quantity Rules Applied:</span> Min: {min.toLocaleString()}, Max: {max.toLocaleString()}, Step: {step.toLocaleString()}
+                                      </div>
+                                    );
                                   }
 
-                                  return attributesToRender.length > 0 ? (
-                                    <>
-                                      {attributesToRender.map((attr) => {
-                                        // Handle PDP attributes (already evaluated) vs product attributes
-                                        let attrType: any = null;
-                                        let attributeValues: any[] = [];
-                                        let attrId: string = '';
-                                        let isRequired: boolean = false;
-                                        let displayOrder: number = 0;
-                                        let showPrice: boolean = true;
+                                  // PRIORITY 2: Check if any selected attribute has step/range quantity settings
+                                  let attributeQuantityInfo: any = null;
+                                  let attributeName = '';
 
-                                        if (isInitialized && pdpAttributes.length > 0) {
-                                          // PDP attribute structure
-                                          attrId = attr._id;
-                                          isRequired = attr.isRequired || false;
-                                          displayOrder = attr.displayOrder || 0;
-                                          showPrice = attr.showPrice !== undefined ? attr.showPrice : true;
-                                          console.log(`🔍 Attribute "${attr.attributeName}" showPrice:`, attr.showPrice, '-> final:', showPrice);
-                                          attributeValues = (attr.allowedValues && attr.allowedValues.length > 0)
-                                            ? (attr.attributeValues || []).filter((av: any) => attr.allowedValues!.includes(av.value))
-                                            : (attr.attributeValues || []);
+                                  // Check PDP attributes first (if initialized)
+                                  if (isInitialized && pdpAttributes.length > 0) {
+                                    for (const attr of pdpAttributes) {
+                                      if (!attr.isVisible) continue;
 
-                                          // Build attrType-like structure for compatibility
-                                          attrType = {
-                                            _id: attr._id,
-                                            attributeName: attr.attributeName,
-                                            inputStyle: attr.inputStyle,
-                                            attributeValues: attributeValues,
-                                            defaultValue: attr.defaultValue,
-                                          };
-                                        } else {
-                                          // Legacy product attribute structure
-                                          if (typeof attr.attributeType === 'object' && attr.attributeType !== null) {
-                                            attrType = attr.attributeType;
-                                            attrId = attrType._id;
-                                          } else if (typeof attr.attributeType === 'string' && attr.attributeType.trim() !== '') {
-                                            return null;
-                                          }
+                                      const selectedValue = selectedDynamicAttributes[attr._id];
+                                      if (!selectedValue) continue;
 
-                                          if (!attrType || !attrType._id) {
-                                            return null;
-                                          }
+                                      // Check if this attribute has step/range quantity settings
+                                      if ((attr as any).isStepQuantity && (attr as any).stepQuantities && (attr as any).stepQuantities.length > 0) {
+                                        attributeQuantityInfo = {
+                                          type: 'STEP_WISE',
+                                          stepQuantities: (attr as any).stepQuantities
+                                        };
+                                        attributeName = attr.attributeName;
+                                        break;
+                                      }
 
-                                          attrId = attrType._id;
-                                          isRequired = attr.isRequired || false;
-                                          displayOrder = attr.displayOrder || 0;
-                                          showPrice = attr.showPrice !== undefined ? attr.showPrice : true;
-                                          console.log(`🔍 Legacy Attribute "${attrType.attributeName}" showPrice:`, attr.showPrice, '-> final:', showPrice);
-                                          attributeValues = attr.customValues && attr.customValues.length > 0
-                                            ? attr.customValues
-                                            : attrType.attributeValues || [];
-                                        }
+                                      if ((attr as any).isRangeQuantity && (attr as any).rangeQuantities && (attr as any).rangeQuantities.length > 0) {
+                                        attributeQuantityInfo = {
+                                          type: 'RANGE_WISE',
+                                          rangeQuantities: (attr as any).rangeQuantities
+                                        };
+                                        attributeName = attr.attributeName;
+                                        break;
+                                      }
+                                    }
+                                  }
 
-                                        // For DROPDOWN, RADIO, and POPUP input styles, we need at least 2 options to display
-                                        // For TEXT, NUMBER, FILE_UPLOAD, and other input styles, we can display even with 0 or 1 values
-                                        const requiresMultipleOptions = ['DROPDOWN', 'RADIO', 'POPUP'].includes(attrType.inputStyle);
+                                  // Fallback to product attributes if PDP not available
+                                  if (!attributeQuantityInfo && selectedProduct && selectedProduct.dynamicAttributes) {
+                                    for (const attr of selectedProduct.dynamicAttributes) {
+                                      if (!attr.isEnabled) continue;
 
-                                        if (requiresMultipleOptions) {
-                                          // For dropdown/radio/popup, need at least 2 options
-                                          if (attributeValues.length < 1) {
+                                      const attrType = typeof attr.attributeType === 'object' ? attr.attributeType : null;
+                                      if (!attrType) continue;
+
+                                      const selectedValue = selectedDynamicAttributes[attrType._id];
+                                      if (!selectedValue) continue;
+
+                                      // Check if this attribute has step/range quantity settings
+                                      if ((attrType as any).isStepQuantity && (attrType as any).stepQuantities && (attrType as any).stepQuantities.length > 0) {
+                                        attributeQuantityInfo = {
+                                          type: 'STEP_WISE',
+                                          stepQuantities: (attrType as any).stepQuantities
+                                        };
+                                        attributeName = attrType.attributeName;
+                                        break;
+                                      }
+
+                                      if ((attrType as any).isRangeQuantity && (attrType as any).rangeQuantities && (attrType as any).rangeQuantities.length > 0) {
+                                        attributeQuantityInfo = {
+                                          type: 'RANGE_WISE',
+                                          rangeQuantities: (attrType as any).rangeQuantities
+                                        };
+                                        attributeName = attrType.attributeName;
+                                        break;
+                                      }
+                                    }
+                                  }
+
+                                  // If attribute has quantity settings, use those
+                                  if (attributeQuantityInfo) {
+                                    if (attributeQuantityInfo.type === 'STEP_WISE') {
+                                      const stepQuantities = attributeQuantityInfo.stepQuantities
+                                        .map((step: any) => {
+                                          const qty = typeof step === 'object' ? parseFloat(step.quantity) : parseFloat(step);
+                                          return isNaN(qty) ? 0 : qty;
+                                        })
+                                        .filter((qty: number) => qty > 0)
+                                        .sort((a: number, b: number) => a - b);
+
+                                      return (
+                                        <div className="text-xs sm:text-sm text-gray-600 mb-2">
+                                          <span className="font-medium">{attributeName}:</span> Available quantities: {stepQuantities.map(q => q.toLocaleString()).join(", ")}
+                                        </div>
+                                      );
+                                    } else if (attributeQuantityInfo.type === 'RANGE_WISE') {
+                                      return (
+                                        <div className="text-xs sm:text-sm text-gray-600 mb-2 space-y-1">
+                                          <div className="font-medium mb-1">{attributeName}:</div>
+                                          {attributeQuantityInfo.rangeQuantities.map((range: any, idx: number) => {
+                                            const min = typeof range === 'object' ? parseFloat(range.min) : 0;
+                                            const max = typeof range === 'object' && range.max ? parseFloat(range.max) : null;
+                                            const price = typeof range === 'object' ? parseFloat(range.price) : 0;
+
                                             return (
-                                              <div key={attrId} className="mb-3 sm:mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                                                <label className="block text-xs sm:text-sm font-bold text-gray-900 mb-2 sm:mb-3 uppercase tracking-wider">
-                                                  {sectionNum++}. {attrType.attributeName}
-                                                  {isRequired && <span className="text-red-500 ml-1">*</span>}
-                                                </label>
-                                                <p className="text-sm text-yellow-800">
-                                                  This attribute is not available because it requires at least 2 options. Please contact support.
-                                                </p>
+                                              <div key={idx}>
+                                                {range.label || `${min.toLocaleString()}${max ? ` - ${max.toLocaleString()}` : "+"} units`}
+                                                {price > 0 && (selectedProduct.showAttributePrices !== false) && (
+                                                  <span className="ml-2 text-green-600">
+                                                    (₹{price.toFixed(2)})
+                                                  </span>
+                                                )}
                                               </div>
                                             );
-                                          }
-                                        } else {
-                                          // For other input types (TEXT, NUMBER, FILE_UPLOAD), can display even with 0 values
-                                          // They don't need pre-defined options
+                                          })}
+                                        </div>
+                                      );
+                                    }
+                                  }
+
+                                  // Fallback to product's quantity configuration
+                                  const orderQuantity = selectedProduct.filters.orderQuantity;
+                                  const quantityType = orderQuantity.quantityType || "SIMPLE";
+
+                                  if (quantityType === "STEP_WISE" && orderQuantity.stepWiseQuantities && orderQuantity.stepWiseQuantities.length > 0) {
+                                    return (
+                                      <div className="text-xs sm:text-sm text-gray-600 mb-2">
+                                        Available quantities: {orderQuantity.stepWiseQuantities.sort((a, b) => a - b).map(q => q.toLocaleString()).join(", ")}
+                                      </div>
+                                    );
+                                  } else if (quantityType === "RANGE_WISE" && orderQuantity.rangeWiseQuantities && orderQuantity.rangeWiseQuantities.length > 0) {
+                                    return (
+                                      <div className="text-xs sm:text-sm text-gray-600 mb-2 space-y-1">
+                                        {orderQuantity.rangeWiseQuantities.map((range, idx) => (
+                                          <div key={idx}>
+                                            {range.label || `${range.min.toLocaleString()}${range.max ? ` - ${range.max.toLocaleString()}` : "+"} units`}
+                                            {range.priceMultiplier !== 1.0 && (selectedProduct.showAttributePrices !== false) && (
+                                              <span className="ml-2 text-green-600">
+                                                ({range.priceMultiplier > 1 ? "+" : ""}{((range.priceMultiplier - 1) * 100).toFixed(0)}% price)
+                                              </span>
+                                            )}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    );
+                                  } else {
+                                    return (
+                                      <></>
+                                    );
+                                  }
+                                })()}
+                                {appliedDiscount !== null && appliedDiscount > 0 && (
+                                  <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded-lg">
+                                    <p className="text-xs sm:text-sm text-green-800 font-medium">
+                                      🎉 You're saving {appliedDiscount}% on this order! (Bulk discount applied)
+                                    </p>
+                                  </div>
+                                )}
+                                {selectedProduct.quantityDiscounts && selectedProduct.quantityDiscounts.length > 0 && (
+                                  <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                                    <p className="text-xs font-medium text-blue-900 mb-2">Available Quantity Discounts:</p>
+                                    <div className="space-y-1">
+                                      {selectedProduct.quantityDiscounts.map((discount: any, idx: number) => {
+                                        const minQty = discount.minQuantity || 0;
+                                        const maxQty = discount.maxQuantity;
+                                        const discountPct = discount.discountPercentage || 0;
+                                        const range = maxQty
+                                          ? `${minQty.toLocaleString()} - ${maxQty.toLocaleString()} units`
+                                          : `${minQty.toLocaleString()}+ units`;
+                                        return (
+                                          <p key={idx} className="text-xs text-blue-800">
+                                            • {range}: <strong>{discountPct}% off</strong>
+                                          </p>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Dynamic Attributes */}
+                              {(() => {
+                                // Use PDP attributes with rule evaluation if available, otherwise fallback to product attributes
+                                let attributesToRender: any[] = [];
+
+                                if (isInitialized && pdpAttributes.length > 0) {
+                                  // Apply rules to get evaluated attributes
+                                  const ruleResult = applyAttributeRules({
+                                    attributes: pdpAttributes,
+                                    rules: pdpRules,
+                                    selectedValues: { ...selectedDynamicAttributes } as Record<string, string | number | boolean | File | any[] | null>,
+                                  });
+
+                                  // Filter to only visible attributes
+                                  attributesToRender = ruleResult.attributes
+                                    .filter((attr) => attr.isVisible)
+                                    .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+                                } else if (selectedProduct.dynamicAttributes) {
+                                  // Fallback to product attributes
+                                  attributesToRender = selectedProduct.dynamicAttributes
+                                    .filter((attr) => attr.isEnabled)
+                                    .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+                                }
+
+                                return attributesToRender.length > 0 ? (
+                                  <>
+                                    {attributesToRender.map((attr) => {
+                                      // Handle PDP attributes (already evaluated) vs product attributes
+                                      let attrType: any = null;
+                                      let attributeValues: any[] = [];
+                                      let attrId: string = '';
+                                      let isRequired: boolean = false;
+                                      let displayOrder: number = 0;
+                                      let showPrice: boolean = true;
+
+                                      if (isInitialized && pdpAttributes.length > 0) {
+                                        // PDP attribute structure
+                                        attrId = attr._id;
+                                        isRequired = attr.isRequired || false;
+                                        displayOrder = attr.displayOrder || 0;
+                                        showPrice = attr.showPrice !== undefined ? attr.showPrice : true;
+                                        console.log(`🔍 Attribute "${attr.attributeName}" showPrice:`, attr.showPrice, '-> final:', showPrice);
+                                        attributeValues = (attr.allowedValues && attr.allowedValues.length > 0)
+                                          ? (attr.attributeValues || []).filter((av: any) => attr.allowedValues!.includes(av.value))
+                                          : (attr.attributeValues || []);
+
+                                        // Build attrType-like structure for compatibility
+                                        attrType = {
+                                          _id: attr._id,
+                                          attributeName: attr.attributeName,
+                                          inputStyle: attr.inputStyle,
+                                          attributeValues: attributeValues,
+                                          defaultValue: attr.defaultValue,
+                                        };
+                                      } else {
+                                        // Legacy product attribute structure
+                                        if (typeof attr.attributeType === 'object' && attr.attributeType !== null) {
+                                          attrType = attr.attributeType;
+                                          attrId = attrType._id;
+                                        } else if (typeof attr.attributeType === 'string' && attr.attributeType.trim() !== '') {
+                                          return null;
                                         }
 
-                                        // Get sub-attributes for this attribute if available
-                                        const selectedValue = selectedDynamicAttributes[attrId];
-                                        const selectedValueObj = attributeValues.find((av: any) => av.value === selectedValue);
+                                        if (!attrType || !attrType._id) {
+                                          return null;
+                                        }
 
-                                        // Filter sub-attributes: parentAttribute matches attrId, parentValue matches selectedValue
-                                        // Check if sub-attributes actually exist in the fetched data (don't rely solely on hasSubAttributes flag)
-                                        const subAttributesKey = `${attrId}:${selectedValue || ''}`;
-                                        const availableSubAttributes = selectedValue
-                                          ? (pdpSubAttributes[subAttributesKey] || [])
-                                          : [];
+                                        attrId = attrType._id;
+                                        isRequired = attr.isRequired || false;
+                                        displayOrder = attr.displayOrder || 0;
+                                        showPrice = attr.showPrice !== undefined ? attr.showPrice : true;
+                                        console.log(`🔍 Legacy Attribute "${attrType.attributeName}" showPrice:`, attr.showPrice, '-> final:', showPrice);
+                                        attributeValues = attr.customValues && attr.customValues.length > 0
+                                          ? attr.customValues
+                                          : attrType.attributeValues || [];
+                                      }
 
-                                        return (
-                                          <div key={attrId} className="mb-3 sm:mb-4">
-                                            {/* Label for non-DROPDOWN/POPUP attributes (stacked layout) */}
-                                            {!(attrType.inputStyle === 'DROPDOWN' || attrType.inputStyle === 'POPUP') && (
+                                      // For DROPDOWN, RADIO, and POPUP input styles, we need at least 2 options to display
+                                      // For TEXT, NUMBER, FILE_UPLOAD, and other input styles, we can display even with 0 or 1 values
+                                      const requiresMultipleOptions = ['DROPDOWN', 'RADIO', 'POPUP'].includes(attrType.inputStyle);
+
+                                      if (requiresMultipleOptions) {
+                                        // For dropdown/radio/popup, need at least 2 options
+                                        if (attributeValues.length < 1) {
+                                          return (
+                                            <div key={attrId} className="mb-3 sm:mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                                               <label className="block text-xs sm:text-sm font-bold text-gray-900 mb-2 sm:mb-3 uppercase tracking-wider">
                                                 {sectionNum++}. {attrType.attributeName}
                                                 {isRequired && <span className="text-red-500 ml-1">*</span>}
                                               </label>
-                                            )}
+                                              <p className="text-sm text-yellow-800">
+                                                This attribute is not available because it requires at least 2 options. Please contact support.
+                                              </p>
+                                            </div>
+                                          );
+                                        }
+                                      } else {
+                                        // For other input types (TEXT, NUMBER, FILE_UPLOAD), can display even with 0 values
+                                        // They don't need pre-defined options
+                                      }
 
-                                            {(attrType.inputStyle === 'DROPDOWN' || attrType.inputStyle === 'POPUP') && (
-                                              <div data-attribute={attrId} data-attribute-name={attrType.attributeName}>
-                                                {/* Inline layout for label and select */}
-                                                <div className="flex items-center gap-4">
-                                                  <label className="text-xs sm:text-sm font-bold text-gray-900 uppercase tracking-wider shrink-0" style={{ minWidth: '200px' }}>
-                                                    {sectionNum++}. {attrType.attributeName}
-                                                    {isRequired && <span className="text-red-500 ml-1">*</span>}
-                                                  </label>
-                                                  <div className="flex-1">
-                                                    {attributeValues.length === 0 ? (
-                                                      <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                                                        <p className="text-sm text-yellow-800">
-                                                          No options available.
-                                                        </p>
-                                                      </div>
-                                                    ) : (
-                                                      <Select
-                                                        options={attributeValues
-                                                          .filter((av: any) => av && av.value && av.label)
-                                                          .map((av: any) => {
-                                                            let priceDisplay = '';
-                                                            if (showPrice) {
-                                                              if (av.description) {
-                                                                const priceImpactMatch = av.description.match(/Price Impact: ₹([\d.]+)/);
-                                                                if (priceImpactMatch) {
-                                                                  const priceImpact = parseFloat(priceImpactMatch[1]) || 0;
-                                                                  if (priceImpact > 0) {
-                                                                    priceDisplay = ` (+₹${priceImpact.toFixed(2)}/unit)`;
-                                                                  }
-                                                                }
-                                                              }
-                                                              if (!priceDisplay && av.priceMultiplier && av.priceMultiplier !== 1 && selectedProduct) {
-                                                                const basePrice = selectedProduct.basePrice || 0;
-                                                                const pricePerUnit = basePrice * (av.priceMultiplier - 1);
-                                                                if (Math.abs(pricePerUnit) >= 0.01) {
-                                                                  priceDisplay = ` (+₹${pricePerUnit.toFixed(2)}/unit)`;
+                                      // Get sub-attributes for this attribute if available
+                                      const selectedValue = selectedDynamicAttributes[attrId];
+                                      const selectedValueObj = attributeValues.find((av: any) => av.value === selectedValue);
+
+                                      // Filter sub-attributes: parentAttribute matches attrId, parentValue matches selectedValue
+                                      // Check if sub-attributes actually exist in the fetched data (don't rely solely on hasSubAttributes flag)
+                                      const subAttributesKey = `${attrId}:${selectedValue || ''}`;
+                                      const availableSubAttributes = selectedValue
+                                        ? (pdpSubAttributes[subAttributesKey] || [])
+                                        : [];
+
+                                      return (
+                                        <div key={attrId} className="mb-3 sm:mb-4">
+                                          {/* Label for non-DROPDOWN/POPUP attributes (stacked layout) */}
+                                          {!(attrType.inputStyle === 'DROPDOWN' || attrType.inputStyle === 'POPUP') && (
+                                            <label className="block text-xs sm:text-sm font-bold text-gray-900 mb-2 sm:mb-3 uppercase tracking-wider">
+                                              {sectionNum++}. {attrType.attributeName}
+                                              {isRequired && <span className="text-red-500 ml-1">*</span>}
+                                            </label>
+                                          )}
+
+                                          {(attrType.inputStyle === 'DROPDOWN' || attrType.inputStyle === 'POPUP') && (
+                                            <div data-attribute={attrId} data-attribute-name={attrType.attributeName}>
+                                              {/* Inline layout for label and select */}
+                                              <div className="flex items-center gap-4">
+                                                <label className="text-xs sm:text-sm font-bold text-gray-900 uppercase tracking-wider shrink-0" style={{ minWidth: '200px' }}>
+                                                  {sectionNum++}. {attrType.attributeName}
+                                                  {isRequired && <span className="text-red-500 ml-1">*</span>}
+                                                </label>
+                                                <div className="flex-1">
+                                                  {attributeValues.length === 0 ? (
+                                                    <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                                                      <p className="text-sm text-yellow-800">
+                                                        No options available.
+                                                      </p>
+                                                    </div>
+                                                  ) : (
+                                                    <Select
+                                                      options={attributeValues
+                                                        .filter((av: any) => av && av.value && av.label)
+                                                        .map((av: any) => {
+                                                          let priceDisplay = '';
+                                                          if (showPrice) {
+                                                            if (av.description) {
+                                                              const priceImpactMatch = av.description.match(/Price Impact: ₹([\d.]+)/);
+                                                              if (priceImpactMatch) {
+                                                                const priceImpact = parseFloat(priceImpactMatch[1]) || 0;
+                                                                if (priceImpact > 0) {
+                                                                  priceDisplay = ` (+₹${priceImpact.toFixed(2)}/unit)`;
                                                                 }
                                                               }
                                                             }
-                                                            return {
-                                                              value: av.value,
-                                                              label: `${av.label}${priceDisplay}`
-                                                            };
-                                                          })}
-                                                        value={(() => {
-                                                          // Ensure the selected value exists in the filtered options
-                                                          const currentValue = selectedDynamicAttributes[attrId] as string;
-                                                          const valueExists = attributeValues.some((av: any) => av.value === currentValue);
-                                                          // If invalid, show first available option (useEffect will update state properly)
-                                                          return valueExists ? currentValue : (attributeValues.length > 0 ? attributeValues[0].value : "");
-                                                        })()}
-                                                        onValueChange={(value) => {
+                                                            if (!priceDisplay && av.priceMultiplier && av.priceMultiplier !== 1 && selectedProduct) {
+                                                              const basePrice = selectedProduct.basePrice || 0;
+                                                              const pricePerUnit = basePrice * (av.priceMultiplier - 1);
+                                                              if (Math.abs(pricePerUnit) >= 0.01) {
+                                                                priceDisplay = ` (+₹${pricePerUnit.toFixed(2)}/unit)`;
+                                                              }
+                                                            }
+                                                          }
+                                                          return {
+                                                            value: av.value,
+                                                            label: `${av.label}${priceDisplay}`
+                                                          };
+                                                        })}
+                                                      value={(() => {
+                                                        // Ensure the selected value exists in the filtered options
+                                                        const currentValue = selectedDynamicAttributes[attrId] as string;
+                                                        const valueExists = attributeValues.some((av: any) => av.value === currentValue);
+                                                        // If invalid, show first available option (useEffect will update state properly)
+                                                        return valueExists ? currentValue : (attributeValues.length > 0 ? attributeValues[0].value : "");
+                                                      })()}
+                                                      onValueChange={(value) => {
+                                                        setSelectedDynamicAttributes({
+                                                          ...selectedDynamicAttributes,
+                                                          [attrId]: value
+                                                        });
+                                                        setUserSelectedAttributes(prev => {
+                                                          const next = new Set(prev);
+                                                          next.delete(attrId);
+                                                          next.add(attrId);
+                                                          return next;
+                                                        });
+                                                      }}
+                                                      placeholder={`Select ${attrType.attributeName}`}
+                                                      className="w-full"
+                                                      colorTheme={['indigo', 'rose', 'cyan', 'lime', 'fuchsia'][Math.abs(attrId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)) % 5] as any}
+                                                    />
+                                                  )}
+                                                </div>
+                                              </div>
+                                              {/* Sub-attributes for selected value - unchanged stacked layout */}
+                                              {availableSubAttributes.length > 0 && (
+                                                <div className="mt-4">
+                                                  <label className="block text-xs font-semibold text-gray-700 mb-2">
+                                                    Select {selectedValueObj?.label || attrType.attributeName} Option:
+                                                  </label>
+                                                  <div className="relative">
+                                                    <div className="absolute top-0 left-0 right-0 h-5 bg-gradient-to-b from-white to-transparent pointer-events-none z-10" />
+                                                    <div className="max-h-[400px] overflow-y-auto mini-scrollbar pr-2">
+                                                      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2.5 py-2">
+                                                        {availableSubAttributes.map((subAttr) => {
+                                                          const getSubAttrPriceDisplay = () => {
+                                                            if (!showPrice) return null;
+                                                            if (!subAttr.priceAdd || subAttr.priceAdd === 0) return null;
+                                                            return `+₹${subAttr.priceAdd.toFixed(2)}`;
+                                                          };
+                                                          const subAttrKey = `${attrId}__${selectedValue}`;
+                                                          const isSubAttrSelected = selectedDynamicAttributes[subAttrKey] === subAttr.value;
+                                                          return (
+                                                            <button
+                                                              key={subAttr._id}
+                                                              type="button"
+                                                              onClick={() => {
+                                                                setSelectedDynamicAttributes((prev) => ({
+                                                                  ...prev,
+                                                                  [subAttrKey]: subAttr.value,
+                                                                }));
+                                                                setUserSelectedAttributes(prev => {
+                                                                  const next = new Set(prev);
+                                                                  next.delete(attrId);
+                                                                  next.add(attrId);
+                                                                  return next;
+                                                                });
+                                                              }}
+                                                              className={`group relative flex flex-col items-center p-2 rounded-xl border-2 transition-all duration-200 hover:shadow-md ${isSubAttrSelected
+                                                                ? "border-gray-900 bg-gray-50 shadow-sm"
+                                                                : "border-gray-200 hover:border-gray-400 hover:bg-white"
+                                                                }`}
+                                                            >
+                                                              {/* Selection checkmark */}
+                                                              {isSubAttrSelected && (
+                                                                <div className="absolute -top-1.5 -right-1.5 bg-gray-900 text-white rounded-full p-1 shadow-lg z-10">
+                                                                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                                                  </svg>
+                                                                </div>
+                                                              )}
+                                                              {/* Square image container */}
+                                                              {subAttr.image && (
+                                                                <div className="w-full aspect-square mb-1.5 overflow-hidden rounded-lg bg-gray-50 border border-gray-100">
+                                                                  <LazyImage
+                                                                    src={subAttr.image}
+                                                                    alt={subAttr.label}
+                                                                    className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
+                                                                    showSkeleton={true}
+                                                                    skeletonVariant="image"
+                                                                  />
+                                                                </div>
+                                                              )}
+                                                              {/* Label */}
+                                                              <div className="text-[11px] font-medium text-gray-900 leading-tight line-clamp-2 text-center w-full">
+                                                                {subAttr.label}
+                                                              </div>
+                                                              {/* Price */}
+                                                              {getSubAttrPriceDisplay() && (
+                                                                <div className="text-[10px] font-semibold text-green-600 mt-0.5">
+                                                                  {getSubAttrPriceDisplay()}
+                                                                </div>
+                                                              )}
+                                                            </button>
+                                                          );
+                                                        })}
+                                                      </div>
+                                                    </div>
+                                                    <div className="absolute bottom-0 left-0 right-0 h-5 bg-gradient-to-t from-white to-transparent pointer-events-none z-10" />
+                                                  </div>
+                                                </div>
+                                              )}
+                                            </div>
+                                          )}
+
+                                          {attrType.inputStyle === 'RADIO' && (
+                                            <div data-attribute={attrId}>
+                                              {attributeValues.length === 0 ? (
+                                                <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                                                  <p className="text-sm text-yellow-800">
+                                                    No options available for this attribute. Please contact support.
+                                                  </p>
+                                                </div>
+                                              ) : (
+                                                <>
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                      const filteredValues = attributeValues.filter((av: any) => av && av.value && av.label);
+                                                      setRadioModalData({
+                                                        attributeId: attrId,
+                                                        attributeName: attrType.attributeName,
+                                                        attributeValues: filteredValues,
+                                                        selectedValue: (selectedDynamicAttributes[attrId] as string) || null,
+                                                        isRequired: isRequired,
+                                                      });
+                                                      setRadioModalOpen(true);
+                                                    }}
+                                                    className="w-full px-4 py-3 border-2 border-dashed border-gray-300 rounded-xl hover:border-gray-400 hover:bg-gray-50 transition-all duration-200 text-left flex items-center justify-between group"
+                                                  >
+                                                    <div className="flex-1">
+                                                      <span className="text-sm font-medium text-gray-700 group-hover:text-gray-900">
+                                                        {selectedDynamicAttributes[attrId]
+                                                          ? attributeValues.find((av: any) => av.value === selectedDynamicAttributes[attrId])?.label || 'Select option'
+                                                          : `Select ${attrType.attributeName}${isRequired ? ' *' : ''}`
+                                                        }
+                                                      </span>
+                                                      {selectedDynamicAttributes[attrId] && (
+                                                        <div className="text-xs text-white0 mt-1">
+                                                          Click to change selection
+                                                        </div>
+                                                      )}
+                                                    </div>
+                                                    <ArrowRight size={18} className="text-gray-400 group-hover:text-gray-600 transition-colors" />
+                                                  </button>
+
+                                                </>
+                                              )}
+                                            </div>
+                                          )}
+
+                                          {attrType.inputStyle === 'CHECKBOX' && (
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3" data-attribute={attrId}>
+                                              {attributeValues.length === 0 ? (
+                                                <div className="col-span-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                                                  <p className="text-sm text-yellow-800">
+                                                    No options available for this attribute. Please contact support.
+                                                  </p>
+                                                </div>
+                                              ) : (
+                                                attributeValues
+                                                  .filter((av: any) => av && av.value && av.label) // Filter out invalid options
+                                                  .map((av: any) => {
+                                                    // Format price display as per unit price
+                                                    const getPriceDisplay = () => {
+                                                      if (!showPrice) return null;
+                                                      // Check for priceImpact first (new format with option usage)
+                                                      if (av.description) {
+                                                        const priceImpactMatch = av.description.match(/Price Impact: ₹([\d.]+)/);
+                                                        if (priceImpactMatch) {
+                                                          const priceImpact = parseFloat(priceImpactMatch[1]) || 0;
+                                                          if (priceImpact > 0) {
+                                                            return `+₹${priceImpact.toFixed(2)}/unit`;
+                                                          }
+                                                        }
+                                                      }
+                                                      // Fall back to priceMultiplier calculation
+                                                      if (!av.priceMultiplier || av.priceMultiplier === 1 || !selectedProduct) return null;
+                                                      const basePrice = selectedProduct.basePrice || 0;
+                                                      const pricePerUnit = basePrice * (av.priceMultiplier - 1);
+                                                      if (Math.abs(pricePerUnit) < 0.01) return null;
+                                                      return `+₹${pricePerUnit.toFixed(2)}/unit`;
+                                                    };
+
+                                                    const isSelected = Array.isArray(selectedDynamicAttributes[attrId]) && (selectedDynamicAttributes[attrId] as any).includes(av.value);
+
+                                                    return (
+                                                      <button
+                                                        key={av.value}
+                                                        type="button"
+                                                        onClick={() => {
+                                                          const current = Array.isArray(selectedDynamicAttributes[attrId]) ? (selectedDynamicAttributes[attrId] as any) : [];
+                                                          const newValue = isSelected
+                                                            ? current.filter((v: any) => v !== av.value)
+                                                            : [...current, av.value];
                                                           setSelectedDynamicAttributes({
                                                             ...selectedDynamicAttributes,
-                                                            [attrId]: value
+                                                            [attrId]: newValue
                                                           });
+                                                          // Mark this attribute as user-selected for image updates (preserved order)
                                                           setUserSelectedAttributes(prev => {
                                                             const next = new Set(prev);
                                                             next.delete(attrId);
@@ -5719,681 +5998,524 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                             return next;
                                                           });
                                                         }}
-                                                        placeholder={`Select ${attrType.attributeName}`}
-                                                        className="w-full"
-                                                        colorTheme={['indigo', 'rose', 'cyan', 'lime', 'fuchsia'][Math.abs(attrId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)) % 5] as any}
-                                                      />
-                                                    )}
-                                                  </div>
-                                                </div>
-                                                {/* Sub-attributes for selected value - unchanged stacked layout */}
-                                                {availableSubAttributes.length > 0 && (
-                                                  <div className="mt-4">
-                                                    <label className="block text-xs font-semibold text-gray-700 mb-2">
-                                                      Select {selectedValueObj?.label || attrType.attributeName} Option:
-                                                    </label>
-                                                    <div className="relative">
-                                                      <div className="absolute top-0 left-0 right-0 h-5 bg-gradient-to-b from-white to-transparent pointer-events-none z-10" />
-                                                      <div className="max-h-[400px] overflow-y-auto mini-scrollbar pr-2">
-                                                        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2.5 py-2">
-                                                          {availableSubAttributes.map((subAttr) => {
-                                                            const getSubAttrPriceDisplay = () => {
-                                                              if (!showPrice) return null;
-                                                              if (!subAttr.priceAdd || subAttr.priceAdd === 0) return null;
-                                                              return `+₹${subAttr.priceAdd.toFixed(2)}`;
-                                                            };
-                                                            const subAttrKey = `${attrId}__${selectedValue}`;
-                                                            const isSubAttrSelected = selectedDynamicAttributes[subAttrKey] === subAttr.value;
-                                                            return (
-                                                              <button
-                                                                key={subAttr._id}
-                                                                type="button"
-                                                                onClick={() => {
-                                                                  setSelectedDynamicAttributes((prev) => ({
-                                                                    ...prev,
-                                                                    [subAttrKey]: subAttr.value,
-                                                                  }));
-                                                                  setUserSelectedAttributes(prev => {
-                                                                    const next = new Set(prev);
-                                                                    next.delete(attrId);
-                                                                    next.add(attrId);
-                                                                    return next;
-                                                                  });
-                                                                }}
-                                                                className={`group relative flex flex-col items-center p-2 rounded-xl border-2 transition-all duration-200 hover:shadow-md ${isSubAttrSelected
-                                                                  ? "border-gray-900 bg-gray-50 shadow-sm"
-                                                                  : "border-gray-200 hover:border-gray-400 hover:bg-white"
-                                                                  }`}
-                                                              >
-                                                                {/* Selection checkmark */}
-                                                                {isSubAttrSelected && (
-                                                                  <div className="absolute -top-1.5 -right-1.5 bg-gray-900 text-white rounded-full p-1 shadow-lg z-10">
-                                                                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                                                                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                                                    </svg>
-                                                                  </div>
-                                                                )}
-                                                                {/* Square image container */}
-                                                                {subAttr.image && (
-                                                                  <div className="w-full aspect-square mb-1.5 overflow-hidden rounded-lg bg-gray-50 border border-gray-100">
-                                                                    <LazyImage
-                                                                      src={subAttr.image}
-                                                                      alt={subAttr.label}
-                                                                      className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
-                                                                      showSkeleton={true}
-                                                                      skeletonVariant="image"
-                                                                    />
-                                                                  </div>
-                                                                )}
-                                                                {/* Label */}
-                                                                <div className="text-[11px] font-medium text-gray-900 leading-tight line-clamp-2 text-center w-full">
-                                                                  {subAttr.label}
-                                                                </div>
-                                                                {/* Price */}
-                                                                {getSubAttrPriceDisplay() && (
-                                                                  <div className="text-[10px] font-semibold text-green-600 mt-0.5">
-                                                                    {getSubAttrPriceDisplay()}
-                                                                  </div>
-                                                                )}
-                                                              </button>
-                                                            );
-                                                          })}
-                                                        </div>
-                                                      </div>
-                                                      <div className="absolute bottom-0 left-0 right-0 h-5 bg-gradient-to-t from-white to-transparent pointer-events-none z-10" />
-                                                    </div>
-                                                  </div>
-                                                )}
-                                              </div>
-                                            )}
-
-                                            {attrType.inputStyle === 'RADIO' && (
-                                              <div data-attribute={attrId}>
-                                                {attributeValues.length === 0 ? (
-                                                  <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                                                    <p className="text-sm text-yellow-800">
-                                                      No options available for this attribute. Please contact support.
-                                                    </p>
-                                                  </div>
-                                                ) : (
-                                                  <>
-                                                    <button
-                                                      type="button"
-                                                      onClick={() => {
-                                                        const filteredValues = attributeValues.filter((av: any) => av && av.value && av.label);
-                                                        setRadioModalData({
-                                                          attributeId: attrId,
-                                                          attributeName: attrType.attributeName,
-                                                          attributeValues: filteredValues,
-                                                          selectedValue: (selectedDynamicAttributes[attrId] as string) || null,
-                                                          isRequired: isRequired,
-                                                        });
-                                                        setRadioModalOpen(true);
-                                                      }}
-                                                      className="w-full px-4 py-3 border-2 border-dashed border-gray-300 rounded-xl hover:border-gray-400 hover:bg-gray-50 transition-all duration-200 text-left flex items-center justify-between group"
-                                                    >
-                                                      <div className="flex-1">
-                                                        <span className="text-sm font-medium text-gray-700 group-hover:text-gray-900">
-                                                          {selectedDynamicAttributes[attrId]
-                                                            ? attributeValues.find((av: any) => av.value === selectedDynamicAttributes[attrId])?.label || 'Select option'
-                                                            : `Select ${attrType.attributeName}${isRequired ? ' *' : ''}`
-                                                          }
-                                                        </span>
-                                                        {selectedDynamicAttributes[attrId] && (
-                                                          <div className="text-xs text-white0 mt-1">
-                                                            Click to change selection
+                                                        className={`p-4 rounded-xl border text-left transition-all duration-200 relative ${isSelected
+                                                          ? "border-gray-900 bg-gray-50 text-gray-900 ring-1 ring-gray-900"
+                                                          : "border-gray-200 text-gray-600 hover:border-gray-400 hover:bg-gray-50"
+                                                          }`}
+                                                      >
+                                                        {isSelected && (
+                                                          <div className="absolute top-2 right-2">
+                                                            <Check size={18} className="text-gray-900" />
                                                           </div>
                                                         )}
-                                                      </div>
-                                                      <ArrowRight size={18} className="text-gray-400 group-hover:text-gray-600 transition-colors" />
-                                                    </button>
+                                                        {av.image && (
+                                                          <div className="mb-2 h-32 w-full">
+                                                            <LazyImage
+                                                              src={av.image}
+                                                              alt={av.label}
+                                                              className="w-full h-full object-cover rounded-lg border border-gray-200"
+                                                              showSkeleton={true}
+                                                              skeletonVariant="rectangular"
+                                                            />
+                                                          </div>
+                                                        )}
+                                                        <div className="font-bold text-sm">{av.label}</div>
+                                                        {getPriceDisplay() && (
+                                                          <div className="text-xs text-gray-600 mt-1">
+                                                            {getPriceDisplay()}
+                                                          </div>
+                                                        )}
+                                                      </button>
+                                                    );
+                                                  })
+                                              )}
+                                            </div>
+                                          )}
 
-                                                  </>
-                                                )}
-                                              </div>
-                                            )}
+                                          {attrType.inputStyle === 'TEXT_FIELD' && (
+                                            <div data-attribute={attrId}>
+                                              <input
+                                                type="text"
+                                                value={(selectedDynamicAttributes[attrId] as string) || ""}
+                                                onChange={(e) => {
+                                                  setSelectedDynamicAttributes({
+                                                    ...selectedDynamicAttributes,
+                                                    [attrId]: e.target.value
+                                                  });
+                                                  // Mark this attribute as user-selected for image updates (preserved order)
+                                                  setUserSelectedAttributes(prev => {
+                                                    const next = new Set(prev);
+                                                    next.delete(attrId);
+                                                    next.add(attrId);
+                                                    return next;
+                                                  });
+                                                }}
+                                                placeholder={`Enter ${attrType.attributeName}`}
+                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-gray-500"
+                                              />
+                                            </div>
+                                          )}
 
-                                            {attrType.inputStyle === 'CHECKBOX' && (
-                                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3" data-attribute={attrId}>
-                                                {attributeValues.length === 0 ? (
-                                                  <div className="col-span-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                                                    <p className="text-sm text-yellow-800">
-                                                      No options available for this attribute. Please contact support.
-                                                    </p>
-                                                  </div>
-                                                ) : (
-                                                  attributeValues
-                                                    .filter((av: any) => av && av.value && av.label) // Filter out invalid options
-                                                    .map((av: any) => {
-                                                      // Format price display as per unit price
-                                                      const getPriceDisplay = () => {
-                                                        if (!showPrice) return null;
-                                                        // Check for priceImpact first (new format with option usage)
-                                                        if (av.description) {
-                                                          const priceImpactMatch = av.description.match(/Price Impact: ₹([\d.]+)/);
-                                                          if (priceImpactMatch) {
-                                                            const priceImpact = parseFloat(priceImpactMatch[1]) || 0;
-                                                            if (priceImpact > 0) {
-                                                              return `+₹${priceImpact.toFixed(2)}/unit`;
-                                                            }
-                                                          }
-                                                        }
-                                                        // Fall back to priceMultiplier calculation
-                                                        if (!av.priceMultiplier || av.priceMultiplier === 1 || !selectedProduct) return null;
-                                                        const basePrice = selectedProduct.basePrice || 0;
-                                                        const pricePerUnit = basePrice * (av.priceMultiplier - 1);
-                                                        if (Math.abs(pricePerUnit) < 0.01) return null;
-                                                        return `+₹${pricePerUnit.toFixed(2)}/unit`;
-                                                      };
+                                          {attrType.inputStyle === 'NUMBER' && (
+                                            <div data-attribute={attrId}>
+                                              <input
+                                                type="number"
+                                                value={(selectedDynamicAttributes[attrId] as number) || ""}
+                                                onChange={(e) => {
+                                                  setSelectedDynamicAttributes({
+                                                    ...selectedDynamicAttributes,
+                                                    [attrId]: parseFloat(e.target.value) || 0
+                                                  });
+                                                  // Mark this attribute as user-selected for image updates (preserved order)
+                                                  setUserSelectedAttributes(prev => {
+                                                    const next = new Set(prev);
+                                                    next.delete(attrId);
+                                                    next.add(attrId);
+                                                    return next;
+                                                  });
+                                                }}
+                                                placeholder={`Enter ${attrType.attributeName}`}
+                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-gray-500"
+                                              />
+                                            </div>
+                                          )}
 
-                                                      const isSelected = Array.isArray(selectedDynamicAttributes[attrId]) && (selectedDynamicAttributes[attrId] as any).includes(av.value);
+                                          {attrType.inputStyle === 'FILE_UPLOAD' && (
+                                            <div data-attribute={attrId}>
+                                              <input
+                                                type="file"
+                                                onChange={(e) => {
+                                                  const file = e.target.files?.[0] || null;
+                                                  setSelectedDynamicAttributes({
+                                                    ...selectedDynamicAttributes,
+                                                    [attrId]: file
+                                                  });
+                                                  // Mark this attribute as user-selected for image updates (preserved order)
+                                                  setUserSelectedAttributes(prev => {
+                                                    const next = new Set(prev);
+                                                    next.delete(attrId);
+                                                    next.add(attrId);
+                                                    return next;
+                                                  });
+                                                }}
+                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-gray-500"
+                                                accept="*/*"
+                                              />
+                                              {attrType.fileRequirements && (
+                                                <p className="text-xs text-gray-600 mt-1">{attrType.fileRequirements}</p>
+                                              )}
+                                            </div>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  </>
+                                ) : null;
+                              })()}
 
-                                                      return (
-                                                        <button
-                                                          key={av.value}
-                                                          type="button"
-                                                          onClick={() => {
-                                                            const current = Array.isArray(selectedDynamicAttributes[attrId]) ? (selectedDynamicAttributes[attrId] as any) : [];
-                                                            const newValue = isSelected
-                                                              ? current.filter((v: any) => v !== av.value)
-                                                              : [...current, av.value];
-                                                            setSelectedDynamicAttributes({
-                                                              ...selectedDynamicAttributes,
-                                                              [attrId]: newValue
-                                                            });
-                                                            // Mark this attribute as user-selected for image updates (preserved order)
-                                                            setUserSelectedAttributes(prev => {
-                                                              const next = new Set(prev);
-                                                              next.delete(attrId);
-                                                              next.add(attrId);
-                                                              return next;
-                                                            });
-                                                          }}
-                                                          className={`p-4 rounded-xl border text-left transition-all duration-200 relative ${isSelected
-                                                            ? "border-gray-900 bg-gray-50 text-gray-900 ring-1 ring-gray-900"
-                                                            : "border-gray-200 text-gray-600 hover:border-gray-400 hover:bg-gray-50"
-                                                            }`}
-                                                        >
-                                                          {isSelected && (
-                                                            <div className="absolute top-2 right-2">
-                                                              <Check size={18} className="text-gray-900" />
-                                                            </div>
-                                                          )}
-                                                          {av.image && (
-                                                            <div className="mb-2">
-                                                              <img
-                                                                src={av.image}
-                                                                alt={av.label}
-                                                                className="w-full h-32 object-cover rounded-lg border border-gray-200"
-                                                              />
-                                                            </div>
-                                                          )}
-                                                          <div className="font-bold text-sm">{av.label}</div>
-                                                          {getPriceDisplay() && (
-                                                            <div className="text-xs text-gray-600 mt-1">
-                                                              {getPriceDisplay()}
-                                                            </div>
-                                                          )}
-                                                        </button>
-                                                      );
-                                                    })
-                                                )}
-                                              </div>
-                                            )}
-
-                                            {attrType.inputStyle === 'TEXT_FIELD' && (
-                                              <div data-attribute={attrId}>
-                                                <input
-                                                  type="text"
-                                                  value={(selectedDynamicAttributes[attrId] as string) || ""}
-                                                  onChange={(e) => {
-                                                    setSelectedDynamicAttributes({
-                                                      ...selectedDynamicAttributes,
-                                                      [attrId]: e.target.value
-                                                    });
-                                                    // Mark this attribute as user-selected for image updates (preserved order)
-                                                    setUserSelectedAttributes(prev => {
-                                                      const next = new Set(prev);
-                                                      next.delete(attrId);
-                                                      next.add(attrId);
-                                                      return next;
-                                                    });
-                                                  }}
-                                                  placeholder={`Enter ${attrType.attributeName}`}
-                                                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-gray-500"
-                                                />
-                                              </div>
-                                            )}
-
-                                            {attrType.inputStyle === 'NUMBER' && (
-                                              <div data-attribute={attrId}>
-                                                <input
-                                                  type="number"
-                                                  value={(selectedDynamicAttributes[attrId] as number) || ""}
-                                                  onChange={(e) => {
-                                                    setSelectedDynamicAttributes({
-                                                      ...selectedDynamicAttributes,
-                                                      [attrId]: parseFloat(e.target.value) || 0
-                                                    });
-                                                    // Mark this attribute as user-selected for image updates (preserved order)
-                                                    setUserSelectedAttributes(prev => {
-                                                      const next = new Set(prev);
-                                                      next.delete(attrId);
-                                                      next.add(attrId);
-                                                      return next;
-                                                    });
-                                                  }}
-                                                  placeholder={`Enter ${attrType.attributeName}`}
-                                                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-gray-500"
-                                                />
-                                              </div>
-                                            )}
-
-                                            {attrType.inputStyle === 'FILE_UPLOAD' && (
-                                              <div data-attribute={attrId}>
-                                                <input
-                                                  type="file"
-                                                  onChange={(e) => {
-                                                    const file = e.target.files?.[0] || null;
-                                                    setSelectedDynamicAttributes({
-                                                      ...selectedDynamicAttributes,
-                                                      [attrId]: file
-                                                    });
-                                                    // Mark this attribute as user-selected for image updates (preserved order)
-                                                    setUserSelectedAttributes(prev => {
-                                                      const next = new Set(prev);
-                                                      next.delete(attrId);
-                                                      next.add(attrId);
-                                                      return next;
-                                                    });
-                                                  }}
-                                                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-gray-500"
-                                                  accept="*/*"
-                                                />
-                                                {attrType.fileRequirements && (
-                                                  <p className="text-xs text-gray-600 mt-1">{attrType.fileRequirements}</p>
-                                                )}
-                                              </div>
-                                            )}
-                                          </div>
-                                        );
-                                      })}
-                                    </>
-                                  ) : null;
-                                })()}
-
-                              </>
-                            );
-                          })()}
+                            </>
+                          );
+                        })()}
 
 
 
-                          {/* Unified PDF Upload Section - Replaces Both Image Upload Sections */}
-                          {(() => {
-                            // Calculate required pages dynamically
-                            const calculatedPages = calculateRequiredPageCount();
-
+                        {/* Unified PDF Upload Section - Replaces Both Image Upload Sections */}
+                        {(() => {
+                          if (loading) {
                             return (
-                              <div className="mb-3 sm:mb-4 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                                {/* Header Section */}
-                                <div className="bg-gradient-to-r from-blue-50 to-purple-50 px-4 sm:px-5 py-3 sm:py-4 border-b border-gray-200">
-                                  <div className="flex items-center gap-2.5">
-                                    <div className="w-8 h-8 rounded-lg bg-white shadow-sm flex items-center justify-center">
-                                      <FileText className="w-[18px] h-[18px] text-blue-600" />
+                              <div className="mb-3 sm:mb-4 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden h-[200px] flex flex-col">
+                                <div className="bg-gray-50 px-5 py-4 border-b">
+                                  <div className="flex gap-3">
+                                    <Skeleton variant="rectangular" className="w-8 h-8 rounded-lg" />
+                                    <div className="space-y-2">
+                                      <Skeleton variant="text" className="w-32 h-4" />
+                                      <Skeleton variant="text" className="w-24 h-3" />
                                     </div>
-                                    <div className="flex-1">
-                                      <h3 className="font-semibold text-sm sm:text-base text-gray-900">
-                                        Upload Design PDF
-                                      </h3>
-                                      <p className="text-xs text-gray-500 mt-0.5">
-                                        {calculatedPages} page{calculatedPages !== 1 ? 's' : ''} required • Max size: {MAX_PDF_SIZE_MB}MB
-                                      </p>
-                                    </div>
-                                    {pdfFile && !pdfValidationError && (
-                                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-100 text-green-700 text-xs font-semibold">
-                                        <Check size={12} strokeWidth={3} />
-                                        Complete
-                                      </span>
-                                    )}
                                   </div>
                                 </div>
-
-                                {/* Upload Area */}
-                                <div className="p-4 sm:p-5">
-                                  {/* Upload Input */}
-                                  <input
-                                    type="file"
-                                    id="pdf-upload-input"
-                                    accept="application/pdf"
-                                    onChange={handlePdfUpload}
-                                    className="hidden"
-                                    data-required-field
-                                  />
-
-                                  {!pdfFile ? (
-                                    /* Upload Prompt */
-                                    <label
-                                      htmlFor="pdf-upload-input"
-                                      className={`block cursor-pointer border-2 border-dashed rounded-xl transition-all duration-200 ${pdfValidationError
-                                        ? 'border-red-300 bg-red-50'
-                                        : 'border-gray-300 bg-gray-50 hover:border-blue-400 hover:bg-blue-50'
-                                        }`}
-                                    >
-                                      <div className="p-8 text-center">
-                                        {isPdfProcessing ? (
-                                          <div className="flex flex-col items-center">
-                                            <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-3"></div>
-                                            <p className="text-sm font-semibold text-gray-700">Processing PDF...</p>
-                                            <p className="text-xs text-gray-500 mt-1">Extracting pages as images</p>
-                                          </div>
-                                        ) : (
-                                          <>
-                                            <UploadCloud className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-                                            <p className="text-base font-semibold text-gray-700 mb-1">
-                                              Click to upload PDF
-                                            </p>
-                                            <p className="text-sm text-gray-500 mb-2">
-                                              Required: {calculatedPages} page{calculatedPages !== 1 ? 's' : ''}
-                                            </p>
-                                            <p className="text-xs text-gray-400 mb-3">
-                                              Max file size: {MAX_PDF_SIZE_MB}MB
-                                            </p>
-                                            <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">
-                                              <FileText size={16} />
-                                              Select PDF File
-                                            </div>
-                                          </>
-                                        )}
-                                      </div>
-                                    </label>
-                                  ) : (
-                                    /* PDF Upload Success & Preview */
-                                    <div className="space-y-4">
-                                      {/* PDF File Info */}
-                                      <div className="flex items-center justify-between p-4 bg-green-50 border-2 border-green-200 rounded-xl">
-                                        <div className="flex items-center gap-3">
-                                          <div className="w-10 h-10 bg-green-500 rounded-lg flex items-center justify-center">
-                                            <FileText className="w-5 h-5 text-white" />
-                                          </div>
-                                          <div>
-                                            <p className="text-sm font-semibold text-gray-900">
-                                              {pdfFile.name}
-                                            </p>
-                                            <p className="text-xs text-gray-600">
-                                              {extractedPdfPages.length} page{extractedPdfPages.length !== 1 ? 's' : ''} extracted
-                                            </p>
-                                          </div>
-                                        </div>
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            setPdfFile(null);
-                                            setExtractedPdfPages([]);
-                                            setPdfPreviewPages([]);
-                                            setPdfValidationError(null);
-                                            // Clear mapped images
-                                            setFrontDesignFile(null);
-                                            setBackDesignFile(null);
-                                            setFrontDesignPreview("");
-                                            setBackDesignPreview("");
-                                            const fileInput = document.getElementById('pdf-upload-input') as HTMLInputElement;
-                                            if (fileInput) fileInput.value = '';
-                                          }}
-                                          className="px-3 py-1.5 text-xs font-medium text-red-700 bg-red-100 hover:bg-red-200 rounded-lg transition-colors"
-                                        >
-                                          Remove
-                                        </button>
-                                      </div>
-
-                                      {/* Extracted Pages with Purpose Labels - Enhanced UI */}
-                                      {pdfPreviewPages.length > 0 && pdfPageMapping.length > 0 && (
-                                        <div>
-                                          <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                                            <FileText size={16} className="text-blue-600" />
-                                            Page Assignments
-                                          </h4>
-                                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                                            {pdfPreviewPages.map((preview, index) => {
-                                              const mapping = pdfPageMapping[index];
-                                              if (!mapping) return null;
-
-                                              // Color coding based on type
-                                              const colorClasses = mapping.type === 'attribute'
-                                                ? {
-                                                  border: 'border-blue-400',
-                                                  badge: 'bg-blue-500',
-                                                  labelBg: 'bg-blue-600',
-                                                  icon: '📋'
-                                                }
-                                                : mapping.purpose === 'Front Design'
-                                                  ? {
-                                                    border: 'border-green-400',
-                                                    badge: 'bg-green-500',
-                                                    labelBg: 'bg-green-600',
-                                                    icon: '✓'
-                                                  }
-                                                  : {
-                                                    border: 'border-purple-400',
-                                                    badge: 'bg-purple-500',
-                                                    labelBg: 'bg-purple-600',
-                                                    icon: '⭐'
-                                                  };
-
-                                              return (
-                                                <div key={index} className="relative group">
-                                                  {/* Image Container */}
-                                                  <div className={`w-full aspect-[4/5] rounded-xl overflow-hidden border-2 ${colorClasses.border} bg-white shadow-md hover:shadow-xl transition-all`}>
-                                                    <img
-                                                      src={preview}
-                                                      alt={`Page ${index + 1}`}
-                                                      className="w-full h-full object-cover"
-                                                    />
-                                                  </div>
-
-                                                  {/* Page Number Badge */}
-                                                  <div className={`absolute -top-2 -left-2 w-7 h-7 ${colorClasses.badge} rounded-full flex items-center justify-center shadow-lg border-2 border-white`}>
-                                                    <span className="text-white text-xs font-bold">{mapping.pageNumber}</span>
-                                                  </div>
-
-                                                  {/* Required Badge */}
-                                                  {mapping.isRequired && (
-                                                    <div className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center shadow-lg border-2 border-white">
-                                                      <span className="text-white text-[10px] font-bold">!</span>
-                                                    </div>
-                                                  )}
-
-                                                  {/* Purpose Label - Always Visible */}
-                                                  <div className={`absolute bottom-0 left-0 right-0 ${colorClasses.labelBg} text-white px-2 py-2`}>
-                                                    <div className="flex items-center gap-1.5">
-                                                      <span className="text-sm">{colorClasses.icon}</span>
-                                                      <div className="flex-1 min-w-0">
-                                                        <p className="text-[11px] font-semibold truncate leading-tight">
-                                                          {mapping.purpose}
-                                                        </p>
-                                                        {mapping.type === 'attribute' && (
-                                                          <p className="text-[9px] opacity-90 truncate">
-                                                            {mapping.isRequired ? 'Required' : 'Optional'}
-                                                          </p>
-                                                        )}
-                                                      </div>
-                                                    </div>
-                                                  </div>
-
-                                                  {/* Hover Tooltip with Full Details */}
-                                                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all rounded-xl pointer-events-none"></div>
-                                                </div>
-                                              );
-                                            })}
-                                          </div>
-
-                                          {/* Legend */}
-                                          <div className="mt-4 p-3 bg-gray-50 border border-gray-200 rounded-lg">
-                                            <p className="text-xs font-semibold text-gray-700 mb-2">Color Legend:</p>
-                                            <div className="flex flex-wrap gap-3">
-                                              <div className="flex items-center gap-1.5">
-                                                <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-                                                <span className="text-xs text-gray-600">Attribute Images</span>
-                                              </div>
-                                              <div className="flex items-center gap-1.5">
-                                                <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                                                <span className="text-xs text-gray-600">Front Design</span>
-                                              </div>
-                                              <div className="flex items-center gap-1.5">
-                                                <div className="w-3 h-3 rounded-full bg-purple-500"></div>
-                                                <span className="text-xs text-gray-600">Back Design</span>
-                                              </div>
-                                              <div className="flex items-center gap-1.5">
-                                                <div className="w-3 h-3 rounded-full bg-red-500 flex items-center justify-center">
-                                                  <span className="text-white text-[8px] font-bold">!</span>
-                                                </div>
-                                                <span className="text-xs text-gray-600">Required</span>
-                                              </div>
-                                            </div>
-                                          </div>
-                                        </div>
-                                      )}
-
-                                      {/* Page Mapping Info */}
-                                      <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                                        <div className="flex items-start gap-2">
-                                          <Info size={16} className="text-blue-600 mt-0.5 flex-shrink-0" />
-                                          <div className="text-xs text-blue-900">
-                                            <p className="font-semibold mb-1">Page Mapping:</p>
-                                            <ul className="space-y-0.5 list-disc list-inside">
-                                              {(() => {
-                                                let pageNum = 1;
-                                                const mapping = [];
-
-                                                // Map attribute images
-                                                const imageUploadsRequired: Array<{
-                                                  attrName: string;
-                                                  numberOfImages: number;
-                                                }> = [];
-
-                                                let attributesToCheck: any[] = [];
-
-                                                if (isInitialized && pdpAttributes.length > 0) {
-                                                  const ruleResult = applyAttributeRules({
-                                                    attributes: pdpAttributes,
-                                                    rules: pdpRules,
-                                                    selectedValues: { ...selectedDynamicAttributes } as Record<string, string | number | boolean | File | any[] | null>,
-                                                  });
-                                                  attributesToCheck = ruleResult.attributes.filter((attr) => attr.isVisible);
-                                                } else if (selectedProduct?.dynamicAttributes) {
-                                                  attributesToCheck = selectedProduct.dynamicAttributes.filter((attr) => attr.isEnabled);
-                                                }
-
-                                                attributesToCheck.forEach((attr) => {
-                                                  let attrName: string = '';
-                                                  let attributeValues: any[] = [];
-                                                  let attrId: string = '';
-
-                                                  if (isInitialized && pdpAttributes.length > 0) {
-                                                    attrId = attr._id;
-                                                    attrName = attr.attributeName;
-                                                    attributeValues = (attr.allowedValues && attr.allowedValues.length > 0)
-                                                      ? (attr.attributeValues || []).filter((av: any) => attr.allowedValues!.includes(av.value))
-                                                      : (attr.attributeValues || []);
-                                                  } else {
-                                                    if (typeof attr.attributeType === 'object' && attr.attributeType !== null) {
-                                                      const attrType = attr.attributeType;
-                                                      attrId = attrType._id;
-                                                      attrName = attrType.attributeName;
-                                                      attributeValues = attr.customValues && attr.customValues.length > 0
-                                                        ? attr.customValues
-                                                        : attrType.attributeValues || [];
-                                                    }
-                                                  }
-
-                                                  if (!attrId) return;
-
-                                                  const selectedValue = selectedDynamicAttributes[attrId];
-                                                  if (!selectedValue) return;
-
-                                                  const selectedOption = attributeValues.find((av: any) => av.value === selectedValue);
-                                                  if (!selectedOption || !selectedOption.description) return;
-
-                                                  const imagesRequiredMatch = selectedOption.description.match(/Images Required: (\d+)/);
-                                                  const numberOfImagesRequired = imagesRequiredMatch ? parseInt(imagesRequiredMatch[1]) : 0;
-
-                                                  if (numberOfImagesRequired > 0) {
-                                                    imageUploadsRequired.push({
-                                                      attrName,
-                                                      numberOfImages: numberOfImagesRequired,
-                                                    });
-                                                  }
-                                                });
-
-                                                imageUploadsRequired.forEach((req) => {
-                                                  if (req.numberOfImages === 1) {
-                                                    mapping.push(<li key={`attr-${pageNum}`}>Page {pageNum}: {req.attrName}</li>);
-                                                    pageNum++;
-                                                  } else {
-                                                    mapping.push(
-                                                      <li key={`attr-${pageNum}`}>
-                                                        Pages {pageNum}-{pageNum + req.numberOfImages - 1}: {req.attrName}
-                                                      </li>
-                                                    );
-                                                    pageNum += req.numberOfImages;
-                                                  }
-                                                });
-
-                                                // Add design pages
-                                                mapping.push(<li key="front">Page {pageNum}: Front Design (Required)</li>);
-                                                pageNum++;
-                                                mapping.push(<li key="back">Page {pageNum}: Back Design (Optional)</li>);
-
-                                                return mapping;
-                                              })()}
-                                            </ul>
-                                          </div>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  )}
-
-                                  {/* Validation Error */}
-                                  {pdfValidationError && (
-                                    <div className="mt-4 p-4 bg-red-50 border-2 border-red-200 rounded-xl">
-                                      <div className="flex items-start gap-2">
-                                        <AlertCircle className="text-red-600 flex-shrink-0 mt-0.5" size={18} />
-                                        <div>
-                                          <p className="text-sm font-semibold text-red-900 mb-1">Upload Error</p>
-                                          <p className="text-sm text-red-700">{pdfValidationError}</p>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  )}
-
-                                  {/* Additional Notes Section */}
-                                  <div className="mt-4 p-4 rounded-lg border-2 border-gray-200 bg-gray-50">
-                                    <div className="flex items-center gap-2 mb-3">
-                                      <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-purple-100 text-purple-700 text-xs font-bold">
-                                        <Info size={12} />
-                                      </span>
-                                      <h4 className="text-sm font-bold text-gray-900">
-                                        Additional Notes
-                                      </h4>
-                                      <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-200 text-gray-600 text-[10px] font-semibold">
-                                        Optional
-                                      </span>
-                                    </div>
-                                    <textarea
-                                      value={orderNotes}
-                                      onChange={(e) => setOrderNotes(e.target.value)}
-                                      placeholder="Any special instructions or notes for your order..."
-                                      className="w-full p-3 rounded-lg border-2 border-gray-200 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none text-sm resize-none bg-white transition-all"
-                                      rows={3}
-                                    />
-                                  </div>
+                                <div className="p-5 flex-1 flex items-center justify-center">
+                                  <Skeleton variant="rectangular" className="w-full h-full rounded-xl" />
                                 </div>
                               </div>
-                            );
-                          })()}
+                            )
+                          }
 
+                          // Calculate required pages dynamically
+                          const calculatedPages = calculateRequiredPageCount();
+
+                          return (
+                            <div className="mb-3 sm:mb-4 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                              {/* Header Section */}
+                              <div className="bg-gradient-to-r from-blue-50 to-purple-50 px-4 sm:px-5 py-3 sm:py-4 border-b border-gray-200">
+                                <div className="flex items-center gap-2.5">
+                                  <div className="w-8 h-8 rounded-lg bg-white shadow-sm flex items-center justify-center">
+                                    <FileText className="w-[18px] h-[18px] text-blue-600" />
+                                  </div>
+                                  <div className="flex-1">
+                                    <h3 className="font-semibold text-sm sm:text-base text-gray-900">
+                                      Upload Design PDF
+                                    </h3>
+                                    <p className="text-xs text-gray-500 mt-0.5">
+                                      {calculatedPages} page{calculatedPages !== 1 ? 's' : ''} required • Max size: {MAX_PDF_SIZE_MB}MB
+                                    </p>
+                                  </div>
+                                  {pdfFile && !pdfValidationError && (
+                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-100 text-green-700 text-xs font-semibold">
+                                      <Check size={12} strokeWidth={3} />
+                                      Complete
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Upload Area */}
+                              <div className="p-4 sm:p-5">
+                                {/* Upload Input */}
+                                <input
+                                  type="file"
+                                  id="pdf-upload-input"
+                                  accept="application/pdf"
+                                  onChange={handlePdfUpload}
+                                  className="hidden"
+                                  data-required-field
+                                />
+
+                                {!pdfFile ? (
+                                  /* Upload Prompt */
+                                  <label
+                                    htmlFor="pdf-upload-input"
+                                    className={`block cursor-pointer border-2 border-dashed rounded-xl transition-all duration-200 ${pdfValidationError
+                                      ? 'border-red-300 bg-red-50'
+                                      : 'border-gray-300 bg-gray-50 hover:border-blue-400 hover:bg-blue-50'
+                                      }`}
+                                  >
+                                    <div className="p-8 text-center">
+                                      {isPdfProcessing ? (
+                                        <div className="flex flex-col items-center">
+                                          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-3"></div>
+                                          <p className="text-sm font-semibold text-gray-700">Processing PDF...</p>
+                                          <p className="text-xs text-gray-500 mt-1">Extracting pages as images</p>
+                                        </div>
+                                      ) : (
+                                        <>
+                                          <UploadCloud className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                                          <p className="text-base font-semibold text-gray-700 mb-1">
+                                            Click to upload PDF
+                                          </p>
+                                          <p className="text-sm text-gray-500 mb-2">
+                                            Required: {calculatedPages} page{calculatedPages !== 1 ? 's' : ''}
+                                          </p>
+                                          <p className="text-xs text-gray-400 mb-3">
+                                            Max file size: {MAX_PDF_SIZE_MB}MB
+                                          </p>
+                                          <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">
+                                            <FileText size={16} />
+                                            Select PDF File
+                                          </div>
+                                        </>
+                                      )}
+                                    </div>
+                                  </label>
+                                ) : (
+                                  /* PDF Upload Success & Preview */
+                                  <div className="space-y-4">
+                                    {/* PDF File Info */}
+                                    <div className="flex items-center justify-between p-4 bg-green-50 border-2 border-green-200 rounded-xl">
+                                      <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 bg-green-500 rounded-lg flex items-center justify-center">
+                                          <FileText className="w-5 h-5 text-white" />
+                                        </div>
+                                        <div>
+                                          <p className="text-sm font-semibold text-gray-900">
+                                            {pdfFile.name}
+                                          </p>
+                                          <p className="text-xs text-gray-600">
+                                            {extractedPdfPages.length} page{extractedPdfPages.length !== 1 ? 's' : ''} extracted
+                                          </p>
+                                        </div>
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setPdfFile(null);
+                                          setExtractedPdfPages([]);
+                                          setPdfPreviewPages([]);
+                                          setPdfValidationError(null);
+                                          // Clear mapped images
+                                          setFrontDesignFile(null);
+                                          setBackDesignFile(null);
+                                          setFrontDesignPreview("");
+                                          setBackDesignPreview("");
+                                          const fileInput = document.getElementById('pdf-upload-input') as HTMLInputElement;
+                                          if (fileInput) fileInput.value = '';
+                                        }}
+                                        className="px-3 py-1.5 text-xs font-medium text-red-700 bg-red-100 hover:bg-red-200 rounded-lg transition-colors"
+                                      >
+                                        Remove
+                                      </button>
+                                    </div>
+
+                                    {/* Extracted Pages with Purpose Labels - Enhanced UI */}
+                                    {pdfPreviewPages.length > 0 && pdfPageMapping.length > 0 && (
+                                      <div>
+                                        <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                                          <FileText size={16} className="text-blue-600" />
+                                          Page Assignments
+                                        </h4>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                          {pdfPreviewPages.map((preview, index) => {
+                                            const mapping = pdfPageMapping[index];
+                                            if (!mapping) return null;
+
+                                            // Color coding based on type
+                                            const colorClasses = mapping.type === 'attribute'
+                                              ? {
+                                                border: 'border-blue-400',
+                                                badge: 'bg-blue-500',
+                                                labelBg: 'bg-blue-600',
+                                                icon: '📋'
+                                              }
+                                              : mapping.purpose === 'Front Design'
+                                                ? {
+                                                  border: 'border-green-400',
+                                                  badge: 'bg-green-500',
+                                                  labelBg: 'bg-green-600',
+                                                  icon: '✓'
+                                                }
+                                                : {
+                                                  border: 'border-purple-400',
+                                                  badge: 'bg-purple-500',
+                                                  labelBg: 'bg-purple-600',
+                                                  icon: '⭐'
+                                                };
+
+                                            return (
+                                              <div key={index} className="relative group">
+                                                {/* Image Container */}
+                                                <div className={`w-full aspect-[4/5] rounded-xl overflow-hidden border-2 ${colorClasses.border} bg-white shadow-md hover:shadow-xl transition-all`}>
+                                                  <img
+                                                    src={preview}
+                                                    alt={`Page ${index + 1}`}
+                                                    className="w-full h-full object-cover"
+                                                  />
+                                                </div>
+
+                                                {/* Page Number Badge */}
+                                                <div className={`absolute -top-2 -left-2 w-7 h-7 ${colorClasses.badge} rounded-full flex items-center justify-center shadow-lg border-2 border-white`}>
+                                                  <span className="text-white text-xs font-bold">{mapping.pageNumber}</span>
+                                                </div>
+
+                                                {/* Required Badge */}
+                                                {mapping.isRequired && (
+                                                  <div className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center shadow-lg border-2 border-white">
+                                                    <span className="text-white text-[10px] font-bold">!</span>
+                                                  </div>
+                                                )}
+
+                                                {/* Purpose Label - Always Visible */}
+                                                <div className={`absolute bottom-0 left-0 right-0 ${colorClasses.labelBg} text-white px-2 py-2`}>
+                                                  <div className="flex items-center gap-1.5">
+                                                    <span className="text-sm">{colorClasses.icon}</span>
+                                                    <div className="flex-1 min-w-0">
+                                                      <p className="text-[11px] font-semibold truncate leading-tight">
+                                                        {mapping.purpose}
+                                                      </p>
+                                                      {mapping.type === 'attribute' && (
+                                                        <p className="text-[9px] opacity-90 truncate">
+                                                          {mapping.isRequired ? 'Required' : 'Optional'}
+                                                        </p>
+                                                      )}
+                                                    </div>
+                                                  </div>
+                                                </div>
+
+                                                {/* Hover Tooltip with Full Details */}
+                                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all rounded-xl pointer-events-none"></div>
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+
+                                        {/* Legend */}
+                                        <div className="mt-4 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                                          <p className="text-xs font-semibold text-gray-700 mb-2">Color Legend:</p>
+                                          <div className="flex flex-wrap gap-3">
+                                            <div className="flex items-center gap-1.5">
+                                              <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                                              <span className="text-xs text-gray-600">Attribute Images</span>
+                                            </div>
+                                            <div className="flex items-center gap-1.5">
+                                              <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                                              <span className="text-xs text-gray-600">Front Design</span>
+                                            </div>
+                                            <div className="flex items-center gap-1.5">
+                                              <div className="w-3 h-3 rounded-full bg-purple-500"></div>
+                                              <span className="text-xs text-gray-600">Back Design</span>
+                                            </div>
+                                            <div className="flex items-center gap-1.5">
+                                              <div className="w-3 h-3 rounded-full bg-red-500 flex items-center justify-center">
+                                                <span className="text-white text-[8px] font-bold">!</span>
+                                              </div>
+                                              <span className="text-xs text-gray-600">Required</span>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {/* Page Mapping Info */}
+                                    <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                                      <div className="flex items-start gap-2">
+                                        <Info size={16} className="text-blue-600 mt-0.5 flex-shrink-0" />
+                                        <div className="text-xs text-blue-900">
+                                          <p className="font-semibold mb-1">Page Mapping:</p>
+                                          <ul className="space-y-0.5 list-disc list-inside">
+                                            {(() => {
+                                              let pageNum = 1;
+                                              const mapping = [];
+
+                                              // Map attribute images
+                                              const imageUploadsRequired: Array<{
+                                                attrName: string;
+                                                numberOfImages: number;
+                                              }> = [];
+
+                                              let attributesToCheck: any[] = [];
+
+                                              if (isInitialized && pdpAttributes.length > 0) {
+                                                const ruleResult = applyAttributeRules({
+                                                  attributes: pdpAttributes,
+                                                  rules: pdpRules,
+                                                  selectedValues: { ...selectedDynamicAttributes } as Record<string, string | number | boolean | File | any[] | null>,
+                                                });
+                                                attributesToCheck = ruleResult.attributes.filter((attr) => attr.isVisible);
+                                              } else if (selectedProduct?.dynamicAttributes) {
+                                                attributesToCheck = selectedProduct.dynamicAttributes.filter((attr) => attr.isEnabled);
+                                              }
+
+                                              attributesToCheck.forEach((attr) => {
+                                                let attrName: string = '';
+                                                let attributeValues: any[] = [];
+                                                let attrId: string = '';
+
+                                                if (isInitialized && pdpAttributes.length > 0) {
+                                                  attrId = attr._id;
+                                                  attrName = attr.attributeName;
+                                                  attributeValues = (attr.allowedValues && attr.allowedValues.length > 0)
+                                                    ? (attr.attributeValues || []).filter((av: any) => attr.allowedValues!.includes(av.value))
+                                                    : (attr.attributeValues || []);
+                                                } else {
+                                                  if (typeof attr.attributeType === 'object' && attr.attributeType !== null) {
+                                                    const attrType = attr.attributeType;
+                                                    attrId = attrType._id;
+                                                    attrName = attrType.attributeName;
+                                                    attributeValues = attr.customValues && attr.customValues.length > 0
+                                                      ? attr.customValues
+                                                      : attrType.attributeValues || [];
+                                                  }
+                                                }
+
+                                                if (!attrId) return;
+
+                                                const selectedValue = selectedDynamicAttributes[attrId];
+                                                if (!selectedValue) return;
+
+                                                const selectedOption = attributeValues.find((av: any) => av.value === selectedValue);
+                                                if (!selectedOption || !selectedOption.description) return;
+
+                                                const imagesRequiredMatch = selectedOption.description.match(/Images Required: (\d+)/);
+                                                const numberOfImagesRequired = imagesRequiredMatch ? parseInt(imagesRequiredMatch[1]) : 0;
+
+                                                if (numberOfImagesRequired > 0) {
+                                                  imageUploadsRequired.push({
+                                                    attrName,
+                                                    numberOfImages: numberOfImagesRequired,
+                                                  });
+                                                }
+                                              });
+
+                                              imageUploadsRequired.forEach((req) => {
+                                                if (req.numberOfImages === 1) {
+                                                  mapping.push(<li key={`attr-${pageNum}`}>Page {pageNum}: {req.attrName}</li>);
+                                                  pageNum++;
+                                                } else {
+                                                  mapping.push(
+                                                    <li key={`attr-${pageNum}`}>
+                                                      Pages {pageNum}-{pageNum + req.numberOfImages - 1}: {req.attrName}
+                                                    </li>
+                                                  );
+                                                  pageNum += req.numberOfImages;
+                                                }
+                                              });
+
+                                              // Add design pages
+                                              mapping.push(<li key="front">Page {pageNum}: Front Design (Required)</li>);
+                                              pageNum++;
+                                              mapping.push(<li key="back">Page {pageNum}: Back Design (Optional)</li>);
+
+                                              return mapping;
+                                            })()}
+                                          </ul>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Validation Error */}
+                                {pdfValidationError && (
+                                  <div className="mt-4 p-4 bg-red-50 border-2 border-red-200 rounded-xl">
+                                    <div className="flex items-start gap-2">
+                                      <AlertCircle className="text-red-600 flex-shrink-0 mt-0.5" size={18} />
+                                      <div>
+                                        <p className="text-sm font-semibold text-red-900 mb-1">Upload Error</p>
+                                        <p className="text-sm text-red-700">{pdfValidationError}</p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Additional Notes Section */}
+                                <div className="mt-4 p-4 rounded-lg border-2 border-gray-200 bg-gray-50">
+                                  <div className="flex items-center gap-2 mb-3">
+                                    <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-purple-100 text-purple-700 text-xs font-bold">
+                                      <Info size={12} />
+                                    </span>
+                                    <h4 className="text-sm font-bold text-gray-900">
+                                      Additional Notes
+                                    </h4>
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-200 text-gray-600 text-[10px] font-semibold">
+                                      Optional
+                                    </span>
+                                  </div>
+                                  <textarea
+                                    value={orderNotes}
+                                    onChange={(e) => setOrderNotes(e.target.value)}
+                                    placeholder="Any special instructions or notes for your order..."
+                                    className="w-full p-3 rounded-lg border-2 border-gray-200 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none text-sm resize-none bg-white transition-all"
+                                    rows={3}
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })()}
+
+                      </div>
+
+                      {/* Premium Sticky Footer with Total Price + CTA */}
+                      {loading ? (
+                        <div className="mt-auto pt-6 border-t border-gray-100 bg-white bottom-0 z-10">
+                          <div className="flex justify-between items-end mb-4">
+                            <div className="space-y-2">
+                              <Skeleton variant="text" className="w-24 h-3" />
+                              <Skeleton variant="text" className="w-32 h-8" />
+                            </div>
+                            <Skeleton variant="text" className="w-24 h-4" />
+                          </div>
+                          <Skeleton variant="rectangular" className="w-full h-14 rounded-xl" />
                         </div>
-
-                        {/* Premium Sticky Footer with Total Price + CTA */}
+                      ) : (
                         <div className="mt-auto pt-6 border-t border-gray-100 bg-white bottom-0 z-10">
                           <div className="flex justify-between items-end mb-4">
                             <div>
@@ -6457,9 +6579,9 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                             <span>Secure Payment & Data Protection</span>
                           </div>
                         </div>
-                      </motion.div>
-                    </AnimatePresence>
-                  )}
+                      )}
+                    </motion.div>
+                  </AnimatePresence>
                 </div>
               </div>
             </div>
@@ -6891,10 +7013,12 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
                         {av.image && (
                           <div className="mb-1.5 overflow-hidden rounded border border-gray-200 bg-gray-50 flex-shrink-0">
-                            <img
+                            <LazyImage
                               src={av.image}
                               alt={av.label}
-                              className="w-full h-[70px] object-cover transition-transform duration-200 hover:scale-105"
+                              className="w-full h-full object-cover transition-transform duration-200 hover:scale-105"
+                              showSkeleton={true}
+                              skeletonVariant="rectangular"
                             />
                           </div>
                         )}

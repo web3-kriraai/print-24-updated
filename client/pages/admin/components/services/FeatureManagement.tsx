@@ -21,6 +21,7 @@ import {
     Shield,
     Heart,
 } from 'lucide-react';
+import * as LucideIcons from 'lucide-react';
 import { API_BASE_URL_WITH_API } from '../../../../lib/apiConfig';
 import IconSelector from '../../../../components/IconSelector';
 
@@ -37,18 +38,7 @@ interface Feature {
     isVisible: boolean;
 }
 
-const iconMap: { [key: string]: React.ElementType } = {
-    Tag,
-    Truck,
-    Gift,
-    ShoppingBag,
-    RotateCcw,
-    Package,
-    Award,
-    Clock,
-    Shield,
-    Heart,
-};
+// Removed hardcoded iconMap in favor of dynamic lookup from LucideIcons
 
 const FeatureManagement: React.FC = () => {
     const [features, setFeatures] = useState<Feature[]>([]);
@@ -79,7 +69,7 @@ const FeatureManagement: React.FC = () => {
     const loadFeatures = async () => {
         try {
             setLoading(true);
-            const response = await fetch(`${API_BASE_URL_WITH_API}/features`);
+            const response = await fetch(`${API_BASE_URL_WITH_API}/features?_t=${Date.now()}`);
             if (response.ok) {
                 const data = await response.json();
                 setFeatures(data.sort((a: Feature, b: Feature) => a.displayOrder - b.displayOrder));
@@ -166,6 +156,9 @@ const FeatureManagement: React.FC = () => {
 
             if (useIconImage && iconFile) {
                 submissionData.append('iconImage', iconFile);
+            } else if (!useIconImage) {
+                // Explicitly clear iconImage if switching to icon library
+                submissionData.append('iconImage', '');
             }
 
             const url = editingFeature
@@ -291,7 +284,7 @@ const FeatureManagement: React.FC = () => {
             {/* Features List */}
             <div className="space-y-3">
                 {features.map((feature, index) => {
-                    const IconComponent = iconMap[feature.icon] || Tag;
+                    const IconComponent = (LucideIcons as any)[feature.icon] || LucideIcons.Tag;
                     return (
                         <motion.div
                             key={feature._id}

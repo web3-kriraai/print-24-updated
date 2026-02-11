@@ -93,29 +93,29 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ isOpen, product
                         initial={{ opacity: 0, scale: 0.9 }}
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0, scale: 0.9 }}
-                        className="bg-white rounded-xl max-w-2xl w-full max-h-[80vh] overflow-hidden shadow-2xl"
+                        className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] md:max-h-[80vh] flex flex-col overflow-hidden shadow-2xl mx-4 md:mx-0"
                     >
                         {/* Modal Header */}
-                        <div className="p-6 border-b border-gray-200 flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 bg-teal-100 rounded-lg flex items-center justify-center">
+                        <div className="p-4 md:p-6 border-b border-gray-200 flex items-center justify-between shrink-0">
+                            <div className="flex items-center gap-3 overflow-hidden">
+                                <div className="w-10 h-10 bg-teal-100 rounded-lg flex items-center justify-center flex-shrink-0">
                                     <Package className="text-teal-600" size={20} />
                                 </div>
-                                <div>
-                                    <h2 className="text-xl font-bold text-gray-900">{product.name}</h2>
-                                    <p className="text-sm text-gray-600">{product.sku || 'No SKU'}</p>
+                                <div className="min-w-0">
+                                    <h2 className="text-lg md:text-xl font-bold text-gray-900 truncate">{product.name}</h2>
+                                    <p className="text-sm text-gray-600 truncate">{product.sku || 'No SKU'}</p>
                                 </div>
                             </div>
                             <button
                                 onClick={onClose}
-                                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                                className="p-2 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0 ml-2"
                             >
                                 <X size={20} className="text-gray-500" />
                             </button>
                         </div>
 
                         {/* Modal Content */}
-                        <div className="p-6 overflow-y-auto max-h-[60vh]">
+                        <div className="p-4 md:p-6 overflow-y-auto flex-1">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 {/* Left Column */}
                                 <div className="space-y-6">
@@ -163,27 +163,27 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ isOpen, product
                                         <h3 className="text-sm font-semibold text-gray-900 mb-3">Categories</h3>
                                         <div className="space-y-2">
                                             <div className="flex items-center gap-2">
-                                                <div className="w-5 h-5 rounded bg-blue-50 flex items-center justify-center">
+                                                <div className="w-5 h-5 rounded bg-blue-50 flex items-center justify-center flex-shrink-0">
                                                     <Tag size={14} className="text-blue-500" />
                                                 </div>
-                                                <span className="text-sm">{product.category ? getCategoryName(product.category) : 'Uncategorized'}</span>
+                                                <span className="text-sm truncate">{product.category ? getCategoryName(product.category) : 'Uncategorized'}</span>
                                             </div>
                                             {product.subcategory && getCategoryName(product.subcategory) !== 'Uncategorized' && (
                                                 <div className="flex items-center gap-2 ml-6 relative">
                                                     <div className="absolute -left-4 top-1/2 -translate-y-1/2 w-3 h-px bg-gray-300" />
-                                                    <div className="w-5 h-5 rounded bg-cyan-50 flex items-center justify-center">
+                                                    <div className="w-5 h-5 rounded bg-cyan-50 flex items-center justify-center flex-shrink-0">
                                                         <Layers size={14} className="text-cyan-500" />
                                                     </div>
-                                                    <span className="text-sm">{getCategoryName(product.subcategory)}</span>
+                                                    <span className="text-sm truncate">{getCategoryName(product.subcategory)}</span>
                                                 </div>
                                             )}
                                             {product.nestedSubcategory && getCategoryName(product.nestedSubcategory) !== 'Uncategorized' && (
                                                 <div className="flex items-center gap-2 ml-12 relative">
                                                     <div className="absolute -left-4 top-1/2 -translate-y-1/2 w-3 h-px bg-gray-300" />
-                                                    <div className="w-5 h-5 rounded bg-indigo-50 flex items-center justify-center">
+                                                    <div className="w-5 h-5 rounded bg-indigo-50 flex items-center justify-center flex-shrink-0">
                                                         <Layers size={14} className="text-indigo-500" />
                                                     </div>
-                                                    <span className="text-sm">{getCategoryName(product.nestedSubcategory)}</span>
+                                                    <span className="text-sm truncate">{getCategoryName(product.nestedSubcategory)}</span>
                                                 </div>
                                             )}
                                         </div>
@@ -237,11 +237,11 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ isOpen, product
                         </div>
 
                         {/* Modal Footer */}
-                        <div className="p-6 border-t border-gray-200 bg-gray-50">
+                        <div className="p-4 md:p-6 border-t border-gray-200 bg-gray-50 shrink-0">
                             <div className="flex justify-end gap-3">
                                 <button
                                     onClick={onClose}
-                                    className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors font-medium"
+                                    className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors font-medium text-sm md:text-base"
                                 >
                                     Close
                                 </button>
@@ -250,7 +250,7 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ isOpen, product
                                         // Handle edit action
                                         onClose();
                                     }}
-                                    className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors font-medium"
+                                    className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors font-medium text-sm md:text-base"
                                 >
                                     Edit Product
                                 </button>

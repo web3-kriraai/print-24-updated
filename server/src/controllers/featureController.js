@@ -95,6 +95,8 @@ export const createFeature = async (req, res) => {
 // Update feature with optional image upload
 export const updateFeature = async (req, res) => {
     try {
+        console.log('Update Feature Request Body:', req.body);
+        console.log('Update Feature Request File:', req.file);
         const { icon, title, description, color, displayOrder, isVisible, iconShape, iconBackgroundColor } = req.body;
 
         const updateData = {
@@ -108,6 +110,11 @@ export const updateFeature = async (req, res) => {
 
         if (iconShape !== undefined) updateData.iconShape = iconShape;
         if (iconBackgroundColor !== undefined) updateData.iconBackgroundColor = iconBackgroundColor;
+
+        // Check if iconImage is explicitly sent as empty string (to clear it)
+        if (req.body.iconImage === '') {
+            updateData.iconImage = '';
+        }
 
         // Handle image upload if provided
         if (req.file) {
@@ -139,11 +146,14 @@ export const updateFeature = async (req, res) => {
             bufferStream.pipe(uploadStream);
         } else {
             // No new image, update other fields
+            console.log('Update Data Payload:', updateData);
             const feature = await Feature.findByIdAndUpdate(
                 req.params.id,
                 updateData,
                 { new: true, runValidators: true }
             );
+
+            console.log('Updated Feature from DB:', feature);
 
             if (!feature) {
                 return res.status(404).json({ message: 'Feature not found' });

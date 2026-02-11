@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Tag, Truck, Gift, ShoppingBag, RotateCcw, Package, Award, Clock, Shield, Heart } from 'lucide-react';
+import * as LucideIcons from 'lucide-react';
+import { Tag } from 'lucide-react';
 import { API_BASE_URL_WITH_API } from '../lib/apiConfig';
 import { ScrollVelocityContainer, ScrollVelocityRow } from './ui/scroll-based-velocity';
 
@@ -17,19 +18,7 @@ interface Feature {
     isVisible?: boolean;
 }
 
-// Icon mapping
-const iconMap: { [key: string]: React.ElementType } = {
-    Tag,
-    Truck,
-    Gift,
-    ShoppingBag,
-    RotateCcw,
-    Package,
-    Award,
-    Clock,
-    Shield,
-    Heart,
-};
+// Removed hardcoded iconMap in favor of dynamic lookup
 
 const FeaturesSection: React.FC = () => {
     const [features, setFeatures] = useState<Feature[]>([]);
@@ -70,7 +59,7 @@ const FeaturesSection: React.FC = () => {
                 <ScrollVelocityContainer className="w-full">
                     <ScrollVelocityRow baseVelocity={1} direction={1} className="py-4">
                         {features.map((feature, index) => {
-                            const IconComponent = iconMap[feature.icon] || Tag;
+                            const IconComponent = (LucideIcons as any)[feature.icon] || Tag;
                             // Determine styles based on configuration
                             const containerClass = `w-14 h-14 flex items-center justify-center flex-shrink-0 ${feature.iconImage && feature.iconShape
                                 ? feature.iconShape === 'circle' ? 'rounded-full' : feature.iconShape === 'rounded' ? 'rounded-lg' : 'rounded-none'
@@ -120,7 +109,7 @@ const FeaturesSection: React.FC = () => {
                     </ScrollVelocityRow>
                     <ScrollVelocityRow baseVelocity={1} direction={-1} className="py-4">
                         {secondRowFeatures.map((feature, index) => {
-                            const IconComponent = iconMap[feature.icon] || Tag;
+                            const IconComponent = (LucideIcons as any)[feature.icon] || Tag;
                             // Determine styles based on configuration
                             const containerClass = `w-14 h-14 flex items-center justify-center flex-shrink-0 ${feature.iconImage && feature.iconShape
                                 ? feature.iconShape === 'circle' ? 'rounded-full' : feature.iconShape === 'rounded' ? 'rounded-lg' : 'rounded-none'
