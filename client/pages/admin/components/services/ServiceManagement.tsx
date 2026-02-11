@@ -123,7 +123,7 @@ const ServiceManagement: React.FC = () => {
     const loadServices = async () => {
         try {
             setLoading(true);
-            const data = await fetchServices(false); // Load all services including inactive
+            const data = await fetchServices(false, true); // Load all services and all titles
             setServices(data);
         } catch (error) {
             console.error('Failed to load services:', error);

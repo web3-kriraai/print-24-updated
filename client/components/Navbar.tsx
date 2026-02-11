@@ -19,6 +19,7 @@ interface UserData {
   email: string;
   role: string;
   isEmployee?: boolean;
+  profileImage?: string;
 }
 
 const Navbar: React.FC = () => {
@@ -240,12 +241,13 @@ const Navbar: React.FC = () => {
                       className="flex items-center gap-2 p-2 rounded-lg hover:bg-cream-100 transition-colors" // Increased from p-1.5 to p-2
                     >
                       <div
-                        className={`w-8 h-8 rounded-full ${getRandomColor(
-                          // Increased from w-7 h-7 to w-8 h-8
-                          userData.name
-                        )} flex items-center justify-center text-white text-sm font-bold`} // Increased text size
+                        className={`w-8 h-8 rounded-full ${!userData.profileImage ? getRandomColor(userData.name) : ""} flex items-center justify-center text-white text-sm font-bold overflow-hidden bg-slate-100`}
                       >
-                        {getInitials(userData.name)}
+                        {userData.profileImage ? (
+                          <img src={userData.profileImage} alt={userData.name} className="w-full h-full object-cover" />
+                        ) : (
+                          getInitials(userData.name)
+                        )}
                       </div>
                       <span className="text-cream-700 text-sm font-medium">
                         {userData.name.split(" ")[0]}
@@ -268,12 +270,13 @@ const Navbar: React.FC = () => {
                             {/* Increased py-2 to py-3 */}
                             <div className="flex items-center gap-3">
                               <div
-                                className={`w-10 h-10 rounded-full ${getRandomColor(
-                                  // Increased from w-9 h-9 to w-10 h-10
-                                  userData.name
-                                )} flex items-center justify-center text-white font-bold`} // Removed text-sm
+                                className={`w-10 h-10 rounded-full ${!userData.profileImage ? getRandomColor(userData.name) : ""} flex items-center justify-center text-white font-bold overflow-hidden bg-slate-100`}
                               >
-                                {getInitials(userData.name)}
+                                {userData.profileImage ? (
+                                  <img src={userData.profileImage} alt={userData.name} className="w-full h-full object-cover" />
+                                ) : (
+                                  getInitials(userData.name)
+                                )}
                               </div>
                               <div className="flex-1 min-w-0">
                                 <p className="text-sm font-semibold text-cream-900 truncate">
@@ -426,12 +429,13 @@ const Navbar: React.FC = () => {
                         {/* Increased padding */}
                         <div className="flex items-center gap-3">
                           <div
-                            className={`w-8 h-8 rounded-full ${getRandomColor(
-                              // Increased size
-                              userData.name
-                            )} flex items-center justify-center text-white text-sm font-bold`}
+                            className={`w-8 h-8 rounded-full ${!userData.profileImage ? getRandomColor(userData.name) : ""} flex items-center justify-center text-white text-sm font-bold overflow-hidden bg-slate-100`}
                           >
-                            {getInitials(userData.name)}
+                            {userData.profileImage ? (
+                              <img src={userData.profileImage} alt={userData.name} className="w-full h-full object-cover" />
+                            ) : (
+                              getInitials(userData.name)
+                            )}
                           </div>
                           <div>
                             <p className="text-sm font-semibold text-cream-900">

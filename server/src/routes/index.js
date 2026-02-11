@@ -188,6 +188,14 @@ import {
   uploadLogo,
 } from "../controllers/siteSettingsController.js";
 
+/* DYNAMIC SIGNUP ROUTES */
+import segmentApplicationRoutes from "./segmentApplicationRoutes.js";
+import formBuilderRoutes from "./formBuilderRoutes.js";
+import otpRoutes from "./otpRoutes.js";
+
+/* PRICING ROUTES */
+import pricingRoutes from "./pricingRoutes.js";
+
 const router = express.Router();
 
 /* =====================================
@@ -533,9 +541,9 @@ router.delete("/sequences/:id", authMiddleware, adminAuth, deleteSequence);
    SERVICE ROUTES
 ===================================== */
 
-// Public routes
-router.get("/services", getAllServices);
-router.get("/services/:id", getServiceById);
+// Public routes (with optional auth for segment detection)
+router.get("/services", optionalAuthMiddleware, getAllServices);
+router.get("/services/:id", optionalAuthMiddleware, getServiceById);
 
 // Admin routes
 router.post("/services", authMiddleware, adminAuth, createService);
@@ -571,5 +579,21 @@ router.get("/site-settings", getSiteSettings);
 // Admin routes
 router.put("/site-settings", authMiddleware, adminAuth, updateSiteSettings);
 router.post("/site-settings/logo", authMiddleware, adminAuth, uploadLogo);
+
+/* =====================================
+   DYNAMIC SIGNUP ROUTES
+===================================== */
+
+// Segment application routes (public + admin)
+router.use("/", segmentApplicationRoutes);
+
+// Form builder routes (admin only)
+router.use("/admin/forms", formBuilderRoutes);
+
+// OTP routes (public)
+router.use("/otp", otpRoutes);
+
+// Pricing routes (admin only)
+router.use("/admin/pricing", authMiddleware, adminAuth, pricingRoutes);
 
 export default router;

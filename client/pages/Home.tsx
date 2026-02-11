@@ -130,18 +130,15 @@ const Home: React.FC = () => {
     // Fetch Services
     const fetchServicesList = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL_WITH_API}/services`);
-        if (response.ok) {
-          const data = await response.json();
-          // Filter visible services and sort
-          const visibleServices = data
-            .filter((s: Service) => s.isActive !== false) // Handle undefined as true or specific false check
-            .sort((a: Service, b: Service) => (a.sortOrder || 0) - (b.sortOrder || 0));
+        const data = await fetchServices();
+        // Filter visible services and sort
+        const visibleServices = data
+          .filter((s: Service) => s.isActive !== false)
+          .sort((a: Service, b: Service) => (a.sortOrder || 0) - (b.sortOrder || 0));
 
-          setServices(visibleServices);
-          if (visibleServices.length > 0) {
-            setSelectedService(visibleServices[0]);
-          }
+        setServices(visibleServices);
+        if (visibleServices.length > 0) {
+          setSelectedService(visibleServices[0]);
         }
       } catch (error) {
         console.error("Error fetching services:", error);

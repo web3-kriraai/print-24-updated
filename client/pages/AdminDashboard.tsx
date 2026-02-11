@@ -67,6 +67,9 @@ import ManageImageMatrix from "./admin/components/attributes/ManageImageMatrix";
 import AboutManagement from "./admin/components/AboutManagement";
 import ServiceManagement from "./admin/components/services/ServiceManagement";
 import SiteSettingsManagement from "./admin/components/SiteSettingsManagement";
+import UserSegmentManager from "../components/UserSegmentManager";
+import SegmentApplicationManager from "../components/admin/pricing/SegmentApplicationManager";
+import FormBuilder from "../components/admin/pricing/FormBuilder";
 
 // Simple placeholder image as data URI (1x1 transparent pixel)
 const PLACEHOLDER_IMAGE = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150'%3E%3Crect width='150' height='150' fill='%23f5f5f5'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='%23999' font-family='sans-serif' font-size='14'%3ENo Image%3C/text%3E%3C/svg%3E";
@@ -5963,26 +5966,6 @@ const AdminDashboard: React.FC = () => {
       {/* Main Content Area - Adjusted for Sidebar */}
       <div className="ml-0 md:ml-64 min-h-screen pt-20 md:pt-8 pb-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="mb-6">
-            <BackButton fallbackPath="/" label="Back" className="text-cream-600 hover:text-cream-900 mb-4" />
-          </div>
-          <div className="mb-6 sm:mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-              <h1 className="font-serif text-2xl sm:text-3xl md:text-4xl font-bold text-cream-900 mb-2">
-              </h1>
-              <p className="text-sm sm:text-base text-cream-600">
-              </p>
-            </div>
-          </div>
-
-          {/* 
-            OLD TABS NAVIGATION - Moved to separate file for reference
-            See: client/pages/admin/components/OldTabsNavigation.tsx
-            This horizontal tabs navigation has been replaced with AdminSidebar component
-          */}
-
-          {/* Messages */}
-          {/* Don't show global error/success for attribute-types tab - they use modal with internal error display and toast notifications */}
           <AnimatePresence>
             {error && activeTab !== "attribute-types" && (
               <motion.div
@@ -8107,6 +8090,21 @@ const AdminDashboard: React.FC = () => {
         {/* Site Settings Management */}
         {activeTab === "site-settings" && (
           <SiteSettingsManagement />
+        )}
+
+        {/* User Segment Management */}
+        {activeTab === "user-segments" && (
+          <UserSegmentManager />
+        )}
+
+        {/* Segment Application Management */}
+        {activeTab === "segment-applications" && (
+          <SegmentApplicationManager />
+        )}
+
+        {/* Form Builder Management */}
+        {activeTab === "form-builder" && (
+          <FormBuilder />
         )}
 
         {/* Create Employee Modal (for Department Section) */}

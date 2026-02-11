@@ -2,8 +2,10 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { User } from "../../models/User.js";
 import PrintPartnerRequest from "../../models/printPartnerRequestModal.js";
+import UserSegment from "../../models/UserSegment.js";
 import cloudinary from "../../config/cloudinary.js";
 import streamifier from "streamifier";
+import { sendOtpEmail } from "../../utils/emailService.js";
 
 // In-memory OTP storage (for development/testing)
 // In production, use Redis or a database
@@ -143,17 +145,24 @@ export const loginUser = async (req, res) => {
     }
 
     if (!user) {
+      console.log(`❌ Login failed: User not found for email: ${email || mobileNumber}`);
       return res.status(404).json({ message: "User not found." });
     }
 
+    console.log(`🔍 Login attempt for: ${user.email}`);
+    console.log(`   - User ID: ${user._id}`);
+    console.log(`   - Has password hash: ${!!user.password}`);
+    console.log(`   - Password hash length: ${user.password?.length || 0}`);
+    console.log(`   - Is bcrypt hash: ${user.password?.startsWith('$2b$') || false}`);
+
     // Compare password
     const match = await bcrypt.compare(password, user.password);
+    console.log(`   - Password match result: ${match}`);
+    
     if (!match) {
       // Log for debugging (remove in production or make it conditional)
-      if (process.env.NODE_ENV === 'development') {
-        console.log("Password comparison failed for user:", user.email || user.mobileNumber);
-        console.log("User password hash exists:", !!user.password);
-      }
+      console.log(`❌ Password comparison failed for user: ${user.email || user.mobileNumber}`);
+      console.log(`   - Input password length: ${password?.length}`);
       return res.status(401).json({ message: "Invalid credentials." });
     }
 
@@ -256,6 +265,11 @@ export const sendOtp = async (req, res) => {
     console.log("=".repeat(50));
 
     // In production, send OTP via SMS service (Twilio, AWS SNS, etc.)
+    // Send OTP via email if email is provided
+    if (email) {
+      await sendOtpEmail(email, otp);
+    }
+
     // For now, we'll just return success
 
     return res.status(200).json({
@@ -482,25 +496,33 @@ export const updateUserEmail = async (req, res) => {
   }
 };
 
-// FORGOT PASSWORD - Send OTP to mobile number
+// FORGOT PASSWORD - SEND OTP (EMAIL-BASED)
 export const forgotPassword = async (req, res) => {
   try {
-    const { mobileNumber } = req.body;
+    const { email } = req.body;
 
-    // Validate mobile number
-    if (!mobileNumber) {
+    if (!email) {
       return res.status(400).json({
         success: false,
-        message: "Mobile number is required.",
+        message: "Email is required.",
       });
     }
 
-    // Check if user exists with this mobile number
-    const user = await User.findOne({ mobileNumber });
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid email format.",
+      });
+    }
+
+    // Check if user exists
+    const user = await User.findOne({ email: email.trim().toLowerCase() });
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: "No account found with this mobile number.",
+        message: "User not found with this email address.",
       });
     }
 
@@ -510,22 +532,30 @@ export const forgotPassword = async (req, res) => {
     const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes expiry
 
     // Store hashed OTP for password reset
-    otpStore.set(mobileNumber, {
+    otpStore.set(email.trim().toLowerCase(), {
       otpHash,
       expiresAt,
       purpose: "password_reset",
-      userId: user._id.toString(),
     });
+
+    // Send OTP via email
+    const emailResult = await sendOtpEmail(email.trim(), otp);
+    if (!emailResult.success) {
+      return res.status(500).json({
+        success: false,
+        message: "Failed to send OTP email. Please try again.",
+      });
+    }
 
     // Log OTP to console for testing
     console.log("=".repeat(50));
-    console.log(`Password Reset OTP for ${mobileNumber}: ${otp}`);
+    console.log(`Password Reset OTP for ${email}: ${otp}`);
     console.log(`Expires at: ${new Date(expiresAt).toLocaleString()}`);
     console.log("=".repeat(50));
 
     return res.status(200).json({
       success: true,
-      message: "OTP sent successfully to your mobile number.",
+      message: "OTP sent successfully to your email address.",
       ...(process.env.NODE_ENV === 'development' && { otp }),
     });
   } catch (error) {
@@ -538,20 +568,22 @@ export const forgotPassword = async (req, res) => {
   }
 };
 
-// VERIFY OTP FOR PASSWORD RESET
+// VERIFY OTP FOR PASSWORD RESET (EMAIL-BASED)
 export const verifyOtpForPasswordReset = async (req, res) => {
   try {
-    const { mobileNumber, otp } = req.body;
+    const { email, otp } = req.body;
 
-    if (!mobileNumber || !otp) {
+    if (!email || !otp) {
       return res.status(400).json({
         success: false,
-        message: "Mobile number and OTP are required.",
+        message: "Email and OTP are required.",
       });
     }
 
+    const emailLower = email.trim().toLowerCase();
+
     // Get stored OTP data
-    const storedOtpData = otpStore.get(mobileNumber);
+    const storedOtpData = otpStore.get(emailLower);
     if (!storedOtpData) {
       return res.status(400).json({
         success: false,
@@ -569,7 +601,7 @@ export const verifyOtpForPasswordReset = async (req, res) => {
 
     // Check expiry
     if (storedOtpData.expiresAt < Date.now()) {
-      otpStore.delete(mobileNumber);
+      otpStore.delete(emailLower);
       return res.status(400).json({
         success: false,
         message: "OTP has expired. Please request a new OTP.",
@@ -600,15 +632,15 @@ export const verifyOtpForPasswordReset = async (req, res) => {
   }
 };
 
-// RESET PASSWORD
+// RESET PASSWORD (EMAIL-BASED)
 export const resetPassword = async (req, res) => {
   try {
-    const { mobileNumber, otp, newPassword } = req.body;
+    const { email, otp, newPassword } = req.body;
 
-    if (!mobileNumber || !otp || !newPassword) {
+    if (!email || !otp || !newPassword) {
       return res.status(400).json({
         success: false,
-        message: "Mobile number, OTP, and new password are required.",
+        message: "Email, OTP, and new password are required.",
       });
     }
 
@@ -620,8 +652,10 @@ export const resetPassword = async (req, res) => {
       });
     }
 
+    const emailLower = email.trim().toLowerCase();
+
     // Get stored OTP data
-    const storedOtpData = otpStore.get(mobileNumber);
+    const storedOtpData = otpStore.get(emailLower);
     if (!storedOtpData) {
       return res.status(400).json({
         success: false,
@@ -639,7 +673,7 @@ export const resetPassword = async (req, res) => {
 
     // Check expiry
     if (storedOtpData.expiresAt < Date.now()) {
-      otpStore.delete(mobileNumber);
+      otpStore.delete(emailLower);
       return res.status(400).json({
         success: false,
         message: "OTP has expired. Please request a new OTP.",
@@ -656,7 +690,7 @@ export const resetPassword = async (req, res) => {
     }
 
     // Find user
-    const user = await User.findOne({ mobileNumber });
+    const user = await User.findOne({ email: emailLower });
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -670,7 +704,7 @@ export const resetPassword = async (req, res) => {
     await user.save();
 
     // Delete OTP after successful password reset
-    otpStore.delete(mobileNumber);
+    otpStore.delete(emailLower);
 
     return res.status(200).json({
       success: true,
@@ -690,7 +724,9 @@ export const resetPassword = async (req, res) => {
 export const getUserProfile = async (req, res) => {
   try {
     const userId = req.user._id || req.user.id;
-    const user = await User.findById(userId).select("-password");
+    const user = await User.findById(userId)
+      .select("-password -emailOtp -emailOtpExpiresAt")
+      .populate("userSegment", "name code description");
 
     if (!user) {
       return res.status(404).json({
@@ -699,31 +735,72 @@ export const getUserProfile = async (req, res) => {
       });
     }
 
+    // Base user data
+    const userData = {
+      id: user._id,
+      name: user.name,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      email: user.email,
+      mobileNumber: user.mobileNumber,
+      countryCode: user.countryCode,
+      role: user.role,
+      userType: user.userType || "customer",
+      signupIntent: user.signupIntent,
+      approvalStatus: user.approvalStatus,
+      isEmailVerified: user.isEmailVerified,
+      userSegment: user.userSegment,
+      profileImage: user.profileImage,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+    };
+
+    // Fetch additional profile data based on userType
+    console.log("[getUserProfile] User type:", user.userType, "User ID:", user._id);
+
+    if (user.userType === "print partner") {
+      const printPartnerProfile = await PrintPartnerRequest.findOne({ userId: user._id });
+      console.log("[getUserProfile] PrintPartnerRequest found:", printPartnerProfile ? "YES" : "NO");
+      if (printPartnerProfile) {
+        userData.profile = {
+          businessName: printPartnerProfile.businessName,
+          ownerName: printPartnerProfile.ownerName,
+          mobileNumber: printPartnerProfile.mobileNumber,
+          whatsappNumber: printPartnerProfile.whatsappNumber,
+          email: printPartnerProfile.emailAddress,
+          gstNumber: printPartnerProfile.gstNumber,
+          address: printPartnerProfile.fullBusinessAddress,
+          proofDocument: printPartnerProfile.proofFileUrl,
+          verificationStatus: printPartnerProfile.status,
+          verifiedAt: printPartnerProfile.approvedAt,
+        };
+      }
+    }
+    // Corporate profile support removed - uncomment and create CorporateProfile model if needed
+    // else if (user.userType === "corporate") {
+    //   const corporateProfile = await CorporateProfile.findOne({ user: user._id });
+    //   console.log("[getUserProfile] CorporateProfile found:", corporateProfile ? "YES" : "NO", corporateProfile);
+    //   if (corporateProfile) {
+    //     userData.profile = {
+    //       organizationName: corporateProfile.organizationName,
+    //       organizationType: corporateProfile.organizationType,
+    //       authorizedPersonName: corporateProfile.authorizedPersonName,
+    //       designation: corporateProfile.designation,
+    //       mobileNumber: corporateProfile.mobileNumber,
+    //       whatsappNumber: corporateProfile.whatsappNumber,
+    //       officialEmail: corporateProfile.officialEmail,
+    //       gstNumber: corporateProfile.gstNumber,
+    //       address: corporateProfile.address,
+    //       proofDocument: corporateProfile.proofDocument,
+    //       verificationStatus: corporateProfile.verificationStatus,
+    //       verifiedAt: corporateProfile.verifiedAt,
+    //     };
+    //   }
+    // }
+
     return res.status(200).json({
       success: true,
-      user: {
-        id: user._id,
-        name: user.name,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        email: user.email,
-        mobileNumber: user.mobileNumber,
-        countryCode: user.countryCode,
-        role: user.role,
-        userType: user.userType || "customer",
-        // Print Partner specific fields
-        businessName: user.businessName,
-        ownerName: user.ownerName,
-        whatsappNumber: user.whatsappNumber,
-        gstNumber: user.gstNumber,
-        fullBusinessAddress: user.fullBusinessAddress,
-        city: user.city,
-        state: user.state,
-        pincode: user.pincode,
-        proofFileUrl: user.proofFileUrl,
-        createdAt: user.createdAt,
-        updatedAt: user.updatedAt,
-      },
+      user: userData,
     });
   } catch (error) {
     console.error("Get user profile error:", error);
@@ -802,8 +879,45 @@ export const updateUserProfile = async (req, res) => {
       // Delete OTP after successful verification
       otpStore.delete(mobileNumber);
     }
+    
+    // Handle profile image upload if present
+    let profileImageUrl = user.profileImage;
+    if (req.file) {
+      try {
+        const uploadStream = () => {
+          return new Promise((resolve, reject) => {
+            const stream = cloudinary.uploader.upload_stream(
+              {
+                folder: "profile-images",
+                resource_type: "image",
+                transformation: [
+                  { width: 500, height: 500, crop: "limit" }, // Resize for profile pics
+                  { quality: "auto" },
+                  { fetch_format: "auto" },
+                ],
+              },
+              (error, result) => {
+                if (result) resolve(result);
+                else reject(error);
+              }
+            );
+            streamifier.createReadStream(req.file.buffer).pipe(stream);
+          });
+        };
+
+        const uploadResult = await uploadStream();
+        profileImageUrl = uploadResult.secure_url;
+      } catch (uploadError) {
+        console.error("Profile image upload error:", uploadError);
+        return res.status(500).json({
+          success: false,
+          message: "Failed to upload profile image. Please try again.",
+        });
+      }
+    }
 
     // Update fields
+    if (profileImageUrl) user.profileImage = profileImageUrl;
     if (firstName !== undefined) user.firstName = firstName;
     if (lastName !== undefined) user.lastName = lastName;
     if (email !== undefined) {
@@ -819,7 +933,6 @@ export const updateUserProfile = async (req, res) => {
     }
     if (mobileNumber !== undefined) user.mobileNumber = mobileNumber;
     if (countryCode !== undefined) user.countryCode = countryCode;
-
     // Update name if firstName or lastName changed
     if (firstName || lastName) {
       user.name = `${user.firstName || ""} ${user.lastName || ""}`.trim() || user.name;
@@ -839,6 +952,7 @@ export const updateUserProfile = async (req, res) => {
         mobileNumber: user.mobileNumber,
         countryCode: user.countryCode,
         role: user.role,
+        profileImage: user.profileImage,
       },
     });
   } catch (error) {
@@ -952,50 +1066,20 @@ export const submitPrintPartnerRequest = async (req, res) => {
     }
 
     // Validate mobile numbers (can include country code like +919876543210)
-    // Extract just the digits for validation
     const mobileDigits = mobileNumber.replace(/\D/g, "");
     const whatsappDigits = whatsappNumber.replace(/\D/g, "");
 
-    // Mobile number should be 10-15 digits (allowing for country codes)
     if (mobileDigits.length < 10 || mobileDigits.length > 15) {
       return res.status(400).json({
         success: false,
         message: "Mobile number must be between 10-15 digits.",
       });
     }
-
-    // Extract the actual number (last 10 digits for India, or full number for other countries)
-    let mobileNumberToStore = mobileNumber;
-    // If it starts with a country code like +91, extract just the number part
-    if (mobileNumber.startsWith("+")) {
-      // For India (+91), extract the 10 digits after +91
-      if (mobileNumber.startsWith("+91") && mobileDigits.length >= 12) {
-        mobileNumberToStore = mobileDigits.slice(2); // Remove +91, keep the 10 digits
-      } else {
-        // For other countries, keep the full number with country code
-        mobileNumberToStore = mobileNumber;
-      }
-    }
-
-    // WhatsApp number validation
     if (whatsappDigits.length < 10 || whatsappDigits.length > 15) {
       return res.status(400).json({
         success: false,
         message: "WhatsApp number must be between 10-15 digits.",
       });
-    }
-
-    // Extract the actual WhatsApp number
-    let whatsappNumberToStore = whatsappNumber;
-    // If it starts with a country code like +91, extract just the number part
-    if (whatsappNumber.startsWith("+")) {
-      // For India (+91), extract the 10 digits after +91
-      if (whatsappNumber.startsWith("+91") && whatsappDigits.length >= 12) {
-        whatsappNumberToStore = whatsappDigits.slice(2); // Remove +91, keep the 10 digits
-      } else {
-        // For other countries, keep the full number with country code
-        whatsappNumberToStore = whatsappNumber;
-      }
     }
 
     // Validate pincode (6 digits)
@@ -1014,62 +1098,47 @@ export const submitPrintPartnerRequest = async (req, res) => {
       });
     }
 
-    // Check if email or mobile number already exists in User collection
-    // Try both with and without country code
-    const existingUser = await User.findOne({
-      $or: [
-        { email: emailAddress },
-        { mobileNumber: mobileNumberToStore },
-        { mobileNumber: `+91${mobileNumberToStore}` },
-        { mobileNumber: mobileNumber },
-      ],
-    });
+    // Check if email already exists
+    let existingUser = await User.findOne({ email: emailAddress.toLowerCase() });
 
+    // If user exists and is fully registered (has password and is verified or approved), reject
+    if (existingUser && existingUser.password && existingUser.password.length > 0 &&
+      (existingUser.isEmailVerified || existingUser.approvalStatus === 'approved')) {
+      return res.status(409).json({
+        success: false,
+        message: "Email already registered. Please login or use a different email.",
+      });
+    }
+
+    // Check if mobile number already exists (and is a complete account, excluding current user)
+    const mobileQuery = {
+      mobileNumber: { $in: [mobileNumber.trim(), `+91${mobileNumber.trim()}`] },
+      password: { $exists: true, $ne: '' }
+    };
     if (existingUser) {
+      mobileQuery._id = { $ne: existingUser._id };
+    }
+    const existingMobile = await User.findOne(mobileQuery);
+    if (existingMobile) {
       return res.status(409).json({
         success: false,
-        message: "Email or mobile number already registered. Please login or use different credentials.",
+        message: "Mobile number already registered. Please use a different number.",
       });
     }
 
-    // Check if GST number is provided and already exists in User collection
+    // Check if GST number already exists (if provided)
     if (gstNumber && gstNumber.trim()) {
-      const existingGstUser = await User.findOne({ gstNumber: gstNumber.trim() });
-      if (existingGstUser) {
+      const gstQuery = { gstNumber: gstNumber.trim() };
+      if (existingUser) {
+        gstQuery.user = { $ne: existingUser._id };
+      }
+      const existingGst = await PrintPartnerRequest.findOne(gstQuery);
+      if (existingGst) {
         return res.status(409).json({
           success: false,
-          message: "GST number already registered. Please use a different GST number or contact support.",
+          message: "GST number already registered.",
         });
       }
-
-      // Also check in pending requests
-      const existingGstRequest = await PrintPartnerRequest.findOne({
-        gstNumber: gstNumber.trim(),
-        status: { $in: ["pending", "approved"] },
-      });
-      if (existingGstRequest) {
-        return res.status(409).json({
-          success: false,
-          message: "GST number already exists in a pending or approved request.",
-        });
-      }
-    }
-
-    // Check if there's already a pending request with same email or mobile
-    const existingRequest = await PrintPartnerRequest.findOne({
-      $or: [
-        { emailAddress },
-        { mobileNumber: mobileNumberToStore },
-        { mobileNumber: mobileNumber },
-      ],
-      status: "pending",
-    });
-
-    if (existingRequest) {
-      return res.status(409).json({
-        success: false,
-        message: "A pending request already exists with this email or mobile number.",
-      });
     }
 
     // Upload proof file to Cloudinary
@@ -1105,30 +1174,79 @@ export const submitPrintPartnerRequest = async (req, res) => {
       });
     }
 
-    // Hash password before storing
+    // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create print partner request
-    const printPartnerRequest = await PrintPartnerRequest.create({
-      businessName: businessName.trim(),
-      ownerName: ownerName.trim(),
-      mobileNumber: mobileNumberToStore.trim(),
-      whatsappNumber: whatsappNumberToStore.trim(),
-      emailAddress: emailAddress.trim().toLowerCase(),
-      password: hashedPassword,
-      gstNumber: gstNumber ? gstNumber.trim() : "",
-      fullBusinessAddress: fullBusinessAddress.trim(),
-      city: city.trim(),
-      state: state.trim(),
-      pincode: pincode.trim(),
-      proofFileUrl,
-      status: "pending",
-    });
+    // Get PRINT_PARTNER segment (not RETAIL!)
+    const printPartnerSegment = await UserSegment.findOne({ code: 'PRINT_PARTNER' });
+    if (!printPartnerSegment) {
+      return res.status(500).json({
+        success: false,
+        message: 'System configuration error: PRINT_PARTNER segment not found. Please contact support.',
+      });
+    }
+
+    // Create or update user account
+    let newUser;
+    if (existingUser) {
+      // Update the existing placeholder user using findByIdAndUpdate to avoid validation issues
+      newUser = await User.findByIdAndUpdate(
+        existingUser._id,
+        {
+          name: ownerName,
+          mobileNumber: mobileNumber.trim(),
+          password: hashedPassword,
+          role: "user",
+          userType: "print partner",
+          userSegment: printPartnerSegment._id,
+          approvalStatus: 'pending',
+          signupIntent: 'PRINT_PARTNER',
+          isEmailVerified: false,
+        },
+        { new: true, runValidators: false }
+      );
+    } else {
+      // Create new user account
+      newUser = await User.create({
+        name: ownerName,
+        email: emailAddress.toLowerCase(),
+        mobileNumber: mobileNumber.trim(),
+        password: hashedPassword,
+        role: "user",
+        userType: "print partner",
+        userSegment: printPartnerSegment._id,
+        approvalStatus: 'pending',
+        signupIntent: 'PRINT_PARTNER',
+        isEmailVerified: false,
+      });
+    }
+
+    // Create or update print partner profile
+    await PrintPartnerRequest.findOneAndUpdate(
+      { user: newUser._id },
+      {
+        user: newUser._id,
+        businessName: businessName.trim(),
+        ownerName: ownerName.trim(),
+        mobileNumber: mobileNumber.trim(),
+        whatsappNumber: whatsappNumber.trim(),
+        email: emailAddress.toLowerCase(),
+        gstNumber: gstNumber ? gstNumber.trim() : null,
+        address: {
+          fullAddress: fullBusinessAddress.trim(),
+          city: city.trim(),
+          state: state.trim(),
+          pincode: pincode.trim(),
+        },
+        proofDocument: proofFileUrl,
+        verificationStatus: "PENDING",
+      },
+      { upsert: true, new: true }
+    );
 
     return res.status(201).json({
       success: true,
       message: "Print partner request submitted successfully. Our team will review your application.",
-      requestId: printPartnerRequest._id,
     });
   } catch (error) {
     console.error("Submit print partner request error:", error);
@@ -1141,18 +1259,20 @@ export const submitPrintPartnerRequest = async (req, res) => {
 };
 
 // GET ALL PRINT PARTNER REQUESTS (Admin only)
+// GET ALL PRINT PARTNER REQUESTS (Admin only)
+// Now uses PrintPartnerRequest model with verificationStatus
 export const getAllPrintPartnerRequests = async (req, res) => {
   try {
-    const { status } = req.query; // Optional filter by status
+    const { status } = req.query; // Optional filter by status: PENDING, APPROVED, REJECTED
 
     const query = {};
-    if (status && ["pending", "approved", "rejected"].includes(status)) {
-      query.status = status;
+    if (status && ["PENDING", "APPROVED", "REJECTED"].includes(status.toUpperCase())) {
+      query.verificationStatus = status.toUpperCase();
     }
 
     const requests = await PrintPartnerRequest.find(query)
-      .populate("approvedBy", "name email")
-      .populate("userId", "name email mobileNumber")
+      .populate("user", "name email mobileNumber approvalStatus createdAt")
+      .populate("verifiedBy", "name email")
       .sort({ createdAt: -1 });
 
     return res.status(200).json({
@@ -1170,101 +1290,52 @@ export const getAllPrintPartnerRequests = async (req, res) => {
 };
 
 // APPROVE PRINT PARTNER REQUEST (Admin only)
+// Updates PrintPartnerRequest verificationStatus and User approvalStatus
 export const approvePrintPartnerRequest = async (req, res) => {
   try {
     const { requestId } = req.params;
     const adminId = req.user._id || req.user.id;
 
-    const request = await PrintPartnerRequest.findById(requestId);
-    if (!request) {
+    // Find the print partner profile
+    const profile = await PrintPartnerRequest.findById(requestId);
+    if (!profile) {
       return res.status(404).json({
         success: false,
         message: "Print partner request not found.",
       });
     }
 
-    if (request.status !== "pending") {
+    if (profile.verificationStatus !== "PENDING") {
       return res.status(400).json({
         success: false,
-        message: `Request is already ${request.status}.`,
+        message: `Request is already ${profile.verificationStatus.toLowerCase()}.`,
       });
     }
 
-    // Check if email or mobile already exists in User collection
-    const existingUser = await User.findOne({
-      $or: [
-        { email: request.emailAddress },
-        { mobileNumber: request.mobileNumber },
-        { mobileNumber: `+91${request.mobileNumber}` },
-      ],
+    // Update profile
+    profile.verificationStatus = "APPROVED";
+    profile.verifiedBy = adminId;
+    profile.verifiedAt = new Date();
+    await profile.save();
+
+    // Update user approvalStatus
+    await User.findByIdAndUpdate(profile.user, {
+      approvalStatus: "approved",
     });
 
-    if (existingUser) {
-      return res.status(409).json({
-        success: false,
-        message: "User with this email or mobile number already exists.",
-      });
-    }
-
-    // Use the password from the request (already hashed)
-    if (!request.password) {
-      return res.status(400).json({
-        success: false,
-        message: "Password not found in request. Please resubmit the form.",
-      });
-    }
-
-    // Determine country code from mobile number
-    let countryCode = "+91"; // Default
-    if (request.mobileNumber.startsWith("+")) {
-      // Extract country code if present
-      const match = request.mobileNumber.match(/^(\+\d{1,3})/);
-      if (match) {
-        countryCode = match[1];
-      }
-    }
-
-    // Create user account with stored password and userType
-    const newUser = await User.create({
-      name: request.ownerName,
-      email: request.emailAddress,
-      mobileNumber: request.mobileNumber,
-      countryCode: countryCode,
-      password: request.password, // Already hashed when stored in request
-      role: "user",
-      userType: "print partner", // Set user type as print partner
-      // Print Partner specific fields
-      businessName: request.businessName,
-      ownerName: request.ownerName,
-      whatsappNumber: request.whatsappNumber,
-      gstNumber: request.gstNumber || null, // Store GST number if provided
-      fullBusinessAddress: request.fullBusinessAddress,
-      city: request.city,
-      state: request.state,
-      pincode: request.pincode,
-      proofFileUrl: request.proofFileUrl,
-    });
-
-    // Update request status
-    request.status = "approved";
-    request.approvedBy = adminId;
-    request.approvedAt = new Date();
-    request.userId = newUser._id;
-    await request.save();
-
-    // TODO: Send email/SMS to user with login credentials
-    // You can use the emailService here
+    // Get updated user info
+    const user = await User.findById(profile.user).select("name email mobileNumber userType");
 
     return res.status(200).json({
       success: true,
-      message: "Print partner request approved successfully. User account created.",
-      user: {
-        id: newUser._id,
-        name: newUser.name,
-        email: newUser.email,
-        mobileNumber: newUser.mobileNumber,
-        userType: newUser.userType,
-      },
+      message: "Print partner request approved successfully.",
+      user: user ? {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        mobileNumber: user.mobileNumber,
+        userType: user.userType,
+      } : null,
     });
   } catch (error) {
     console.error("Approve print partner request error:", error);
@@ -1277,35 +1348,40 @@ export const approvePrintPartnerRequest = async (req, res) => {
 };
 
 // REJECT PRINT PARTNER REQUEST (Admin only)
+// Updates PrintPartnerRequest verificationStatus and User approvalStatus
 export const rejectPrintPartnerRequest = async (req, res) => {
   try {
     const { requestId } = req.params;
     const { rejectionReason } = req.body;
     const adminId = req.user._id || req.user.id;
 
-    const request = await PrintPartnerRequest.findById(requestId);
-    if (!request) {
+    // Find the print partner profile
+    const profile = await PrintPartnerRequest.findById(requestId);
+    if (!profile) {
       return res.status(404).json({
         success: false,
         message: "Print partner request not found.",
       });
     }
 
-    if (request.status !== "pending") {
+    if (profile.verificationStatus !== "PENDING") {
       return res.status(400).json({
         success: false,
-        message: `Request is already ${request.status}.`,
+        message: `Request is already ${profile.verificationStatus.toLowerCase()}.`,
       });
     }
 
-    // Update request status
-    request.status = "rejected";
-    request.approvedBy = adminId;
-    request.approvedAt = new Date();
-    request.rejectionReason = rejectionReason || "Request rejected by admin";
-    await request.save();
+    // Update profile
+    profile.verificationStatus = "REJECTED";
+    profile.verifiedBy = adminId;
+    profile.verifiedAt = new Date();
+    // Note: rejectionReason field removed from schema per user request
+    await profile.save();
 
-    // TODO: Send email/SMS to user about rejection
+    // Update user approvalStatus
+    await User.findByIdAndUpdate(profile.user, {
+      approvalStatus: "rejected",
+    });
 
     return res.status(200).json({
       success: true,
@@ -1313,6 +1389,599 @@ export const rejectPrintPartnerRequest = async (req, res) => {
     });
   } catch (error) {
     console.error("Reject print partner request error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+    });
+  }
+};
+
+// ========================================
+// CORPORATE REQUEST ADMIN ENDPOINTS
+// ========================================
+
+// GET ALL CORPORATE REQUESTS (Admin only)
+export const getAllCorporateRequests = async (req, res) => {
+  try {
+    const { status } = req.query; // Optional filter by status: PENDING, APPROVED, REJECTED
+
+    const query = {};
+    if (status && ["PENDING", "APPROVED", "REJECTED"].includes(status.toUpperCase())) {
+      query.verificationStatus = status.toUpperCase();
+    }
+
+    const requests = await CorporateProfile.find(query)
+      .populate("user", "name email mobileNumber approvalStatus createdAt")
+      .populate("verifiedBy", "name email")
+      .sort({ createdAt: -1 });
+
+    return res.status(200).json({
+      success: true,
+      requests,
+    });
+  } catch (error) {
+    console.error("Get all corporate requests error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+    });
+  }
+};
+
+// APPROVE CORPORATE REQUEST (Admin only)
+export const approveCorporateRequest = async (req, res) => {
+  try {
+    const { requestId } = req.params;
+    const adminId = req.user._id || req.user.id;
+
+    // Find the corporate profile
+    const profile = await CorporateProfile.findById(requestId);
+    if (!profile) {
+      return res.status(404).json({
+        success: false,
+        message: "Corporate request not found.",
+      });
+    }
+
+    if (profile.verificationStatus !== "PENDING") {
+      return res.status(400).json({
+        success: false,
+        message: `Request is already ${profile.verificationStatus.toLowerCase()}.`,
+      });
+    }
+
+    // Update profile
+    profile.verificationStatus = "APPROVED";
+    profile.verifiedBy = adminId;
+    profile.verifiedAt = new Date();
+    await profile.save();
+
+    // Update user approvalStatus
+    await User.findByIdAndUpdate(profile.user, {
+      approvalStatus: "approved",
+    });
+
+    // Get updated user info
+    const user = await User.findById(profile.user).select("name email mobileNumber userType");
+
+    return res.status(200).json({
+      success: true,
+      message: "Corporate request approved successfully.",
+      user: user ? {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        mobileNumber: user.mobileNumber,
+        userType: user.userType,
+      } : null,
+    });
+  } catch (error) {
+    console.error("Approve corporate request error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+    });
+  }
+};
+
+// REJECT CORPORATE REQUEST (Admin only)
+export const rejectCorporateRequest = async (req, res) => {
+  try {
+    const { requestId } = req.params;
+    const adminId = req.user._id || req.user.id;
+
+    // Find the corporate profile
+    const profile = await CorporateProfile.findById(requestId);
+    if (!profile) {
+      return res.status(404).json({
+        success: false,
+        message: "Corporate request not found.",
+      });
+    }
+
+    if (profile.verificationStatus !== "PENDING") {
+      return res.status(400).json({
+        success: false,
+        message: `Request is already ${profile.verificationStatus.toLowerCase()}.`,
+      });
+    }
+
+    // Update profile
+    profile.verificationStatus = "REJECTED";
+    profile.verifiedBy = adminId;
+    profile.verifiedAt = new Date();
+    await profile.save();
+
+    // Update user approvalStatus
+    await User.findByIdAndUpdate(profile.user, {
+      approvalStatus: "rejected",
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Corporate request rejected successfully.",
+    });
+  } catch (error) {
+    console.error("Reject corporate request error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+    });
+  }
+};
+// ========================================
+// EMAIL VERIFICATION ENDPOINTS
+// ========================================
+
+// SEND EMAIL OTP
+export const sendEmailOtp = async (req, res) => {
+  try {
+    const { email, signupIntent } = req.body;
+
+    if (!email || !email.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email is required.',
+      });
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid email format.',
+      });
+    }
+
+    const emailLower = email.trim().toLowerCase();
+    let user = await User.findOne({ email: emailLower });
+
+    // If user doesn't exist, create a placeholder user
+    if (!user) {
+      const retailSegment = await UserSegment.findOne({ code: 'RETAIL' });
+      if (!retailSegment) {
+        return res.status(500).json({
+          success: false,
+          message: 'System configuration error. Please contact support.',
+        });
+      }
+
+      user = await User.create({
+        email: emailLower,
+        signupIntent: signupIntent || 'CUSTOMER',
+        approvalStatus: 'pending',
+        userSegment: retailSegment._id,
+        isEmailVerified: false,
+        password: '',
+        role: 'user',
+      });
+    }
+
+    if (user.isEmailVerified) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email is already verified.',
+      });
+    }
+
+    const otp = generateOTP();
+    const otpHash = await hashOTP(otp);
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+    user.emailOtp = otpHash;
+    user.emailOtpExpiresAt = expiresAt;
+    await user.save();
+
+    const emailResult = await sendOtpEmail(email.trim(), otp);
+    if (!emailResult.success) {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to send verification email. Please try again.',
+      });
+    }
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log('='.repeat(50));
+      console.log(`Email OTP for ${email}: ${otp}`);
+      console.log(`Expires at: ${expiresAt.toLocaleString()}`);
+      console.log('='.repeat(50));
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Verification code sent to your email address.',
+      ...(process.env.NODE_ENV === 'development' && { otp }),
+    });
+  } catch (error) {
+    console.error('Send email OTP error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+    });
+  }
+};
+
+// VERIFY EMAIL OTP
+export const verifyEmailOtp = async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+
+    if (!email || !otp) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email and OTP are required.',
+      });
+    }
+
+    if (otp.length !== 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'OTP must be 6 digits.',
+      });
+    }
+
+    const user = await User.findOne({ email: email.trim().toLowerCase() });
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found.',
+      });
+    }
+
+    if (user.isEmailVerified) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email is already verified.',
+      });
+    }
+
+    if (!user.emailOtp || !user.emailOtpExpiresAt) {
+      return res.status(400).json({
+        success: false,
+        message: 'No OTP found. Please request a new one.',
+      });
+    }
+
+    if (user.emailOtpExpiresAt < new Date()) {
+      return res.status(400).json({
+        success: false,
+        message: 'OTP has expired. Please request a new one.',
+      });
+    }
+
+    const isValid = await verifyOTP(otp.trim(), user.emailOtp);
+    if (!isValid) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid OTP. Please try again.',
+      });
+    }
+
+    user.isEmailVerified = true;
+    user.emailOtp = undefined;
+    user.emailOtpExpiresAt = undefined;
+    await user.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Email verified successfully!',
+      user: {
+        id: user._id,
+        email: user.email,
+        isEmailVerified: user.isEmailVerified,
+        approvalStatus: user.approvalStatus,
+        signupIntent: user.signupIntent,
+      },
+    });
+  } catch (error) {
+    console.error('Verify email OTP error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+    });
+  }
+};
+
+// COMPLETE CUSTOMER SIGNUP
+export const completeCustomerSignup = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email and password are required.',
+      });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 6 characters.',
+      });
+    }
+
+    const user = await User.findOne({ email: email.trim().toLowerCase() });
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found. Please start signup process again.',
+      });
+    }
+
+    // Skip email verification in development mode
+    // if (!user.isEmailVerified) {
+    //   return res.status(400).json({
+    //     success: false,
+    //     message: 'Please verify your email first.',
+    //   });
+    // }
+
+    if (user.password && user.password.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Account already completed. Please login.',
+      });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    user.password = hashedPassword;
+    user.isEmailVerified = true; // Auto-verify for development
+    user.approvalStatus = 'approved'; // Auto-approve customers
+    await user.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Account created successfully! You can now login.',
+    });
+  } catch (error) {
+    console.error('Complete customer signup error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+    });
+  }
+};
+// SUBMIT CORPORATE REQUEST
+export const submitCorporateRequest = async (req, res) => {
+  try {
+    const {
+      organizationName,
+      organizationType,
+      authorizedPersonName,
+      designation,
+      mobileNumber,
+      whatsappNumber,
+      officialEmail,
+      gstNumber,
+      fullAddress,
+      city,
+      state,
+      pincode,
+      password,
+    } = req.body;
+
+    // Validate required fields
+    if (!organizationName || !organizationType || !authorizedPersonName || !designation ||
+      !mobileNumber || !officialEmail || !gstNumber || !fullAddress || !city || !state || !pincode || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "All required fields must be provided.",
+      });
+    }
+
+    // Validate password
+    if (password.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: "Password must be at least 6 characters.",
+      });
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(officialEmail)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid email address format.",
+      });
+    }
+
+    // Validate pincode (6 digits)
+    if (pincode.length !== 6 || !/^\d{6}$/.test(pincode)) {
+      return res.status(400).json({
+        success: false,
+        message: "Pincode must be 6 digits.",
+      });
+    }
+
+    // Check if proof file is uploaded
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "Proof document (Letterhead/PO/ID) is required.",
+      });
+    }
+
+    // Check if email already exists
+    let existingUser = await User.findOne({ email: officialEmail.toLowerCase() });
+
+    // If user exists and is fully registered (has password and is verified or approved), reject
+    if (existingUser && existingUser.password && existingUser.password.length > 0 &&
+      (existingUser.isEmailVerified || existingUser.approvalStatus === 'approved')) {
+      return res.status(409).json({
+        success: false,
+        message: "Email already registered. Please login or use a different email.",
+      });
+    }
+
+    // Check if mobile number already exists (and is a complete account, excluding current user)
+    const mobileQuery = {
+      mobileNumber: { $in: [mobileNumber.trim(), `+91${mobileNumber.trim()}`] },
+      password: { $exists: true, $ne: '' }
+    };
+    if (existingUser) {
+      mobileQuery._id = { $ne: existingUser._id };
+    }
+    const existingMobile = await User.findOne(mobileQuery);
+    if (existingMobile) {
+      return res.status(409).json({
+        success: false,
+        message: "Mobile number already registered. Please use a different number.",
+      });
+    }
+
+    // Check if GST number already exists (excluding current user if resubmitting)
+    const gstQuery = { gstNumber: gstNumber.trim() };
+    if (existingUser) {
+      gstQuery.user = { $ne: existingUser._id };
+    }
+    const existingGst = await CorporateProfile.findOne(gstQuery);
+    if (existingGst) {
+      return res.status(409).json({
+        success: false,
+        message: "GST number already registered.",
+      });
+    }
+
+    // Upload proof file to Cloudinary
+    let proofFileUrl = null;
+    try {
+      const uploadStream = () => {
+        return new Promise((resolve, reject) => {
+          const stream = cloudinary.uploader.upload_stream(
+            {
+              folder: "corporate-proofs",
+              resource_type: "image",
+              transformation: [
+                { quality: "auto" },
+                { fetch_format: "auto" },
+              ],
+            },
+            (error, result) => {
+              if (result) resolve(result);
+              else reject(error);
+            }
+          );
+          streamifier.createReadStream(req.file.buffer).pipe(stream);
+        });
+      };
+
+      const uploadResult = await uploadStream();
+      proofFileUrl = uploadResult.secure_url;
+    } catch (uploadError) {
+      console.error("File upload error:", uploadError);
+      return res.status(500).json({
+        success: false,
+        message: "Failed to upload proof file. Please try again.",
+      });
+    }
+
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Get CORPORATE segment (not RETAIL!)
+    const corporateSegment = await UserSegment.findOne({ code: 'CORPORATE' });
+    if (!corporateSegment) {
+      return res.status(500).json({
+        success: false,
+        message: 'System configuration error: CORPORATE segment not found. Please contact support.',
+      });
+    }
+
+    // Create or update user account
+    let newUser;
+    if (existingUser) {
+      // Update the existing placeholder user using findByIdAndUpdate to avoid validation issues
+      newUser = await User.findByIdAndUpdate(
+        existingUser._id,
+        {
+          name: authorizedPersonName,
+          mobileNumber: mobileNumber.trim(),
+          password: hashedPassword,
+          role: "user",
+          userType: "corporate",
+          userSegment: corporateSegment._id,
+          approvalStatus: 'pending',
+          signupIntent: 'CORPORATE',
+          isEmailVerified: false,
+        },
+        { new: true, runValidators: false }
+      );
+    } else {
+      // Create new user account
+      newUser = await User.create({
+        name: authorizedPersonName,
+        email: officialEmail.toLowerCase(),
+        mobileNumber: mobileNumber.trim(),
+        password: hashedPassword,
+        role: "user",
+        userType: "corporate",
+        userSegment: corporateSegment._id,
+        approvalStatus: 'pending',
+        signupIntent: 'CORPORATE',
+        isEmailVerified: false,
+      });
+    }
+
+    // Create or update corporate profile
+    await CorporateProfile.findOneAndUpdate(
+      { user: newUser._id },
+      {
+        user: newUser._id,
+        organizationName: organizationName.trim(),
+        organizationType,
+        authorizedPersonName: authorizedPersonName.trim(),
+        designation,
+        mobileNumber: mobileNumber.trim(),
+        whatsappNumber: whatsappNumber ? whatsappNumber.trim() : mobileNumber.trim(),
+        officialEmail: officialEmail.toLowerCase(),
+        gstNumber: gstNumber.trim(),
+        address: {
+          fullAddress: fullAddress.trim(),
+          city: city.trim(),
+          state: state.trim(),
+          pincode: pincode.trim(),
+        },
+        proofDocument: proofFileUrl,
+        verificationStatus: "PENDING",
+      },
+      { upsert: true, new: true }
+    );
+
+    return res.status(201).json({
+      success: true,
+      message: "Corporate registration request submitted successfully. Our team will review your application.",
+    });
+  } catch (error) {
+    console.error("Submit corporate request error:", error);
     return res.status(500).json({
       success: false,
       message: "Server error",

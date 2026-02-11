@@ -22,6 +22,13 @@ interface TitleFormData {
     title: string;
     description: string;
     sortOrder: number;
+    assignedSegments: string[];
+}
+
+interface UserSegment {
+    _id: string;
+    name: string;
+    code: string;
 }
 
 interface Product {
@@ -44,7 +51,9 @@ const ServiceTitleManager: React.FC<ServiceTitleManagerProps> = ({ service, onUp
         title: '',
         description: '',
         sortOrder: 0,
+        assignedSegments: [],
     });
+    const [segments, setSegments] = useState<UserSegment[]>([]);
     const [showItemForm, setShowItemForm] = useState<string | null>(null);
     const [itemType, setItemType] = useState<'product' | 'category' | 'subcategory'>('category');
     const [searchQuery, setSearchQuery] = useState('');
@@ -58,7 +67,31 @@ const ServiceTitleManager: React.FC<ServiceTitleManagerProps> = ({ service, onUp
         // Keep titles sorted by sortOrder in state
         const sortedTitles = [...(service.titles || [])].sort((a, b) => a.sortOrder - b.sortOrder);
         setTitles(sortedTitles);
+        fetchSegments();
     }, [service]);
+
+    const fetchSegments = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            const response = await fetch(`${API_BASE_URL_WITH_API}/admin/pricing/user-segments`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            if (response.ok) {
+                const data = await response.json();
+                // backend returns { success: true, segments: [...] }
+                if (data.success && Array.isArray(data.segments)) {
+                    setSegments(data.segments);
+                } else if (Array.isArray(data)) {
+                    setSegments(data);
+                }
+            }
+        } catch (error) {
+            console.error('Failed to fetch segments:', error);
+            setSegments([]);
+        }
+    };
 
     // Get sorted titles for rendering
     const sortedTitles = [...titles].sort((a, b) => a.sortOrder - b.sortOrder);
@@ -69,6 +102,7 @@ const ServiceTitleManager: React.FC<ServiceTitleManagerProps> = ({ service, onUp
             title: '',
             description: '',
             sortOrder: titles.length,
+            assignedSegments: [],
         });
         setShowTitleForm(true);
     };
@@ -79,6 +113,7 @@ const ServiceTitleManager: React.FC<ServiceTitleManagerProps> = ({ service, onUp
             title: title.title,
             description: title.description,
             sortOrder: title.sortOrder,
+            assignedSegments: title.assignedSegments || [],
         });
         setShowTitleForm(true);
     };
@@ -388,8 +423,6 @@ const ServiceTitleManager: React.FC<ServiceTitleManagerProps> = ({ service, onUp
                                         />
                                     </div>
 
-                                    {/* Description field removed per user request */}
-
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-1">
                                             Sort Order
@@ -402,6 +435,34 @@ const ServiceTitleManager: React.FC<ServiceTitleManagerProps> = ({ service, onUp
                                             min="0"
                                             disabled={saving}
                                         />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                            Assigned Segments (Optional)
+                                        </label>
+                                        <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto p-2 border border-gray-200 rounded-lg bg-gray-50">
+                                            {segments.map((segment) => (
+                                                <label key={segment._id} className="flex items-center gap-2 p-2 bg-white rounded border border-gray-200 cursor-pointer hover:bg-blue-50 transition-colors">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={titleFormData.assignedSegments.includes(segment._id)}
+                                                        onChange={(e) => {
+                                                            const newSegments = e.target.checked
+                                                                ? [...titleFormData.assignedSegments, segment._id]
+                                                                : titleFormData.assignedSegments.filter(id => id !== segment._id);
+                                                            setTitleFormData({ ...titleFormData, assignedSegments: newSegments });
+                                                        }}
+                                                        className="rounded text-blue-600 focus:ring-blue-500"
+                                                    />
+                                                    <span className="text-xs font-medium text-gray-700 truncate">{segment.name}</span>
+                                                </label>
+                                            ))}
+                                            {segments.length === 0 && (
+                                                <p className="text-xs text-gray-500 italic col-span-2 p-2">No segments found.</p>
+                                            )}
+                                        </div>
+                                        <p className="text-xs text-gray-400 mt-1">If no segments are selected, this title will be visible to everyone.</p>
                                     </div>
                                 </div>
 
@@ -465,6 +526,18 @@ const ServiceTitleManager: React.FC<ServiceTitleManagerProps> = ({ service, onUp
                                         <p className="text-xs text-gray-500 mt-1">
                                             Sort Order: {title.sortOrder} | Items: {title.items.length}
                                         </p>
+                                        {title.assignedSegments && title.assignedSegments.length > 0 && (
+                                            <div className="flex flex-wrap gap-1 mt-1.5">
+                                                {title.assignedSegments.map(segmentId => {
+                                                    const segment = segments.find(s => s._id === segmentId);
+                                                    return (
+                                                        <span key={segmentId} className="text-[10px] px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded border border-purple-200">
+                                                            {segment ? segment.name : 'Unknown Segment'}
+                                                        </span>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
                                     </div>
                                     <div className="flex items-center gap-2">
                                         <button

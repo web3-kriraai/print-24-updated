@@ -7,13 +7,22 @@ import type {
 } from '../types/serviceTypes';
 
 // Get all services
-export const fetchServices = async (activeOnly: boolean = false): Promise<Service[]> => {
+export const fetchServices = async (activeOnly: boolean = false, showAllTitles: boolean = false): Promise<Service[]> => {
     try {
-        const url = activeOnly
-            ? `${API_BASE_URL_WITH_API}/services?activeOnly=true`
-            : `${API_BASE_URL_WITH_API}/services`;
+        const params = new URLSearchParams();
+        if (activeOnly) params.append('activeOnly', 'true');
+        if (showAllTitles) params.append('showAllTitles', 'true');
 
-        const response = await fetch(url);
+        const queryString = params.toString();
+        const url = `${API_BASE_URL_WITH_API}/services${queryString ? `?${queryString}` : ''}`;
+
+        const token = localStorage.getItem('token');
+        const headers: HeadersInit = {};
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        const response = await fetch(url, { headers });
 
         if (!response.ok) {
             throw new Error('Failed to fetch services');
@@ -27,9 +36,17 @@ export const fetchServices = async (activeOnly: boolean = false): Promise<Servic
 };
 
 // Get single service by ID
-export const fetchServiceById = async (id: string): Promise<Service> => {
+export const fetchServiceById = async (id: string, showAllTitles: boolean = false): Promise<Service> => {
     try {
-        const response = await fetch(`${API_BASE_URL_WITH_API}/services/${id}`);
+        const url = `${API_BASE_URL_WITH_API}/services/${id}${showAllTitles ? '?showAllTitles=true' : ''}`;
+
+        const token = localStorage.getItem('token');
+        const headers: HeadersInit = {};
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        const response = await fetch(url, { headers });
 
         if (!response.ok) {
             throw new Error('Failed to fetch service');

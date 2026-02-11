@@ -75,6 +75,16 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ activeTab, onTabChange, isO
             ],
         },
         {
+            id: 'user-segments',
+            label: 'User Segments',
+            icon: <Layers size={20} />,
+            subItems: [
+                { id: 'user-segments', label: 'Manage Segments' },
+                { id: 'segment-applications', label: 'Applications' },
+                { id: 'form-builder', label: 'Form Builder' },
+            ],
+        },
+        {
             id: 'production',
             label: 'Production',
             icon: <Building2 size={20} />,

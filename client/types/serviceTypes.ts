@@ -16,6 +16,7 @@ export interface ServiceTitle {
     title: string;
     description: string;
     sortOrder: number;
+    assignedSegments?: string[];
     items: ServiceItem[];
     createdAt?: string;
     updatedAt?: string;

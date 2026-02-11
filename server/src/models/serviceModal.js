@@ -32,6 +32,10 @@ const serviceTitleSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
+    assignedSegments: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'UserSegment'
+    }],
     items: [serviceItemSchema]
 }, { timestamps: true });
 

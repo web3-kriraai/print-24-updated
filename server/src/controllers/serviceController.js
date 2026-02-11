@@ -37,7 +37,8 @@ const upload = multer({
 // Get all services
 export const getAllServices = async (req, res) => {
     try {
-        const { activeOnly } = req.query;
+        const { activeOnly, showAllTitles } = req.query;
+        const userSegmentId = req.user?.userSegment?.toString();
 
         let query = {};
         if (activeOnly === 'true') {
@@ -48,7 +49,21 @@ export const getAllServices = async (req, res) => {
             .sort({ sortOrder: 1, createdAt: -1 })
             .lean();
 
-        res.status(200).json(services);
+        // Filter titles based on user segment
+        const filteredServices = services.map(service => {
+            if (showAllTitles === 'true') return service;
+
+            const filteredTitles = service.titles.filter(title => {
+                // Show if no segments assigned (public) or if user is in one of the segments
+                return !title.assignedSegments || 
+                       title.assignedSegments.length === 0 || 
+                       (userSegmentId && title.assignedSegments.some(s => s.toString() === userSegmentId));
+            });
+
+            return { ...service, titles: filteredTitles };
+        });
+
+        res.status(200).json(filteredServices);
     } catch (error) {
         console.error('Error fetching services:', error);
         res.status(500).json({
@@ -62,10 +77,22 @@ export const getAllServices = async (req, res) => {
 export const getServiceById = async (req, res) => {
     try {
         const { id } = req.params;
+        const { showAllTitles } = req.query;
+        const userSegmentId = req.user?.userSegment?.toString();
+        
         const service = await Service.findById(id).lean();
 
         if (!service) {
             return res.status(404).json({ message: 'Service not found' });
+        }
+
+        // Filter titles based on user segment
+        if (showAllTitles !== 'true') {
+            service.titles = service.titles.filter(title => {
+                return !title.assignedSegments || 
+                       title.assignedSegments.length === 0 || 
+                       (userSegmentId && title.assignedSegments.some(s => s.toString() === userSegmentId));
+            });
         }
 
         // Populate items based on their type

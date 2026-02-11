@@ -35,7 +35,7 @@ router.post("/reset-password", resetPassword);
 
 // Profile routes
 router.get("/profile", authMiddleware, getUserProfile);
-router.put("/profile", authMiddleware, updateUserProfile);
+router.put("/profile", authMiddleware, upload.single("profileImage"), updateUserProfile);
 router.post("/send-otp-mobile-update", authMiddleware, sendOtpForMobileUpdate);
 
 // Test admin-only access

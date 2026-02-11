@@ -27,6 +27,8 @@ import {
   Phone,
   Building2,
   FileText,
+  Camera,
+  Upload,
 } from "lucide-react";
 import { API_BASE_URL_WITH_API as API_BASE_URL } from "../lib/apiConfig";
 import { calculateOrderBreakdown, OrderForCalculation } from "../utils/pricing";
@@ -52,6 +54,7 @@ interface UserData {
   state?: string;
   pincode?: string;
   proofFileUrl?: string;
+  profileImage?: string;
 }
 
 interface Order {
@@ -561,6 +564,10 @@ const Profile: React.FC = () => {
   const [profileError, setProfileError] = useState<string | null>(null);
   const [profileSuccess, setProfileSuccess] = useState<string | null>(null);
   const [updatingProfile, setUpdatingProfile] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const editProfileRef = React.useRef<HTMLDivElement>(null);
 
   // OTP states for mobile update
   const [showOtpPopup, setShowOtpPopup] = useState(false);
@@ -633,6 +640,7 @@ const Profile: React.FC = () => {
             mobileNumber: data.user.mobileNumber?.replace(data.user.countryCode || "", "") || "",
             countryCode: data.user.countryCode || "+91",
           });
+          setImagePreview(data.user.profileImage || null);
 
           // Fetch country name based on country code
           if (data.user.countryCode) {
@@ -970,17 +978,35 @@ const Profile: React.FC = () => {
     return null; // Valid email
   };
 
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Validate file type and size
+      if (!file.type.startsWith("image/")) {
+        setProfileError("Please select an image file.");
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        setProfileError("Image size should be less than 5MB.");
+        return;
+      }
+
+      setSelectedImage(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+      setProfileError(null);
+    }
+  };
+
   // Update Profile
   const handleUpdateProfile = async () => {
     // Validate required fields
+    const name = `${editFormData.firstName.trim()} ${editFormData.lastName.trim()}`.trim();
     if (!editFormData.firstName || !editFormData.lastName) {
       setProfileError("First name and last name are required.");
-      return;
-    }
-
-    // Validate email if provided
-    if (editFormData.email && validateEmail(editFormData.email)) {
-      setProfileError(validateEmail(editFormData.email));
       return;
     }
 
@@ -989,18 +1015,30 @@ const Profile: React.FC = () => {
     setProfileSuccess(null);
 
     try {
+      const formData = new FormData();
+      formData.append("firstName", editFormData.firstName.trim());
+      formData.append("lastName", editFormData.lastName.trim());
+      if (editFormData.email && editFormData.email.trim() !== userData?.email) {
+        if (validateEmail(editFormData.email)) {
+          setProfileError(validateEmail(editFormData.email));
+          setUpdatingProfile(false);
+          return;
+        }
+        formData.append("email", editFormData.email.trim());
+      }
+      
+      if (selectedImage) {
+        formData.append("profileImage", selectedImage);
+      }
+
+      const token = localStorage.getItem("token");
       const response = await fetch(`${API_BASE_URL}/auth/profile`, {
         method: "PUT",
         headers: {
-          "Content-Type": "application/json",
-          ...getAuthHeaders(),
+          Authorization: `Bearer ${token}`,
+          // Don't set Content-Type for FormData
         },
-        body: JSON.stringify({
-          firstName: editFormData.firstName.trim(),
-          lastName: editFormData.lastName.trim(),
-          email: editFormData.email.trim() || undefined,
-          // Note: mobileNumber and countryCode are not included as they cannot be changed
-        }),
+        body: formData,
       });
 
       const data = await response.json();
@@ -1014,21 +1052,11 @@ const Profile: React.FC = () => {
       // Update user data in state and localStorage
       const updatedUserData = {
         ...userData!,
-        firstName: data.user.firstName,
-        lastName: data.user.lastName,
-        name: data.user.name,
-        email: data.user.email,
-        countryCode: data.user.countryCode,
+        ...data.user,
       };
       setUserData(updatedUserData);
       localStorage.setItem("user", JSON.stringify(updatedUserData));
-
-      // Fetch country name if country code exists
-      if (data.user.countryCode) {
-        fetchCountryName(data.user.countryCode);
-      } else if (updatedUserData.countryCode) {
-        fetchCountryName(updatedUserData.countryCode);
-      }
+      setSelectedImage(null);
 
       // Reset form after a short delay
       setTimeout(() => {
@@ -1121,17 +1149,42 @@ const Profile: React.FC = () => {
                 <h1 className="text-3xl font-bold text-slate-900">
                   Hello, {userData.name.split(" ")[0]}.
                 </h1>
-                <p className="text-slate-500 mt-2">
+                <p className="text-slate-700 mt-2 font-medium">
                   Here's what's going on in your account.
                 </p>
               </div>
-              <button
-                onClick={() => setCurrentView("orders")}
-                className="flex items-center justify-center gap-2 bg-white border border-slate-300 text-slate-700 font-medium px-5 py-2.5 rounded-lg hover:bg-slate-50 hover:border-slate-400 transition-all shadow-sm"
-              >
-                <SettingsIcon className="w-4 h-4" />
-                View All Orders
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => {
+                    setIsEditingProfile(true);
+                    setEditFormData({
+                      firstName: userData.firstName || "",
+                      lastName: userData.lastName || "",
+                      email: userData.email || "",
+                      mobileNumber: userData.mobileNumber?.replace(userData.countryCode || "", "") || "",
+                      countryCode: userData.countryCode || "+91",
+                    });
+                    setImagePreview(userData.profileImage || null);
+                    setProfileError(null);
+                    setProfileSuccess(null);
+                    // Scroll to form after state update
+                    setTimeout(() => {
+                      editProfileRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }, 100);
+                  }}
+                  className="flex items-center justify-center gap-2 bg-brand-600 text-white font-bold px-5 py-2.5 rounded-lg hover:bg-brand-700 transition-all shadow-md"
+                >
+                  <Edit className="w-4 h-4" />
+                  Edit Profile
+                </button>
+                <button
+                  onClick={() => setCurrentView("orders")}
+                  className="flex items-center justify-center gap-2 bg-white border border-slate-400 text-slate-700 font-bold px-5 py-2.5 rounded-lg hover:bg-slate-50 hover:border-slate-500 transition-all shadow-sm"
+                >
+                  <SettingsIcon className="w-4 h-4" />
+                  View All Orders
+                </button>
+              </div>
             </div>
 
             {/* Account Snapshot */}
@@ -1140,18 +1193,18 @@ const Profile: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div
                   onClick={() => setCurrentView("orders")}
-                  className="bg-slate-100 rounded-xl p-6 min-h-[140px] flex flex-col justify-between hover:bg-slate-200 transition-colors cursor-pointer border border-transparent hover:border-slate-300 group"
+                  className="bg-white rounded-xl p-6 min-h-[140px] flex flex-col justify-between hover:bg-slate-50 transition-all cursor-pointer border border-slate-200 hover:border-slate-300 shadow-sm hover:shadow-md group"
                 >
-                  <span className="text-sm font-medium text-slate-600 group-hover:text-slate-900">
+                  <span className="text-sm font-semibold text-slate-700 group-hover:text-slate-900 uppercase tracking-wider">
                     Orders
                   </span>
                   <span className="text-4xl font-bold text-slate-900">{orders.length}</span>
                 </div>
-                <div className="bg-slate-100 rounded-xl p-6 min-h-[140px] flex flex-col justify-between hover:bg-slate-200 transition-colors cursor-pointer border border-transparent hover:border-slate-300 group">
-                  <span className="text-sm font-medium text-slate-600 group-hover:text-slate-900">
+                <div className="bg-white rounded-xl p-6 min-h-[140px] flex flex-col justify-between hover:bg-slate-50 transition-all cursor-pointer border border-slate-200 hover:border-slate-300 shadow-sm hover:shadow-md group">
+                  <span className="text-sm font-semibold text-slate-700 group-hover:text-slate-900 uppercase tracking-wider">
                     Account Status
                   </span>
-                  <span className="text-lg font-bold text-slate-900 text-green-600 group-hover:text-green-700 flex items-center gap-1">
+                  <span className="text-lg font-bold text-green-600 group-hover:text-green-700 flex items-center gap-1.5">
                     Active <CheckCircle className="w-5 h-5" />
                   </span>
                 </div>
@@ -1218,7 +1271,7 @@ const Profile: React.FC = () => {
                       </div>
                       <div>
                         <h2 className="text-xl font-bold text-slate-900">Latest Delivery</h2>
-                        <p className="text-sm text-slate-600">
+                        <p className="text-sm text-slate-700 font-medium">
                           Your most recent order delivery
                         </p>
                       </div>
@@ -1260,7 +1313,7 @@ const Profile: React.FC = () => {
                         </div>
                       </div>
                       <div className="flex items-center justify-between pt-3 border-t border-green-100">
-                        <span className="text-sm text-slate-600">
+                        <span className="text-sm text-slate-700 font-medium">
                           {latestDelivery.quantity.toLocaleString()} units
                         </span>
                         <span className="text-sm font-bold text-slate-900">
@@ -1307,7 +1360,7 @@ const Profile: React.FC = () => {
               ) : orders.length === 0 ? (
                 <div className="text-center py-12 bg-white rounded-xl border border-slate-200">
                   <Package size={48} className="mx-auto mb-4 opacity-50 text-slate-400" />
-                  <p className="text-slate-600 mb-4">You haven't placed any orders yet.</p>
+                  <p className="text-slate-700 font-medium mb-4">You haven't placed any orders yet.</p>
                   <Link
                     to="/"
                     className="inline-block bg-brand-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-brand-700 transition-colors"
@@ -1387,16 +1440,47 @@ const Profile: React.FC = () => {
         >
           <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
             {/* Avatar */}
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ delay: 0.1, type: "spring", stiffness: 200 }}
-              className={`w-24 h-24 sm:w-28 sm:h-28 rounded-full ${getRandomColor(
-                userData.name
-              )} flex items-center justify-center text-white text-3xl sm:text-4xl font-bold shadow-lg ring-4 ring-white`}
-            >
-              {getInitials(userData.name)}
-            </motion.div>
+            <div className="relative group">
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ delay: 0.1, type: "spring", stiffness: 200 }}
+                className={`w-24 h-24 sm:w-28 sm:h-28 rounded-full ${!userData.profileImage ? getRandomColor(userData.name) : ""} flex items-center justify-center text-white text-3xl sm:text-4xl font-bold shadow-lg ring-4 ring-white overflow-hidden bg-slate-100`}
+              >
+                {userData.profileImage ? (
+                  <img src={userData.profileImage} alt={userData.name} className="w-full h-full object-cover" />
+                ) : (
+                  getInitials(userData.name)
+                )}
+              </motion.div>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="absolute bottom-0 right-0 w-8 h-8 bg-brand-600 text-white rounded-full flex items-center justify-center border-2 border-white shadow-lg hover:bg-brand-700 transition-colors"
+                title="Change profile picture"
+              >
+                <Camera size={14} />
+              </button>
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={(e) => {
+                  handleImageChange(e);
+                  // Automatically switch to edit mode if we change image from dashboard
+                  if (!isEditingProfile) {
+                    setIsEditingProfile(true);
+                    setEditFormData({
+                      firstName: userData.firstName || "",
+                      lastName: userData.lastName || "",
+                      email: userData.email || "",
+                      mobileNumber: userData.mobileNumber?.replace(userData.countryCode || "", "") || "",
+                      countryCode: userData.countryCode || "+91",
+                    });
+                  }
+                }}
+                className="hidden"
+                accept="image/*"
+              />
+            </div>
 
             {/* User Details */}
             <div className="flex-1 text-center sm:text-left">
@@ -1413,7 +1497,7 @@ const Profile: React.FC = () => {
               <div className="space-y-2">
                 <div className="w-full">
                   <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-                    <Mail size={16} className="text-slate-400 shrink-0 mt-1 sm:mt-0" />
+                    <Mail size={16} className="text-slate-600 shrink-0 mt-1 sm:mt-0" />
                     {isEditingEmail ? (
                       <div className="flex-1 w-full flex flex-col sm:flex-row items-stretch sm:items-center gap-2 min-w-0">
                         <input
@@ -1463,7 +1547,7 @@ const Profile: React.FC = () => {
                             ? 'border-red-300 bg-red-50 focus:ring-red-500 focus:border-red-500'
                             : newEmail.trim() && newEmail.trim() !== userData?.email && !validateEmail(newEmail)
                               ? 'border-green-300 bg-green-50'
-                              : 'border-slate-300'
+                              : 'border-slate-400'
                             }`}
                           placeholder="Enter new email"
                           autoFocus
@@ -1546,10 +1630,13 @@ const Profile: React.FC = () => {
                   )}
                 </div>
                 {/* Customer Details Section */}
-                {(userData.firstName || userData.lastName || userData.mobileNumber) && (
-                  <div className="space-y-4 pt-4 border-t border-slate-200">
+                {(isEditingProfile || userData.firstName || userData.lastName || userData.mobileNumber) && (
+                  <div 
+                    ref={editProfileRef}
+                    className={`space-y-4 pt-4 border-t transition-all duration-500 rounded-xl ${isEditingProfile ? 'border-brand-300 bg-brand-50/30 p-4 ring-1 ring-brand-100 shadow-sm' : 'border-slate-200'}`}
+                  >
                     <div className="flex items-center justify-between mb-3">
-                      <h3 className="text-sm font-semibold text-slate-900">Customer Details</h3>
+                      <h3 className="text-sm font-bold text-slate-900 uppercase tracking-tight">Customer Details</h3>
                       {!isEditingProfile && (
                         <button
                           type="button"
@@ -1565,7 +1652,7 @@ const Profile: React.FC = () => {
                             setProfileError(null);
                             setProfileSuccess(null);
                           }}
-                          className="p-1.5 text-slate-400 hover:text-brand-600 hover:bg-slate-100 rounded-lg transition-colors shrink-0"
+                          className="p-1.5 text-slate-500 hover:text-brand-600 hover:bg-slate-100 rounded-lg transition-colors shrink-0"
                           title="Edit profile"
                         >
                           <Edit size={14} />
@@ -1577,42 +1664,42 @@ const Profile: React.FC = () => {
                       <div className="space-y-4">
                         {/* First Name - Editable */}
                         <div>
-                          <label className="block text-xs font-medium text-slate-700 mb-1">
+                          <label className="block text-xs font-bold text-slate-900 mb-1.5">
                             First Name
                           </label>
                           <input
                             type="text"
                             value={editFormData.firstName}
                             onChange={(e) => setEditFormData({ ...editFormData, firstName: e.target.value })}
-                            className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-sm"
+                            className="w-full px-3 py-2 border border-slate-400 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-sm placeholder:text-slate-400"
                             placeholder="Enter first name"
                           />
                         </div>
 
                         {/* Last Name - Editable */}
                         <div>
-                          <label className="block text-xs font-medium text-slate-700 mb-1">
+                          <label className="block text-xs font-bold text-slate-900 mb-1.5">
                             Last Name
                           </label>
                           <input
                             type="text"
                             value={editFormData.lastName}
                             onChange={(e) => setEditFormData({ ...editFormData, lastName: e.target.value })}
-                            className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-sm"
+                            className="w-full px-3 py-2 border border-slate-400 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-sm placeholder:text-slate-400"
                             placeholder="Enter last name"
                           />
                         </div>
 
                         {/* Email - Editable */}
                         <div>
-                          <label className="block text-xs font-medium text-slate-700 mb-1">
+                          <label className="block text-xs font-bold text-slate-900 mb-1.5">
                             Email
                           </label>
                           <input
                             type="email"
                             value={editFormData.email}
                             onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
-                            className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-sm"
+                            className="w-full px-3 py-2 border border-slate-400 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-sm placeholder:text-slate-400"
                             placeholder="Enter email"
                           />
                         </div>
@@ -1620,14 +1707,14 @@ const Profile: React.FC = () => {
                         {/* Mobile Number - Read Only (Display as single field) */}
                         {userData.mobileNumber && (
                           <div>
-                            <label className="block text-xs font-medium text-slate-700 mb-1">
+                            <label className="block text-xs font-bold text-slate-900 mb-1.5">
                               Mobile Number (Cannot be changed)
                             </label>
                             <input
                               type="text"
                               value={formatMobileNumber(userData.mobileNumber, userData.countryCode)}
                               disabled
-                              className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-slate-100 text-slate-500 text-sm cursor-not-allowed"
+                              className="w-full px-3 py-2 border border-slate-400 rounded-lg bg-slate-50 text-slate-700 text-sm cursor-not-allowed"
                             />
                           </div>
                         )}
@@ -1647,22 +1734,22 @@ const Profile: React.FC = () => {
                         )}
 
                         {/* Action Buttons */}
-                        <div className="flex items-center gap-2 pt-2">
+                        <div className="flex flex-col gap-3 pt-2">
                           <button
                             type="button"
                             onClick={handleUpdateProfile}
                             disabled={updatingProfile}
-                            className="flex-1 px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5 text-sm"
+                            className="w-full px-4 py-2.5 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-semibold shadow-md"
                           >
                             {updatingProfile ? (
                               <>
-                                <Loader className="animate-spin" size={14} />
-                                Saving...
+                                <Loader className="animate-spin" size={18} />
+                                Updating Profile...
                               </>
                             ) : (
                               <>
-                                <CheckCircle size={14} />
-                                Save Changes
+                                <CheckCircle size={18} />
+                                Save Profile Changes
                               </>
                             )}
                           </button>
@@ -1670,11 +1757,13 @@ const Profile: React.FC = () => {
                             type="button"
                             onClick={() => {
                               setIsEditingProfile(false);
+                              setSelectedImage(null);
+                              setImagePreview(userData.profileImage || null);
                               setProfileError(null);
                               setProfileSuccess(null);
                             }}
                             disabled={updatingProfile}
-                            className="px-3 py-2 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                            className="w-full px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
                           >
                             Cancel
                           </button>
@@ -1685,8 +1774,8 @@ const Profile: React.FC = () => {
                         {/* First Name */}
                         {userData.firstName && (
                           <div className="flex items-center gap-3 justify-center sm:justify-start">
-                            <User size={16} className="text-slate-400" />
-                            <span className="text-slate-600">
+                            <User size={16} className="text-slate-600" />
+                            <span className="text-slate-800">
                               <span className="font-medium">First Name:</span> {userData.firstName}
                             </span>
                           </div>
@@ -1695,8 +1784,8 @@ const Profile: React.FC = () => {
                         {/* Last Name */}
                         {userData.lastName && (
                           <div className="flex items-center gap-3 justify-center sm:justify-start">
-                            <User size={16} className="text-slate-400" />
-                            <span className="text-slate-600">
+                            <User size={16} className="text-slate-600" />
+                            <span className="text-slate-800">
                               <span className="font-medium">Last Name:</span> {userData.lastName}
                             </span>
                           </div>
@@ -1705,8 +1794,8 @@ const Profile: React.FC = () => {
                         {/* Mobile Number - Read Only (Single field) */}
                         {userData.mobileNumber && (
                           <div className="flex items-center gap-3 justify-center sm:justify-start">
-                            <Phone size={16} className="text-slate-400" />
-                            <span className="text-slate-600">
+                            <Phone size={16} className="text-slate-600" />
+                            <span className="text-slate-800">
                               <span className="font-medium">Mobile:</span> {formatMobileNumber(userData.mobileNumber, userData.countryCode)}
                             </span>
                           </div>
@@ -1727,9 +1816,9 @@ const Profile: React.FC = () => {
                                 }}
                               />
                             ) : (
-                              <MapPin size={16} className="text-slate-400" />
+                              <MapPin size={16} className="text-slate-600" />
                             )}
-                            <span className="text-slate-600">
+                            <span className="text-slate-800">
                               <span className="font-medium">Country:</span> {countryNameFetched ? (countryName || userData.countryCode || "Unknown") : "Loading..."}
                             </span>
                           </div>
@@ -1772,7 +1861,7 @@ const Profile: React.FC = () => {
 
                       {/* City, State, Pincode */}
                       <div className="flex items-center gap-3 justify-center sm:justify-start">
-                        <MapPin size={16} className="text-slate-400" />
+                        <MapPin size={16} className="text-slate-600" />
                         <span className="text-slate-600">
                           <span className="font-medium">Location:</span>{" "}
                           {[userData.city, userData.state, userData.pincode].filter(Boolean).join(", ") || "Not provided"}
@@ -1783,7 +1872,7 @@ const Profile: React.FC = () => {
                       {userData.ownerName && (
                         <div className="flex items-center gap-3 justify-center sm:justify-start">
                           <User size={16} className="text-slate-400" />
-                          <span className="text-slate-600">
+                          <span className="text-slate-800">
                             <span className="font-medium">Owner Name:</span> {userData.ownerName}
                           </span>
                         </div>
@@ -1793,7 +1882,7 @@ const Profile: React.FC = () => {
                       {userData.whatsappNumber && (
                         <div className="flex items-center gap-3 justify-center sm:justify-start">
                           <Phone size={16} className="text-slate-400" />
-                          <span className="text-slate-600">
+                          <span className="text-slate-800">
                             <span className="font-medium">WhatsApp:</span> {userData.whatsappNumber}
                           </span>
                         </div>
@@ -1804,7 +1893,7 @@ const Profile: React.FC = () => {
                         <div className="flex items-start gap-3 justify-center sm:justify-start">
                           <ImageIcon size={16} className="text-slate-400 mt-0.5" />
                           <div className="flex flex-col gap-2">
-                            <span className="text-slate-600">
+                            <span className="text-slate-800">
                               <span className="font-medium">Proof Document:</span>
                             </span>
                             <a
@@ -1824,12 +1913,12 @@ const Profile: React.FC = () => {
                 )}
 
                 <div className="flex items-center gap-3 justify-center sm:justify-start">
-                  <Shield size={16} className="text-slate-400" />
-                  <span className="text-slate-600 capitalize">{userData.role}</span>
+                  <Shield size={16} className="text-slate-600" />
+                  <span className="text-slate-800 capitalize font-medium">{userData.role}</span>
                 </div>
                 <div className="flex items-center gap-3 justify-center sm:justify-start">
-                  <Calendar size={16} className="text-slate-400" />
-                  <span className="text-slate-600">
+                  <Calendar size={16} className="text-slate-600" />
+                  <span className="text-slate-800 font-medium">
                     Member since{" "}
                     {!isClient
                       ? "Loading..."

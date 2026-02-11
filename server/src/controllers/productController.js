@@ -453,8 +453,6 @@ export const getAllProducts = async (req, res) => {
       return response;
     }));
 
-    console.log("=== ALL PRODUCTS DATA (RESTRUCTURED) ===");
-    console.log(JSON.stringify(restructuredList, null, 2));
     res.json(restructuredList);
   } catch (err) {
     console.error("Error fetching all products:", err);
@@ -593,12 +591,6 @@ export const getSingleProduct = async (req, res) => {
       response.subcategory = null;
       response.nestedSubcategory = null;
     }
-
-    console.log("=== RESTRUCTURED PRODUCT DATA ===");
-    console.log("Category:", response.category?._id);
-    console.log("Subcategory:", response.subcategory?._id);
-    console.log("Nested Subcategory:", response.nestedSubcategory?._id);
-    console.log(JSON.stringify(response, null, 2));
 
     res.json(response);
   } catch (err) {
@@ -792,7 +784,6 @@ export const getProductsByCategory = async (req, res) => {
       return response;
     }));
 
-    console.log(JSON.stringify(restructuredList, null, 2));
     res.json(restructuredList);
   } catch (err) {
     console.error("Error in getProductsByCategory:", err);
