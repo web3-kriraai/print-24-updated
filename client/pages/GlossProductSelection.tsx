@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useParams, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowRight, Check, Truck, Upload as UploadIcon, FileImage, CreditCard, X, Info, Lock, AlertCircle, MapPin, Zap, Square, Circle, FileText, UploadCloud } from 'lucide-react';
+import { ArrowRight, Check, Truck, Upload as UploadIcon, FileImage, CreditCard, X, Info, Lock, AlertCircle, MapPin, Zap, Square, Circle, FileText, UploadCloud, Image as ImageIcon, AlertTriangle } from 'lucide-react';
 import { Select, SelectOption } from '@/components/ui/select';
 import { ProductImageSkeleton, AttributeCardSkeleton, Skeleton } from '@/components/ui/Skeleton';
 import { LazyImage, CloudinaryLazyImage } from '@/components/ui/LazyImage';
@@ -2542,9 +2542,6 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
       }
     });
 
-    // Add pages from "Upload Your Design" section (front + back = 2 pages)
-    totalPages += 2;
-
     return totalPages;
   };
 
@@ -2607,9 +2604,14 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
       return;
     }
 
-    // Validate file type
-    if (file.type !== 'application/pdf') {
-      setPdfValidationError('Please upload a valid PDF file.');
+    // Validate file type - accept PDF or CDR files
+    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    const isCdr = file.name.toLowerCase().endsWith('.cdr') ||
+      file.type === 'application/x-coreldraw' ||
+      file.type === 'application/coreldraw';
+
+    if (!isPdf && !isCdr) {
+      setPdfValidationError('Please upload a valid PDF or CDR file.');
       setPdfFile(null);
       setExtractedPdfPages([]);
       setPdfPreviewPages([]);
@@ -2618,7 +2620,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
     // Validate file size
     if (file.size > MAX_PDF_SIZE_BYTES) {
-      setPdfValidationError(`PDF file is too large. Maximum size is ${MAX_PDF_SIZE_MB}MB. Your file is ${(file.size / (1024 * 1024)).toFixed(1)}MB.`);
+      setPdfValidationError(`File is too large. Maximum size is ${MAX_PDF_SIZE_MB}MB. Your file is ${(file.size / (1024 * 1024)).toFixed(1)}MB.`);
       setPdfFile(null);
       setExtractedPdfPages([]);
       setPdfPreviewPages([]);
@@ -2629,6 +2631,27 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
     setPdfValidationError(null);
 
     try {
+      // Handle CDR files differently - they'll be processed server-side
+      if (isCdr) {
+        // Calculate required pages
+        const required = calculateRequiredPageCount();
+        setRequiredPageCount(required);
+
+        // Set the CDR file - it will be sent to server as-is
+        setPdfFile(file);
+        setExtractedPdfPages([]);
+        setPdfPreviewPages([]);
+
+        // Show info message that CDR will be processed server-side
+        setPdfValidationError(null);
+        setIsPdfProcessing(false);
+
+        // Note: The server will need to handle CDR conversion
+        console.log(`CDR file uploaded: ${file.name}. Will be processed server-side.`);
+        return;
+      }
+
+      // Handle PDF files - extract and preview client-side
       // Load PDF and get page count
       const arrayBuffer = await file.arrayBuffer();
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
@@ -2641,7 +2664,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
       // Validate page count
       if (numPages !== required) {
         setPdfValidationError(
-          `Invalid page count. Your PDF has ${numPages} page${numPages !== 1 ? 's' : ''}, but ${required} page${required !== 1 ? 's are' : ' is'} required.`
+          `Invalid page count. Your design file has ${numPages} page${numPages !== 1 ? 's' : ''}, but ${required} page${required !== 1 ? 's are' : ' is'} required.`
         );
         setPdfFile(null);
         setExtractedPdfPages([]);
@@ -2785,37 +2808,8 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
         }
       });
 
-      // Map design pages
-      pageMappingMetadata.push({
-        pageNumber: currentPageNum,
-        purpose: 'Front Design',
-        type: 'design',
-        isRequired: true
-      });
-      currentPageNum++;
-
-      pageMappingMetadata.push({
-        pageNumber: currentPageNum,
-        purpose: 'Back Design',
-        type: 'design',
-        isRequired: false
-      });
 
       setPdfPageMapping(pageMappingMetadata);
-
-      // Map last 2 pages to front and back design
-      const frontPage = pages[pageIndex];
-      const backPage = pages[pageIndex + 1];
-
-      if (frontPage) {
-        setFrontDesignFile(frontPage);
-        setFrontDesignPreview(previews[pageIndex]);
-      }
-
-      if (backPage) {
-        setBackDesignFile(backPage);
-        setBackDesignPreview(previews[pageIndex + 1]);
-      }
 
     } catch (error) {
       console.error('PDF processing error:', error);
@@ -6153,10 +6147,10 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                   </div>
                                   <div className="flex-1">
                                     <h3 className="font-semibold text-sm sm:text-base text-gray-900">
-                                      Upload Design PDF
+                                      Upload Design File
                                     </h3>
                                     <p className="text-xs text-gray-500 mt-0.5">
-                                      {calculatedPages} page{calculatedPages !== 1 ? 's' : ''} required • Max size: {MAX_PDF_SIZE_MB}MB
+                                      {calculatedPages} page{calculatedPages !== 1 ? 's' : ''} required • PDF or CDR • Max: {MAX_PDF_SIZE_MB}MB
                                     </p>
                                   </div>
                                   {pdfFile && !pdfValidationError && (
@@ -6174,7 +6168,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                 <input
                                   type="file"
                                   id="pdf-upload-input"
-                                  accept="application/pdf"
+                                  accept="application/pdf,.cdr,application/x-coreldraw,application/coreldraw"
                                   onChange={handlePdfUpload}
                                   className="hidden"
                                   data-required-field
@@ -6193,24 +6187,24 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                       {isPdfProcessing ? (
                                         <div className="flex flex-col items-center">
                                           <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-3"></div>
-                                          <p className="text-sm font-semibold text-gray-700">Processing PDF...</p>
+                                          <p className="text-sm font-semibold text-gray-700">Processing Design File...</p>
                                           <p className="text-xs text-gray-500 mt-1">Extracting pages as images</p>
                                         </div>
                                       ) : (
                                         <>
                                           <UploadCloud className="w-12 h-12 text-gray-400 mx-auto mb-3" />
                                           <p className="text-base font-semibold text-gray-700 mb-1">
-                                            Click to upload PDF
+                                            Click to upload design file
                                           </p>
                                           <p className="text-sm text-gray-500 mb-2">
-                                            Required: {calculatedPages} page{calculatedPages !== 1 ? 's' : ''}
+                                            {calculatedPages} page{calculatedPages !== 1 ? 's' : ''} required
                                           </p>
                                           <p className="text-xs text-gray-400 mb-3">
-                                            Max file size: {MAX_PDF_SIZE_MB}MB
+                                            Supports PDF & CDR • Max: {MAX_PDF_SIZE_MB}MB
                                           </p>
                                           <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">
-                                            <FileText size={16} />
-                                            Select PDF File
+                                            <FileImage size={16} />
+                                            Select Design File
                                           </div>
                                         </>
                                       )}
@@ -6230,7 +6224,10 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                             {pdfFile.name}
                                           </p>
                                           <p className="text-xs text-gray-600">
-                                            {extractedPdfPages.length} page{extractedPdfPages.length !== 1 ? 's' : ''} extracted
+                                            {pdfFile.name.toLowerCase().endsWith('.cdr')
+                                              ? `CDR file ready (will be processed server-side)`
+                                              : `${extractedPdfPages.length} page${extractedPdfPages.length !== 1 ? 's' : ''} extracted`
+                                            }
                                           </p>
                                         </div>
                                       </div>
@@ -6268,35 +6265,21 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                             if (!mapping) return null;
 
                                             // Color coding based on type
-                                            const colorClasses = mapping.type === 'attribute'
-                                              ? {
-                                                border: 'border-blue-400',
-                                                badge: 'bg-blue-500',
-                                                labelBg: 'bg-blue-600',
-                                                icon: '📋'
-                                              }
-                                              : mapping.purpose === 'Front Design'
-                                                ? {
-                                                  border: 'border-green-400',
-                                                  badge: 'bg-green-500',
-                                                  labelBg: 'bg-green-600',
-                                                  icon: '✓'
-                                                }
-                                                : {
-                                                  border: 'border-purple-400',
-                                                  badge: 'bg-purple-500',
-                                                  labelBg: 'bg-purple-600',
-                                                  icon: '⭐'
-                                                };
+                                            const colorClasses = {
+                                              border: 'border-blue-400',
+                                              badge: 'bg-blue-500',
+                                              labelBg: 'bg-blue-600'
+                                            };
 
                                             return (
                                               <div key={index} className="relative group">
-                                                {/* Image Container */}
-                                                <div className={`w-full aspect-[4/5] rounded-xl overflow-hidden border-2 ${colorClasses.border} bg-white shadow-md hover:shadow-xl transition-all`}>
+                                                {/* Image Container with dynamic aspect ratio */}
+                                                <div className="w-full relative">
                                                   <img
                                                     src={preview}
                                                     alt={`Page ${index + 1}`}
-                                                    className="w-full h-full object-cover"
+                                                    className={`w-full rounded-xl border-2 ${colorClasses.border} bg-white shadow-md hover:shadow-xl transition-all object-contain`}
+                                                    style={{ aspectRatio: 'auto' }}
                                                   />
                                                 </div>
 
@@ -6313,9 +6296,9 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                 )}
 
                                                 {/* Purpose Label - Always Visible */}
-                                                <div className={`absolute bottom-0 left-0 right-0 ${colorClasses.labelBg} text-white px-2 py-2`}>
+                                                <div className={`absolute bottom-0 left-0 right-0 ${colorClasses.labelBg} text-white px-2 py-2 rounded-b-xl`}>
                                                   <div className="flex items-center gap-1.5">
-                                                    <span className="text-sm">{colorClasses.icon}</span>
+                                                    <ImageIcon size={14} className="flex-shrink-0" />
                                                     <div className="flex-1 min-w-0">
                                                       <p className="text-[11px] font-semibold truncate leading-tight">
                                                         {mapping.purpose}
@@ -6337,27 +6320,33 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                         </div>
 
                                         {/* Legend */}
-                                        <div className="mt-4 p-3 bg-gray-50 border border-gray-200 rounded-lg">
-                                          <p className="text-xs font-semibold text-gray-700 mb-2">Color Legend:</p>
+                                        <div className="mt-4 p-3 bg-gradient-to-r from-gray-50 to-blue-50 border border-gray-200 rounded-lg">
+                                          <p className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1.5">
+                                            <Info size={12} className="text-blue-600" />
+                                            Legend
+                                          </p>
                                           <div className="flex flex-wrap gap-3">
                                             <div className="flex items-center gap-1.5">
-                                              <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                                              <ImageIcon size={14} className="text-blue-500" />
                                               <span className="text-xs text-gray-600">Attribute Images</span>
                                             </div>
                                             <div className="flex items-center gap-1.5">
-                                              <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                                              <span className="text-xs text-gray-600">Front Design</span>
-                                            </div>
-                                            <div className="flex items-center gap-1.5">
-                                              <div className="w-3 h-3 rounded-full bg-purple-500"></div>
-                                              <span className="text-xs text-gray-600">Back Design</span>
-                                            </div>
-                                            <div className="flex items-center gap-1.5">
-                                              <div className="w-3 h-3 rounded-full bg-red-500 flex items-center justify-center">
-                                                <span className="text-white text-[8px] font-bold">!</span>
-                                              </div>
+                                              <AlertTriangle size={14} className="text-red-500" />
                                               <span className="text-xs text-gray-600">Required</span>
                                             </div>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {/* CDR File Information Message */}
+                                    {pdfFile && pdfFile.name.toLowerCase().endsWith('.cdr') && pdfPreviewPages.length === 0 && (
+                                      <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                                        <div className="flex items-start gap-2">
+                                          <Info size={16} className="text-blue-600 mt-0.5 flex-shrink-0" />
+                                          <div className="text-xs text-blue-900">
+                                            <p className="font-semibold mb-1">CDR File Uploaded Successfully</p>
+                                            <p>Your CorelDRAW file will be processed on the server. Page previews are not available for CDR files, but your design will be processed according to the required page count ({requiredPageCount} page{requiredPageCount !== 1 ? 's' : ''}).</p>
                                           </div>
                                         </div>
                                       </div>
@@ -6447,12 +6436,6 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                   pageNum += req.numberOfImages;
                                                 }
                                               });
-
-                                              // Add design pages
-                                              mapping.push(<li key="front">Page {pageNum}: Front Design (Required)</li>);
-                                              pageNum++;
-                                              mapping.push(<li key="back">Page {pageNum}: Back Design (Optional)</li>);
-
                                               return mapping;
                                             })()}
                                           </ul>
