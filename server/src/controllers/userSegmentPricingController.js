@@ -53,8 +53,12 @@ export const createUserSegment = async (req, res) => {
       });
     }
 
+    // Check if this is the first segment
+    const segmentCount = await UserSegment.countDocuments();
+    const shouldBeDefault = segmentCount === 0 ? true : (isDefault || false);
+
     // If this is set as default, unset other defaults
-    if (isDefault) {
+    if (shouldBeDefault) {
       await UserSegment.updateMany({}, { isDefault: false });
     }
 
@@ -62,7 +66,7 @@ export const createUserSegment = async (req, res) => {
       name,
       code: code.toUpperCase(),
       description,
-      isDefault: isDefault || false,
+      isDefault: shouldBeDefault,
       isActive: isActive !== undefined ? isActive : true,
       signupForm: signupForm || null,
       requiresApproval: requiresApproval || false,
@@ -141,7 +145,7 @@ export const updateUserSegment = async (req, res) => {
     segment.description = description !== undefined ? description : segment.description;
     segment.isDefault = isDefault !== undefined ? isDefault : segment.isDefault;
     segment.isActive = isActive !== undefined ? isActive : segment.isActive;
-    segment.signupForm = signupForm !== undefined ? signupForm : segment.signupForm;
+    segment.signupForm = signupForm !== undefined ? (signupForm || null) : segment.signupForm;
     segment.requiresApproval = requiresApproval !== undefined ? requiresApproval : segment.requiresApproval;
     segment.isPubliclyVisible = isPubliclyVisible !== undefined ? isPubliclyVisible : segment.isPubliclyVisible;
     segment.icon = icon !== undefined ? icon : segment.icon;
