@@ -51,8 +51,26 @@ const Navbar: React.FC = () => {
     } else {
       setUserData(null);
     }
+    // Listen for custom event to update user data when profile changes
+    const handleUserUpdate = () => {
+      const user = localStorage.getItem("user");
+      if (user) {
+        try {
+          setUserData(JSON.parse(user));
+        } catch (error) {
+          console.error("Error parsing user data:", error);
+        }
+      }
+    };
+
+    window.addEventListener("user-updated", handleUserUpdate);
+
     // Mark as mounted after checking localStorage
     setIsMounted(true);
+
+    return () => {
+      window.removeEventListener("user-updated", handleUserUpdate);
+    };
   }, [location.pathname]);
 
   useEffect(() => {

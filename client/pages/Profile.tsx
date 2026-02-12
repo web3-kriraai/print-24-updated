@@ -1026,7 +1026,7 @@ const Profile: React.FC = () => {
         }
         formData.append("email", editFormData.email.trim());
       }
-      
+
       if (selectedImage) {
         formData.append("profileImage", selectedImage);
       }
@@ -1056,6 +1056,10 @@ const Profile: React.FC = () => {
       };
       setUserData(updatedUserData);
       localStorage.setItem("user", JSON.stringify(updatedUserData));
+
+      // Dispatch event to notify other components (like Navbar) that user data has changed
+      window.dispatchEvent(new Event("user-updated"));
+
       setSelectedImage(null);
 
       // Reset form after a short delay
@@ -1445,10 +1449,10 @@ const Profile: React.FC = () => {
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
                 transition={{ delay: 0.1, type: "spring", stiffness: 200 }}
-                className={`w-24 h-24 sm:w-28 sm:h-28 rounded-full ${!userData.profileImage ? getRandomColor(userData.name) : ""} flex items-center justify-center text-white text-3xl sm:text-4xl font-bold shadow-lg ring-4 ring-white overflow-hidden bg-slate-100`}
+                className={`w-24 h-24 sm:w-28 sm:h-28 rounded-full ${!userData.profileImage && !imagePreview ? getRandomColor(userData.name) : ""} flex items-center justify-center text-white text-3xl sm:text-4xl font-bold shadow-lg ring-4 ring-white overflow-hidden bg-slate-100`}
               >
-                {userData.profileImage ? (
-                  <img src={userData.profileImage} alt={userData.name} className="w-full h-full object-cover" />
+                {imagePreview || userData.profileImage ? (
+                  <img src={imagePreview || userData.profileImage} alt={userData.name} className="w-full h-full object-cover" />
                 ) : (
                   getInitials(userData.name)
                 )}
@@ -1631,7 +1635,7 @@ const Profile: React.FC = () => {
                 </div>
                 {/* Customer Details Section */}
                 {(isEditingProfile || userData.firstName || userData.lastName || userData.mobileNumber) && (
-                  <div 
+                  <div
                     ref={editProfileRef}
                     className={`space-y-4 pt-4 border-t transition-all duration-500 rounded-xl ${isEditingProfile ? 'border-brand-300 bg-brand-50/30 p-4 ring-1 ring-brand-100 shadow-sm' : 'border-slate-200'}`}
                   >
