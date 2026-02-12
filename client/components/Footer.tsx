@@ -141,9 +141,9 @@ const Footer: React.FC = () => {
           <div className="border-t border-slate-200 mt-16 pt-8 flex flex-col md:flex-row justify-between items-center text-sm text-slate-500 font-light">
             <p>&copy; {new Date().getFullYear()} Prints24. All rights reserved.</p>
             <div className="flex gap-6 mt-4 md:mt-0">
-              <span className="hover:text-blue-600 cursor-pointer transition-colors">Privacy</span>
-              <span className="hover:text-blue-600 cursor-pointer transition-colors">Terms</span>
-              <span className="hover:text-blue-600 cursor-pointer transition-colors">Sitemap</span>
+              <Link to="/policy" className="hover:text-blue-600 cursor-pointer transition-colors">Privacy</Link>
+              <Link to="/policy" className="hover:text-blue-600 cursor-pointer transition-colors">Terms</Link>
+              <Link to="/sitemap" className="hover:text-blue-600 cursor-pointer transition-colors">Sitemap</Link>
             </div>
           </div>
         </div>
