@@ -67,21 +67,21 @@ export const createAttributeType = async (req, res) => {
         }
 
         // For DROPDOWN, RADIO, POPUP input styles, require at least 2 options
-        if (['DROPDOWN', 'RADIO', 'POPUP'].includes(inputStyle) && parsedAttributeValues.length < 2) {
-          return res.status(400).json({
-            error: `${inputStyle} input style requires at least 2 attribute values. Please add more options.`
-          });
-        }
+        // if (['DROPDOWN', 'RADIO', 'POPUP'].includes(inputStyle) && parsedAttributeValues.length < 2) {
+        //   return res.status(400).json({
+        //     error: `${inputStyle} input style requires at least 2 attribute values. Please add more options.`
+        //   });
+        // }
       } catch (err) {
         return res.status(400).json({ error: "Invalid JSON in attributeValues" });
       }
     } else {
       // For DROPDOWN, RADIO, POPUP input styles, attributeValues is required
-      if (['DROPDOWN', 'RADIO', 'POPUP'].includes(inputStyle)) {
-        return res.status(400).json({
-          error: `${inputStyle} input style requires attribute values. Please add at least 2 options.`
-        });
-      }
+      // if (['DROPDOWN', 'RADIO', 'POPUP'].includes(inputStyle)) {
+      //   return res.status(400).json({
+      //     error: `${inputStyle} input style requires attribute values. Please add at least 2 options.`
+      //   });
+      // }
     }
 
     // Parse applicableCategories and applicableSubCategories
@@ -596,9 +596,9 @@ export const duplicateAttributeType = async (req, res) => {
 
     // Use custom name if provided and not empty, otherwise add (Copy) suffix
     const attributeName = newName && typeof newName === 'string' && newName.trim().length > 0
-      ? newName.trim() 
+      ? newName.trim()
       : `${sourceData.attributeName} (Copy)`;
-    
+
     console.log("DUPLICATE AttributeType - Using attributeName:", attributeName);
     sourceData.attributeName = attributeName;
 
@@ -621,7 +621,7 @@ export const duplicateAttributeType = async (req, res) => {
 
     // Now duplicate all sub-attributes if they exist
     const SubAttribute = (await import("../models/subAttributeSchema.js")).default;
-    
+
     // Find all sub-attributes linked to the source attribute
     const sourceSubAttributes = await SubAttribute.find({
       parentAttribute: id

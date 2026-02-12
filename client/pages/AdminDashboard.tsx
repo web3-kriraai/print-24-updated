@@ -3101,8 +3101,8 @@ const AdminDashboard: React.FC = () => {
 
       // Validate attribute values for dropdown/radio/popup
       if (['DROPDOWN', 'RADIO', 'POPUP'].includes(fullAttributeType.inputStyle)) {
-        if (!fullAttributeType.attributeValues || fullAttributeType.attributeValues.length < 2) {
-          errors.attributeValues = `${fullAttributeType.inputStyle} requires at least 2 options. Please add options in the table above.`;
+        if (!fullAttributeType.attributeValues || fullAttributeType.attributeValues.length < 1) {
+          errors.attributeValues = `${fullAttributeType.inputStyle} requires at least 1 option. Please add options in the table above.`;
           hasErrors = true;
         }
       }
