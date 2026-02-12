@@ -6138,24 +6138,24 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                           const calculatedPages = calculateRequiredPageCount();
 
                           return (
-                            <div className="mb-3 sm:mb-4 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                            <div className="mb-3 sm:mb-4 bg-white rounded-2xl border border-gray-200 shadow-lg shadow-gray-200/50 overflow-hidden hover:shadow-xl hover:shadow-gray-200/50 transition-all duration-300">
                               {/* Header Section */}
-                              <div className="bg-gradient-to-r from-blue-50 to-purple-50 px-4 sm:px-5 py-3 sm:py-4 border-b border-gray-200">
-                                <div className="flex items-center gap-2.5">
-                                  <div className="w-8 h-8 rounded-lg bg-white shadow-sm flex items-center justify-center">
-                                    <FileText className="w-[18px] h-[18px] text-blue-600" />
+                              <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 px-4 sm:px-5 py-3 sm:py-4 border-b border-gray-200">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-9 h-9 rounded-xl bg-white shadow-md flex items-center justify-center ring-1 ring-blue-100">
+                                    <FileText className="w-5 h-5 text-blue-600" />
                                   </div>
                                   <div className="flex-1">
-                                    <h3 className="font-semibold text-sm sm:text-base text-gray-900">
+                                    <h3 className="font-bold text-sm sm:text-base text-gray-900">
                                       Upload Design File
                                     </h3>
-                                    <p className="text-xs text-gray-500 mt-0.5">
+                                    <p className="text-xs text-gray-600 mt-0.5 font-medium">
                                       {calculatedPages} page{calculatedPages !== 1 ? 's' : ''} required • PDF or CDR • Max: {MAX_PDF_SIZE_MB}MB
                                     </p>
                                   </div>
                                   {pdfFile && !pdfValidationError && (
-                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-100 text-green-700 text-xs font-semibold">
-                                      <Check size={12} strokeWidth={3} />
+                                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-green-100 to-emerald-100 text-green-700 text-xs font-bold shadow-sm">
+                                      <Check size={14} strokeWidth={3} />
                                       Complete
                                     </span>
                                   )}
@@ -6168,7 +6168,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                 <input
                                   type="file"
                                   id="pdf-upload-input"
-                                  accept="application/pdf,.cdr,application/x-coreldraw,application/coreldraw"
+                                  accept=".pdf,.cdr,application/pdf,application/x-coreldraw,application/coreldraw"
                                   onChange={handlePdfUpload}
                                   className="hidden"
                                   data-required-field
@@ -6178,9 +6178,9 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                   /* Upload Prompt */
                                   <label
                                     htmlFor="pdf-upload-input"
-                                    className={`block cursor-pointer border-2 border-dashed rounded-xl transition-all duration-200 ${pdfValidationError
-                                      ? 'border-red-300 bg-red-50'
-                                      : 'border-gray-300 bg-gray-50 hover:border-blue-400 hover:bg-blue-50'
+                                    className={`block cursor-pointer border-2 border-dashed rounded-xl transition-all duration-300 hover:scale-[1.01] ${pdfValidationError
+                                      ? 'border-red-400 bg-red-50/50 shadow-inner'
+                                      : 'border-gray-300 bg-gradient-to-br from-gray-50 to-slate-50 hover:border-blue-500 hover:bg-gradient-to-br hover:from-blue-50 hover:to-indigo-50 hover:shadow-md'
                                       }`}
                                   >
                                     <div className="p-8 text-center">
@@ -6192,17 +6192,19 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                         </div>
                                       ) : (
                                         <>
-                                          <UploadCloud className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-                                          <p className="text-base font-semibold text-gray-700 mb-1">
+                                          <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center mx-auto mb-4">
+                                            <UploadCloud className="w-7 h-7 text-blue-600" />
+                                          </div>
+                                          <p className="text-base font-bold text-gray-800 mb-1">
                                             Click to upload design file
                                           </p>
-                                          <p className="text-sm text-gray-500 mb-2">
+                                          <p className="text-sm text-gray-600 mb-2 font-medium">
                                             {calculatedPages} page{calculatedPages !== 1 ? 's' : ''} required
                                           </p>
-                                          <p className="text-xs text-gray-400 mb-3">
+                                          <p className="text-xs text-gray-500 mb-4">
                                             Supports PDF & CDR • Max: {MAX_PDF_SIZE_MB}MB
                                           </p>
-                                          <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">
+                                          <div className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg text-sm font-bold hover:from-blue-700 hover:to-indigo-700 transition-all hover:shadow-lg hover:scale-105">
                                             <FileImage size={16} />
                                             Select Design File
                                           </div>
@@ -6214,10 +6216,10 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                   /* PDF Upload Success & Preview */
                                   <div className="space-y-4">
                                     {/* PDF File Info */}
-                                    <div className="flex items-center justify-between p-4 bg-green-50 border-2 border-green-200 rounded-xl">
+                                    <div className="flex items-center justify-between p-4 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-300 rounded-xl shadow-md hover:shadow-lg transition-all">
                                       <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 bg-green-500 rounded-lg flex items-center justify-center">
-                                          <FileText className="w-5 h-5 text-white" />
+                                        <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-md">
+                                          <FileText className="w-6 h-6 text-white" />
                                         </div>
                                         <div>
                                           <p className="text-sm font-semibold text-gray-900">
@@ -6246,7 +6248,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                           const fileInput = document.getElementById('pdf-upload-input') as HTMLInputElement;
                                           if (fileInput) fileInput.value = '';
                                         }}
-                                        className="px-3 py-1.5 text-xs font-medium text-red-700 bg-red-100 hover:bg-red-200 rounded-lg transition-colors"
+                                        className="px-3 py-1.5 text-xs font-bold text-red-700 bg-red-100 hover:bg-red-200 rounded-lg transition-all hover:shadow-md hover:scale-105"
                                       >
                                         Remove
                                       </button>
@@ -6267,44 +6269,44 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                             // Color coding based on type
                                             const colorClasses = {
                                               border: 'border-blue-400',
-                                              badge: 'bg-blue-500',
-                                              labelBg: 'bg-blue-600'
+                                              badge: 'bg-gradient-to-br from-blue-500 to-indigo-600',
+                                              labelBg: 'bg-gradient-to-r from-blue-600 to-indigo-700'
                                             };
 
                                             return (
                                               <div key={index} className="relative group">
                                                 {/* Image Container with dynamic aspect ratio */}
-                                                <div className="w-full relative">
+                                                <div className="w-full relative overflow-hidden rounded-xl ring-2 ring-blue-400 ring-offset-0 shadow-lg hover:shadow-2xl hover:ring-blue-500 transition-all duration-300 hover:scale-[1.02]">
                                                   <img
                                                     src={preview}
                                                     alt={`Page ${index + 1}`}
-                                                    className={`w-full rounded-xl border-2 ${colorClasses.border} bg-white shadow-md hover:shadow-xl transition-all object-contain`}
+                                                    className="w-full bg-white object-contain"
                                                     style={{ aspectRatio: 'auto' }}
                                                   />
                                                 </div>
 
                                                 {/* Page Number Badge */}
-                                                <div className={`absolute -top-2 -left-2 w-7 h-7 ${colorClasses.badge} rounded-full flex items-center justify-center shadow-lg border-2 border-white`}>
-                                                  <span className="text-white text-xs font-bold">{mapping.pageNumber}</span>
+                                                <div className={`absolute -top-2 -left-2 w-8 h-8 ${colorClasses.badge} rounded-full flex items-center justify-center shadow-xl border-2 border-white ring-1 ring-blue-200`}>
+                                                  <span className="text-white text-xs font-black">{mapping.pageNumber}</span>
                                                 </div>
 
                                                 {/* Required Badge */}
                                                 {mapping.isRequired && (
-                                                  <div className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center shadow-lg border-2 border-white">
-                                                    <span className="text-white text-[10px] font-bold">!</span>
+                                                  <div className="absolute -top-2 -right-2 w-7 h-7 bg-gradient-to-br from-red-500 to-rose-600 rounded-full flex items-center justify-center shadow-xl border-2 border-white ring-1 ring-red-200">
+                                                    <span className="text-white text-xs font-black">!</span>
                                                   </div>
                                                 )}
 
                                                 {/* Purpose Label - Always Visible */}
-                                                <div className={`absolute bottom-0 left-0 right-0 ${colorClasses.labelBg} text-white px-2 py-2 rounded-b-xl`}>
+                                                <div className={`absolute bottom-0 left-0 right-0 ${colorClasses.labelBg} text-white px-2 py-2.5 rounded-b-xl shadow-md`}>
                                                   <div className="flex items-center gap-1.5">
-                                                    <ImageIcon size={14} className="flex-shrink-0" />
+                                                    <ImageIcon size={15} className="flex-shrink-0" />
                                                     <div className="flex-1 min-w-0">
-                                                      <p className="text-[11px] font-semibold truncate leading-tight">
+                                                      <p className="text-[11px] font-bold truncate leading-tight">
                                                         {mapping.purpose}
                                                       </p>
                                                       {mapping.type === 'attribute' && (
-                                                        <p className="text-[9px] opacity-90 truncate">
+                                                        <p className="text-[9px] opacity-95 truncate font-medium">
                                                           {mapping.isRequired ? 'Required' : 'Optional'}
                                                         </p>
                                                       )}
@@ -6313,26 +6315,32 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                 </div>
 
                                                 {/* Hover Tooltip with Full Details */}
-                                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all rounded-xl pointer-events-none"></div>
+                                                <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300 rounded-xl pointer-events-none"></div>
                                               </div>
                                             );
                                           })}
                                         </div>
 
                                         {/* Legend */}
-                                        <div className="mt-4 p-3 bg-gradient-to-r from-gray-50 to-blue-50 border border-gray-200 rounded-lg">
-                                          <p className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1.5">
-                                            <Info size={12} className="text-blue-600" />
+                                        <div className="mt-4 p-3.5 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 border border-blue-200 rounded-xl shadow-sm">
+                                          <p className="text-xs font-bold text-gray-800 mb-2.5 flex items-center gap-2">
+                                            <div className="w-5 h-5 rounded-md bg-blue-100 flex items-center justify-center">
+                                              <Info size={13} className="text-blue-600" />
+                                            </div>
                                             Legend
                                           </p>
-                                          <div className="flex flex-wrap gap-3">
-                                            <div className="flex items-center gap-1.5">
-                                              <ImageIcon size={14} className="text-blue-500" />
-                                              <span className="text-xs text-gray-600">Attribute Images</span>
+                                          <div className="flex flex-wrap gap-4">
+                                            <div className="flex items-center gap-2">
+                                              <div className="w-6 h-6 rounded-lg bg-white shadow-sm flex items-center justify-center">
+                                                <ImageIcon size={15} className="text-blue-600" />
+                                              </div>
+                                              <span className="text-xs text-gray-700 font-medium">Attribute Images</span>
                                             </div>
-                                            <div className="flex items-center gap-1.5">
-                                              <AlertTriangle size={14} className="text-red-500" />
-                                              <span className="text-xs text-gray-600">Required</span>
+                                            <div className="flex items-center gap-2">
+                                              <div className="w-6 h-6 rounded-lg bg-white shadow-sm flex items-center justify-center">
+                                                <AlertTriangle size={15} className="text-red-600" />
+                                              </div>
+                                              <span className="text-xs text-gray-700 font-medium">Required</span>
                                             </div>
                                           </div>
                                         </div>
