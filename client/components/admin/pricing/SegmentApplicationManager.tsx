@@ -266,8 +266,8 @@ const SegmentApplicationManager: React.FC = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
-                        {app.userSegment.icon && <span className="mr-2">{app.userSegment.icon}</span>}
-                        <span className="text-sm text-gray-900">{app.userSegment.name}</span>
+                        {app.userSegment?.icon && <span className="mr-2">{app.userSegment.icon}</span>}
+                        <span className="text-sm text-gray-900">{app.userSegment?.name || 'N/A'}</span>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -342,7 +342,7 @@ const SegmentApplicationManager: React.FC = () => {
                     <div>
                       <div className="text-sm text-gray-500">Segment</div>
                       <div className="font-medium">
-                        {selectedApplication.userSegment.icon} {selectedApplication.userSegment.name}
+                        {selectedApplication.userSegment?.icon} {selectedApplication.userSegment?.name || 'N/A'}
                       </div>
                     </div>
                     <div>
