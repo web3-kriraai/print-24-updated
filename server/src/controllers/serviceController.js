@@ -4,7 +4,7 @@ import Service from '../models/serviceModal.js';
 import Product from '../models/productModal.js';
 import Category from '../models/categoryModal.js';
 import Subcategory from '../models/subcategoryModal.js';
-
+import UserSegment from '../models/UserSegment.js';
 // Configure multer for memory storage (Cloudinary upload)
 const storage = multer.memoryStorage();
 
@@ -38,7 +38,15 @@ const upload = multer({
 export const getAllServices = async (req, res) => {
     try {
         const { activeOnly, showAllTitles } = req.query;
-        const userSegmentId = req.user?.userSegment?.toString();
+        let userSegmentId = req.user?.userSegment?.toString();
+
+        // If no authenticated user, get the default segment (e.g., Retail)
+        if (!userSegmentId) {
+            const defaultSegment = await UserSegment.getDefaultSegment();
+            if (defaultSegment) {
+                userSegmentId = defaultSegment._id.toString();
+            }
+        }
 
         let query = {};
         if (activeOnly === 'true') {
@@ -55,9 +63,9 @@ export const getAllServices = async (req, res) => {
 
             const filteredTitles = service.titles.filter(title => {
                 // Show if no segments assigned (public) or if user is in one of the segments
-                return !title.assignedSegments || 
-                       title.assignedSegments.length === 0 || 
-                       (userSegmentId && title.assignedSegments.some(s => s.toString() === userSegmentId));
+                return !title.assignedSegments ||
+                    title.assignedSegments.length === 0 ||
+                    (userSegmentId && title.assignedSegments.some(s => s.toString() === userSegmentId));
             });
 
             return { ...service, titles: filteredTitles };
@@ -78,8 +86,16 @@ export const getServiceById = async (req, res) => {
     try {
         const { id } = req.params;
         const { showAllTitles } = req.query;
-        const userSegmentId = req.user?.userSegment?.toString();
-        
+        let userSegmentId = req.user?.userSegment?.toString();
+
+        // If no authenticated user, get the default segment (e.g., Retail)
+        if (!userSegmentId) {
+            const defaultSegment = await UserSegment.getDefaultSegment();
+            if (defaultSegment) {
+                userSegmentId = defaultSegment._id.toString();
+            }
+        }
+
         const service = await Service.findById(id).lean();
 
         if (!service) {
@@ -89,9 +105,9 @@ export const getServiceById = async (req, res) => {
         // Filter titles based on user segment
         if (showAllTitles !== 'true') {
             service.titles = service.titles.filter(title => {
-                return !title.assignedSegments || 
-                       title.assignedSegments.length === 0 || 
-                       (userSegmentId && title.assignedSegments.some(s => s.toString() === userSegmentId));
+                return !title.assignedSegments ||
+                    title.assignedSegments.length === 0 ||
+                    (userSegmentId && title.assignedSegments.some(s => s.toString() === userSegmentId));
             });
         }
 
