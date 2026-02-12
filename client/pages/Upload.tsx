@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 import { API_BASE_URL_WITH_API } from "../lib/apiConfig";
 import BackButton from "../components/BackButton";
 
@@ -119,6 +120,7 @@ interface DesignSpecs {
 
 const Upload: React.FC = () => {
   const navigate = useNavigate();
+  const { user: authUser, isAuthenticated, loading: authLoading } = useAuth();
   const [mode, setMode] = useState<"select" | "upload">("select");
 
   // Default user ID for uploads (fallback)
@@ -126,6 +128,23 @@ const Upload: React.FC = () => {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [userName, setUserName] = useState<string>("");
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
+
+  // ... other states ...
+
+  // Sync user state with auth context
+  useEffect(() => {
+    if (authLoading) return;
+
+    if (authUser) {
+      setCurrentUserId(authUser._id || (authUser as any).id || null);
+      setUserName(authUser.name || authUser.email || "User");
+      setIsLoggedIn(true);
+    } else {
+      setCurrentUserId(null);
+      setIsLoggedIn(false);
+      setUserName("");
+    }
+  }, [authUser, isAuthenticated, authLoading]);
 
   // Upload State
   const [frontFile, setFrontFile] = useState<UploadedFile | null>(null);
@@ -152,82 +171,6 @@ const Upload: React.FC = () => {
   });
 
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
-
-  // Get user ID and name directly from localStorage user field
-  useEffect(() => {
-    const getUserFromLocalStorage = () => {
-      try {
-        const userData = localStorage.getItem("user");
-
-        console.log("🔐 Checking localStorage for user data:", {
-          hasUserData: !!userData,
-        });
-
-        if (userData) {
-          const user = JSON.parse(userData);
-          console.log("✅ Found user data in localStorage:", user);
-
-          // Handle different possible user object structures
-          let userId: string | null = null;
-          let userName: string | null = null;
-
-          // Case 1: Direct user object with _id
-          if (user && user._id && typeof user._id === "string") {
-            userId = user._id;
-            userName = user.name || user.email || user.username || "User";
-          }
-          // Case 2: Nested user object (user.user._id)
-          else if (
-            user &&
-            user.user &&
-            user.user._id &&
-            typeof user.user._id === "string"
-          ) {
-            userId = user.user._id;
-            userName =
-              user.user.name || user.user.email || user.user.username || "User";
-          }
-          // Case 3: Check for id instead of _id
-          else if (user && user.id && typeof user.id === "string") {
-            userId = user.id;
-            userName = user.name || user.email || user.username || "User";
-          }
-          // Case 4: Nested with id instead of _id
-          else if (
-            user &&
-            user.user &&
-            user.user.id &&
-            typeof user.user.id === "string"
-          ) {
-            userId = user.user.id;
-            userName =
-              user.user.name || user.user.email || user.user.username || "User";
-          }
-
-          if (userId) {
-            setCurrentUserId(userId);
-            setUserName(userName || "Your Account");
-            setIsLoggedIn(true);
-            console.log("✅ User is logged in with ID:", userId);
-            return;
-          }
-        }
-
-        // If we get here, no valid user was found
-        console.warn("⚠️ No valid user ID found - user not logged in");
-        setCurrentUserId(null);
-        setIsLoggedIn(false);
-        setUserName("");
-      } catch (error) {
-        console.error("❌ Error reading localStorage:", error);
-        setCurrentUserId(null);
-        setIsLoggedIn(false);
-        setUserName("");
-      }
-    };
-
-    getUserFromLocalStorage();
-  }, []);
 
   const handleLoginRedirect = () => {
     navigate("/login");
@@ -732,8 +675,8 @@ const Upload: React.FC = () => {
                   ) : (
                     <div
                       className={`border rounded-xl p-4 flex items-start gap-4 relative ${fileData.isValid
-                          ? "bg-white border-gray-200"
-                          : "bg-red-50 border-red-200"
+                        ? "bg-white border-gray-200"
+                        : "bg-red-50 border-red-200"
                         }`}
                       onClick={() => setActiveSide(side as "front" | "back")}
                     >

@@ -33,6 +33,7 @@ import {
 import { API_BASE_URL_WITH_API as API_BASE_URL } from "../lib/apiConfig";
 import { calculateOrderBreakdown, OrderForCalculation } from "../utils/pricing";
 import BackButton from "../components/BackButton";
+import { useAuth } from "../context/AuthContext";
 
 interface UserData {
   id: string;
@@ -536,12 +537,12 @@ const OrdersList: React.FC<OrdersListProps> = ({ orders, onSelectOrder }) => {
     </div>
   );
 };
-
 const Profile: React.FC = () => {
+  const { user: authUser, updateUser } = useAuth();
   const navigate = useNavigate();
   const isClient = useClientOnly();
-  const [userData, setUserData] = useState<UserData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [userData, setUserData] = useState<UserData | null>(authUser);
+  const [loading, setLoading] = useState(!authUser);
   const [orders, setOrders] = useState<Order[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [currentView, setCurrentView] = useState<"dashboard" | "orders">("dashboard");
@@ -581,35 +582,41 @@ const Profile: React.FC = () => {
   const [countryName, setCountryName] = useState<string>("");
   const [countryFlagUrl, setCountryFlagUrl] = useState<string>("");
   const [countryNameFetched, setCountryNameFetched] = useState<boolean>(false);
+  // Ref to track if initial data has been fetched for this session
+  const initialFetchPerformed = React.useRef(false);
 
   useEffect(() => {
-    // Check if user is logged in
-    const token = localStorage.getItem("token");
-    const user = localStorage.getItem("user");
-
-    if (!token || !user) {
-      navigate("/login");
-      return;
-    }
-
-    try {
-      const parsedUser = JSON.parse(user);
-      setUserData(parsedUser);
+    if (authUser) {
+      setUserData(authUser);
       setLoading(false);
-      // Fetch country name if country code exists in localStorage
-      if (parsedUser.countryCode) {
-        fetchCountryName(parsedUser.countryCode);
+
+      // Initialize edit form only if not already editing
+      if (!isEditingProfile) {
+        setEditFormData({
+          firstName: authUser.firstName || "",
+          lastName: authUser.lastName || "",
+          email: authUser.email || "",
+          mobileNumber: authUser.mobileNumber?.replace(authUser.countryCode || "", "") || "",
+          countryCode: authUser.countryCode || "+91",
+        });
+        setImagePreview(authUser.profileImage || null);
       }
-      // Fetch full profile from API
-      fetchUserProfile();
-      // Fetch orders immediately
-      fetchRecentOrders();
-    } catch (error) {
-      console.error("Error parsing user data:", error);
+
+      // Fetch country name if country code exists and hasn't been fetched
+      if (authUser.countryCode && !countryNameFetched) {
+        fetchCountryName(authUser.countryCode);
+      }
+
+      // Initial data fetch - ONLY ONCE per mount/auth session
+      if (!initialFetchPerformed.current) {
+        initialFetchPerformed.current = true;
+        fetchUserProfile();
+        fetchRecentOrders();
+      }
+    } else if (!loading) {
       navigate("/login");
     }
-  }, [navigate]);
-
+  }, [authUser, loading, navigate]);
   // Fetch user profile from API
   const fetchUserProfile = async () => {
     try {
@@ -629,9 +636,8 @@ const Profile: React.FC = () => {
             gstNumber: data.user.gstNumber,
           });
 
-          setUserData(data.user);
-          // Update localStorage
-          localStorage.setItem("user", JSON.stringify(data.user));
+          updateUser(data.user);
+
           // Initialize edit form
           setEditFormData({
             firstName: data.user.firstName || "",
@@ -1049,18 +1055,17 @@ const Profile: React.FC = () => {
 
       setProfileSuccess("Profile updated successfully!");
 
-      // Update user data in state and localStorage
-      const updatedUserData = {
-        ...userData!,
+      // Force a re-render of the image by adding a timestamp to bypass browser cache
+      const updatedUser = {
         ...data.user,
+        profileImage: data.user.profileImage ? `${data.user.profileImage}${data.user.profileImage.includes('?') ? '&' : '?'}t=${Date.now()}` : data.user.profileImage
       };
-      setUserData(updatedUserData);
-      localStorage.setItem("user", JSON.stringify(updatedUserData));
 
-      // Dispatch event to notify other components (like Navbar) that user data has changed
-      window.dispatchEvent(new Event("user-updated"));
+      // Update global auth state
+      updateUser(updatedUser);
 
       setSelectedImage(null);
+      setImagePreview(null); // Clear preview to show the actual uploaded image URL
 
       // Reset form after a short delay
       setTimeout(() => {
@@ -1449,12 +1454,19 @@ const Profile: React.FC = () => {
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
                 transition={{ delay: 0.1, type: "spring", stiffness: 200 }}
-                className={`w-24 h-24 sm:w-28 sm:h-28 rounded-full ${!userData.profileImage && !imagePreview ? getRandomColor(userData.name) : ""} flex items-center justify-center text-white text-3xl sm:text-4xl font-bold shadow-lg ring-4 ring-white overflow-hidden bg-slate-100`}
+                className={`w-24 h-24 sm:w-28 sm:h-28 rounded-full ${!userData.profileImage && !imagePreview ? getRandomColor(userData.name) : ""} flex items-center justify-center text-white text-3xl sm:text-4xl font-bold shadow-lg ring-4 ring-white overflow-hidden bg-slate-100 relative`}
               >
                 {imagePreview || userData.profileImage ? (
                   <img src={imagePreview || userData.profileImage} alt={userData.name} className="w-full h-full object-cover" />
                 ) : (
                   getInitials(userData.name)
+                )}
+
+                {/* Loading overlay for image update */}
+                {updatingProfile && selectedImage && (
+                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                    <Loader className="animate-spin text-white w-8 h-8" />
+                  </div>
                 )}
               </motion.div>
               <button

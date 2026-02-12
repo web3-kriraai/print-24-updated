@@ -3,6 +3,7 @@ import { Outlet, useLocation } from 'react-router-dom';
 import Navbar from './Navbar';
 import Footer from './Footer';
 import { AnimatePresence } from 'framer-motion';
+import { AuthProvider } from '../context/AuthContext';
 
 // Client-only Toaster component to avoid SSR hook errors
 const ClientOnlyToaster: React.FC = () => {
@@ -82,21 +83,23 @@ const Layout: React.FC = () => {
   // Both render: <div key={path}><div><Outlet /></div></div>
   // The structure must be identical - no conditional wrappers that change DOM
   return (
-    <div className={`min-h-screen flex flex-col font-sans transition-colors duration-300 ${isAdminRoute ? 'bg-white text-slate-900' : 'bg-cream-50 text-cream-900'}`}>
-      {!hideNavbar && <Navbar />}
-      <main className={`flex-grow ${hideNavbar ? '' : 'pt-16'}`}>
-        {/* CRITICAL: Always render same structure - server and client must match exactly */}
-        {/* This structure is identical on both server and client */}
-        <div key={location.pathname}>
-          <div>
-            <Outlet />
+    <AuthProvider>
+      <div className={`min-h-screen flex flex-col font-sans transition-colors duration-300 ${isAdminRoute ? 'bg-white text-slate-900' : 'bg-cream-50 text-cream-900'}`}>
+        {!hideNavbar && <Navbar />}
+        <main className={`flex-grow ${hideNavbar ? '' : 'pt-16'}`}>
+          {/* CRITICAL: Always render same structure - server and client must match exactly */}
+          {/* This structure is identical on both server and client */}
+          <div key={location.pathname}>
+            <div>
+              <Outlet />
+            </div>
           </div>
-        </div>
-      </main>
-      {!hideNavbar && <Footer />}
-      {/* Render Toaster only on client to avoid SSR hook errors */}
-      <ClientOnlyToaster />
-    </div>
+        </main>
+        {!hideNavbar && <Footer />}
+        {/* Render Toaster only on client to avoid SSR hook errors */}
+        <ClientOnlyToaster />
+      </div>
+    </AuthProvider>
   );
 };
 

@@ -21,6 +21,7 @@ import {
 import { API_BASE_URL_WITH_API } from "../lib/apiConfig";
 import { scrollToInvalidField } from "../lib/validationUtils";
 import { useLogo } from "../hooks/useSiteSettings";
+import { useAuth } from "../context/AuthContext";
 
 // Country code interface
 interface CountryCode {
@@ -82,6 +83,7 @@ const Login: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { logo } = useLogo();
+  const { login } = useAuth();
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -470,8 +472,7 @@ const Login: React.FC = () => {
       }
 
       // Success
-      localStorage.setItem("token", data.token);
-      localStorage.setItem("user", JSON.stringify(data.user));
+      await login(data.token, data.user);
 
       // Redirect based on role
       if (data.user.role === "admin") {

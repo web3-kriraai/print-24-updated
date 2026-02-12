@@ -2,6 +2,7 @@
 import { getAuthHeaders } from "../utils/auth";
 import { useClientOnly } from "../hooks/useClientOnly";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 import BackButton from "../components/BackButton";
 import toast from "react-hot-toast";
 import {
@@ -252,6 +253,7 @@ interface Order {
 
 const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();
+  const { user: authUser, loading: authLoading } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const isClient = useClientOnly();
@@ -662,14 +664,14 @@ const AdminDashboard: React.FC = () => {
 
   useEffect(() => {
     // Check if user is admin
-    const user = localStorage.getItem("user");
-    if (!user) {
+    if (authLoading) return;
+
+    if (!authUser) {
       navigate("/login");
       return;
     }
 
-    const userData = JSON.parse(user);
-    if (userData.role !== "admin") {
+    if (authUser.role !== "admin") {
       navigate("/");
       return;
     }
@@ -680,7 +682,7 @@ const AdminDashboard: React.FC = () => {
     // fetchUsers(); // Moved to ManageUsers
     fetchUploads();
     fetchOrders();
-  }, [navigate]);
+  }, [authUser, authLoading, navigate]);
 
   // Fetch attribute types when products tab becomes active
   useEffect(() => {

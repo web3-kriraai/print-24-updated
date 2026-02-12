@@ -12,66 +12,23 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLogo } from "../hooks/useSiteSettings";
+import { useAuth } from "../context/AuthContext";
 
-interface UserData {
-  id: string;
-  name: string;
-  email: string;
-  role: string;
-  isEmployee?: boolean;
-  profileImage?: string;
-}
+
 
 const Navbar: React.FC = () => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
-  const [userData, setUserData] = useState<UserData | null>(null);
-
+  const { user: userData, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const { logo } = useLogo();
 
-  // Detect login state and user data from localStorage (only on client)
-  // Use useEffect to avoid hydration mismatch - server always renders logged out state
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    const token = localStorage.getItem("token");
-    const user = localStorage.getItem("user");
-
-    if (token && user) {
-      try {
-        setUserData(JSON.parse(user));
-      } catch (error) {
-        console.error("Error parsing user data:", error);
-        localStorage.removeItem("token");
-        localStorage.removeItem("user");
-      }
-    } else {
-      setUserData(null);
-    }
-    // Listen for custom event to update user data when profile changes
-    const handleUserUpdate = () => {
-      const user = localStorage.getItem("user");
-      if (user) {
-        try {
-          setUserData(JSON.parse(user));
-        } catch (error) {
-          console.error("Error parsing user data:", error);
-        }
-      }
-    };
-
-    window.addEventListener("user-updated", handleUserUpdate);
-
-    // Mark as mounted after checking localStorage
+    // Mark as mounted
     setIsMounted(true);
-
-    return () => {
-      window.removeEventListener("user-updated", handleUserUpdate);
-    };
-  }, [location.pathname]);
+  }, []);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -123,13 +80,8 @@ const Navbar: React.FC = () => {
   };
 
   const logoutHandler = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    setUserData(null);
+    logout();
     setIsProfileDropdownOpen(false);
-    navigate("/");
-    // Optional: Refresh the page to reset all states
-    window.location.reload();
   };
 
   const getInitials = (name: string) => {

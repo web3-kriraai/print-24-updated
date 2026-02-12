@@ -40,3 +40,17 @@ export interface UploadedFile {
   isValid: boolean;
   errors: string[];
 }
+
+export interface UserData {
+  id: string;
+  _id?: string;
+  name: string;
+  email: string;
+  role: string;
+  isEmployee?: boolean;
+  profileImage?: string;
+  firstName?: string;
+  lastName?: string;
+  mobileNumber?: string;
+  countryCode?: string;
+}

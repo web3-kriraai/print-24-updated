@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useClientOnly } from "../hooks/useClientOnly";
 import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 import { motion } from "framer-motion";
 import BackButton from "../components/BackButton";
 import { Star, Send, Filter, X } from "lucide-react";
@@ -24,31 +25,24 @@ interface Review {
 
 const Reviews: React.FC = () => {
   const navigate = useNavigate();
+  const { user: authUser, isAuthenticated, loading: authLoading } = useAuth();
   const isClient = useClientOnly();
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loadingReviews, setLoadingReviews] = useState(true);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(isAuthenticated);
   const [reviewForm, setReviewForm] = useState({ rating: 5, comment: "", userName: "" });
   const [submittingReview, setSubmittingReview] = useState(false);
   const [filterRating, setFilterRating] = useState<number | null>(null);
   const [filterDate, setFilterDate] = useState<string>("newest"); // "newest", "oldest", "highestRating", "lowestRating"
   const [submitMessage, setSubmitMessage] = useState<{ type: "success" | "error" | null; text: string }>({ type: null, text: "" });
 
-  // Check if user is logged in
+  // Sync isLoggedIn with auth state
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    const user = localStorage.getItem("user");
-    setIsLoggedIn(!!token);
-    // If logged in, pre-fill the name from user data
-    if (token && user) {
-      try {
-        const userData = JSON.parse(user);
-        setReviewForm(prev => ({ ...prev, userName: userData.name || "" }));
-      } catch (e) {
-        console.error("Error parsing user data:", e);
-      }
+    setIsLoggedIn(isAuthenticated);
+    if (authUser) {
+      setReviewForm(prev => ({ ...prev, userName: authUser.name || "" }));
     }
-  }, []);
+  }, [authUser, isAuthenticated]);
 
   // Fetch reviews
   useEffect(() => {
