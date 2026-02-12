@@ -12,7 +12,7 @@ const userSchema = new mongoose.Schema(
     password: { type: String, required: false }, // Optional - set later in signup flow
     userSegment: { type: mongoose.Schema.Types.ObjectId, ref: "UserSegment" },
     approvalStatus: { type: String, enum: ["pending", "approved", "rejected"], default: "pending" },
-    userType: { type: String, enum: ["customer", "print partner", "corporate"], default: "customer" },
+    userType: { type: String, default: "customer" },
     profileImage: { type: String, default: null },
     
     // ========== Dynamic Segment System ==========

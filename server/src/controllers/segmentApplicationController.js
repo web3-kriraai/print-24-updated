@@ -234,6 +234,7 @@ export const submitApplication = async (req, res) => {
         password: hashedPassword,
         role: 'user',
         userType: segment.code.toLowerCase().replace('_', ' '),
+        signupIntent: segment.code,
         approvalStatus: segment.requiresApproval ? 'pending' : 'approved',
         userSegment: segment._id,
         isEmailVerified: true, // Mark as verified since they completed email OTP
