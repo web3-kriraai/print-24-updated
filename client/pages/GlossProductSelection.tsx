@@ -2795,11 +2795,19 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
         const optionLabel = selectedOption?.label || '';
 
         for (let i = 0; i < req.numberOfImages; i++) {
+          // Use custom file name if available, otherwise fallback to generic name
+          let purposeLabel = '';
+          if (selectedOption?.imageFileNames && selectedOption.imageFileNames[i]) {
+            purposeLabel = selectedOption.imageFileNames[i];
+          } else {
+            purposeLabel = req.numberOfImages > 1
+              ? `${attrName} - ${optionLabel} (Image ${i + 1}/${req.numberOfImages})`
+              : `${attrName} - ${optionLabel}`;
+          }
+
           pageMappingMetadata.push({
             pageNumber: currentPageNum,
-            purpose: req.numberOfImages > 1
-              ? `${attrName} - ${optionLabel} (Image ${i + 1}/${req.numberOfImages})`
-              : `${attrName} - ${optionLabel}`,
+            purpose: purposeLabel,
             type: 'attribute',
             attributeName: attrName,
             isRequired: true
@@ -6352,96 +6360,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                       </div>
                                     )}
 
-                                    {/* Page Mapping Info */}
-                                    <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                                      <div className="flex items-start gap-2">
-                                        <Info size={16} className="text-blue-600 mt-0.5 flex-shrink-0" />
-                                        <div className="text-xs text-blue-900">
-                                          <p className="font-semibold mb-1">Page Mapping:</p>
-                                          <ul className="space-y-0.5 list-disc list-inside">
-                                            {(() => {
-                                              let pageNum = 1;
-                                              const mapping = [];
 
-                                              // Map attribute images
-                                              const imageUploadsRequired: Array<{
-                                                attrName: string;
-                                                numberOfImages: number;
-                                              }> = [];
-
-                                              let attributesToCheck: any[] = [];
-
-                                              if (isInitialized && pdpAttributes.length > 0) {
-                                                const ruleResult = applyAttributeRules({
-                                                  attributes: pdpAttributes,
-                                                  rules: pdpRules,
-                                                  selectedValues: { ...selectedDynamicAttributes } as Record<string, string | number | boolean | File | any[] | null>,
-                                                });
-                                                attributesToCheck = ruleResult.attributes.filter((attr) => attr.isVisible);
-                                              } else if (selectedProduct?.dynamicAttributes) {
-                                                attributesToCheck = selectedProduct.dynamicAttributes.filter((attr) => attr.isEnabled);
-                                              }
-
-                                              attributesToCheck.forEach((attr) => {
-                                                let attrName: string = '';
-                                                let attributeValues: any[] = [];
-                                                let attrId: string = '';
-
-                                                if (isInitialized && pdpAttributes.length > 0) {
-                                                  attrId = attr._id;
-                                                  attrName = attr.attributeName;
-                                                  attributeValues = (attr.allowedValues && attr.allowedValues.length > 0)
-                                                    ? (attr.attributeValues || []).filter((av: any) => attr.allowedValues!.includes(av.value))
-                                                    : (attr.attributeValues || []);
-                                                } else {
-                                                  if (typeof attr.attributeType === 'object' && attr.attributeType !== null) {
-                                                    const attrType = attr.attributeType;
-                                                    attrId = attrType._id;
-                                                    attrName = attrType.attributeName;
-                                                    attributeValues = attr.customValues && attr.customValues.length > 0
-                                                      ? attr.customValues
-                                                      : attrType.attributeValues || [];
-                                                  }
-                                                }
-
-                                                if (!attrId) return;
-
-                                                const selectedValue = selectedDynamicAttributes[attrId];
-                                                if (!selectedValue) return;
-
-                                                const selectedOption = attributeValues.find((av: any) => av.value === selectedValue);
-                                                if (!selectedOption || !selectedOption.description) return;
-
-                                                const imagesRequiredMatch = selectedOption.description.match(/Images Required: (\d+)/);
-                                                const numberOfImagesRequired = imagesRequiredMatch ? parseInt(imagesRequiredMatch[1]) : 0;
-
-                                                if (numberOfImagesRequired > 0) {
-                                                  imageUploadsRequired.push({
-                                                    attrName,
-                                                    numberOfImages: numberOfImagesRequired,
-                                                  });
-                                                }
-                                              });
-
-                                              imageUploadsRequired.forEach((req) => {
-                                                if (req.numberOfImages === 1) {
-                                                  mapping.push(<li key={`attr-${pageNum}`}>Page {pageNum}: {req.attrName}</li>);
-                                                  pageNum++;
-                                                } else {
-                                                  mapping.push(
-                                                    <li key={`attr-${pageNum}`}>
-                                                      Pages {pageNum}-{pageNum + req.numberOfImages - 1}: {req.attrName}
-                                                    </li>
-                                                  );
-                                                  pageNum += req.numberOfImages;
-                                                }
-                                              });
-                                              return mapping;
-                                            })()}
-                                          </ul>
-                                        </div>
-                                      </div>
-                                    </div>
                                   </div>
                                 )}
 
