@@ -95,16 +95,15 @@ const Login: React.FC = () => {
 
   // Forgot password states
   const [showForgotPassword, setShowForgotPassword] = useState(false);
-  const [forgotPasswordStep, setForgotPasswordStep] = useState<"mobile" | "otp" | "newPassword">("mobile");
+  const [forgotPasswordStep, setForgotPasswordStep] = useState<"email" | "otp" | "newPassword">("email");
   const [forgotPasswordData, setForgotPasswordData] = useState({
-    mobileNumber: "",
-    countryCode: "+91",
+    email: "",
     otp: "",
     newPassword: "",
     confirmPassword: "",
   });
   const [forgotPasswordErrors, setForgotPasswordErrors] = useState<{
-    mobileNumber?: string;
+    email?: string;
     otp?: string;
     newPassword?: string;
     confirmPassword?: string;
@@ -265,20 +264,16 @@ const Login: React.FC = () => {
 
 
   // Forgot Password Handlers
-  const handleForgotPasswordMobile = async () => {
-    // Validate mobile number
-    if (!forgotPasswordData.mobileNumber.trim()) {
-      setForgotPasswordErrors({ mobileNumber: "Mobile number is required" });
+  const handleForgotPasswordEmail = async () => {
+    // Validate email
+    if (!forgotPasswordData.email.trim()) {
+      setForgotPasswordErrors({ email: "Email is required" });
       return;
     }
 
-    if (!/^\d+$/.test(forgotPasswordData.mobileNumber)) {
-      setForgotPasswordErrors({ mobileNumber: "Mobile number must contain only digits" });
-      return;
-    }
-
-    if (forgotPasswordData.mobileNumber.length < 8) {
-      setForgotPasswordErrors({ mobileNumber: "Mobile number must be at least 8 digits" });
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(forgotPasswordData.email.trim())) {
+      setForgotPasswordErrors({ email: "Please enter a valid email address" });
       return;
     }
 
@@ -286,15 +281,13 @@ const Login: React.FC = () => {
     setForgotPasswordErrors({});
 
     try {
-      const fullMobileNumber = `${forgotPasswordData.countryCode}${forgotPasswordData.mobileNumber.trim()}`;
-
       const response = await fetch(`${API_BASE_URL_WITH_API}/auth/forgot-password`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          mobileNumber: fullMobileNumber,
+          email: forgotPasswordData.email.trim(),
         }),
       });
 
@@ -302,10 +295,9 @@ const Login: React.FC = () => {
 
       if (!response.ok) {
         setIsSendingOtp(false);
-        // If user not found (404), show validation error on mobile number field
         if (response.status === 404) {
           setForgotPasswordErrors({
-            mobileNumber: data.message || "No account found with this mobile number. Please check and try again.",
+            email: data.message || "No account found with this email address.",
           });
         } else {
           setForgotPasswordErrors({
@@ -315,7 +307,7 @@ const Login: React.FC = () => {
         return;
       }
 
-      setOtpSentTo(fullMobileNumber);
+      setOtpSentTo(forgotPasswordData.email.trim());
       setForgotPasswordStep("otp");
       setIsSendingOtp(false);
     } catch (error) {
@@ -337,15 +329,13 @@ const Login: React.FC = () => {
     setForgotPasswordErrors({});
 
     try {
-      const fullMobileNumber = `${forgotPasswordData.countryCode}${forgotPasswordData.mobileNumber.trim()}`;
-
       const response = await fetch(`${API_BASE_URL_WITH_API}/auth/verify-otp-password-reset`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          mobileNumber: fullMobileNumber,
+          email: forgotPasswordData.email.trim(),
           otp: forgotPasswordData.otp,
         }),
       });
@@ -396,15 +386,14 @@ const Login: React.FC = () => {
     setForgotPasswordErrors({});
 
     try {
-      const fullMobileNumber = `${forgotPasswordData.countryCode}${forgotPasswordData.mobileNumber.trim()}`;
-
       const response = await fetch(`${API_BASE_URL_WITH_API}/auth/reset-password`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          mobileNumber: fullMobileNumber,
+          email: forgotPasswordData.email.trim(),
+          otp: forgotPasswordData.otp,
           newPassword: forgotPasswordData.newPassword,
         }),
       });
@@ -421,18 +410,18 @@ const Login: React.FC = () => {
 
       // Success - close modal and show success message
       setShowForgotPassword(false);
-      setForgotPasswordStep("mobile");
+      setForgotPasswordStep("email");
       setForgotPasswordData({
-        mobileNumber: "",
-        countryCode: "+91",
+        email: "",
         otp: "",
         newPassword: "",
         confirmPassword: "",
       });
       setForgotPasswordErrors({});
       setOtpSentTo("");
+      setIsResettingPassword(false);
 
-      // Show success message (you can add a toast notification here)
+      // Show success message
       alert("Password reset successfully! You can now login with your new password.");
     } catch (error) {
       console.error("Error resetting password:", error);
@@ -736,10 +725,9 @@ const Login: React.FC = () => {
                   type="button"
                   onClick={() => {
                     setShowForgotPassword(true);
-                    setForgotPasswordStep("mobile");
+                    setForgotPasswordStep("email");
                     setForgotPasswordData({
-                      mobileNumber: "",
-                      countryCode: "+91",
+                      email: "",
                       otp: "",
                       newPassword: "",
                       confirmPassword: "",
@@ -795,11 +783,11 @@ const Login: React.FC = () => {
               <div className="text-center pt-4">
                 <p className="text-sm text-gray-600">
                   By signing in, you agree to our{" "}
-                  <Link to="/terms" className="font-medium text-blue-600 hover:text-blue-800 hover:underline">
+                  <Link to="/policy" className="font-medium text-blue-600 hover:text-blue-800 hover:underline">
                     Terms of Service
                   </Link>{" "}
                   and{" "}
-                  <Link to="/privacy" className="font-medium text-blue-600 hover:text-blue-800 hover:underline">
+                  <Link to="/policy" className="font-medium text-blue-600 hover:text-blue-800 hover:underline">
                     Privacy Policy
                   </Link>
                 </p>
@@ -830,8 +818,248 @@ const Login: React.FC = () => {
               onClick={(e) => e.stopPropagation()}
               className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 sm:p-8 relative"
             >
-              {/* Modal content remains the same as before */}
-              {/* ... (keep the existing forgot password modal content) */}
+              {/* Close Button */}
+              <button
+                onClick={() => {
+                  if (!isSendingOtp && !isVerifyingOtp && !isResettingPassword) {
+                    setShowForgotPassword(false);
+                  }
+                }}
+                className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <X size={20} />
+              </button>
+
+              {/* Header */}
+              <div className="text-center mb-6">
+                <div className="inline-flex items-center justify-center w-14 h-14 bg-gradient-to-br from-blue-100 to-purple-100 rounded-xl mb-3">
+                  <Lock className="h-7 w-7 text-blue-600" />
+                </div>
+                <h3 className="text-xl font-bold text-gray-900">
+                  {forgotPasswordStep === "email" && "Reset Password"}
+                  {forgotPasswordStep === "otp" && "Verify OTP"}
+                  {forgotPasswordStep === "newPassword" && "Set New Password"}
+                </h3>
+                <p className="text-sm text-gray-500 mt-1">
+                  {forgotPasswordStep === "email" && "Enter your registered email to receive a verification code"}
+                  {forgotPasswordStep === "otp" && `We sent a 6-digit code to ${otpSentTo}`}
+                  {forgotPasswordStep === "newPassword" && "Create a strong new password for your account"}
+                </p>
+              </div>
+
+              {/* Step Progress */}
+              <div className="flex items-center justify-center gap-2 mb-6">
+                {["email", "otp", "newPassword"].map((step, idx) => (
+                  <div key={step} className="flex items-center gap-2">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${forgotPasswordStep === step
+                      ? "bg-blue-600 text-white"
+                      : ["email", "otp", "newPassword"].indexOf(forgotPasswordStep) > idx
+                        ? "bg-green-500 text-white"
+                        : "bg-gray-200 text-gray-500"
+                      }`}>
+                      {["email", "otp", "newPassword"].indexOf(forgotPasswordStep) > idx ? (
+                        <CheckCircle size={16} />
+                      ) : (
+                        idx + 1
+                      )}
+                    </div>
+                    {idx < 2 && (
+                      <div className={`w-8 h-0.5 ${["email", "otp", "newPassword"].indexOf(forgotPasswordStep) > idx
+                        ? "bg-green-500"
+                        : "bg-gray-200"
+                        }`} />
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* General Error */}
+              {forgotPasswordErrors.general && (
+                <div className="mb-4 bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg text-sm flex items-center gap-2">
+                  <AlertCircle size={16} />
+                  {forgotPasswordErrors.general}
+                </div>
+              )}
+
+              {/* Step 1: Email Input */}
+              {forgotPasswordStep === "email" && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                      <Mail size={16} className="text-blue-500" />
+                      Email Address
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <Mail className="h-5 w-5 text-gray-400" />
+                      </div>
+                      <input
+                        type="email"
+                        value={forgotPasswordData.email}
+                        onChange={(e) => {
+                          setForgotPasswordData((prev) => ({ ...prev, email: e.target.value }));
+                          setForgotPasswordErrors((prev) => ({ ...prev, email: undefined }));
+                        }}
+                        placeholder="Enter your registered email"
+                        className={`w-full px-3 py-3 pl-10 border rounded-xl focus:outline-none focus:ring-2 transition-all ${forgotPasswordErrors.email
+                          ? "border-red-300 focus:ring-red-500"
+                          : "border-gray-300 focus:ring-blue-500 focus:border-blue-500"
+                          }`}
+                        onKeyDown={(e) => e.key === "Enter" && handleForgotPasswordEmail()}
+                      />
+                    </div>
+                    {forgotPasswordErrors.email && (
+                      <p className="mt-1.5 text-sm text-red-600 flex items-center gap-1">
+                        <AlertCircle size={14} />
+                        {forgotPasswordErrors.email}
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    onClick={handleForgotPasswordEmail}
+                    disabled={isSendingOtp}
+                    className="w-full py-3 px-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-xl hover:from-blue-700 hover:to-purple-700 transition-all shadow-lg disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {isSendingOtp ? (
+                      <><Loader className="animate-spin h-5 w-5" /> Sending OTP...</>
+                    ) : (
+                      <>Send OTP <ArrowRight size={18} /></>
+                    )}
+                  </button>
+                </div>
+              )}
+
+              {/* Step 2: OTP Verification */}
+              {forgotPasswordStep === "otp" && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                      <Shield size={16} className="text-blue-500" />
+                      Verification Code
+                    </label>
+                    <input
+                      type="text"
+                      maxLength={6}
+                      value={forgotPasswordData.otp}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/\D/g, "");
+                        setForgotPasswordData((prev) => ({ ...prev, otp: val }));
+                        setForgotPasswordErrors((prev) => ({ ...prev, otp: undefined }));
+                      }}
+                      placeholder="000000"
+                      className={`w-full px-4 py-3 border rounded-xl text-center text-2xl font-mono focus:outline-none focus:ring-2 transition-all placeholder:tracking-normal placeholder:text-gray-300 ${forgotPasswordErrors.otp
+                        ? "border-red-300 focus:ring-red-500"
+                        : "border-gray-300 focus:ring-blue-500 focus:border-blue-500"
+                        }`}
+                      style={{ letterSpacing: forgotPasswordData.otp ? '0.5em' : 'normal' }}
+                      onKeyDown={(e) => e.key === "Enter" && handleVerifyOtp()}
+                      autoFocus
+                    />
+                    {forgotPasswordErrors.otp && (
+                      <p className="mt-1.5 text-sm text-red-600 flex items-center gap-1">
+                        <AlertCircle size={14} />
+                        {forgotPasswordErrors.otp}
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    onClick={handleVerifyOtp}
+                    disabled={isVerifyingOtp || forgotPasswordData.otp.length !== 6}
+                    className="w-full py-3 px-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-xl hover:from-blue-700 hover:to-purple-700 transition-all shadow-lg disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {isVerifyingOtp ? (
+                      <><Loader className="animate-spin h-5 w-5" /> Verifying...</>
+                    ) : (
+                      <>Verify OTP <ArrowRight size={18} /></>
+                    )}
+                  </button>
+                  <div className="flex items-center justify-between text-sm">
+                    <button
+                      type="button"
+                      onClick={() => setForgotPasswordStep("email")}
+                      className="text-gray-500 hover:text-gray-700 transition-colors"
+                    >
+                      ← Change email
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleForgotPasswordEmail}
+                      disabled={isSendingOtp}
+                      className="text-blue-600 hover:text-blue-800 font-medium transition-colors disabled:opacity-50"
+                    >
+                      {isSendingOtp ? "Sending..." : "Resend OTP"}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Step 3: New Password */}
+              {forgotPasswordStep === "newPassword" && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                      <Lock size={16} className="text-blue-500" />
+                      New Password
+                    </label>
+                    <input
+                      type="password"
+                      value={forgotPasswordData.newPassword}
+                      onChange={(e) => {
+                        setForgotPasswordData((prev) => ({ ...prev, newPassword: e.target.value }));
+                        setForgotPasswordErrors((prev) => ({ ...prev, newPassword: undefined }));
+                      }}
+                      placeholder="Enter new password (min 6 characters)"
+                      className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 transition-all ${forgotPasswordErrors.newPassword
+                        ? "border-red-300 focus:ring-red-500"
+                        : "border-gray-300 focus:ring-blue-500 focus:border-blue-500"
+                        }`}
+                    />
+                    {forgotPasswordErrors.newPassword && (
+                      <p className="mt-1.5 text-sm text-red-600 flex items-center gap-1">
+                        <AlertCircle size={14} />
+                        {forgotPasswordErrors.newPassword}
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                      <Lock size={16} className="text-blue-500" />
+                      Confirm Password
+                    </label>
+                    <input
+                      type="password"
+                      value={forgotPasswordData.confirmPassword}
+                      onChange={(e) => {
+                        setForgotPasswordData((prev) => ({ ...prev, confirmPassword: e.target.value }));
+                        setForgotPasswordErrors((prev) => ({ ...prev, confirmPassword: undefined }));
+                      }}
+                      placeholder="Confirm your new password"
+                      className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 transition-all ${forgotPasswordErrors.confirmPassword
+                        ? "border-red-300 focus:ring-red-500"
+                        : "border-gray-300 focus:ring-blue-500 focus:border-blue-500"
+                        }`}
+                      onKeyDown={(e) => e.key === "Enter" && handleResetPassword()}
+                    />
+                    {forgotPasswordErrors.confirmPassword && (
+                      <p className="mt-1.5 text-sm text-red-600 flex items-center gap-1">
+                        <AlertCircle size={14} />
+                        {forgotPasswordErrors.confirmPassword}
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    onClick={handleResetPassword}
+                    disabled={isResettingPassword}
+                    className="w-full py-3 px-4 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-semibold rounded-xl hover:from-green-700 hover:to-emerald-700 transition-all shadow-lg disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {isResettingPassword ? (
+                      <><Loader className="animate-spin h-5 w-5" /> Resetting...</>
+                    ) : (
+                      <><CheckCircle size={18} /> Reset Password</>
+                    )}
+                  </button>
+                </div>
+              )}
             </motion.div>
           </motion.div>
         )}

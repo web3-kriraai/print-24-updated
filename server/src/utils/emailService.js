@@ -21,6 +21,9 @@ const createTransporter = () => {
     host,
     port,
     secure: port === 465, // true for 465 (SSL), false for 587 (TLS)
+    tls: {
+      rejectUnauthorized: false, // Allow self-signed certificates (needed for some networks/firewalls)
+    },
   };
 
   // Only add auth if not using relay service
