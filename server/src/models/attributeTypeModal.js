@@ -120,6 +120,11 @@ const AttributeTypeSchema = new mongoose.Schema(
         priceMultiplier: Number, // Price multiplier for this value (optional, only if isPricingAttribute is true)
         description: String, // Optional description for this value
         image: String, // Optional image URL for this value
+        numberOfImagesRequired: {
+          type: Number,
+          default: 0
+        },
+        imageFileNames: [{ type: String }], // Custom file names for each required image
         hasSubAttributes: {
           type: Boolean,
           default: false

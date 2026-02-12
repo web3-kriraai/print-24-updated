@@ -18,6 +18,7 @@ interface AttributeOption {
     optionUsage?: OptionUsage;
     priceImpact?: string;
     numberOfImagesRequired?: number;
+    imageFileNames?: string[];
     listingFilters?: string;
 }
 
@@ -149,17 +150,17 @@ const CreateAttributeModal: React.FC<CreateAttributeModalProps> = ({
     const handleFormSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         e.stopPropagation(); // Prevent any parent form handlers
-        
+
         try {
             // Call parent submit handler - it returns true on success, false on error
             const success = await handleAttributeTypeSubmit(e);
-            
+
             // Only show toast and close modal if submission was successful
             if (success) {
-                const message = editingAttributeTypeId 
-                    ? 'Attribute type updated successfully!' 
+                const message = editingAttributeTypeId
+                    ? 'Attribute type updated successfully!'
                     : 'Attribute type created successfully!';
-                
+
                 // Show toast with prominent styling
                 toast.success(message, {
                     duration: 5000,
@@ -173,12 +174,12 @@ const CreateAttributeModal: React.FC<CreateAttributeModalProps> = ({
                         borderRadius: '10px',
                     },
                 });
-                
+
                 // Call onSuccess callback to refresh parent's attribute list
                 if (onSuccess) {
                     onSuccess();
                 }
-                
+
                 // Close modal after a brief delay to let user see the success message
                 setTimeout(() => {
                     handleClose();
@@ -189,7 +190,7 @@ const CreateAttributeModal: React.FC<CreateAttributeModalProps> = ({
                 if (modalContent) {
                     modalContent.scrollTo({ top: 0, behavior: 'smooth' });
                 }
-                
+
                 // Show error toast
                 toast.error('Please fix the errors below', {
                     duration: 4000,
@@ -204,7 +205,7 @@ const CreateAttributeModal: React.FC<CreateAttributeModalProps> = ({
                 duration: 4000,
                 position: 'top-center',
             });
-            
+
             // Scroll to top to show error
             const modalContent = document.querySelector('.max-h-\\[90vh\\].overflow-y-auto');
             if (modalContent) {
@@ -616,18 +617,57 @@ const CreateAttributeModal: React.FC<CreateAttributeModalProps> = ({
                                                                 {attributeTypeForm.attributeOptionsTable.some(opt => opt.optionUsage?.image) && (
                                                                     <td className="border border-purple-100 px-4 py-3">
                                                                         {option.optionUsage?.image ? (
-                                                                            <input
-                                                                                type="number"
-                                                                                value={option.numberOfImagesRequired || 0}
-                                                                                onChange={(e) => {
-                                                                                    const updated = [...attributeTypeForm.attributeOptionsTable];
-                                                                                    updated[index].numberOfImagesRequired = parseInt(e.target.value) || 0;
-                                                                                    setAttributeTypeForm({ ...attributeTypeForm, attributeOptionsTable: updated });
-                                                                                }}
-                                                                                className="w-full px-3 py-2.5 border border-purple-100 rounded-lg text-sm focus:ring-2 focus:ring-pink-500/30 focus:border-pink-400 transition-all duration-300"
-                                                                                placeholder="Number of images"
-                                                                                min="0"
-                                                                            />
+                                                                            <div className="space-y-2">
+                                                                                <input
+                                                                                    type="number"
+                                                                                    value={option.numberOfImagesRequired || 0}
+                                                                                    onChange={(e) => {
+                                                                                        const updated = [...attributeTypeForm.attributeOptionsTable];
+                                                                                        const newCount = parseInt(e.target.value) || 0;
+                                                                                        updated[index].numberOfImagesRequired = newCount;
+                                                                                        // Resize imageFileNames array to match count
+                                                                                        const existing = updated[index].imageFileNames || [];
+                                                                                        if (newCount > existing.length) {
+                                                                                            // Add empty strings for new slots
+                                                                                            updated[index].imageFileNames = [
+                                                                                                ...existing,
+                                                                                                ...Array(newCount - existing.length).fill("")
+                                                                                            ];
+                                                                                        } else {
+                                                                                            // Trim to new count
+                                                                                            updated[index].imageFileNames = existing.slice(0, newCount);
+                                                                                        }
+                                                                                        setAttributeTypeForm({ ...attributeTypeForm, attributeOptionsTable: updated });
+                                                                                    }}
+                                                                                    className="w-full px-3 py-2.5 border border-purple-100 rounded-lg text-sm focus:ring-2 focus:ring-pink-500/30 focus:border-pink-400 transition-all duration-300"
+                                                                                    placeholder="Number of images"
+                                                                                    min="0"
+                                                                                />
+                                                                                {/* Dynamic image file name inputs */}
+                                                                                {(option.numberOfImagesRequired || 0) > 0 && (
+                                                                                    <div className="space-y-1.5 pt-1 border-t border-pink-100">
+                                                                                        <p className="text-xs text-pink-600 font-medium">File Names:</p>
+                                                                                        <div className="max-h-28 overflow-y-auto space-y-1.5 pr-1 custom-scrollbar">
+                                                                                            {Array.from({ length: option.numberOfImagesRequired || 0 }).map((_, fileIdx) => (
+                                                                                                <input
+                                                                                                    key={fileIdx}
+                                                                                                    type="text"
+                                                                                                    value={(option.imageFileNames || [])[fileIdx] || ""}
+                                                                                                    onChange={(e) => {
+                                                                                                        const updated = [...attributeTypeForm.attributeOptionsTable];
+                                                                                                        const fileNames = [...(updated[index].imageFileNames || Array(updated[index].numberOfImagesRequired || 0).fill(""))];
+                                                                                                        fileNames[fileIdx] = e.target.value;
+                                                                                                        updated[index].imageFileNames = fileNames;
+                                                                                                        setAttributeTypeForm({ ...attributeTypeForm, attributeOptionsTable: updated });
+                                                                                                    }}
+                                                                                                    className="w-full px-2.5 py-1.5 border border-pink-100 rounded-lg text-xs focus:ring-2 focus:ring-pink-500/30 focus:border-pink-400 transition-all duration-300 bg-pink-50/30"
+                                                                                                    placeholder={`Image ${fileIdx + 1} name`}
+                                                                                                />
+                                                                                            ))}
+                                                                                        </div>
+                                                                                    </div>
+                                                                                )}
+                                                                            </div>
                                                                         ) : (
                                                                             <span className="text-sm text-gray-400">-</span>
                                                                         )}

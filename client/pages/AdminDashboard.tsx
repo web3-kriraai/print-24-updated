@@ -2875,7 +2875,7 @@ const AdminDashboard: React.FC = () => {
   // Convert simplified form to full attribute type structure
   const convertFormToAttributeType = () => {
     // Convert attributeOptionsTable to attributeValues
-    let attributeValues: Array<{ value: string; label: string; priceMultiplier: number; description: string; image: string }> = [];
+    let attributeValues: Array<{ value: string; label: string; priceMultiplier: number; description: string; image: string; numberOfImagesRequired: number; imageFileNames: string[] }> = [];
 
     // Use attributeOptionsTable if it has entries
     if (attributeTypeForm.attributeOptionsTable && attributeTypeForm.attributeOptionsTable.length > 0) {
@@ -2908,6 +2908,14 @@ const AdminDashboard: React.FC = () => {
             priceMultiplier: multiplier,
             description: description,
             image: option.image || "",
+            numberOfImagesRequired: option.optionUsage?.image ? (option.numberOfImagesRequired || 0) : 0,
+            imageFileNames: option.optionUsage?.image ? Array.from({ length: option.numberOfImagesRequired || 0 }).map((_, idx) => {
+              const existing = ((option as any).imageFileNames || [])[idx];
+              if (existing && existing.trim()) return existing.trim();
+              // Auto-generate code if empty: OPTION_NAME_IMG_1
+              const cleanOptionName = option.name.trim().toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+              return `${cleanOptionName}_IMG_${idx + 1}`;
+            }) : [],
           };
         });
     } else if (attributeTypeForm.simpleOptions) {
@@ -2924,6 +2932,8 @@ const AdminDashboard: React.FC = () => {
           priceMultiplier: 1.0,
           description: "",
           image: "",
+          numberOfImagesRequired: 0,
+          imageFileNames: [],
         };
       });
     } else if (attributeTypeForm.primaryEffectType === "PRICE" && attributeTypeForm.priceImpactPer1000) {
@@ -2936,6 +2946,8 @@ const AdminDashboard: React.FC = () => {
         priceMultiplier: multiplier,
         description: "",
         image: "",
+        numberOfImagesRequired: 0,
+        imageFileNames: [],
       }];
     }
 
@@ -2955,6 +2967,8 @@ const AdminDashboard: React.FC = () => {
         priceMultiplier: multiplier,
         description: "",
         image: "",
+        numberOfImagesRequired: 0,
+        imageFileNames: [],
       }];
     }
 
@@ -2994,6 +3008,8 @@ const AdminDashboard: React.FC = () => {
           priceMultiplier: 1.0,
           description: JSON.stringify({ fixedQuantityMin: min, fixedQuantityMax: max }),
           image: "",
+          numberOfImagesRequired: 0,
+          imageFileNames: [],
         });
       }
     }
@@ -3336,7 +3352,8 @@ const AdminDashboard: React.FC = () => {
               image: av.image || undefined,
               optionUsage: parsedUsage,
               priceImpact: hasPrice ? priceImpact : "",
-              numberOfImagesRequired: numberOfImagesRequired || (av.image ? 1 : 0),
+              numberOfImagesRequired: av.numberOfImagesRequired || numberOfImagesRequired || (av.image ? 1 : 0),
+              imageFileNames: av.imageFileNames || [],
               listingFilters: listingFilters
             };
           })) || [];
@@ -3484,7 +3501,8 @@ const AdminDashboard: React.FC = () => {
               image: av.image || undefined,
               optionUsage: parsedUsage,
               priceImpact: hasPrice ? priceImpact : "",
-              numberOfImagesRequired: numberOfImagesRequired || (av.image ? 1 : 0),
+              numberOfImagesRequired: av.numberOfImagesRequired || numberOfImagesRequired || (av.image ? 1 : 0),
+              imageFileNames: av.imageFileNames || [],
               listingFilters: listingFilters
             };
           })) || [];
