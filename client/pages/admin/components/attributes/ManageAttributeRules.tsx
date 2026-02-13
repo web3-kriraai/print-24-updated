@@ -1121,33 +1121,25 @@ const ManageAttributeRules: React.FC<ManageAttributeRulesProps> = ({
                                     {ruleForm.scope === "CATEGORY" && (
                                         <div>
                                             <label className="block text-sm font-medium text-gray-700 mb-2">Select Category</label>
-                                            <select
+                                            <AdminSearchableDropdown
+                                                label="Select Category..."
                                                 value={ruleForm.scopeRefId}
-                                                onChange={(e) => setRuleForm({ ...ruleForm, scopeRefId: e.target.value })}
-                                                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500/30 focus:border-emerald-400 transition-all duration-300 hover:border-emerald-300 bg-white"
+                                                onChange={(val) => setRuleForm({ ...ruleForm, scopeRefId: (val as string) || "" })}
+                                                options={categories.map((cat) => ({ value: cat._id, label: cat.name }))}
                                                 required
-                                            >
-                                                <option value="">Select Category...</option>
-                                                {categories.map((cat) => (
-                                                    <option key={cat._id} value={cat._id}>{cat.name}</option>
-                                                ))}
-                                            </select>
+                                            />
                                         </div>
                                     )}
                                     {ruleForm.scope === "PRODUCT" && (
                                         <div>
                                             <label className="block text-sm font-medium text-gray-700 mb-2">Select Product</label>
-                                            <select
+                                            <AdminSearchableDropdown
+                                                label="Select Product..."
                                                 value={ruleForm.scopeRefId}
-                                                onChange={(e) => setRuleForm({ ...ruleForm, scopeRefId: e.target.value })}
-                                                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-offset-2 focus:ring-amber-500/30 focus:border-amber-400 transition-all duration-300 hover:border-amber-300 bg-white"
+                                                onChange={(val) => setRuleForm({ ...ruleForm, scopeRefId: (val as string) || "" })}
+                                                options={products.map((prod) => ({ value: prod._id, label: prod.name }))}
                                                 required
-                                            >
-                                                <option value="">Select Product...</option>
-                                                {products.map((prod) => (
-                                                    <option key={prod._id} value={prod._id}>{prod.name}</option>
-                                                ))}
-                                            </select>
+                                            />
                                         </div>
                                     )}
                                 </div>
@@ -1163,41 +1155,33 @@ const ManageAttributeRules: React.FC<ManageAttributeRulesProps> = ({
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div>
                                             <label className="block text-sm font-medium text-gray-700 mb-2">Attribute</label>
-                                            <select
+                                            <AdminSearchableDropdown
+                                                label="Select Attribute..."
                                                 value={ruleForm.when.attribute}
-                                                onChange={(e) => setRuleForm({
+                                                onChange={(val) => setRuleForm({
                                                     ...ruleForm,
-                                                    when: { attribute: e.target.value, value: "" }
+                                                    when: { attribute: (val as string) || "", value: "" }
                                                 })}
-                                                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500/30 focus:border-indigo-400 transition-all duration-300 hover:border-indigo-300 bg-white"
+                                                options={attributeTypes.map((attr) => ({ value: attr._id, label: attr.systemName || attr.attributeName }))}
                                                 required
-                                            >
-                                                <option value="">Select Attribute...</option>
-                                                {attributeTypes.map((attr) => (
-                                                    <option key={attr._id} value={attr._id}>{attr.systemName || attr.attributeName}</option>
-                                                ))}
-                                            </select>
+                                            />
                                         </div>
                                         <div>
                                             <label className="block text-sm font-medium text-gray-700 mb-2">Value Equals</label>
-                                            <select
+                                            <AdminSearchableDropdown
+                                                label="Select Value..."
                                                 value={ruleForm.when.value}
-                                                onChange={(e) => setRuleForm({
+                                                onChange={(val) => setRuleForm({
                                                     ...ruleForm,
-                                                    when: { ...ruleForm.when, value: e.target.value }
+                                                    when: { ...ruleForm.when, value: (val as string) || "" }
                                                 })}
-                                                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500/30 focus:border-indigo-400 transition-all duration-300 hover:border-indigo-300 bg-white"
+                                                options={ruleForm.when.attribute ? attributeTypes
+                                                    .find(a => a._id === ruleForm.when.attribute)
+                                                    ?.attributeValues.map((val) => ({ value: val.value, label: val.label || val.value })) || [] : []
+                                                }
                                                 required
                                                 disabled={!ruleForm.when.attribute}
-                                            >
-                                                <option value="">Select Value...</option>
-                                                {ruleForm.when.attribute && attributeTypes
-                                                    .find(a => a._id === ruleForm.when.attribute)
-                                                    ?.attributeValues.map((val) => (
-                                                        <option key={val.value} value={val.value}>{val.label || val.value}</option>
-                                                    ))
-                                                }
-                                            </select>
+                                            />
                                         </div>
                                     </div>
                                 </div>
@@ -1248,17 +1232,18 @@ const ManageAttributeRules: React.FC<ManageAttributeRulesProps> = ({
                                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                                     <div>
                                                         <label className="block text-xs font-medium text-gray-600 mb-2">Action Type</label>
-                                                        <select
+                                                        <AdminSearchableDropdown
+                                                            label="Select Type..."
                                                             value={action.action}
-                                                            onChange={(e) => handleActionChange(index, "action", e.target.value)}
-                                                            className="w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500/30 focus:border-indigo-400 transition-all duration-300 text-sm"
-                                                        >
-                                                            <option value="SHOW">Show Attribute</option>
-                                                            <option value="HIDE">Hide Attribute</option>
-                                                            <option value="SHOW_ONLY">Show Only Options</option>
-                                                            <option value="SET_DEFAULT">Set Default Value</option>
-                                                            <option value="QUANTITY">Set Quantity Limits</option>
-                                                        </select>
+                                                            onChange={(val) => handleActionChange(index, "action", (val as string) || "")}
+                                                            options={[
+                                                                { value: "SHOW", label: "Show Attribute" },
+                                                                { value: "HIDE", label: "Hide Attribute" },
+                                                                { value: "SHOW_ONLY", label: "Show Only Options" },
+                                                                { value: "SET_DEFAULT", label: "Set Default Value" },
+                                                                { value: "QUANTITY", label: "Set Quantity Limits" },
+                                                            ]}
+                                                        />
                                                     </div>
 
                                                     {action.action !== 'QUANTITY' && (
@@ -1311,16 +1296,15 @@ const ManageAttributeRules: React.FC<ManageAttributeRulesProps> = ({
                                                     {action.action === 'SET_DEFAULT' && action.targetAttribute && (
                                                         <div>
                                                             <label className="block text-xs font-medium text-gray-600 mb-2">Default Value</label>
-                                                            <select
-                                                                value={action.defaultValue || ""}
-                                                                onChange={(e) => handleActionChange(index, "defaultValue", e.target.value)}
-                                                                className="w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500/30 focus:border-indigo-400 transition-all duration-300 text-sm"
-                                                            >
-                                                                <option value="">Select Value...</option>
-                                                                {attributeTypes.find(a => a._id === action.targetAttribute)?.attributeValues.map(val => (
-                                                                    <option key={val.value} value={val.value}>{val.label || val.value}</option>
-                                                                ))}
-                                                            </select>
+                                                            <AdminSearchableDropdown
+                                                                label="Select Value..."
+                                                                value={action.defaultValue || null}
+                                                                onChange={(val) => handleActionChange(index, "defaultValue", (val as string) || "")}
+                                                                options={attributeTypes.find(a => a._id === action.targetAttribute)?.attributeValues.map(val => ({
+                                                                    value: val.value,
+                                                                    label: val.label || val.value
+                                                                })) || []}
+                                                            />
                                                         </div>
                                                     )}
 
