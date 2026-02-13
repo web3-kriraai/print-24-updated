@@ -5,6 +5,7 @@ import {
   Truck, Globe, DollarSign, Award, Crown, Gem, Flame, Rocket, Lightbulb
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { API_BASE_URL } from '../lib/apiConfig';
 
 interface SignupForm {
   _id: string;
@@ -93,7 +94,7 @@ const UserSegmentManager: React.FC = () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/admin/pricing/user-segments', {
+      const response = await fetch(`${API_BASE_URL}/api/admin/pricing/user-segments`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -114,7 +115,7 @@ const UserSegmentManager: React.FC = () => {
   const fetchForms = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/admin/forms', {
+      const response = await fetch(`${API_BASE_URL}/api/admin/forms`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -137,8 +138,8 @@ const UserSegmentManager: React.FC = () => {
     try {
       const token = localStorage.getItem('token');
       const url = editingSegment
-        ? `/api/admin/pricing/user-segments/${editingSegment._id}`
-        : '/api/admin/pricing/user-segments';
+        ? `${API_BASE_URL}/api/admin/pricing/user-segments/${editingSegment._id}`
+        : `${API_BASE_URL}/api/admin/pricing/user-segments`;
 
       const response = await fetch(url, {
         method: editingSegment ? 'PUT' : 'POST',
@@ -171,7 +172,7 @@ const UserSegmentManager: React.FC = () => {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`/api/admin/pricing/user-segments/${id}`, {
+      const response = await fetch(`${API_BASE_URL}/api/admin/pricing/user-segments/${id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
