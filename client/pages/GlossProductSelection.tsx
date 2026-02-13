@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useParams, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowRight, Check, Truck, Upload as UploadIcon, FileImage, CreditCard, X, Info, Lock, AlertCircle, MapPin, Zap, Square, Circle, FileText, UploadCloud, Image as ImageIcon, AlertTriangle } from 'lucide-react';
+import { ArrowRight, Check, Truck, Upload as UploadIcon, FileImage, CreditCard, X, Info, Lock, AlertCircle, MapPin, Zap, Square, Circle, FileText, UploadCloud, Image as ImageIcon, AlertTriangle, Video } from 'lucide-react';
 import { Select, SelectOption } from '@/components/ui/select';
 import { ProductImageSkeleton, AttributeCardSkeleton, Skeleton } from '@/components/ui/Skeleton';
 import { LazyImage, CloudinaryLazyImage } from '@/components/ui/LazyImage';
@@ -6482,6 +6482,21 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                 <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
                               </>
                             )}
+                          </button>
+
+                          <button
+                            onClick={() => {
+                              const token = localStorage.getItem("token");
+                              if (!token) {
+                                navigate("/login");
+                              } else {
+                                navigate("/client-dashboard");
+                              }
+                            }}
+                            className="w-full mt-3 py-4 rounded-xl font-bold text-base bg-blue-600 text-white hover:bg-blue-700 transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 flex items-center justify-center gap-2 group"
+                          >
+                            <Video size={18} />
+                            <span>Connect with Designer</span>
                           </button>
 
                           <div className="mt-3 text-center text-xs text-gray-400 flex items-center justify-center gap-2">

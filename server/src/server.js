@@ -1,9 +1,16 @@
-import express from "express";
-import mongoose from "mongoose";
 import dotenv from "dotenv";
-import cors from "cors";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Load .env file from server folder (one level up from src)
+dotenv.config({ path: join(__dirname, "../.env") });
+
+import express from "express";
+import mongoose from "mongoose";
+import cors from "cors";
 import { existsSync } from "fs";
 import authRoutes from "./routes/authRoutes.js";
 import apiRoutes from "./routes/index.js";
@@ -11,12 +18,11 @@ import uploadRoutes from "./routes/uploadRoutes.js";
 import timelineRoutes from "./routes/timeline.js";
 import aboutRoutes from "./routes/aboutRoutes.js";
 import featureRoutes from "./routes/featureRoutes.js";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-// Load .env file from server folder (one level up from src)
-dotenv.config({ path: join(__dirname, "../.env") });
+import sessionRoutes from "./designer/routes/session.routes.js";
+import webhookRoutes from "./designer/routes/webhook.routes.js";
+import queueRoutes from "./designer/routes/queue.routes.js";
+import "./designer/workers/timer.worker.js";
+import "./designer/workers/queue.worker.js";
 
 const app = express();
 
@@ -111,6 +117,9 @@ app.use("/api", uploadRoutes);
 app.use("/api/timeline", timelineRoutes);
 app.use("/api/about", aboutRoutes);
 app.use("/api/features", featureRoutes);
+app.use("/api/session", sessionRoutes);
+app.use("/api/queue", queueRoutes);
+app.use("/api/webhook", webhookRoutes);
 
 // Error handler to ensure CORS headers are set even on errors
 app.use((err, req, res, next) => {

@@ -21,6 +21,9 @@ import EmployeeDashboard from './pages/EmployeeDashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import ServiceAdmin from './pages/ServiceAdmin';
 import AboutAdmin from './pages/AboutAdmin';
+import ClientDashboard from './pages/ClientDashboard';
+import DesignerDashboard from './pages/designer/DesignerDashboard';
+import ActiveSession from './pages/designer/ActiveSession';
 import NotFound from './pages/NotFound';
 
 // Shared routes configuration for both SSR and client
@@ -66,6 +69,9 @@ export const routes = [
       { path: 'employee/dashboard', element: <EmployeeDashboard />, errorElement: <ErrorBoundary /> },
       { path: 'department-portal', element: <DepartmentPortal />, errorElement: <ErrorBoundary /> },
       { path: 'reviews', element: <Reviews />, errorElement: <ErrorBoundary /> },
+      { path: 'client-dashboard', element: <ClientDashboard />, errorElement: <ErrorBoundary /> },
+      { path: 'designer/dashboard', element: <DesignerDashboard />, errorElement: <ErrorBoundary /> },
+      { path: 'session/:sessionId', element: <ActiveSession />, errorElement: <ErrorBoundary /> },
       // 404 catch-all route - must be last
       { path: '*', element: <NotFound /> },
     ],

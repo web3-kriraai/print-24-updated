@@ -9,6 +9,7 @@ import {
   Settings,
   User as UserIcon,
   Package,
+  LayoutDashboard,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLogo } from "../hooks/useSiteSettings";
@@ -278,6 +279,18 @@ const Navbar: React.FC = () => {
                               <UserIcon size={16} />
                               My Profile
                             </button>
+                            {userData.role === "designer" && (
+                              <button
+                                onClick={() => {
+                                  navigate("/designer/dashboard");
+                                  setIsProfileDropdownOpen(false);
+                                }}
+                                className="w-full flex items-center gap-3 px-4 py-2 text-sm text-cream-700 hover:bg-cream-50 transition-colors"
+                              >
+                                <LayoutDashboard size={16} />
+                                Designer Dashboard
+                              </button>
+                            )}
                             {userData.role === "admin" && (
                               <button
                                 onClick={() => {
