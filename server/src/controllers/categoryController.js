@@ -4,6 +4,7 @@ import Product from "../models/productModal.js";
 import Sequence from "../models/sequenceModal.js";
 import cloudinary from "../config/cloudinary.js";
 import streamifier from "streamifier";
+import Service from "../models/serviceModal.js";
 
 // Helper function to generate a unique slug by appending increment numbers
 const generateUniqueSlug = async (baseSlug, excludeId = null) => {
@@ -545,6 +546,13 @@ export const deleteCategory = async (req, res) => {
         error: `Cannot delete category. There are ${relatedSequences.length} production sequence(s) associated with this category. Please delete or reassign the sequences first.`
       });
     }
+
+    // Remove references from Service collection (Landing Page)
+    // We use updateMany with array filters to remove the category from any service titles
+    await Service.updateMany(
+      { "titles.items": { $elemMatch: { id: categoryId, type: 'category' } } },
+      { $pull: { "titles.$[].items": { id: categoryId, type: 'category' } } }
+    );
 
     // Safe to delete - no related data
     await Category.findByIdAndDelete(categoryId);

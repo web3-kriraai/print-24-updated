@@ -3,6 +3,7 @@ import Category from "../models/categoryModal.js";
 import SubCategory from "../models/subcategoryModal.js";
 import cloudinary from "../config/cloudinary.js";
 import streamifier from "streamifier";
+import Service from "../models/serviceModal.js";
 
 export const createProduct = async (req, res) => {
   try {
@@ -1367,6 +1368,13 @@ export const deleteProduct = async (req, res) => {
     if (!product) {
       return res.status(404).json({ error: "Product not found" });
     }
+
+    // Remove references from Service collection (Landing Page)
+    // We use updateMany with array filters to remove the product from any service titles
+    await Service.updateMany(
+      { "titles.items": { $elemMatch: { id: req.params.id, type: 'product' } } },
+      { $pull: { "titles.$[].items": { id: req.params.id, type: 'product' } } }
+    );
 
     await Product.findByIdAndDelete(req.params.id);
 
