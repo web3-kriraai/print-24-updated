@@ -171,7 +171,7 @@ export const submitApplication = async (req, res) => {
     if (existingApplication) {
       return res.status(409).json({
         success: false,
-        message: existingApplication.status === 'approved' 
+        message: existingApplication.status === 'approved'
           ? "You already have an approved application for this segment"
           : "You already have a pending application for this segment. Please wait for review.",
         application: existingApplication,
@@ -216,24 +216,28 @@ export const submitApplication = async (req, res) => {
       console.log(`🔐 Creating new user account for: ${email}`);
       console.log(`   - Password received (first 3 chars): ${password.substring(0, 3)}***`);
       console.log(`   - Password length: ${password.length}`);
-      
+
       const hashedPassword = await bcrypt.hash(password, 10);
       console.log(`   - Password hashed successfully`);
       console.log(`   - Hash starts with: ${hashedPassword.substring(0, 7)}`);
-      
+
       // Extract name from form data (try different field names)
-      const userName = parsedFormData.name || 
-                      parsedFormData.fullName || 
-                      parsedFormData.firstName && parsedFormData.lastName 
-                        ? `${parsedFormData.firstName} ${parsedFormData.lastName}`.trim()
-                        : email.split('@')[0];
+      const userName = parsedFormData.name ||
+        parsedFormData.fullName ||
+        parsedFormData.firstName && parsedFormData.lastName
+        ? `${parsedFormData.firstName} ${parsedFormData.lastName}`.trim()
+        : email.split('@')[0];
+
+      // Use segment code as userType - no enum restriction anymore
+      // Any segment (retail, corporate, print partner, vip, etc.) is supported
+      const userType = segment.code.toLowerCase().replace('_', ' ');
 
       user = await User.create({
         name: userName,
         email: email.toLowerCase(),
         password: hashedPassword,
         role: 'user',
-        userType: segment.code.toLowerCase().replace('_', ' '),
+        userType: userType,
         approvalStatus: segment.requiresApproval ? 'pending' : 'approved',
         userSegment: segment._id,
         isEmailVerified: true, // Mark as verified since they completed email OTP

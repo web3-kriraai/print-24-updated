@@ -507,4 +507,15 @@ import bulkOrderRoutes from "./bulkOrderRoutes.js";
 // Bulk order routes (requires authentication + feature permission)
 router.use("/bulk-orders", bulkOrderRoutes);
 
+/* =====================================
+   FEATURE MANAGEMENT ROUTES (PMS)
+   Added: 2026-02-12
+===================================== */
+
+// Import feature routes
+import featureRoutes from "./featureRoutes.js";
+
+// Feature routes (requires authentication + admin)
+router.use("/admin/features", featureRoutes);
+
 export default router;

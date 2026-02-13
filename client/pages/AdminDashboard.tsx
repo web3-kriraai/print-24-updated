@@ -51,6 +51,9 @@ import GeoZoneManager from "../components/admin/pricing/GeoZoneManager";
 import UserSegmentManager from "../components/admin/pricing/UserSegmentManager";
 import FormBuilder from "../components/admin/pricing/FormBuilder";
 import SegmentApplicationManager from "../components/admin/pricing/SegmentApplicationManager";
+import FeatureListViewer from "../components/admin/FeatureListViewer";
+import SegmentFeatureAssignment from "../components/admin/SegmentFeatureAssignment";
+import UserFeatureOverride from "../components/admin/UserFeatureOverride";
 import ProductAvailabilityManager from "../components/admin/pricing/ProductAvailabilityManager";
 import SmartViewMatrix from "../src/components/admin/SmartViewMatrix";
 import ConflictDetectionModal from "../src/components/admin/ConflictDetectionModal";
@@ -176,7 +179,7 @@ interface Order {
     priceAdd?: number;
     priceMultiplier?: number;
     uploadedImages?: Array<{
-      data: Buffer | string;
+      data: string;
       contentType: string;
       filename: string;
     }>;
@@ -313,7 +316,7 @@ const HierarchicalCategorySelector: React.FC<{
         <ReviewFilterDropdown
           label="Select Type"
           value={selectedType}
-          onChange={handleTypeChange}
+          onChange={(value) => handleTypeChange(String(value || ''))}
           options={[
             { value: "", label: "Select Type" },
             { value: "Digital", label: "Digital" },
@@ -595,7 +598,7 @@ const AdminDashboard: React.FC = () => {
   const [filteredSubCategories, setFilteredSubCategories] = useState<any[]>([]);
   const [draggedCategoryId, setDraggedCategoryId] = useState<string | null>(null);
   const [draggedSubCategoryId, setDraggedSubCategoryId] = useState<string | null>(null);
-  const autoScrollIntervalRef = React.useRef<NodeJS.Timeout | null>(null);
+  const autoScrollIntervalRef = React.useRef<number | null>(null);
   const categoryListRef = React.useRef<HTMLDivElement | null>(null);
 
   // Delete confirmation modal state
@@ -1125,8 +1128,8 @@ const AdminDashboard: React.FC = () => {
   // Refetch attribute types when category/subcategory changes (to show relevant attributes)
   useEffect(() => {
     if (activeTab === "products" && (productForm.category || productForm.subcategory)) {
-      const categoryId = productForm.category || null;
-      const subCategoryId = productForm.subcategory || null;
+      const categoryId = productForm.category || undefined;
+      const subCategoryId = productForm.subcategory || undefined;
       fetchAttributeTypes(categoryId, subCategoryId);
     }
   }, [productForm.category, productForm.subcategory, activeTab]);
@@ -3926,7 +3929,7 @@ const AdminDashboard: React.FC = () => {
           })) || [];
 
         // Also create simpleOptions for backward compatibility
-        const simpleOptions = (attributeOptionsTable || []).map(opt => opt.name).join(", ");
+        const simpleOptions = (attributeOptionsTable || []).map((opt: any) => opt.name).join(", ");
 
         // Extract fixed quantity min/max from attributeValues description or custom fields
         let fixedQuantityMin = "";
@@ -4039,7 +4042,7 @@ const AdminDashboard: React.FC = () => {
             };
           })) || [];
 
-        const simpleOptions = (attributeOptionsTable || []).map(opt => opt.name).join(", ");
+        const simpleOptions = (attributeOptionsTable || []).map((opt: any) => opt.name).join(", ");
 
         let fixedQuantityMin = "";
         let fixedQuantityMax = "";
@@ -5257,7 +5260,7 @@ const AdminDashboard: React.FC = () => {
       const productSubCategoryId = product.subcategory && typeof product.subcategory === "object" && product.subcategory._id
         ? product.subcategory._id
         : (product.subcategory && product.subcategory !== null && product.subcategory !== "null" && product.subcategory !== "" ? String(product.subcategory) : null);
-      await fetchAttributeTypes(productCategoryId, productSubCategoryId);
+      await fetchAttributeTypes(productCategoryId || undefined, productSubCategoryId || undefined);
 
       // Build category path for hierarchical selection
       // If subcategory exists, build the path from root category to subcategory
@@ -6580,6 +6583,9 @@ const AdminDashboard: React.FC = () => {
     { id: "users", label: "Manage Users", icon: Users },
     { id: "print-partner-requests", label: "Print Partners", icon: Briefcase },
     { id: "corporate-requests", label: "Corporate Requests", icon: Building2 },
+    { id: "feature-list", label: "🔐 Features (PMS)", icon: Settings },
+    { id: "segment-features", label: "🔐 Segment Features", icon: Users },
+    { id: "user-feature-overrides", label: "🔐 User Overrides", icon: UserPlus },
   ];
 
   return (
@@ -8625,7 +8631,7 @@ const AdminDashboard: React.FC = () => {
                         // Fetch attributes filtered by selected category/subcategory
                         const categoryId = productForm.category || (selectedCategoryPath.length > 0 ? selectedCategoryPath[0] : null);
                         const subCategoryId = productForm.subcategory || (selectedCategoryPath.length > 1 ? selectedCategoryPath[selectedCategoryPath.length - 1] : null);
-                        fetchAttributeTypes(categoryId, subCategoryId);
+                        fetchAttributeTypes(categoryId || undefined, subCategoryId || undefined);
                       }}
                       disabled={loadingAttributeTypes}
                       className="px-3 py-1.5 text-sm bg-cream-900 text-white rounded-lg hover:bg-cream-800 transition-colors disabled:opacity-50 flex items-center gap-2"
@@ -9005,7 +9011,7 @@ const AdminDashboard: React.FC = () => {
                                       {parentValues.length === 0 ? (
                                         <p className="text-xs text-cream-600">Parent attribute has no values defined yet</p>
                                       ) : (
-                                        parentValues.map((val, idx) => (
+                                        parentValues.map((val: any, idx: number) => (
                                           <label key={idx} className="flex items-center gap-2 cursor-pointer">
                                             <input
                                               type="checkbox"
@@ -9046,7 +9052,7 @@ const AdminDashboard: React.FC = () => {
                                       {parentValues.length === 0 ? (
                                         <p className="text-xs text-cream-600">Parent attribute has no values defined yet</p>
                                       ) : (
-                                        parentValues.map((val, idx) => (
+                                        parentValues.map((val: any, idx: number) => (
                                           <label key={idx} className="flex items-center gap-2 cursor-pointer">
                                             <input
                                               type="checkbox"
@@ -10653,7 +10659,7 @@ const AdminDashboard: React.FC = () => {
                   <div className="mb-3">
                     <p className="text-sm text-cream-700 mb-2">Current Image:</p>
                     <img
-                      src={getImageUrl(editingSubCategoryImage)}
+                      src={getImageUrl((editingSubCategoryImage || '') as string)}
                       alt="Current subcategory"
                       className="w-32 h-32 object-cover rounded-lg border border-cream-300"
                       onError={(e) => {
@@ -15141,6 +15147,11 @@ const AdminDashboard: React.FC = () => {
 
           {/* Virtual Pricing Tabs (Day 3-4) */}
           {activeTab === "virtual-pricing" && <SmartViewMatrix />}
+
+          {/* PMS Feature Management */}
+          {activeTab === "feature-list" && <FeatureListViewer />}
+          {activeTab === "segment-features" && <SegmentFeatureAssignment />}
+          {activeTab === "user-feature-overrides" && <UserFeatureOverride />}
         </div>
       </div>
 
@@ -15304,11 +15315,11 @@ const AdminDashboard: React.FC = () => {
                                 {attr.description && <p className="text-xs text-cream-500 mt-0.5">{attr.description}</p>}
                               </div>
                             </div>
-                            {(attr.priceAdd > 0 || attr.priceMultiplier) && (
+                            {((attr.priceAdd ?? 0) > 0 || attr.priceMultiplier) && (
                               <div className="text-right">
-                                {attr.priceAdd > 0 && (
+                                {(attr.priceAdd ?? 0) > 0 && (
                                   <span className="block text-xs font-bold text-cream-900">
-                                    +₹{attr.priceAdd.toFixed(2)}
+                                    +₹{(attr.priceAdd ?? 0).toFixed(2)}
                                   </span>
                                 )}
                                 {attr.priceMultiplier && attr.priceMultiplier !== 1 && (
@@ -15329,8 +15340,8 @@ const AdminDashboard: React.FC = () => {
                                     if (img.data) {
                                       if (typeof img.data === 'string') {
                                         imageUrl = `data:${img.contentType || 'image/jpeg'};base64,${img.data}`;
-                                      } else if (Buffer.isBuffer(img.data)) {
-                                        imageUrl = `data:${img.contentType || 'image/jpeg'};base64,${img.data.toString('base64')}`;
+                                      } else {
+                                        imageUrl = `data:${img.contentType || 'image/jpeg'};base64,${String(img.data)}`;
                                       }
                                     }
                                     return imageUrl ? (
@@ -15373,8 +15384,8 @@ const AdminDashboard: React.FC = () => {
                       priceAdd: typeof opt === 'object' ? (opt.priceAdd || 0) : 0,
                     })) || [],
                     selectedDynamicAttributes: selectedOrder.selectedDynamicAttributes?.map((attr) => ({
-                      attributeName: attr.attributeName,
-                      label: attr.label,
+                      attributeName: attr.attributeName || '',
+                      label: attr.label || '',
                       priceMultiplier: attr.priceMultiplier,
                       priceAdd: attr.priceAdd,
                     })),
@@ -15426,15 +15437,15 @@ const AdminDashboard: React.FC = () => {
                         {selectedOrder.selectedDynamicAttributes && selectedOrder.selectedDynamicAttributes.length > 0 && (
                           <>
                             {selectedOrder.selectedDynamicAttributes
-                              .filter(attr => attr.priceAdd > 0 || (attr.priceMultiplier && attr.priceMultiplier !== 1))
+                              .filter(attr => (attr.priceAdd ?? 0) > 0 || (attr.priceMultiplier && attr.priceMultiplier !== 1))
                               .map((attr, idx) => {
                                 // Calculate price impact for this attribute
                                 const basePrice = 0;
                                 let attributeCost = 0;
                                 let pricePerUnit = 0;
-                                if (attr.priceAdd > 0) {
-                                  pricePerUnit = attr.priceAdd;
-                                  attributeCost = attr.priceAdd * selectedOrder.quantity;
+                                if ((attr.priceAdd ?? 0) > 0) {
+                                  pricePerUnit = attr.priceAdd ?? 0;
+                                  attributeCost = (attr.priceAdd ?? 0) * selectedOrder.quantity;
                                 } else if (attr.priceMultiplier && attr.priceMultiplier !== 1) {
                                   pricePerUnit = basePrice * (attr.priceMultiplier - 1);
                                   attributeCost = pricePerUnit * selectedOrder.quantity;
@@ -15600,8 +15611,8 @@ const AdminDashboard: React.FC = () => {
                     <div className="space-y-2">
                       {selectedOrder.departmentStatuses
                         .sort((a, b) => {
-                          const seqA = typeof a.department === "object" ? a.department.sequence : 0;
-                          const seqB = typeof b.department === "object" ? b.department.sequence : 0;
+                          const seqA = typeof a.department === "object" ? (a.department.sequence ?? 0) : 0;
+                          const seqB = typeof b.department === "object" ? (b.department.sequence ?? 0) : 0;
                           return seqA - seqB;
                         })
                         .map((deptStatus, idx) => {
@@ -15714,7 +15725,7 @@ const AdminDashboard: React.FC = () => {
                 )}
 
                 {/* Production Timeline - Activity Log */}
-                {selectedOrder.productionTimeline && selectedOrder.productionTimeline.length > 0 && (
+                {selectedOrder.productionTimeline && Array.isArray(selectedOrder.productionTimeline) && selectedOrder.productionTimeline.length > 0 && (
                   <div className="bg-linear-to-br from-purple-50 to-indigo-50 rounded-lg p-4 border border-purple-200">
                     <h3 className="font-bold text-purple-900 mb-3 flex items-center gap-2">
                       <Clock size={18} />
@@ -15850,8 +15861,8 @@ const AdminDashboard: React.FC = () => {
                               <button
                                 onClick={() => {
                                   const link = document.createElement('a');
-                                  link.href = selectedOrder.uploadedDesign.frontImage.data || PLACEHOLDER_IMAGE_LARGE;
-                                  link.download = selectedOrder.uploadedDesign.frontImage.filename || "front-design.png";
+                                  link.href = selectedOrder.uploadedDesign?.frontImage?.data || PLACEHOLDER_IMAGE_LARGE;
+                                  link.download = selectedOrder.uploadedDesign?.frontImage?.filename || "front-design.png";
                                   document.body.appendChild(link);
                                   link.click();
                                   document.body.removeChild(link);
@@ -15898,8 +15909,8 @@ const AdminDashboard: React.FC = () => {
                               <button
                                 onClick={() => {
                                   const link = document.createElement('a');
-                                  link.href = selectedOrder.uploadedDesign.backImage.data || PLACEHOLDER_IMAGE_LARGE;
-                                  link.download = selectedOrder.uploadedDesign.backImage.filename || "back-design.png";
+                                  link.href = selectedOrder.uploadedDesign?.backImage?.data || PLACEHOLDER_IMAGE_LARGE;
+                                  link.download = selectedOrder.uploadedDesign?.backImage?.filename || "back-design.png";
                                   document.body.appendChild(link);
                                   link.click();
                                   document.body.removeChild(link);

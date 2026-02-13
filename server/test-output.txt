@@ -1,0 +1,42 @@
+﻿[dotenv@17.2.3] injecting env (18) from .env -- tip: ΓÜÖ∩╕Å  write to custom object with { processEnv: myObject }
+node : Γ¥î Error: MongooseError: The `uri` 
+parameter to `openUri()` must be a string, 
+got "undefined". Make sure the first 
+parameter to `mongoose.connect()` or 
+`mongoose.createConnection()` is a string.
+At line:1 char:1
++ node test-feature-check.js 2>&1 | Out-File 
+-FilePath "test-output.txt ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ( 
+   Γ¥î Error: Mong...)` is a string.:String)  
+   [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandEr 
+   ror
+ 
+    at NativeConnection.createClient 
+(C:\Users\ADMIN\Desktop\bulk PMS\print-24-upda
+ted\server\node_modules\mongoose\lib\drivers\n
+ode-mongodb-native\connection.js:237:11)
+    at NativeConnection.openUri 
+(C:\Users\ADMIN\Desktop\bulk PMS\print-24-upda
+ted\server\node_modules\mongoose\lib\connectio
+n.js:1075:34)
+    at Mongoose.connect 
+(C:\Users\ADMIN\Desktop\bulk PMS\print-24-upda
+ted\server\node_modules\mongoose\lib\mongoose.
+js:450:15)
+    at testFeatureCheck (file:///C:/Users/ADMI
+N/Desktop/bulk%20PMS/print-24-updated/server/t
+est-feature-check.js:8:24)
+    at file:///C:/Users/ADMIN/Desktop/bulk%20P
+MS/print-24-updated/server/test-feature-check.
+js:76:1
+    at ModuleJob.run 
+(node:internal/modules/esm/module_job:377:25)
+    at async onImport.tracePromise.__proto__ 
+(node:internal/modules/esm/loader:671:26)
+    at async asyncRunEntryPointWithESMLoader 
+(node:internal/modules/run_main:101:5)
+
+Γ£à Disconnected from MongoDB

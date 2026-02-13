@@ -33,7 +33,7 @@ const BulkOrderToggle: React.FC<BulkOrderToggleProps> = ({
                             Single Order
                         </button>
                         <button
-                            onClick={() => setOrderMode('bulk')}
+                            onClick={() => setShowBulkWizard(true)}
                             className={`px-4 sm:px-6 py-2 rounded-md font-semibold text-sm transition-all duration-200 flex items-center gap-2 ${orderMode === 'bulk'
                                     ? 'bg-gradient-to-r from-amber-600 to-orange-600 text-white shadow-md'
                                     : 'text-amber-700 hover:bg-amber-50'

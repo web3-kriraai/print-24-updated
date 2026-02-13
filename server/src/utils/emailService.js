@@ -21,6 +21,21 @@ const createTransporter = () => {
     host,
     port,
     secure: port === 465, // true for 465 (SSL), false for 587 (TLS)
+    // TLS options to handle self-signed certificates and improve reliability
+    tls: {
+      // Do not fail on invalid certs (for development/self-signed certificates)
+      rejectUnauthorized: process.env.NODE_ENV === 'production' ? true : false,
+      // Minimum TLS version
+      minVersion: 'TLSv1.2',
+      // Allow legacy insecure renegotiation
+      secureOptions: 0,
+    },
+    // Connection timeout
+    connectionTimeout: 10000, // 10 seconds
+    // Greeting timeout  
+    greetingTimeout: 5000, // 5 seconds
+    // Socket timeout
+    socketTimeout: 15000, // 15 seconds
   };
 
   // Only add auth if not using relay service
@@ -30,6 +45,9 @@ const createTransporter = () => {
       pass,
     };
   }
+
+  console.log(`[Email Service] Creating transporter with host: ${host}:${port}`);
+  console.log(`[Email Service] Secure: ${config.secure}, Auth: ${!isRelayService && user && pass ? 'Yes' : 'No'}`);
 
   return nodemailer.createTransport(config);
 };

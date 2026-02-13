@@ -7,9 +7,9 @@ import axios from 'axios';
  */
 export const useBulkOrderPermission = () => {
     const [hasPermission, setHasPermission] = useState(false);
-    const [config, setConfig] = useState(null);
+    const [config, setConfig] = useState<any>(null);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         checkPermission();
@@ -44,7 +44,7 @@ export const useBulkOrderPermission = () => {
                 setHasPermission(false);
                 setConfig(null);
             }
-        } catch (err) {
+        } catch (err: any) {
             console.error('Error checking bulk order permission:', err);
             setError(err.response?.data?.message || 'Failed to check permissions');
             setHasPermission(false);
@@ -63,9 +63,9 @@ export const useBulkOrderPermission = () => {
  */
 export const useBulkOrderUpload = () => {
     const [uploading, setUploading] = useState(false);
-    const [uploadStatus, setUploadStatus] = useState(null);
+    const [uploadStatus, setUploadStatus] = useState<any>(null);
 
-    const uploadBulkOrder = async (formData) => {
+    const uploadBulkOrder = async (formData: FormData) => {
         try {
             setUploading(true);
             setUploadStatus(null);
@@ -93,7 +93,7 @@ export const useBulkOrderUpload = () => {
             } else {
                 throw new Error(response.data.message || 'Upload failed');
             }
-        } catch (err) {
+        } catch (err: any) {
             const errorMessage = err.response?.data?.message || err.message || 'Upload failed';
             setUploadStatus({
                 success: false,
@@ -114,16 +114,16 @@ export const useBulkOrderUpload = () => {
  * @param {boolean} enabled - Whether to start polling
  * @returns {{status: object, loading: boolean, error: string|null}}
  */
-export const useBulkOrderStatus = (bulkOrderId, enabled = false) => {
-    const [status, setStatus] = useState(null);
+export const useBulkOrderStatus = (bulkOrderId: string, enabled = false) => {
+    const [status, setStatus] = useState<any>(null);
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState(null);
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         if (!enabled || !bulkOrderId) return;
 
         let isMounted = true;
-        let intervalId;
+        let intervalId: number | undefined;
 
         const fetchStatus = async () => {
             try {
@@ -146,7 +146,7 @@ export const useBulkOrderStatus = (bulkOrderId, enabled = false) => {
                         }
                     }
                 }
-            } catch (err) {
+            } catch (err: any) {
                 if (isMounted) {
                     setError(err.response?.data?.message || 'Failed to fetch status');
                 }
@@ -180,9 +180,9 @@ export const useBulkOrderStatus = (bulkOrderId, enabled = false) => {
  * @returns {{bulkOrders: array, loading: boolean, error: string|null, refetch: function}}
  */
 export const useBulkOrders = (options = {}) => {
-    const [bulkOrders, setBulkOrders] = useState([]);
+    const [bulkOrders, setBulkOrders] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
+    const [error, setError] = useState<string | null>(null);
 
     const fetchBulkOrders = async () => {
         try {
@@ -204,7 +204,7 @@ export const useBulkOrders = (options = {}) => {
             if (response.data.success) {
                 setBulkOrders(response.data.data);
             }
-        } catch (err) {
+        } catch (err: any) {
             setError(err.response?.data?.message || 'Failed to fetch bulk orders');
         } finally {
             setLoading(false);

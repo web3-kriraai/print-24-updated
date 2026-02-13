@@ -10,7 +10,6 @@ import ProductPriceBox from '../components/ProductPriceBox';
 import LocationDetector from '../components/LocationDetector';
 import { useBulkOrderPermission } from '../hooks/useBulkOrder';
 import BulkOrderToggle from '../components/BulkOrderToggle';
-import OrderModeSection from '../components/product/OrderModeSection';
 import { formatPrice } from '../src/utils/currencyUtils';
 import PaymentConfirmationModal from '../src/components/PaymentConfirmationModal';
 
@@ -537,7 +536,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                 const hasParent = subcategoryData.parent &&
                   (typeof subcategoryData.parent === 'object' ? subcategoryData.parent._id : subcategoryData.parent);
 
-                if (hasParent && !nestedSubCategoryId && categoryId) {
+                if (hasParent && !nestedSubCategoryId && categoryId && subcategoryData.parent) {
                   const parentId = typeof subcategoryData.parent === 'object'
                     ? subcategoryData.parent._id
                     : subcategoryData.parent;
@@ -2385,7 +2384,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
           if (errorData.details) {
             if (Array.isArray(errorData.details)) {
-              const detailsText = errorData.details.map((d) => `${d.field}: ${d.message}`).join("\n");
+              const detailsText = errorData.details.map((d: any) => `${d.field}: ${d.message}`).join("\n");
               errorMessage += "\n\n" + detailsText;
             } else {
               errorMessage += "\n\n" + errorData.details;
@@ -3503,1126 +3502,988 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                               </div>
                             </div>
                           </div>
+                          <>
+                            {(() => {
+                              let sectionNum = 1;
+                              const hasOptions = selectedProduct.options && selectedProduct.options.length > 0;
+                              const hasPrintingOption = selectedProduct.filters?.printingOption && selectedProduct.filters.printingOption.length > 0;
+                              const hasTextureType = selectedProduct.filters?.textureType && selectedProduct.filters.textureType.length > 0;
+                              const hasDeliverySpeed = selectedProduct.filters?.deliverySpeed && selectedProduct.filters.deliverySpeed.length > 0;
 
-                          {/* Bulk Upload Toggle */}
-                          {hasPermission && (
-                            <OrderModeSection
-                              orderMode={orderMode}
-                              setOrderMode={setOrderMode}
-                              hasPermission={hasPermission}
-                              onBulkUploadClick={() => setShowBulkWizard(true)}
-                            />
-                          )}
-
-                          {/* Single Order Form - Conditional */}
-                          {orderMode === 'single' ? (
-                            <>
-                              {(() => {
-                                let sectionNum = 1;
-                                const hasOptions = selectedProduct.options && selectedProduct.options.length > 0;
-                                const hasPrintingOption = selectedProduct.filters?.printingOption && selectedProduct.filters.printingOption.length > 0;
-                                const hasTextureType = selectedProduct.filters?.textureType && selectedProduct.filters.textureType.length > 0;
-                                const hasDeliverySpeed = selectedProduct.filters?.deliverySpeed && selectedProduct.filters.deliverySpeed.length > 0;
-
-                                return (
-                                  <>
-                                    {hasOptions && (
-                                      <div className="mb-6 sm:mb-8">
-                                        <label className="block text-xs sm:text-sm font-bold text-cream-900 mb-2 sm:mb-3 uppercase tracking-wider">
-                                          {sectionNum++}. Product Options
-                                        </label>
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
-                                          {selectedProduct.options.map((option, idx) => {
-                                            const isSelected = selectedProductOptions.includes(option.name);
-                                            return (
-                                              <button
-                                                key={idx}
-                                                type="button"
-                                                onClick={() => {
-                                                  if (isSelected) {
-                                                    setSelectedProductOptions(selectedProductOptions.filter(name => name !== option.name));
-                                                  } else {
-                                                    setSelectedProductOptions([...selectedProductOptions, option.name]);
-                                                  }
-                                                }}
-                                                className={`p-4 rounded-xl border text-left transition-all duration-200 relative ${isSelected
-                                                  ? "border-cream-900 bg-cream-50 text-cream-900 ring-1 ring-cream-900"
-                                                  : "border-cream-200 text-cream-600 hover:border-cream-400 hover:bg-cream-50"
-                                                  }`}
-                                              >
-                                                {isSelected && (
-                                                  <div className="absolute top-2 right-2">
-                                                    <Check size={18} className="text-cream-900" />
-                                                  </div>
-                                                )}
-                                                <div className="font-bold text-sm mb-1">{option.name}</div>
-                                                {option.description && (
-                                                  <p className="text-xs text-cream-600 mt-1">
-                                                    {option.description}
-                                                  </p>
-                                                )}
-                                                {option.priceAdd !== undefined && option.priceAdd !== 0 && (
-                                                  <p className="text-xs text-cream-700 mt-1 font-medium">
-                                                    {option.priceAdd > 0 ? '+' : ''}{formatPrice(typeof option.priceAdd === 'number' ? option.priceAdd : parseFloat(String(option.priceAdd)), 'INR')} per 1000 units
-                                                  </p>
-                                                )}
-                                                {option.image && (
-                                                  <img
-                                                    src={option.image}
-                                                    alt={option.name}
-                                                    className="w-full h-24 object-cover rounded-lg mt-2"
-                                                  />
-                                                )}
-                                              </button>
-                                            );
-                                          })}
-                                        </div>
-                                      </div>
-                                    )}
-
-                                    {hasPrintingOption && selectedProduct.filters.printingOption.length > 1 && (
-                                      <div className="mb-6 sm:mb-8" data-section="printingOption">
-                                        <label className="block text-xs sm:text-sm font-bold text-cream-900 mb-2 sm:mb-3 uppercase tracking-wider">
-                                          {sectionNum++}. Printing Option
-                                        </label>
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
-                                          {selectedProduct.filters.printingOption.map((option) => {
-                                            const filterPricesEnabled = selectedProduct.filters?.filterPricesEnabled || false;
-                                            let priceInfo = null;
-                                            if (filterPricesEnabled && selectedProduct.filters?.printingOptionPrices) {
-                                              const priceData = selectedProduct.filters.printingOptionPrices.find((p) => p.name === option);
-                                              if (priceData && priceData.priceAdd !== undefined && priceData.priceAdd !== 0) {
-                                                priceInfo = priceData.priceAdd;
-                                              }
-                                            }
-
-                                            return (
-                                              <button
-                                                key={option}
-                                                data-field="printingOption"
-                                                onClick={() => setSelectedPrintingOption(option)}
-                                                className={`p-4 rounded-xl border text-left transition-all duration-200 relative ${selectedPrintingOption === option
-                                                  ? "border-cream-900 bg-cream-50 text-cream-900 ring-1 ring-cream-900"
-                                                  : "border-cream-200 text-cream-600 hover:border-cream-400 hover:bg-cream-50"
-                                                  }`}
-                                              >
-                                                {selectedPrintingOption === option && (
-                                                  <div className="absolute top-2 right-2">
-                                                    <Check size={18} className="text-cream-900" />
-                                                  </div>
-                                                )}
-                                                <div className="font-bold text-sm">{option}</div>
-                                                {priceInfo !== null && (
-                                                  <div className="text-xs text-cream-600 mt-1">
-                                                    {priceInfo > 0 ? '+' : ''}{formatPrice(Math.abs(priceInfo), 'INR')} per 1000 units
-                                                  </div>
-                                                )}
-                                              </button>
-                                            );
-                                          })}
-                                        </div>
-                                      </div>
-                                    )}
-
-                                    {hasTextureType && selectedProduct.filters.textureType.length > 1 && (
-                                      <div className="mb-6 sm:mb-8">
-                                        <label className="block text-xs sm:text-sm font-bold text-cream-900 mb-2 sm:mb-3 uppercase tracking-wider">
-                                          {sectionNum++}. Texture Type
-                                        </label>
-                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
-                                          {selectedProduct.filters.textureType.map((texture) => {
-                                            const filterPricesEnabled = selectedProduct.filters?.filterPricesEnabled || false;
-                                            let priceInfo = null;
-                                            if (filterPricesEnabled && selectedProduct.filters?.textureTypePrices) {
-                                              const priceData = selectedProduct.filters.textureTypePrices.find((p) => p.name === texture);
-                                              if (priceData && priceData.priceAdd !== undefined && priceData.priceAdd !== 0) {
-                                                priceInfo = priceData.priceAdd;
-                                              }
-                                            }
-
-                                            return (
-                                              <button
-                                                key={texture}
-                                                onClick={() => setSelectedTextureType(texture)}
-                                                className={`p-3 rounded-xl border text-xs sm:text-sm font-medium transition-all duration-200 relative ${selectedTextureType === texture
-                                                  ? "border-cream-900 bg-cream-50 text-cream-900 ring-1 ring-cream-900"
-                                                  : "border-cream-200 text-cream-600 hover:border-cream-400 hover:bg-cream-50"
-                                                  }`}
-                                              >
-                                                {selectedTextureType === texture && (
-                                                  <div className="absolute top-1 right-1">
-                                                    <Check size={16} className="text-cream-900" />
-                                                  </div>
-                                                )}
-                                                <div>{texture}</div>
-                                                {priceInfo !== null && (
-                                                  <div className="text-xs text-cream-600 mt-1">
-                                                    {priceInfo > 0 ? '+' : ''}{formatPrice(Math.abs(priceInfo), 'INR')}/1k
-                                                  </div>
-                                                )}
-                                              </button>
-                                            );
-                                          })}
-                                        </div>
-                                      </div>
-                                    )}
-
-                                    {hasDeliverySpeed && selectedProduct.filters.deliverySpeed.length > 1 && (
-                                      <div className="mb-6 sm:mb-8" data-section="deliverySpeed">
-                                        <label className="block text-xs sm:text-sm font-bold text-cream-900 mb-2 sm:mb-3 uppercase tracking-wider">
-                                          {sectionNum++}. Delivery Speed
-                                        </label>
-                                        <div className="grid grid-cols-2 gap-2 sm:gap-3">
-                                          {selectedProduct.filters.deliverySpeed.map((speed) => {
-                                            const filterPricesEnabled = selectedProduct.filters?.filterPricesEnabled || false;
-                                            let priceInfo = null;
-                                            if (filterPricesEnabled && selectedProduct.filters?.deliverySpeedPrices) {
-                                              const priceData = selectedProduct.filters.deliverySpeedPrices.find((p) => p.name === speed);
-                                              if (priceData && priceData.priceAdd !== undefined && priceData.priceAdd !== 0) {
-                                                priceInfo = priceData.priceAdd;
-                                              }
-                                            }
-
-                                            return (
-                                              <button
-                                                key={speed}
-                                                data-field="deliverySpeed"
-                                                onClick={() => setSelectedDeliverySpeed(speed)}
-                                                className={`p-4 rounded-xl border text-left transition-all duration-200 relative ${selectedDeliverySpeed === speed
-                                                  ? "border-cream-900 bg-cream-50 text-cream-900 ring-1 ring-cream-900"
-                                                  : "border-cream-200 text-cream-600 hover:border-cream-400 hover:bg-cream-50"
-                                                  }`}
-                                              >
-                                                {selectedDeliverySpeed === speed && (
-                                                  <div className="absolute top-2 right-2">
-                                                    <Check size={18} className="text-cream-900" />
-                                                  </div>
-                                                )}
-                                                <div className="font-bold text-sm">{speed}</div>
-                                                {priceInfo !== null && (
-                                                  <div className="text-xs text-cream-600 mt-1">
-                                                    {priceInfo > 0 ? '+' : ''}{formatPrice(Math.abs(priceInfo), 'INR')} per 1000 units
-                                                  </div>
-                                                )}
-                                              </button>
-                                            );
-                                          })}
-                                        </div>
-                                      </div>
-                                    )}
-
+                              return (
+                                <>
+                                  {hasOptions && (
                                     <div className="mb-6 sm:mb-8">
                                       <label className="block text-xs sm:text-sm font-bold text-cream-900 mb-2 sm:mb-3 uppercase tracking-wider">
-                                        {sectionNum++}. Select Quantity
+                                        {sectionNum++}. Product Options
                                       </label>
-
-                                      <div className="mb-3">
-                                        <Select
-                                          options={generateQuantities(selectedProduct).map((q) => ({
-                                            value: q,
-                                            label: q.toLocaleString()
-                                          }))}
-                                          value={quantity}
-                                          onValueChange={(value) => setQuantity(Number(value))}
-                                          placeholder="Select quantity"
-                                          className="w-full"
-                                        />
-                                      </div>
-
-                                      {(() => {
-                                        let attributeQuantityInfo: any = null;
-                                        let attributeName = '';
-
-                                        if (isInitialized && pdpAttributes.length > 0) {
-                                          for (const attr of pdpAttributes) {
-                                            if (!attr.isVisible) continue;
-
-                                            const selectedValue = selectedDynamicAttributes[attr._id];
-                                            if (!selectedValue) continue;
-
-                                            if (attr.isStepQuantity && attr.stepQuantities && attr.stepQuantities.length > 0) {
-                                              attributeQuantityInfo = {
-                                                type: 'STEP_WISE',
-                                                stepQuantities: attr.stepQuantities
-                                              };
-                                              attributeName = attr.attributeName;
-                                              break;
-                                            }
-
-                                            if (attr.isRangeQuantity && attr.rangeQuantities && attr.rangeQuantities.length > 0) {
-                                              attributeQuantityInfo = {
-                                                type: 'RANGE_WISE',
-                                                rangeQuantities: attr.rangeQuantities
-                                              };
-                                              attributeName = attr.attributeName;
-                                              break;
-                                            }
-                                          }
-                                        }
-
-                                        if (!attributeQuantityInfo && selectedProduct && selectedProduct.dynamicAttributes) {
-                                          for (const attr of selectedProduct.dynamicAttributes) {
-                                            if (!attr.isEnabled) continue;
-
-                                            const attrType = typeof attr.attributeType === 'object' ? attr.attributeType : null;
-                                            if (!attrType) continue;
-
-                                            const selectedValue = selectedDynamicAttributes[attrType._id];
-                                            if (!selectedValue) continue;
-
-                                            if ((attrType as any).isStepQuantity && (attrType as any).stepQuantities && (attrType as any).stepQuantities.length > 0) {
-                                              attributeQuantityInfo = {
-                                                type: 'STEP_WISE',
-                                                stepQuantities: (attrType as any).stepQuantities
-                                              };
-                                              attributeName = attrType.attributeName;
-                                              break;
-                                            }
-
-                                            if ((attrType as any).isRangeQuantity && (attrType as any).rangeQuantities && (attrType as any).rangeQuantities.length > 0) {
-                                              attributeQuantityInfo = {
-                                                type: 'RANGE_WISE',
-                                                rangeQuantities: (attrType as any).rangeQuantities
-                                              };
-                                              attributeName = attrType.attributeName;
-                                              break;
-                                            }
-                                          }
-                                        }
-
-                                        if (attributeQuantityInfo) {
-                                          if (attributeQuantityInfo.type === 'STEP_WISE') {
-                                            const stepQuantities = attributeQuantityInfo.stepQuantities
-                                              .map((step: any) => {
-                                                const qty = typeof step === 'object' ? parseFloat(step.quantity) : parseFloat(step);
-                                                return isNaN(qty) ? 0 : qty;
-                                              })
-                                              .filter((qty: number) => qty > 0)
-                                              .sort((a: number, b: number) => a - b);
-
-                                            return (
-                                              <div className="text-xs sm:text-sm text-cream-600 mb-2">
-                                                <span className="font-medium">{attributeName}:</span> Available quantities: {stepQuantities.map(q => q.toLocaleString()).join(", ")}
-                                              </div>
-                                            );
-                                          } else if (attributeQuantityInfo.type === 'RANGE_WISE') {
-                                            return (
-                                              <div className="text-xs sm:text-sm text-cream-600 mb-2 space-y-1">
-                                                <div className="font-medium mb-1">{attributeName}:</div>
-                                                {attributeQuantityInfo.rangeQuantities.map((range: any, idx: number) => {
-                                                  const min = typeof range === 'object' ? parseFloat(range.min) : 0;
-                                                  const max = typeof range === 'object' && range.max ? parseFloat(range.max) : null;
-                                                  const price = typeof range === 'object' ? parseFloat(range.price) : 0;
-
-                                                  return (
-                                                    <div key={idx}>
-                                                      {range.label || `${min.toLocaleString()}${max ? ` - ${max.toLocaleString()}` : "+"} units`}
-                                                      {price > 0 && (
-                                                        <span className="ml-2 text-green-600">
-                                                          ({formatPrice(price, 'INR')})
-                                                        </span>
-                                                      )}
-                                                    </div>
-                                                  );
-                                                })}
-                                              </div>
-                                            );
-                                          }
-                                        }
-
-                                        const orderQuantity = selectedProduct.filters.orderQuantity;
-                                        const quantityType = orderQuantity.quantityType || "SIMPLE";
-
-                                        if (quantityType === "STEP_WISE" && orderQuantity.stepWiseQuantities && orderQuantity.stepWiseQuantities.length > 0) {
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
+                                        {selectedProduct.options?.map((option, idx) => {
+                                          const isSelected = selectedProductOptions.includes(option.name);
                                           return (
-                                            <div className="text-xs sm:text-sm text-cream-600 mb-2">
-                                              Available quantities: {orderQuantity.stepWiseQuantities.sort((a, b) => a - b).map(q => q.toLocaleString()).join(", ")}
-                                            </div>
-                                          );
-                                        } else if (quantityType === "RANGE_WISE" && orderQuantity.rangeWiseQuantities && orderQuantity.rangeWiseQuantities.length > 0) {
-                                          return (
-                                            <div className="text-xs sm:text-sm text-cream-600 mb-2 space-y-1">
-                                              {orderQuantity.rangeWiseQuantities.map((range, idx) => (
-                                                <div key={idx}>
-                                                  {range.label || `${range.min.toLocaleString()}${range.max ? ` - ${range.max.toLocaleString()}` : "+"} units`}
-                                                  {range.priceMultiplier !== 1.0 && (
-                                                    <span className="ml-2 text-green-600">
-                                                      ({range.priceMultiplier > 1 ? "+" : ""}{((range.priceMultiplier - 1) * 100).toFixed(0)}% price)
-                                                    </span>
-                                                  )}
+                                            <button
+                                              key={idx}
+                                              type="button"
+                                              onClick={() => {
+                                                if (isSelected) {
+                                                  setSelectedProductOptions(selectedProductOptions.filter(name => name !== option.name));
+                                                } else {
+                                                  setSelectedProductOptions([...selectedProductOptions, option.name]);
+                                                }
+                                              }}
+                                              className={`p-4 rounded-xl border text-left transition-all duration-200 relative ${isSelected
+                                                ? "border-cream-900 bg-cream-50 text-cream-900 ring-1 ring-cream-900"
+                                                : "border-cream-200 text-cream-600 hover:border-cream-400 hover:bg-cream-50"
+                                                }`}
+                                            >
+                                              {isSelected && (
+                                                <div className="absolute top-2 right-2">
+                                                  <Check size={18} className="text-cream-900" />
                                                 </div>
-                                              ))}
-                                            </div>
-                                          );
-                                        } else {
-                                          return (
-                                            <div className="text-xs sm:text-sm text-cream-600 mb-2">
-                                              Min: {orderQuantity.min.toLocaleString()}, Max: {orderQuantity.max.toLocaleString()}, Multiples of: {orderQuantity.multiples.toLocaleString()}
-                                            </div>
-                                          );
-                                        }
-                                      })()}
-
-                                      {appliedDiscount !== null && appliedDiscount > 0 && (
-                                        <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded-lg">
-                                          <p className="text-xs sm:text-sm text-green-800 font-medium">
-                                            🎉 You're saving {appliedDiscount}% on this order! (Bulk discount applied)
-                                          </p>
-                                        </div>
-                                      )}
-
-                                      {selectedProduct.quantityDiscounts && selectedProduct.quantityDiscounts.length > 0 && (
-                                        <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                                          <p className="text-xs font-medium text-blue-900 mb-2">Available Quantity Discounts:</p>
-                                          <div className="space-y-1">
-                                            {selectedProduct.quantityDiscounts.map((discount, idx) => {
-                                              const minQty = discount.minQuantity || 0;
-                                              const maxQty = discount.maxQuantity;
-                                              const discountPct = discount.discountPercentage || 0;
-                                              const range = maxQty
-                                                ? `${minQty.toLocaleString()} - ${maxQty.toLocaleString()} units`
-                                                : `${minQty.toLocaleString()}+ units`;
-                                              return (
-                                                <p key={idx} className="text-xs text-blue-800">
-                                                  • {range}: <strong>{discountPct}% off</strong>
+                                              )}
+                                              <div className="font-bold text-sm mb-1">{option.name}</div>
+                                              {option.description && (
+                                                <p className="text-xs text-cream-600 mt-1">
+                                                  {option.description}
                                                 </p>
-                                              );
-                                            })}
-                                          </div>
-                                        </div>
-                                      )}
+                                              )}
+                                              {option.priceAdd !== undefined && option.priceAdd !== 0 && (
+                                                <p className="text-xs text-cream-700 mt-1 font-medium">
+                                                  {option.priceAdd > 0 ? '+' : ''}{formatPrice(typeof option.priceAdd === 'number' ? option.priceAdd : parseFloat(String(option.priceAdd)), 'INR')} per 1000 units
+                                                </p>
+                                              )}
+                                              {option.image && (
+                                                <img
+                                                  src={option.image}
+                                                  alt={option.name}
+                                                  className="w-full h-24 object-cover rounded-lg mt-2"
+                                                />
+                                              )}
+                                            </button>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {hasPrintingOption && selectedProduct.filters.printingOption.length > 1 && (
+                                    <div className="mb-6 sm:mb-8" data-section="printingOption">
+                                      <label className="block text-xs sm:text-sm font-bold text-cream-900 mb-2 sm:mb-3 uppercase tracking-wider">
+                                        {sectionNum++}. Printing Option
+                                      </label>
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
+                                        {selectedProduct.filters.printingOption.map((option) => {
+                                          const filterPricesEnabled = selectedProduct.filters?.filterPricesEnabled || false;
+                                          let priceInfo = null;
+                                          if (filterPricesEnabled && selectedProduct.filters?.printingOptionPrices) {
+                                            const priceData = selectedProduct.filters.printingOptionPrices.find((p) => p.name === option);
+                                            if (priceData && priceData.priceAdd !== undefined && priceData.priceAdd !== 0) {
+                                              priceInfo = priceData.priceAdd;
+                                            }
+                                          }
+
+                                          return (
+                                            <button
+                                              key={option}
+                                              data-field="printingOption"
+                                              onClick={() => setSelectedPrintingOption(option)}
+                                              className={`p-4 rounded-xl border text-left transition-all duration-200 relative ${selectedPrintingOption === option
+                                                ? "border-cream-900 bg-cream-50 text-cream-900 ring-1 ring-cream-900"
+                                                : "border-cream-200 text-cream-600 hover:border-cream-400 hover:bg-cream-50"
+                                                }`}
+                                            >
+                                              {selectedPrintingOption === option && (
+                                                <div className="absolute top-2 right-2">
+                                                  <Check size={18} className="text-cream-900" />
+                                                </div>
+                                              )}
+                                              <div className="font-bold text-sm">{option}</div>
+                                              {priceInfo !== null && (
+                                                <div className="text-xs text-cream-600 mt-1">
+                                                  {priceInfo > 0 ? '+' : ''}{formatPrice(Math.abs(priceInfo), 'INR')} per 1000 units
+                                                </div>
+                                              )}
+                                            </button>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {hasTextureType && selectedProduct.filters.textureType && selectedProduct.filters.textureType.length > 1 && (
+                                    <div className="mb-6 sm:mb-8">
+                                      <label className="block text-xs sm:text-sm font-bold text-cream-900 mb-2 sm:mb-3 uppercase tracking-wider">
+                                        {sectionNum++}. Texture Type
+                                      </label>
+                                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+                                        {selectedProduct.filters.textureType?.map((texture) => {
+                                          const filterPricesEnabled = selectedProduct.filters?.filterPricesEnabled || false;
+                                          let priceInfo = null;
+                                          if (filterPricesEnabled && selectedProduct.filters?.textureTypePrices) {
+                                            const priceData = selectedProduct.filters.textureTypePrices.find((p) => p.name === texture);
+                                            if (priceData && priceData.priceAdd !== undefined && priceData.priceAdd !== 0) {
+                                              priceInfo = priceData.priceAdd;
+                                            }
+                                          }
+
+                                          return (
+                                            <button
+                                              key={texture}
+                                              onClick={() => setSelectedTextureType(texture)}
+                                              className={`p-3 rounded-xl border text-xs sm:text-sm font-medium transition-all duration-200 relative ${selectedTextureType === texture
+                                                ? "border-cream-900 bg-cream-50 text-cream-900 ring-1 ring-cream-900"
+                                                : "border-cream-200 text-cream-600 hover:border-cream-400 hover:bg-cream-50"
+                                                }`}
+                                            >
+                                              {selectedTextureType === texture && (
+                                                <div className="absolute top-1 right-1">
+                                                  <Check size={16} className="text-cream-900" />
+                                                </div>
+                                              )}
+                                              <div>{texture}</div>
+                                              {priceInfo !== null && (
+                                                <div className="text-xs text-cream-600 mt-1">
+                                                  {priceInfo > 0 ? '+' : ''}{formatPrice(Math.abs(priceInfo), 'INR')}/1k
+                                                </div>
+                                              )}
+                                            </button>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {hasDeliverySpeed && selectedProduct.filters.deliverySpeed.length > 1 && (
+                                    <div className="mb-6 sm:mb-8" data-section="deliverySpeed">
+                                      <label className="block text-xs sm:text-sm font-bold text-cream-900 mb-2 sm:mb-3 uppercase tracking-wider">
+                                        {sectionNum++}. Delivery Speed
+                                      </label>
+                                      <div className="grid grid-cols-2 gap-2 sm:gap-3">
+                                        {selectedProduct.filters.deliverySpeed.map((speed) => {
+                                          const filterPricesEnabled = selectedProduct.filters?.filterPricesEnabled || false;
+                                          let priceInfo = null;
+                                          if (filterPricesEnabled && selectedProduct.filters?.deliverySpeedPrices) {
+                                            const priceData = selectedProduct.filters.deliverySpeedPrices.find((p) => p.name === speed);
+                                            if (priceData && priceData.priceAdd !== undefined && priceData.priceAdd !== 0) {
+                                              priceInfo = priceData.priceAdd;
+                                            }
+                                          }
+
+                                          return (
+                                            <button
+                                              key={speed}
+                                              data-field="deliverySpeed"
+                                              onClick={() => setSelectedDeliverySpeed(speed)}
+                                              className={`p-4 rounded-xl border text-left transition-all duration-200 relative ${selectedDeliverySpeed === speed
+                                                ? "border-cream-900 bg-cream-50 text-cream-900 ring-1 ring-cream-900"
+                                                : "border-cream-200 text-cream-600 hover:border-cream-400 hover:bg-cream-50"
+                                                }`}
+                                            >
+                                              {selectedDeliverySpeed === speed && (
+                                                <div className="absolute top-2 right-2">
+                                                  <Check size={18} className="text-cream-900" />
+                                                </div>
+                                              )}
+                                              <div className="font-bold text-sm">{speed}</div>
+                                              {priceInfo !== null && (
+                                                <div className="text-xs text-cream-600 mt-1">
+                                                  {priceInfo > 0 ? '+' : ''}{formatPrice(Math.abs(priceInfo), 'INR')} per 1000 units
+                                                </div>
+                                              )}
+                                            </button>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  <div className="mb-6 sm:mb-8">
+                                    <label className="block text-xs sm:text-sm font-bold text-cream-900 mb-2 sm:mb-3 uppercase tracking-wider">
+                                      {sectionNum++}. Select Quantity
+                                    </label>
+
+                                    <div className="mb-3">
+                                      <Select
+                                        options={generateQuantities(selectedProduct).map((q: any) => ({
+                                          value: q,
+                                          label: q.toLocaleString()
+                                        }))}
+                                        value={quantity}
+                                        onValueChange={(value) => setQuantity(Number(value))}
+                                        placeholder="Select quantity"
+                                        className="w-full"
+                                      />
                                     </div>
 
                                     {(() => {
-                                      let attributesToRender: any[] = [];
+                                      let attributeQuantityInfo: any = null;
+                                      let attributeName = '';
 
                                       if (isInitialized && pdpAttributes.length > 0) {
-                                        const ruleResult = applyAttributeRules({
-                                          attributes: pdpAttributes,
-                                          rules: pdpRules,
-                                          selectedValues: { ...selectedDynamicAttributes } as Record<string, string | number | boolean | File | any[] | null>,
-                                        });
+                                        for (const attr of pdpAttributes) {
+                                          if (!attr.isVisible) continue;
 
-                                        attributesToRender = ruleResult.attributes
-                                          .filter((attr) => attr.isVisible)
-                                          .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
-                                      } else if (selectedProduct.dynamicAttributes) {
-                                        attributesToRender = selectedProduct.dynamicAttributes
-                                          .filter((attr) => attr.isEnabled)
-                                          .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+                                          const selectedValue = selectedDynamicAttributes[attr._id];
+                                          if (!selectedValue) continue;
+
+                                          if (attr.isStepQuantity && attr.stepQuantities && attr.stepQuantities.length > 0) {
+                                            attributeQuantityInfo = {
+                                              type: 'STEP_WISE',
+                                              stepQuantities: attr.stepQuantities
+                                            };
+                                            attributeName = attr.attributeName;
+                                            break;
+                                          }
+
+                                          if (attr.isRangeQuantity && attr.rangeQuantities && attr.rangeQuantities.length > 0) {
+                                            attributeQuantityInfo = {
+                                              type: 'RANGE_WISE',
+                                              rangeQuantities: attr.rangeQuantities
+                                            };
+                                            attributeName = attr.attributeName;
+                                            break;
+                                          }
+                                        }
                                       }
 
-                                      return attributesToRender.length > 0 ? (
-                                        <>
-                                          {attributesToRender.map((attr) => {
-                                            let attrType: any = null;
-                                            let attributeValues: any[] = [];
-                                            let attrId: string = '';
-                                            let isRequired: boolean = false;
-                                            let displayOrder: number = 0;
+                                      if (!attributeQuantityInfo && selectedProduct && selectedProduct.dynamicAttributes) {
+                                        for (const attr of selectedProduct.dynamicAttributes) {
+                                          if (!attr.isEnabled) continue;
 
-                                            if (isInitialized && pdpAttributes.length > 0) {
-                                              attrId = attr._id;
-                                              isRequired = attr.isRequired || false;
-                                              displayOrder = attr.displayOrder || 0;
-                                              attributeValues = (attr.allowedValues && attr.allowedValues.length > 0)
-                                                ? (attr.attributeValues || []).filter((av: any) => attr.allowedValues!.includes(av.value))
-                                                : (attr.attributeValues || []);
+                                          const attrType = typeof attr.attributeType === 'object' ? attr.attributeType : null;
+                                          if (!attrType) continue;
 
-                                              attrType = {
-                                                _id: attr._id,
-                                                attributeName: attr.attributeName,
-                                                inputStyle: attr.inputStyle,
-                                                attributeValues: attributeValues,
-                                                defaultValue: attr.defaultValue,
-                                              };
-                                            } else {
-                                              if (typeof attr.attributeType === 'object' && attr.attributeType !== null) {
-                                                attrType = attr.attributeType;
-                                                attrId = attrType._id;
-                                              } else if (typeof attr.attributeType === 'string' && attr.attributeType.trim() !== '') {
-                                                return null;
-                                              }
+                                          const selectedValue = selectedDynamicAttributes[attrType._id];
+                                          if (!selectedValue) continue;
 
-                                              if (!attrType || !attrType._id) {
-                                                return null;
-                                              }
+                                          if ((attrType as any).isStepQuantity && (attrType as any).stepQuantities && (attrType as any).stepQuantities.length > 0) {
+                                            attributeQuantityInfo = {
+                                              type: 'STEP_WISE',
+                                              stepQuantities: (attrType as any).stepQuantities
+                                            };
+                                            attributeName = attrType.attributeName;
+                                            break;
+                                          }
 
-                                              attrId = attrType._id;
-                                              isRequired = attr.isRequired || false;
-                                              displayOrder = attr.displayOrder || 0;
-                                              attributeValues = attr.customValues && attr.customValues.length > 0
-                                                ? attr.customValues
-                                                : attrType.attributeValues || [];
-                                            }
+                                          if ((attrType as any).isRangeQuantity && (attrType as any).rangeQuantities && (attrType as any).rangeQuantities.length > 0) {
+                                            attributeQuantityInfo = {
+                                              type: 'RANGE_WISE',
+                                              rangeQuantities: (attrType as any).rangeQuantities
+                                            };
+                                            attributeName = attrType.attributeName;
+                                            break;
+                                          }
+                                        }
+                                      }
 
-                                            const requiresMultipleOptions = ['DROPDOWN', 'RADIO', 'POPUP'].includes(attrType.inputStyle);
+                                      if (attributeQuantityInfo) {
+                                        if (attributeQuantityInfo.type === 'STEP_WISE') {
+                                          const stepQuantities = attributeQuantityInfo.stepQuantities
+                                            .map((step: any) => {
+                                              const qty = typeof step === 'object' ? parseFloat(step.quantity) : parseFloat(step);
+                                              return isNaN(qty) ? 0 : qty;
+                                            })
+                                            .filter((qty: number) => qty > 0)
+                                            .sort((a: number, b: number) => a - b);
 
-                                            if (requiresMultipleOptions) {
-                                              if (attributeValues.length < 1) {
+                                          return (
+                                            <div className="text-xs sm:text-sm text-cream-600 mb-2">
+                                              <span className="font-medium">{attributeName}:</span> Available quantities: {stepQuantities.map((q: any) => q.toLocaleString()).join(", ")}
+                                            </div>
+                                          );
+                                        } else if (attributeQuantityInfo.type === 'RANGE_WISE') {
+                                          return (
+                                            <div className="text-xs sm:text-sm text-cream-600 mb-2 space-y-1">
+                                              <div className="font-medium mb-1">{attributeName}:</div>
+                                              {attributeQuantityInfo.rangeQuantities.map((range: any, idx: number) => {
+                                                const min = typeof range === 'object' ? parseFloat(range.min) : 0;
+                                                const max = typeof range === 'object' && range.max ? parseFloat(range.max) : null;
+                                                const price = typeof range === 'object' ? parseFloat(range.price) : 0;
+
                                                 return (
-                                                  <div key={attrId} className="mb-6 sm:mb-8 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                                                    <label className="block text-xs sm:text-sm font-bold text-cream-900 mb-2 sm:mb-3 uppercase tracking-wider">
-                                                      {sectionNum++}. {attrType.attributeName}
-                                                      {isRequired && <span className="text-red-500 ml-1">*</span>}
-                                                    </label>
-                                                    <p className="text-sm text-yellow-800">
-                                                      This attribute is not available because it requires at least 2 options. Please contact support.
-                                                    </p>
+                                                  <div key={idx}>
+                                                    {range.label || `${min.toLocaleString()}${max ? ` - ${max.toLocaleString()}` : "+"} units`}
+                                                    {price > 0 && (
+                                                      <span className="ml-2 text-green-600">
+                                                        ({formatPrice(price, 'INR')})
+                                                      </span>
+                                                    )}
                                                   </div>
                                                 );
-                                              }
+                                              })}
+                                            </div>
+                                          );
+                                        }
+                                      }
+
+                                      const orderQuantity = selectedProduct.filters.orderQuantity;
+                                      const quantityType = orderQuantity.quantityType || "SIMPLE";
+
+                                      if (quantityType === "STEP_WISE" && orderQuantity.stepWiseQuantities && orderQuantity.stepWiseQuantities.length > 0) {
+                                        return (
+                                          <div className="text-xs sm:text-sm text-cream-600 mb-2">
+                                            Available quantities: {orderQuantity.stepWiseQuantities.sort((a, b) => a - b).map(q => q.toLocaleString()).join(", ")}
+                                          </div>
+                                        );
+                                      } else if (quantityType === "RANGE_WISE" && orderQuantity.rangeWiseQuantities && orderQuantity.rangeWiseQuantities.length > 0) {
+                                        return (
+                                          <div className="text-xs sm:text-sm text-cream-600 mb-2 space-y-1">
+                                            {orderQuantity.rangeWiseQuantities.map((range, idx) => (
+                                              <div key={idx}>
+                                                {range.label || `${range.min.toLocaleString()}${range.max ? ` - ${range.max.toLocaleString()}` : "+"} units`}
+                                                {range.priceMultiplier !== 1.0 && (
+                                                  <span className="ml-2 text-green-600">
+                                                    ({range.priceMultiplier > 1 ? "+" : ""}{((range.priceMultiplier - 1) * 100).toFixed(0)}% price)
+                                                  </span>
+                                                )}
+                                              </div>
+                                            ))}
+                                          </div>
+                                        );
+                                      } else {
+                                        return (
+                                          <div className="text-xs sm:text-sm text-cream-600 mb-2">
+                                            Min: {orderQuantity.min.toLocaleString()}, Max: {orderQuantity.max.toLocaleString()}, Multiples of: {orderQuantity.multiples.toLocaleString()}
+                                          </div>
+                                        );
+                                      }
+                                    })()}
+
+                                    {appliedDiscount !== null && appliedDiscount > 0 && (
+                                      <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded-lg">
+                                        <p className="text-xs sm:text-sm text-green-800 font-medium">
+                                          🎉 You're saving {appliedDiscount}% on this order! (Bulk discount applied)
+                                        </p>
+                                      </div>
+                                    )}
+
+                                    {selectedProduct.quantityDiscounts && selectedProduct.quantityDiscounts.length > 0 && (
+                                      <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                                        <p className="text-xs font-medium text-blue-900 mb-2">Available Quantity Discounts:</p>
+                                        <div className="space-y-1">
+                                          {selectedProduct.quantityDiscounts.map((discount, idx) => {
+                                            const minQty = discount.minQuantity || 0;
+                                            const maxQty = discount.maxQuantity;
+                                            const discountPct = discount.discountPercentage || 0;
+                                            const range = maxQty
+                                              ? `${minQty.toLocaleString()} - ${maxQty.toLocaleString()} units`
+                                              : `${minQty.toLocaleString()}+ units`;
+                                            return (
+                                              <p key={idx} className="text-xs text-blue-800">
+                                                • {range}: <strong>{discountPct}% off</strong>
+                                              </p>
+                                            );
+                                          })}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {(() => {
+                                    let attributesToRender: any[] = [];
+
+                                    if (isInitialized && pdpAttributes.length > 0) {
+                                      const ruleResult = applyAttributeRules({
+                                        attributes: pdpAttributes,
+                                        rules: pdpRules,
+                                        selectedValues: { ...selectedDynamicAttributes } as Record<string, string | number | boolean | File | any[] | null>,
+                                      });
+
+                                      attributesToRender = ruleResult.attributes
+                                        .filter((attr) => attr.isVisible)
+                                        .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+                                    } else if (selectedProduct.dynamicAttributes) {
+                                      attributesToRender = selectedProduct.dynamicAttributes
+                                        .filter((attr) => attr.isEnabled)
+                                        .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+                                    }
+
+                                    return attributesToRender.length > 0 ? (
+                                      <>
+                                        {attributesToRender.map((attr) => {
+                                          let attrType: any = null;
+                                          let attributeValues: any[] = [];
+                                          let attrId: string = '';
+                                          let isRequired: boolean = false;
+                                          let displayOrder: number = 0;
+
+                                          if (isInitialized && pdpAttributes.length > 0) {
+                                            attrId = attr._id;
+                                            isRequired = attr.isRequired || false;
+                                            displayOrder = attr.displayOrder || 0;
+                                            attributeValues = (attr.allowedValues && attr.allowedValues.length > 0)
+                                              ? (attr.attributeValues || []).filter((av: any) => attr.allowedValues!.includes(av.value))
+                                              : (attr.attributeValues || []);
+
+                                            attrType = {
+                                              _id: attr._id,
+                                              attributeName: attr.attributeName,
+                                              inputStyle: attr.inputStyle,
+                                              attributeValues: attributeValues,
+                                              defaultValue: attr.defaultValue,
+                                            };
+                                          } else {
+                                            if (typeof attr.attributeType === 'object' && attr.attributeType !== null) {
+                                              attrType = attr.attributeType;
+                                              attrId = attrType._id;
+                                            } else if (typeof attr.attributeType === 'string' && attr.attributeType.trim() !== '') {
+                                              return null;
                                             }
 
-                                            const selectedValue = selectedDynamicAttributes[attrId];
-                                            const selectedValueObj = attributeValues.find((av) => av.value === selectedValue);
-                                            const hasSubAttributes = selectedValueObj?.hasSubAttributes === true;
+                                            if (!attrType || !attrType._id) {
+                                              return null;
+                                            }
 
-                                            const subAttributesKey = `${attrId}:${selectedValue || ''}`;
-                                            const availableSubAttributes = (hasSubAttributes && selectedValue)
-                                              ? (pdpSubAttributes[subAttributesKey] || [])
-                                              : [];
+                                            attrId = attrType._id;
+                                            isRequired = attr.isRequired || false;
+                                            displayOrder = attr.displayOrder || 0;
+                                            attributeValues = attr.customValues && attr.customValues.length > 0
+                                              ? attr.customValues
+                                              : attrType.attributeValues || [];
+                                          }
 
-                                            return (
-                                              <div key={attrId} className="mb-6 sm:mb-8">
-                                                <label className="block text-xs sm:text-sm font-bold text-cream-900 mb-2 sm:mb-3 uppercase tracking-wider">
-                                                  {sectionNum++}. {attrType.attributeName}
-                                                  {isRequired && <span className="text-red-500 ml-1">*</span>}
-                                                </label>
+                                          const requiresMultipleOptions = ['DROPDOWN', 'RADIO', 'POPUP'].includes(attrType.inputStyle);
 
-                                                {(attrType.inputStyle === 'DROPDOWN' || attrType.inputStyle === 'POPUP') && (
-                                                  <div data-attribute={attrId} data-attribute-name={attrType.attributeName}>
-                                                    {attributeValues.length === 0 ? (
-                                                      <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                                                        <p className="text-sm text-yellow-800">
-                                                          No options available for this attribute. Please contact support.
-                                                        </p>
-                                                      </div>
-                                                    ) : (
-                                                      <>
-                                                        <Select
-                                                          options={attributeValues
-                                                            .filter((av) => av && av.value && av.label)
-                                                            .map((av) => {
-                                                              let priceDisplay = '';
-                                                              if (av.description) {
-                                                                const priceImpactMatch = av.description.match(/Price Impact: ₹([\d.]+)/);
-                                                                if (priceImpactMatch) {
-                                                                  const priceImpact = parseFloat(priceImpactMatch[1]) || 0;
-                                                                  if (priceImpact > 0) {
-                                                                    priceDisplay = ` (+₹${priceImpact.toFixed(2)}/unit)`;
-                                                                  }
-                                                                }
-                                                              }
-                                                              if (!priceDisplay && av.priceMultiplier && av.priceMultiplier !== 1 && selectedProduct) {
-                                                                const basePrice = selectedProduct.basePrice || 0;
-                                                                const pricePerUnit = basePrice * (av.priceMultiplier - 1);
-                                                                if (Math.abs(pricePerUnit) >= 0.01) {
-                                                                  priceDisplay = ` (+₹${pricePerUnit.toFixed(2)}/unit)`;
-                                                                }
-                                                              }
-                                                              return {
-                                                                value: av.value,
-                                                                label: `${av.label}${priceDisplay}`
-                                                              };
-                                                            })}
-                                                          value={selectedDynamicAttributes[attrId] as string || ""}
-                                                          onValueChange={(value) => {
-                                                            setSelectedDynamicAttributes({
-                                                              ...selectedDynamicAttributes,
-                                                              [attrId]: value
-                                                            });
-                                                            setUserSelectedAttributes(prev => new Set(prev).add(attrId));
-                                                          }}
-                                                          placeholder={`Select ${attrType.attributeName}`}
-                                                          className="w-full"
-                                                        />
+                                          if (requiresMultipleOptions) {
+                                            if (attributeValues.length < 1) {
+                                              return (
+                                                <div key={attrId} className="mb-6 sm:mb-8 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                                                  <label className="block text-xs sm:text-sm font-bold text-cream-900 mb-2 sm:mb-3 uppercase tracking-wider">
+                                                    {sectionNum++}. {attrType.attributeName}
+                                                    {isRequired && <span className="text-red-500 ml-1">*</span>}
+                                                  </label>
+                                                  <p className="text-sm text-yellow-800">
+                                                    This attribute is not available because it requires at least 2 options. Please contact support.
+                                                  </p>
+                                                </div>
+                                              );
+                                            }
+                                          }
 
-                                                        {availableSubAttributes.length > 0 && (
-                                                          <div className="mt-4">
-                                                            <label className="block text-xs font-semibold text-cream-700 mb-2">
-                                                              Select {selectedValueObj?.label || attrType.attributeName} Option:
-                                                            </label>
-                                                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                                                              {availableSubAttributes.map((subAttr) => {
-                                                                const getSubAttrPriceDisplay = () => {
-                                                                  if (!subAttr.priceAdd || subAttr.priceAdd === 0) return null;
-                                                                  return `+₹${subAttr.priceAdd.toFixed(2)}/piece`;
-                                                                };
+                                          const selectedValue = selectedDynamicAttributes[attrId];
+                                          const selectedValueObj = attributeValues.find((av) => av.value === selectedValue);
+                                          const hasSubAttributes = selectedValueObj?.hasSubAttributes === true;
 
-                                                                const subAttrKey = `${attrId}__${selectedValue}`;
-                                                                const isSubAttrSelected = selectedDynamicAttributes[subAttrKey] === subAttr.value;
+                                          const subAttributesKey = `${attrId}:${selectedValue || ''}`;
+                                          const availableSubAttributes = (hasSubAttributes && selectedValue)
+                                            ? (pdpSubAttributes[subAttributesKey] || [])
+                                            : [];
 
-                                                                return (
-                                                                  <button
-                                                                    key={subAttr._id}
-                                                                    type="button"
-                                                                    onClick={() => {
-                                                                      setSelectedDynamicAttributes((prev) => ({
-                                                                        ...prev,
-                                                                        [subAttrKey]: subAttr.value,
-                                                                      }));
-                                                                    }}
-                                                                    className={`p-3 rounded-lg border text-left transition-all ${isSubAttrSelected
-                                                                      ? "border-cream-900 bg-cream-50 ring-1 ring-cream-900"
-                                                                      : "border-cream-200 hover:border-cream-400"
-                                                                      }`}
-                                                                  >
-                                                                    {subAttr.image && (
-                                                                      <div className="mb-2">
-                                                                        <img
-                                                                          src={subAttr.image}
-                                                                          alt={subAttr.label}
-                                                                          className="w-full h-24 object-cover rounded"
-                                                                        />
-                                                                      </div>
-                                                                    )}
-                                                                    <div className="text-sm font-medium">{subAttr.label}</div>
-                                                                    {getSubAttrPriceDisplay() && (
-                                                                      <div className="text-xs text-cream-600 mt-1">
-                                                                        {getSubAttrPriceDisplay()}
-                                                                      </div>
-                                                                    )}
-                                                                  </button>
-                                                                );
-                                                              })}
-                                                            </div>
-                                                          </div>
-                                                        )}
+                                          return (
+                                            <div key={attrId} className="mb-6 sm:mb-8">
+                                              <label className="block text-xs sm:text-sm font-bold text-cream-900 mb-2 sm:mb-3 uppercase tracking-wider">
+                                                {sectionNum++}. {attrType.attributeName}
+                                                {isRequired && <span className="text-red-500 ml-1">*</span>}
+                                              </label>
 
-                                                        {(() => {
-                                                          const selectedValue = selectedDynamicAttributes[attrId];
-                                                          if (!selectedValue) return null;
-
-                                                          const selectedOption = attributeValues.find((av) => av.value === selectedValue);
-                                                          if (!selectedOption || !selectedOption.description) return null;
-
-                                                          const imagesRequiredMatch = selectedOption.description.match(/Images Required: (\d+)/);
-                                                          const numberOfImagesRequired = imagesRequiredMatch ? parseInt(imagesRequiredMatch[1]) : 0;
-
-                                                          if (numberOfImagesRequired <= 0) return null;
-
-                                                          const imagesKey = `${attrId}_images`;
-                                                          const uploadedImages = Array.isArray(selectedDynamicAttributes[imagesKey])
-                                                            ? (selectedDynamicAttributes[imagesKey] as File[])
-                                                            : [];
-
-                                                          return (
-                                                            <div className="mt-4 p-4 bg-cream-50 rounded-lg border border-cream-200">
-                                                              <label className="block text-sm font-semibold text-cream-900 mb-3">
-                                                                Upload Images for {selectedOption.label} ({numberOfImagesRequired} required) *
-                                                              </label>
-                                                              <div className="space-y-3">
-                                                                {Array.from({ length: numberOfImagesRequired }).map((_, index) => {
-                                                                  const file = uploadedImages[index] || null;
-                                                                  return (
-                                                                    <div key={index} className="flex items-center gap-3">
-                                                                      <input
-                                                                        type="file"
-                                                                        accept="image/*"
-                                                                        data-image-index={index}
-                                                                        data-attr-id={attrId}
-                                                                        onChange={(e) => {
-                                                                          const newFile = e.target.files?.[0] || null;
-                                                                          if (newFile) {
-                                                                            const updatedImages = [...uploadedImages];
-                                                                            while (updatedImages.length <= index) {
-                                                                              updatedImages.push(null as any);
-                                                                            }
-                                                                            updatedImages[index] = newFile;
-                                                                            setSelectedDynamicAttributes({
-                                                                              ...selectedDynamicAttributes,
-                                                                              [imagesKey]: updatedImages
-                                                                            });
-                                                                          }
-                                                                        }}
-                                                                        className="flex-1 px-3 py-2 border border-cream-300 rounded-lg text-sm"
-                                                                      />
-                                                                      {file && (
-                                                                        <div className="flex items-center gap-2">
-                                                                          <span className="text-xs text-cream-600 max-w-[150px] truncate">
-                                                                            {file.name}
-                                                                          </span>
-                                                                          <button
-                                                                            type="button"
-                                                                            onClick={() => {
-                                                                              const updatedImages = [...uploadedImages];
-                                                                              updatedImages[index] = null as any;
-                                                                              setSelectedDynamicAttributes({
-                                                                                ...selectedDynamicAttributes,
-                                                                                [imagesKey]: updatedImages
-                                                                              });
-                                                                              const fileInput = document.querySelector(`input[type="file"][data-image-index="${index}"][data-attr-id="${attrId}"]`) as HTMLInputElement;
-                                                                              if (fileInput) {
-                                                                                fileInput.value = '';
-                                                                              }
-                                                                            }}
-                                                                            className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
-                                                                            title="Remove image"
-                                                                          >
-                                                                            <X size={16} />
-                                                                          </button>
-                                                                        </div>
-                                                                      )}
-                                                                    </div>
-                                                                  );
-                                                                })}
-                                                              </div>
-                                                              {uploadedImages.length < numberOfImagesRequired && (
-                                                                <p className="text-xs text-red-600 mt-2">
-                                                                  Please upload {numberOfImagesRequired - uploadedImages.length} more image(s)
-                                                                </p>
-                                                              )}
-                                                            </div>
-                                                          );
-                                                        })()}
-                                                      </>
-                                                    )}
-                                                  </div>
-                                                )}
-
-                                                {attrType.inputStyle === 'RADIO' && (
-                                                  <div data-attribute={attrId}>
-                                                    {attributeValues.length === 0 ? (
-                                                      <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                                                        <p className="text-sm text-yellow-800">
-                                                          No options available for this attribute. Please contact support.
-                                                        </p>
-                                                      </div>
-                                                    ) : (
-                                                      <>
-                                                        <button
-                                                          type="button"
-                                                          onClick={() => {
-                                                            const filteredValues = attributeValues.filter((av) => av && av.value && av.label);
-                                                            setRadioModalData({
-                                                              attributeId: attrId,
-                                                              attributeName: attrType.attributeName,
-                                                              attributeValues: filteredValues,
-                                                              selectedValue: (selectedDynamicAttributes[attrId] as string) || null,
-                                                              isRequired: isRequired,
-                                                            });
-                                                            setRadioModalOpen(true);
-                                                          }}
-                                                          className="w-full px-4 py-3 border-2 border-dashed border-cream-300 rounded-xl hover:border-cream-400 hover:bg-cream-50 transition-all duration-200 text-left flex items-center justify-between group"
-                                                        >
-                                                          <div className="flex-1">
-                                                            <span className="text-sm font-medium text-cream-700 group-hover:text-cream-900">
-                                                              {selectedDynamicAttributes[attrId]
-                                                                ? attributeValues.find((av) => av.value === selectedDynamicAttributes[attrId])?.label || 'Select option'
-                                                                : `Select ${attrType.attributeName}${isRequired ? ' *' : ''}`
-                                                              }
-                                                            </span>
-                                                            {selectedDynamicAttributes[attrId] && (
-                                                              <div className="text-xs text-cream-500 mt-1">
-                                                                Click to change selection
-                                                              </div>
-                                                            )}
-                                                          </div>
-                                                          <ArrowRight size={18} className="text-cream-400 group-hover:text-cream-600 transition-colors" />
-                                                        </button>
-
-                                                        {(() => {
-                                                          const selectedValue = selectedDynamicAttributes[attrId];
-                                                          if (!selectedValue) return null;
-
-                                                          const selectedOption = attributeValues.find((av) => av.value === selectedValue);
-                                                          if (!selectedOption || !selectedOption.description) return null;
-
-                                                          const imagesRequiredMatch = selectedOption.description.match(/Images Required: (\d+)/);
-                                                          const numberOfImagesRequired = imagesRequiredMatch ? parseInt(imagesRequiredMatch[1]) : 0;
-
-                                                          if (numberOfImagesRequired <= 0) return null;
-
-                                                          const imagesKey = `${attrId}_images`;
-                                                          const uploadedImages = Array.isArray(selectedDynamicAttributes[imagesKey])
-                                                            ? (selectedDynamicAttributes[imagesKey] as File[])
-                                                            : [];
-
-                                                          return (
-                                                            <div className="mt-4 p-4 bg-cream-50 rounded-lg border border-cream-200">
-                                                              <label className="block text-sm font-semibold text-cream-900 mb-3">
-                                                                Upload Images for {selectedOption.label} ({numberOfImagesRequired} required) *
-                                                              </label>
-                                                              <div className="space-y-3">
-                                                                {Array.from({ length: numberOfImagesRequired }).map((_, index) => {
-                                                                  const file = uploadedImages[index] || null;
-                                                                  return (
-                                                                    <div key={index} className="flex items-center gap-3">
-                                                                      <input
-                                                                        type="file"
-                                                                        accept="image/*"
-                                                                        data-image-index={index}
-                                                                        data-attr-id={attrId}
-                                                                        onChange={(e) => {
-                                                                          const newFile = e.target.files?.[0] || null;
-                                                                          if (newFile) {
-                                                                            const updatedImages = [...uploadedImages];
-                                                                            while (updatedImages.length <= index) {
-                                                                              updatedImages.push(null as any);
-                                                                            }
-                                                                            updatedImages[index] = newFile;
-                                                                            setSelectedDynamicAttributes({
-                                                                              ...selectedDynamicAttributes,
-                                                                              [imagesKey]: updatedImages
-                                                                            });
-                                                                          }
-                                                                        }}
-                                                                        className="flex-1 px-3 py-2 border border-cream-300 rounded-lg text-sm"
-                                                                      />
-                                                                      {file && (
-                                                                        <div className="flex items-center gap-2">
-                                                                          <span className="text-xs text-cream-600 max-w-[150px] truncate">
-                                                                            {file.name}
-                                                                          </span>
-                                                                          <button
-                                                                            type="button"
-                                                                            onClick={() => {
-                                                                              const updatedImages = [...uploadedImages];
-                                                                              updatedImages[index] = null as any;
-                                                                              setSelectedDynamicAttributes({
-                                                                                ...selectedDynamicAttributes,
-                                                                                [imagesKey]: updatedImages
-                                                                              });
-                                                                              const fileInput = document.querySelector(`input[type="file"][data-image-index="${index}"][data-attr-id="${attrId}"]`) as HTMLInputElement;
-                                                                              if (fileInput) {
-                                                                                fileInput.value = '';
-                                                                              }
-                                                                            }}
-                                                                            className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
-                                                                            title="Remove image"
-                                                                          >
-                                                                            <X size={16} />
-                                                                          </button>
-                                                                        </div>
-                                                                      )}
-                                                                    </div>
-                                                                  );
-                                                                })}
-                                                              </div>
-                                                              {uploadedImages.length < numberOfImagesRequired && (
-                                                                <p className="text-xs text-red-600 mt-2">
-                                                                  Please upload {numberOfImagesRequired - uploadedImages.length} more image(s)
-                                                                </p>
-                                                              )}
-                                                            </div>
-                                                          );
-                                                        })()}
-                                                      </>
-                                                    )}
-                                                  </div>
-                                                )}
-
-                                                {attrType.inputStyle === 'CHECKBOX' && (
-                                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3" data-attribute={attrId}>
-                                                    {attributeValues.length === 0 ? (
-                                                      <div className="col-span-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                                                        <p className="text-sm text-yellow-800">
-                                                          No options available for this attribute. Please contact support.
-                                                        </p>
-                                                      </div>
-                                                    ) : (
-                                                      attributeValues
-                                                        .filter((av) => av && av.value && av.label)
-                                                        .map((av) => {
-                                                          const getPriceDisplay = () => {
+                                              {(attrType.inputStyle === 'DROPDOWN' || attrType.inputStyle === 'POPUP') && (
+                                                <div data-attribute={attrId} data-attribute-name={attrType.attributeName}>
+                                                  {attributeValues.length === 0 ? (
+                                                    <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                                                      <p className="text-sm text-yellow-800">
+                                                        No options available for this attribute. Please contact support.
+                                                      </p>
+                                                    </div>
+                                                  ) : (
+                                                    <>
+                                                      <Select
+                                                        options={attributeValues
+                                                          .filter((av) => av && av.value && av.label)
+                                                          .map((av) => {
+                                                            let priceDisplay = '';
                                                             if (av.description) {
                                                               const priceImpactMatch = av.description.match(/Price Impact: ₹([\d.]+)/);
                                                               if (priceImpactMatch) {
                                                                 const priceImpact = parseFloat(priceImpactMatch[1]) || 0;
                                                                 if (priceImpact > 0) {
-                                                                  return `+₹${priceImpact.toFixed(2)}/unit`;
+                                                                  priceDisplay = ` (+₹${priceImpact.toFixed(2)}/unit)`;
                                                                 }
                                                               }
                                                             }
-                                                            if (!av.priceMultiplier || av.priceMultiplier === 1 || !selectedProduct) return null;
-                                                            const basePrice = selectedProduct.basePrice || 0;
-                                                            const pricePerUnit = basePrice * (av.priceMultiplier - 1);
-                                                            if (Math.abs(pricePerUnit) < 0.01) return null;
-                                                            return `+₹${pricePerUnit.toFixed(2)}/unit`;
-                                                          };
-
-                                                          const isSelected = Array.isArray(selectedDynamicAttributes[attrId]) && (selectedDynamicAttributes[attrId] as any).includes(av.value);
-
-                                                          return (
-                                                            <button
-                                                              key={av.value}
-                                                              type="button"
-                                                              onClick={() => {
-                                                                const current = Array.isArray(selectedDynamicAttributes[attrId]) ? (selectedDynamicAttributes[attrId] as any) : [];
-                                                                const newValue = isSelected
-                                                                  ? current.filter((v) => v !== av.value)
-                                                                  : [...current, av.value];
-                                                                setSelectedDynamicAttributes({
-                                                                  ...selectedDynamicAttributes,
-                                                                  [attrId]: newValue
-                                                                });
-                                                                setUserSelectedAttributes(prev => new Set(prev).add(attrId));
-                                                              }}
-                                                              className={`p-4 rounded-xl border text-left transition-all duration-200 relative ${isSelected
-                                                                ? "border-cream-900 bg-cream-50 text-cream-900 ring-1 ring-cream-900"
-                                                                : "border-cream-200 text-cream-600 hover:border-cream-400 hover:bg-cream-50"
-                                                                }`}
-                                                            >
-                                                              {isSelected && (
-                                                                <div className="absolute top-2 right-2">
-                                                                  <Check size={18} className="text-cream-900" />
-                                                                </div>
-                                                              )}
-                                                              {av.image && (
-                                                                <div className="mb-2">
-                                                                  <img
-                                                                    src={av.image}
-                                                                    alt={av.label}
-                                                                    className="w-full h-32 object-cover rounded-lg border border-cream-200"
-                                                                  />
-                                                                </div>
-                                                              )}
-                                                              <div className="font-bold text-sm">{av.label}</div>
-                                                              {getPriceDisplay() && (
-                                                                <div className="text-xs text-cream-600 mt-1">
-                                                                  {getPriceDisplay()}
-                                                                </div>
-                                                              )}
-                                                            </button>
-                                                          );
-                                                        })
-                                                    )}
-                                                  </div>
-                                                )}
-
-                                                {attrType.inputStyle === 'TEXT_FIELD' && (
-                                                  <div data-attribute={attrId}>
-                                                    <input
-                                                      type="text"
-                                                      value={(selectedDynamicAttributes[attrId] as string) || ""}
-                                                      onChange={(e) => {
-                                                        setSelectedDynamicAttributes({
-                                                          ...selectedDynamicAttributes,
-                                                          [attrId]: e.target.value
-                                                        });
-                                                        setUserSelectedAttributes(prev => new Set(prev).add(attrId));
-                                                      }}
-                                                      placeholder={`Enter ${attrType.attributeName}`}
-                                                      className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
-                                                    />
-                                                  </div>
-                                                )}
-
-                                                {attrType.inputStyle === 'NUMBER' && (
-                                                  <div data-attribute={attrId}>
-                                                    <input
-                                                      type="number"
-                                                      value={(selectedDynamicAttributes[attrId] as number) || ""}
-                                                      onChange={(e) => {
-                                                        setSelectedDynamicAttributes({
-                                                          ...selectedDynamicAttributes,
-                                                          [attrId]: parseFloat(e.target.value) || 0
-                                                        });
-                                                        setUserSelectedAttributes(prev => new Set(prev).add(attrId));
-                                                      }}
-                                                      placeholder={`Enter ${attrType.attributeName}`}
-                                                      className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
-                                                    />
-                                                  </div>
-                                                )}
-
-                                                {attrType.inputStyle === 'FILE_UPLOAD' && (
-                                                  <div data-attribute={attrId}>
-                                                    <input
-                                                      type="file"
-                                                      onChange={(e) => {
-                                                        const file = e.target.files?.[0] || null;
-                                                        setSelectedDynamicAttributes({
-                                                          ...selectedDynamicAttributes,
-                                                          [attrId]: file
-                                                        });
-                                                        if (file) {
+                                                            if (!priceDisplay && av.priceMultiplier && av.priceMultiplier !== 1 && selectedProduct) {
+                                                              const basePrice = selectedProduct.basePrice || 0;
+                                                              const pricePerUnit = basePrice * (av.priceMultiplier - 1);
+                                                              if (Math.abs(pricePerUnit) >= 0.01) {
+                                                                priceDisplay = ` (+₹${pricePerUnit.toFixed(2)}/unit)`;
+                                                              }
+                                                            }
+                                                            return {
+                                                              value: av.value,
+                                                              label: `${av.label}${priceDisplay}`
+                                                            };
+                                                          })}
+                                                        value={selectedDynamicAttributes[attrId] as string || ""}
+                                                        onValueChange={(value) => {
+                                                          setSelectedDynamicAttributes({
+                                                            ...selectedDynamicAttributes,
+                                                            [attrId]: value
+                                                          });
                                                           setUserSelectedAttributes(prev => new Set(prev).add(attrId));
-                                                        }
-                                                      }}
-                                                      className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
-                                                      accept="*/*"
-                                                    />
-                                                    {attrType.fileRequirements && (
-                                                      <p className="text-xs text-cream-600 mt-1">{attrType.fileRequirements}</p>
-                                                    )}
-                                                  </div>
-                                                )}
-                                              </div>
-                                            );
-                                          })}
-                                        </>
-                                      ) : null;
-                                    })()}
+                                                        }}
+                                                        placeholder={`Select ${attrType.attributeName}`}
+                                                        className="w-full"
+                                                      />
 
-                                    {hasPermission && (
-                                      <BulkOrderToggle
-                                        orderMode={orderMode}
-                                        setOrderMode={setOrderMode}
-                                        setShowBulkWizard={setShowBulkWizard}
-                                      />
-                                    )}
+                                                      {availableSubAttributes.length > 0 && (
+                                                        <div className="mt-4">
+                                                          <label className="block text-xs font-semibold text-cream-700 mb-2">
+                                                            Select {selectedValueObj?.label || attrType.attributeName} Option:
+                                                          </label>
+                                                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                                            {availableSubAttributes.map((subAttr) => {
+                                                              const getSubAttrPriceDisplay = () => {
+                                                                if (!subAttr.priceAdd || subAttr.priceAdd === 0) return null;
+                                                                return `+₹${subAttr.priceAdd.toFixed(2)}/piece`;
+                                                              };
 
-                                    {orderMode === 'single' && (
-                                      <>
-                                        <div className="mb-6 sm:mb-8 bg-cream-50 p-4 sm:p-6 rounded-xl border border-cream-200" data-upload-section>
-                                          <h3 className="font-bold text-sm sm:text-base text-cream-900 mb-3 sm:mb-4 flex items-center gap-2">
-                                            <UploadIcon size={16} className="sm:w-[18px] sm:h-[18px]" /> Upload Your Design
-                                          </h3>
+                                                              const subAttrKey = `${attrId}__${selectedValue}`;
+                                                              const isSubAttrSelected = selectedDynamicAttributes[subAttrKey] === subAttr.value;
 
-                                          <div className="mb-4">
-                                            <label className="block text-sm text-cream-700 mb-2">Upload Reference Image *</label>
-                                            <label className="cursor-pointer">
-                                              <input
-                                                type="file"
-                                                accept="image/*"
-                                                onChange={(e) => handleDesignFileChange(e, "front")}
-                                                className="hidden"
-                                                data-required-field
-                                              />
-                                              <div className="border-2 border-dashed border-cream-300 rounded-lg p-4 text-center hover:border-cream-900 transition-colors">
-                                                {frontDesignPreview ? (
-                                                  <div className="relative">
-                                                    <img
-                                                      src={frontDesignPreview}
-                                                      alt="Reference image preview"
-                                                      className="max-h-32 mx-auto rounded"
-                                                    />
-                                                    <button
-                                                      onClick={(e) => {
-                                                        e.preventDefault();
-                                                        setFrontDesignFile(null);
-                                                        setFrontDesignPreview("");
-                                                      }}
-                                                      className="absolute top-0 right-0 bg-red-500 text-white rounded-full p-1"
-                                                    >
-                                                      <X size={14} />
-                                                    </button>
-                                                  </div>
-                                                ) : (
-                                                  <div className="flex flex-col items-center gap-2">
-                                                    <FileImage size={24} className="text-cream-600" />
-                                                    <span className="text-sm text-cream-600">Click to upload reference image</span>
-                                                  </div>
-                                                )}
-                                              </div>
-                                            </label>
-                                          </div>
+                                                              return (
+                                                                <button
+                                                                  key={subAttr._id}
+                                                                  type="button"
+                                                                  onClick={() => {
+                                                                    setSelectedDynamicAttributes((prev) => ({
+                                                                      ...prev,
+                                                                      [subAttrKey]: subAttr.value,
+                                                                    }));
+                                                                  }}
+                                                                  className={`p-3 rounded-lg border text-left transition-all ${isSubAttrSelected
+                                                                    ? "border-cream-900 bg-cream-50 ring-1 ring-cream-900"
+                                                                    : "border-cream-200 hover:border-cream-400"
+                                                                    }`}
+                                                                >
+                                                                  {subAttr.image && (
+                                                                    <div className="mb-2">
+                                                                      <img
+                                                                        src={subAttr.image}
+                                                                        alt={subAttr.label}
+                                                                        className="w-full h-24 object-cover rounded"
+                                                                      />
+                                                                    </div>
+                                                                  )}
+                                                                  <div className="text-sm font-medium">{subAttr.label}</div>
+                                                                  {getSubAttrPriceDisplay() && (
+                                                                    <div className="text-xs text-cream-600 mt-1">
+                                                                      {getSubAttrPriceDisplay()}
+                                                                    </div>
+                                                                  )}
+                                                                </button>
+                                                              );
+                                                            })}
+                                                          </div>
+                                                        </div>
+                                                      )}
 
-                                          <div className="mb-4">
-                                            <label className="block text-sm text-cream-700 mb-2">Back Design (Optional)</label>
-                                            <label className="cursor-pointer">
-                                              <input
-                                                type="file"
-                                                accept="image/*"
-                                                onChange={(e) => handleDesignFileChange(e, "back")}
-                                                className="hidden"
-                                              />
-                                              <div className="border-2 border-dashed border-cream-300 rounded-lg p-4 text-center hover:border-cream-900 transition-colors">
-                                                {backDesignPreview ? (
-                                                  <div className="relative">
-                                                    <img
-                                                      src={backDesignPreview}
-                                                      alt="Back design preview"
-                                                      className="max-h-32 mx-auto rounded"
-                                                    />
-                                                    <button
-                                                      onClick={(e) => {
-                                                        e.preventDefault();
-                                                        setBackDesignFile(null);
-                                                        setBackDesignPreview("");
-                                                      }}
-                                                      className="absolute top-0 right-0 bg-red-500 text-white rounded-full p-1"
-                                                    >
-                                                      <X size={14} />
-                                                    </button>
-                                                  </div>
-                                                ) : (
-                                                  <div className="flex flex-col items-center gap-2">
-                                                    <FileImage size={24} className="text-cream-600" />
-                                                    <span className="text-sm text-cream-600">Click to upload back design</span>
-                                                  </div>
-                                                )}
-                                              </div>
-                                            </label>
-                                          </div>
+                                                      {(() => {
+                                                        const selectedValue = selectedDynamicAttributes[attrId];
+                                                        if (!selectedValue) return null;
 
-                                          <div className="mb-4">
-                                            <label className="block text-sm text-cream-700 mb-2">Additional Notes (Optional)</label>
-                                            <textarea
-                                              value={orderNotes}
-                                              onChange={(e) => setOrderNotes(e.target.value)}
-                                              placeholder="Any special instructions or notes..."
-                                              className="w-full p-3 rounded-lg border border-cream-300 focus:ring-2 focus:ring-cream-900 focus:border-transparent outline-none text-sm resize-none"
-                                              rows={3}
-                                            />
-                                          </div>
-                                        </div>
+                                                        const selectedOption = attributeValues.find((av) => av.value === selectedValue);
+                                                        if (!selectedOption || !selectedOption.description) return null;
 
-                                        <div className="mt-4 pt-4 border-t border-cream-100">
-                                          <button
-                                            onClick={handlePlaceOrder}
-                                            disabled={isProcessingPayment}
-                                            className={`w-full py-4 sm:py-5 md:py-6 rounded-xl font-bold text-lg sm:text-xl md:text-2xl transition-all shadow-xl hover:shadow-2xl hover:-translate-y-1 flex items-center justify-center gap-3 min-h-[60px] sm:min-h-[70px] ${isProcessingPayment
-                                              ? 'bg-cream-400 text-cream-700 cursor-not-allowed opacity-60'
-                                              : 'bg-cream-900 text-cream-50 hover:bg-cream-800 active:bg-cream-700 cursor-pointer opacity-100'
-                                              }`}
-                                          >
-                                            {isProcessingPayment ? (
-                                              <>
-                                                <Loader className="animate-spin" size={24} />
-                                                <span>Processing Payment...</span>
-                                              </>
-                                            ) : (
-                                              <>
-                                                <Check size={24} />
-                                                <span>Place Order</span>
-                                              </>
-                                            )}
-                                          </button>
+                                                        const imagesRequiredMatch = selectedOption.description.match(/Images Required: (\d+)/);
+                                                        const numberOfImagesRequired = imagesRequiredMatch ? parseInt(imagesRequiredMatch[1]) : 0;
 
-                                          <div className="mt-4 text-center text-xs text-cream-500 flex items-center justify-center gap-2">
-                                            <CreditCard size={14} /> Secure Payment & Data Protection
-                                          </div>
-                                        </div>
+                                                        if (numberOfImagesRequired <= 0) return null;
+
+                                                        const imagesKey = `${attrId}_images`;
+                                                        const uploadedImages = Array.isArray(selectedDynamicAttributes[imagesKey])
+                                                          ? (selectedDynamicAttributes[imagesKey] as File[])
+                                                          : [];
+
+                                                        return (
+                                                          <div className="mt-4 p-4 bg-cream-50 rounded-lg border border-cream-200">
+                                                            <label className="block text-sm font-semibold text-cream-900 mb-3">
+                                                              Upload Images for {selectedOption.label} ({numberOfImagesRequired} required) *
+                                                            </label>
+                                                            <div className="space-y-3">
+                                                              {Array.from({ length: numberOfImagesRequired }).map((_, index) => {
+                                                                const file = uploadedImages[index] || null;
+                                                                return (
+                                                                  <div key={index} className="flex items-center gap-3">
+                                                                    <input
+                                                                      type="file"
+                                                                      accept="image/*"
+                                                                      data-image-index={index}
+                                                                      data-attr-id={attrId}
+                                                                      onChange={(e) => {
+                                                                        const newFile = e.target.files?.[0] || null;
+                                                                        if (newFile) {
+                                                                          const updatedImages = [...uploadedImages];
+                                                                          while (updatedImages.length <= index) {
+                                                                            updatedImages.push(null as any);
+                                                                          }
+                                                                          updatedImages[index] = newFile;
+                                                                          setSelectedDynamicAttributes({
+                                                                            ...selectedDynamicAttributes,
+                                                                            [imagesKey]: updatedImages
+                                                                          });
+                                                                        }
+                                                                      }}
+                                                                      className="flex-1 px-3 py-2 border border-cream-300 rounded-lg text-sm"
+                                                                    />
+                                                                    {file && (
+                                                                      <div className="flex items-center gap-2">
+                                                                        <span className="text-xs text-cream-600 max-w-[150px] truncate">
+                                                                          {file.name}
+                                                                        </span>
+                                                                        <button
+                                                                          type="button"
+                                                                          onClick={() => {
+                                                                            const updatedImages = [...uploadedImages];
+                                                                            updatedImages[index] = null as any;
+                                                                            setSelectedDynamicAttributes({
+                                                                              ...selectedDynamicAttributes,
+                                                                              [imagesKey]: updatedImages
+                                                                            });
+                                                                            const fileInput = document.querySelector(`input[type="file"][data-image-index="${index}"][data-attr-id="${attrId}"]`) as HTMLInputElement;
+                                                                            if (fileInput) {
+                                                                              fileInput.value = '';
+                                                                            }
+                                                                          }}
+                                                                          className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
+                                                                          title="Remove image"
+                                                                        >
+                                                                          <X size={16} />
+                                                                        </button>
+                                                                      </div>
+                                                                    )}
+                                                                  </div>
+                                                                );
+                                                              })}
+                                                            </div>
+                                                            {uploadedImages.length < numberOfImagesRequired && (
+                                                              <p className="text-xs text-red-600 mt-2">
+                                                                Please upload {numberOfImagesRequired - uploadedImages.length} more image(s)
+                                                              </p>
+                                                            )}
+                                                          </div>
+                                                        );
+                                                      })()}
+                                                    </>
+                                                  )}
+                                                </div>
+                                              )}
+
+                                              {attrType.inputStyle === 'RADIO' && (
+                                                <div data-attribute={attrId}>
+                                                  {attributeValues.length === 0 ? (
+                                                    <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                                                      <p className="text-sm text-yellow-800">
+                                                        No options available for this attribute. Please contact support.
+                                                      </p>
+                                                    </div>
+                                                  ) : (
+                                                    <>
+                                                      <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                          const filteredValues = attributeValues.filter((av) => av && av.value && av.label);
+                                                          setRadioModalData({
+                                                            attributeId: attrId,
+                                                            attributeName: attrType.attributeName,
+                                                            attributeValues: filteredValues,
+                                                            selectedValue: (selectedDynamicAttributes[attrId] as string) || null,
+                                                            isRequired: isRequired,
+                                                          });
+                                                          setRadioModalOpen(true);
+                                                        }}
+                                                        className="w-full px-4 py-3 border-2 border-dashed border-cream-300 rounded-xl hover:border-cream-400 hover:bg-cream-50 transition-all duration-200 text-left flex items-center justify-between group"
+                                                      >
+                                                        <div className="flex-1">
+                                                          <span className="text-sm font-medium text-cream-700 group-hover:text-cream-900">
+                                                            {selectedDynamicAttributes[attrId]
+                                                              ? attributeValues.find((av) => av.value === selectedDynamicAttributes[attrId])?.label || 'Select option'
+                                                              : `Select ${attrType.attributeName}${isRequired ? ' *' : ''}`
+                                                            }
+                                                          </span>
+                                                          {selectedDynamicAttributes[attrId] && (
+                                                            <div className="text-xs text-cream-500 mt-1">
+                                                              Click to change selection
+                                                            </div>
+                                                          )}
+                                                        </div>
+                                                        <ArrowRight size={18} className="text-cream-400 group-hover:text-cream-600 transition-colors" />
+                                                      </button>
+
+                                                      {(() => {
+                                                        const selectedValue = selectedDynamicAttributes[attrId];
+                                                        if (!selectedValue) return null;
+
+                                                        const selectedOption = attributeValues.find((av) => av.value === selectedValue);
+                                                        if (!selectedOption || !selectedOption.description) return null;
+
+                                                        const imagesRequiredMatch = selectedOption.description.match(/Images Required: (\d+)/);
+                                                        const numberOfImagesRequired = imagesRequiredMatch ? parseInt(imagesRequiredMatch[1]) : 0;
+
+                                                        if (numberOfImagesRequired <= 0) return null;
+
+                                                        const imagesKey = `${attrId}_images`;
+                                                        const uploadedImages = Array.isArray(selectedDynamicAttributes[imagesKey])
+                                                          ? (selectedDynamicAttributes[imagesKey] as File[])
+                                                          : [];
+
+                                                        return (
+                                                          <div className="mt-4 p-4 bg-cream-50 rounded-lg border border-cream-200">
+                                                            <label className="block text-sm font-semibold text-cream-900 mb-3">
+                                                              Upload Images for {selectedOption.label} ({numberOfImagesRequired} required) *
+                                                            </label>
+                                                            <div className="space-y-3">
+                                                              {Array.from({ length: numberOfImagesRequired }).map((_, index) => {
+                                                                const file = uploadedImages[index] || null;
+                                                                return (
+                                                                  <div key={index} className="flex items-center gap-3">
+                                                                    <input
+                                                                      type="file"
+                                                                      accept="image/*"
+                                                                      data-image-index={index}
+                                                                      data-attr-id={attrId}
+                                                                      onChange={(e) => {
+                                                                        const newFile = e.target.files?.[0] || null;
+                                                                        if (newFile) {
+                                                                          const updatedImages = [...uploadedImages];
+                                                                          while (updatedImages.length <= index) {
+                                                                            updatedImages.push(null as any);
+                                                                          }
+                                                                          updatedImages[index] = newFile;
+                                                                          setSelectedDynamicAttributes({
+                                                                            ...selectedDynamicAttributes,
+                                                                            [imagesKey]: updatedImages
+                                                                          });
+                                                                        }
+                                                                      }}
+                                                                      className="flex-1 px-3 py-2 border border-cream-300 rounded-lg text-sm"
+                                                                    />
+                                                                    {file && (
+                                                                      <div className="flex items-center gap-2">
+                                                                        <span className="text-xs text-cream-600 max-w-[150px] truncate">
+                                                                          {file.name}
+                                                                        </span>
+                                                                        <button
+                                                                          type="button"
+                                                                          onClick={() => {
+                                                                            const updatedImages = [...uploadedImages];
+                                                                            updatedImages[index] = null as any;
+                                                                            setSelectedDynamicAttributes({
+                                                                              ...selectedDynamicAttributes,
+                                                                              [imagesKey]: updatedImages
+                                                                            });
+                                                                            const fileInput = document.querySelector(`input[type="file"][data-image-index="${index}"][data-attr-id="${attrId}"]`) as HTMLInputElement;
+                                                                            if (fileInput) {
+                                                                              fileInput.value = '';
+                                                                            }
+                                                                          }}
+                                                                          className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
+                                                                          title="Remove image"
+                                                                        >
+                                                                          <X size={16} />
+                                                                        </button>
+                                                                      </div>
+                                                                    )}
+                                                                  </div>
+                                                                );
+                                                              })}
+                                                            </div>
+                                                            {uploadedImages.length < numberOfImagesRequired && (
+                                                              <p className="text-xs text-red-600 mt-2">
+                                                                Please upload {numberOfImagesRequired - uploadedImages.length} more image(s)
+                                                              </p>
+                                                            )}
+                                                          </div>
+                                                        );
+                                                      })()}
+                                                    </>
+                                                  )}
+                                                </div>
+                                              )}
+
+                                              {attrType.inputStyle === 'CHECKBOX' && (
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3" data-attribute={attrId}>
+                                                  {attributeValues.length === 0 ? (
+                                                    <div className="col-span-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                                                      <p className="text-sm text-yellow-800">
+                                                        No options available for this attribute. Please contact support.
+                                                      </p>
+                                                    </div>
+                                                  ) : (
+                                                    attributeValues
+                                                      .filter((av) => av && av.value && av.label)
+                                                      .map((av) => {
+                                                        const getPriceDisplay = () => {
+                                                          if (av.description) {
+                                                            const priceImpactMatch = av.description.match(/Price Impact: ₹([\d.]+)/);
+                                                            if (priceImpactMatch) {
+                                                              const priceImpact = parseFloat(priceImpactMatch[1]) || 0;
+                                                              if (priceImpact > 0) {
+                                                                return `+₹${priceImpact.toFixed(2)}/unit`;
+                                                              }
+                                                            }
+                                                          }
+                                                          if (!av.priceMultiplier || av.priceMultiplier === 1 || !selectedProduct) return null;
+                                                          const basePrice = selectedProduct.basePrice || 0;
+                                                          const pricePerUnit = basePrice * (av.priceMultiplier - 1);
+                                                          if (Math.abs(pricePerUnit) < 0.01) return null;
+                                                          return `+₹${pricePerUnit.toFixed(2)}/unit`;
+                                                        };
+
+                                                        const isSelected = Array.isArray(selectedDynamicAttributes[attrId]) && (selectedDynamicAttributes[attrId] as any).includes(av.value);
+
+                                                        return (
+                                                          <button
+                                                            key={av.value}
+                                                            type="button"
+                                                            onClick={() => {
+                                                              const current = Array.isArray(selectedDynamicAttributes[attrId]) ? (selectedDynamicAttributes[attrId] as any) : [];
+                                                              const newValue = isSelected
+                                                                ? current.filter((v: any) => v !== av.value)
+                                                                : [...current, av.value];
+                                                              setSelectedDynamicAttributes({
+                                                                ...selectedDynamicAttributes,
+                                                                [attrId]: newValue
+                                                              });
+                                                              setUserSelectedAttributes(prev => new Set(prev).add(attrId));
+                                                            }}
+                                                            className={`p-4 rounded-xl border text-left transition-all duration-200 relative ${isSelected
+                                                              ? "border-cream-900 bg-cream-50 text-cream-900 ring-1 ring-cream-900"
+                                                              : "border-cream-200 text-cream-600 hover:border-cream-400 hover:bg-cream-50"
+                                                              }`}
+                                                          >
+                                                            {isSelected && (
+                                                              <div className="absolute top-2 right-2">
+                                                                <Check size={18} className="text-cream-900" />
+                                                              </div>
+                                                            )}
+                                                            {av.image && (
+                                                              <div className="mb-2">
+                                                                <img
+                                                                  src={av.image}
+                                                                  alt={av.label}
+                                                                  className="w-full h-32 object-cover rounded-lg border border-cream-200"
+                                                                />
+                                                              </div>
+                                                            )}
+                                                            <div className="font-bold text-sm">{av.label}</div>
+                                                            {getPriceDisplay() && (
+                                                              <div className="text-xs text-cream-600 mt-1">
+                                                                {getPriceDisplay()}
+                                                              </div>
+                                                            )}
+                                                          </button>
+                                                        );
+                                                      })
+                                                  )}
+                                                </div>
+                                              )}
+
+                                              {attrType.inputStyle === 'TEXT_FIELD' && (
+                                                <div data-attribute={attrId}>
+                                                  <input
+                                                    type="text"
+                                                    value={(selectedDynamicAttributes[attrId] as string) || ""}
+                                                    onChange={(e) => {
+                                                      setSelectedDynamicAttributes({
+                                                        ...selectedDynamicAttributes,
+                                                        [attrId]: e.target.value
+                                                      });
+                                                      setUserSelectedAttributes(prev => new Set(prev).add(attrId));
+                                                    }}
+                                                    placeholder={`Enter ${attrType.attributeName}`}
+                                                    className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
+                                                  />
+                                                </div>
+                                              )}
+
+                                              {attrType.inputStyle === 'NUMBER' && (
+                                                <div data-attribute={attrId}>
+                                                  <input
+                                                    type="number"
+                                                    value={(selectedDynamicAttributes[attrId] as number) || ""}
+                                                    onChange={(e) => {
+                                                      setSelectedDynamicAttributes({
+                                                        ...selectedDynamicAttributes,
+                                                        [attrId]: parseFloat(e.target.value) || 0
+                                                      });
+                                                      setUserSelectedAttributes(prev => new Set(prev).add(attrId));
+                                                    }}
+                                                    placeholder={`Enter ${attrType.attributeName}`}
+                                                    className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
+                                                  />
+                                                </div>
+                                              )}
+
+                                              {attrType.inputStyle === 'FILE_UPLOAD' && (
+                                                <div data-attribute={attrId}>
+                                                  <input
+                                                    type="file"
+                                                    onChange={(e) => {
+                                                      const file = e.target.files?.[0] || null;
+                                                      setSelectedDynamicAttributes({
+                                                        ...selectedDynamicAttributes,
+                                                        [attrId]: file
+                                                      });
+                                                      if (file) {
+                                                        setUserSelectedAttributes(prev => new Set(prev).add(attrId));
+                                                      }
+                                                    }}
+                                                    className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
+                                                    accept="*/*"
+                                                  />
+                                                  {attrType.fileRequirements && (
+                                                    <p className="text-xs text-cream-600 mt-1">{attrType.fileRequirements}</p>
+                                                  )}
+                                                </div>
+                                              )}
+                                            </div>
+                                          );
+                                        })}
                                       </>
-                                    )}
-                                  </>
-                                );
-                              })()}
-                            </>
-                          ) : (
-                            // Bulk Upload Mode Placeholder
-                            <div className="text-center py-16 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl border-2 border-dashed border-blue-200 mt-8">
-                              <div className="max-w-md mx-auto">
-                                <div className="w-20 h-20 mx-auto mb-6 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg">
-                                  <UploadIcon className="w-10 h-10 text-white" />
-                                </div>
-                                <h3 className="text-2xl font-bold text-blue-900 mb-3">
-                                  Bulk Upload Mode Active
-                                </h3>
-                                <p className="text-sm text-blue-700 mb-6 leading-relaxed">
-                                  The bulk upload wizard will guide you through uploading 1-50 unique designs in a single PDF file.
-                                  Each design will be automatically split and processed as a separate order.
-                                </p>
-                                <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                                  <button
-                                    onClick={() => setShowBulkWizard(true)}
-                                    className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg font-semibold shadow-md hover:shadow-lg transition-all"
-                                  >
-                                    Open Bulk Upload Wizard
-                                  </button>
-                                  <button
-                                    onClick={() => setOrderMode('single')}
-                                    className="px-6 py-3 bg-white text-blue-700 border border-blue-300 rounded-lg font-semibold hover:bg-blue-50 transition-all"
-                                  >
-                                    Back to Single Order
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
-                          )}
+                                    ) : null;
+                                  })()}
+
+                                  {hasPermission && (
+                                    <BulkOrderToggle
+                                      orderMode={orderMode}
+                                      setOrderMode={setOrderMode}
+                                      setShowBulkWizard={setShowBulkWizard}
+                                    />
+                                  )}
+
+                                  {orderMode === 'single' && (
+                                    <>
+                                      <div className="mt-4 pt-4 border-t border-cream-100">
+                                        <button
+                                          onClick={handlePlaceOrder}
+                                          disabled={isProcessingPayment}
+                                          className={`w-full py-4 sm:py-5 md:py-6 rounded-xl font-bold text-lg sm:text-xl md:text-2xl transition-all shadow-xl hover:shadow-2xl hover:-translate-y-1 flex items-center justify-center gap-3 min-h-[60px] sm:min-h-[70px] ${isProcessingPayment
+                                            ? 'bg-cream-400 text-cream-700 cursor-not-allowed opacity-60'
+                                            : 'bg-cream-900 text-cream-50 hover:bg-cream-800 active:bg-cream-700 cursor-pointer opacity-100'
+                                            }`}
+                                        >
+                                          {isProcessingPayment ? (
+                                            <>
+                                              <Loader className="animate-spin" size={24} />
+                                              <span>Processing Payment...</span>
+                                            </>
+                                          ) : (
+                                            <>
+                                              <Check size={24} />
+                                              <span>Place Order</span>
+                                            </>
+                                          )}
+                                        </button>
+
+                                        <div className="mt-4 text-center text-xs text-cream-500 flex items-center justify-center gap-2">
+                                          <CreditCard size={14} /> Secure Payment & Data Protection
+                                        </div>
+                                      </div>
+                                    </>
+                                  )}
+                                </>
+                              );
+                            })()}
+                          </>
                         </div>
                       </motion.div>
                     </AnimatePresence>
@@ -4672,7 +4533,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
         setAddress={setAddress}
         mobileNumber={mobileNumber}
         setMobileNumber={setMobileNumber}
-        estimatedDeliveryDate={estimatedDeliveryDate}
+        estimatedDeliveryDate={estimatedDeliveryDate || undefined}
         deliveryLocationSource={deliveryLocationSource}
         onGetLocation={handleGetLocation}
         isGettingLocation={isGettingLocation}
@@ -5042,6 +4903,23 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
               setOrderMode('single');
             }}
             productId={selectedProduct._id}
+            productName={selectedProduct.name}
+            selectedQuantity={quantity}
+            unitPrice={price}
+            totalPrice={subtotal + gstAmount}
+            uploadFields={
+              // Default to 2 (front + back) for most printing products
+              // This could be enhanced later with product-specific configuration
+              2
+            }
+            selectedAttributes={{
+              PrintingOption: selectedPrintingOption,
+              productOptions: selectedProductOptions,
+              DeliverySpeed: selectedDeliverySpeed,
+              TextureType: selectedTextureType,
+              dynamicAttributes: selectedDynamicAttributes,
+              quantity: quantity,
+            }}
             onSuccess={(bulkOrderId) => {
               console.log('Bulk order created:', bulkOrderId);
               setShowBulkWizard(false);

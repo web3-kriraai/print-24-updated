@@ -1,4 +1,3 @@
-import UserType from "../models/UserType.js";
 
 /**
  * Feature-based access control middleware
@@ -22,7 +21,7 @@ export const requireFeature = (featureKey, options = {}) => {
                 });
             }
 
-            // Get user's userSegment
+            // Get user's userSegment and featureOverrides
             const userId = req.user.id;
             const { User } = await import("../models/User.js");
 
@@ -35,6 +34,35 @@ export const requireFeature = (featureKey, options = {}) => {
                 });
             }
 
+            // PRIORITY 1: Check user override first
+            const userOverride = user.featureOverrides?.find(f => f.featureKey === featureKey);
+
+            if (userOverride) {
+                // User has an override - use it
+                if (!userOverride.isEnabled) {
+                    return res.status(403).json({
+                        success: false,
+                        message: `Access denied: Feature '${featureKey}' is disabled for your account`,
+                        requiredFeature: featureKey,
+                        source: 'user_override'
+                    });
+                }
+
+                // User override allows access
+                if (options.attachConfig) {
+                    req.featureConfig = userOverride.config || {};
+                }
+
+                req.feature = {
+                    key: featureKey,
+                    config: userOverride.config || {},
+                    source: 'user_override'
+                };
+
+                return next();
+            }
+
+            // PRIORITY 2: No user override - check segment features
             // If no userSegment assigned, deny access
             if (!user.userSegment) {
                 return res.status(403).json({
@@ -57,6 +85,7 @@ export const requireFeature = (featureKey, options = {}) => {
                     message: `Access denied: Feature '${featureKey}' not available for your account type`,
                     requiredFeature: featureKey,
                     userSegment: userSegment.name,
+                    source: 'segment'
                 });
             }
 
@@ -70,6 +99,7 @@ export const requireFeature = (featureKey, options = {}) => {
                 key: featureKey,
                 config: feature.config || {},
                 userSegment: userSegment.name,
+                source: 'segment'
             };
 
             next();
@@ -165,6 +195,8 @@ export const checkFeatureEndpoint = async (req, res) => {
     try {
         const { feature } = req.query;
 
+        console.log('[Feature Check] Request received:', { feature, userId: req.user?.id });
+
         if (!feature) {
             return res.status(400).json({
                 success: false,
@@ -173,6 +205,7 @@ export const checkFeatureEndpoint = async (req, res) => {
         }
 
         if (!req.user || !req.user.id) {
+            console.log('[Feature Check] No user found in request');
             return res.status(401).json({
                 success: false,
                 message: "Authentication required",
@@ -182,7 +215,15 @@ export const checkFeatureEndpoint = async (req, res) => {
         const { User } = await import("../models/User.js");
         const user = await User.findById(req.user.id).populate("userSegment");
 
+        console.log('[Feature Check] User loaded:', {
+            userId: user?._id,
+            userSegment: user?.userSegment?.name,
+            hasSegment: !!user?.userSegment,
+            segmentFeatures: user?.userSegment?.features?.map(f => ({ key: f.featureKey, enabled: f.isEnabled }))
+        });
+
         if (!user || !user.userSegment) {
+            console.log('[Feature Check] No user or no segment');
             return res.json({
                 success: true,
                 hasFeature: false,
@@ -190,9 +231,37 @@ export const checkFeatureEndpoint = async (req, res) => {
             });
         }
 
+        // IMPORTANT: Check user overrides first
+        const userOverride = user.featureOverrides?.find(f => f.featureKey === feature);
+
+        if (userOverride) {
+            console.log('[Feature Check] User override found:', {
+                feature,
+                isEnabled: userOverride.isEnabled,
+                source: 'user_override'
+            });
+
+            return res.json({
+                success: true,
+                hasFeature: userOverride.isEnabled,
+                feature: feature,
+                config: userOverride.config || null,
+                userSegment: user.userSegment.name,
+                source: 'user_override'
+            });
+        }
+
         const featureObj = (user.userSegment.features || []).find(
             (f) => f.featureKey === feature && f.isEnabled === true
         );
+
+        console.log('[Feature Check] Segment feature check result:', {
+            feature,
+            found: !!featureObj,
+            hasFeature: !!featureObj,
+            userSegment: user.userSegment.name,
+            source: 'segment'
+        });
 
         return res.json({
             success: true,
@@ -200,9 +269,10 @@ export const checkFeatureEndpoint = async (req, res) => {
             feature: feature,
             config: featureObj?.config || null,
             userSegment: user.userSegment.name,
+            source: 'segment'
         });
     } catch (error) {
-        console.error("Check feature endpoint error:", error);
+        console.error("[Feature Check] Error:", error);
         return res.status(500).json({
             success: false,
             message: "Error checking feature",
