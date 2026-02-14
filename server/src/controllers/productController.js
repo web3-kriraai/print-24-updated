@@ -4,6 +4,7 @@ import SubCategory from "../models/subcategoryModal.js";
 import cloudinary from "../config/cloudinary.js";
 import streamifier from "streamifier";
 import Service from "../models/serviceModal.js";
+import mongoose from "mongoose";
 
 export const createProduct = async (req, res) => {
   try {
@@ -384,10 +385,94 @@ export const createProduct = async (req, res) => {
   }
 };
 
+// Toggle product status (Active/Inactive)
+export const toggleProductStatus = async (req, res) => {
+  try {
+    const productId = req.params.id;
+    
+    if (!productId) {
+      return res.status(400).json({ error: "Product ID is required" });
+    }
+
+    const product = await Product.findById(productId);
+    
+    if (!product) {
+      return res.status(404).json({ error: "Product not found" });
+    }
+
+    // Toggle status - use findByIdAndUpdate
+    const updatedProduct = await Product.findByIdAndUpdate(
+      productId,
+      // Toggle value logic: we need the current value. 
+      // Since we already fetched 'product', we know its current state.
+      { isActive: !product.isActive },
+      { new: true }
+    );
+
+    return res.json({
+      success: true,
+      message: `Product ${updatedProduct.isActive ? 'activated' : 'deactivated'} successfully`,
+      data: updatedProduct
+    });
+  } catch (err) {
+    console.error("Error toggling product status:", err);
+    return res.status(500).json({ error: err.message });
+  }
+};
+
+// Restore soft-deleted product
+export const restoreProduct = async (req, res) => {
+  try {
+    const productId = req.params.id;
+    
+    if (!productId) {
+      return res.status(400).json({ error: "Product ID is required" });
+    }
+
+    const product = await Product.findById(productId);
+    
+    if (!product) {
+      return res.status(404).json({ error: "Product not found" });
+    }
+
+    // Restore product - use findByIdAndUpdate to avoid validation errors on legacy data
+    const restored = await Product.findByIdAndUpdate(
+      productId,
+      { isDeleted: false, isActive: true },
+      { new: true } // Return updated doc
+    );
+
+    return res.json({
+      success: true,
+      message: "Product restored successfully",
+      data: restored
+    });
+  } catch (err) {
+    console.error("Error restoring product:", err);
+    return res.status(500).json({ error: err.message });
+  }
+};
+
 // GET all products
 export const getAllProducts = async (req, res) => {
   try {
-    const list = await Product.find()
+    // Check for query parameter to include deleted products (for admin view)
+    const showDeleted = req.query.includeDeleted === 'true';
+    const deletedOnly = req.query.deletedOnly === 'true';
+    
+    // Base query logic:
+    // 1. deletedOnly=true -> Show ONLY deleted products
+    // 2. includeDeleted=true -> Show ALL products (deleted + active)
+    // 3. Default -> Show ONLY active (non-deleted) products
+    let query = { isDeleted: { $ne: true } };
+
+    if (deletedOnly) {
+      query = { isDeleted: true };
+    } else if (showDeleted) {
+      query = {};
+    }
+
+    const list = await Product.find(query)
       .populate({
         path: "category",
         select: "_id name description image type parent slug",
@@ -475,9 +560,9 @@ export const getSingleProduct = async (req, res) => {
 
     let item;
     if (isObjectId) {
-      // Try to find by ID first
+      // Try to find by ID first, excluding deleted
       console.log("Fetching product with ID:", productId);
-      item = await Product.findById(productId)
+      item = await Product.findOne({ _id: productId, isDeleted: { $ne: true } })
         .populate({
           path: "category",
           select: "_id name description image type parent slug",
@@ -513,9 +598,9 @@ export const getSingleProduct = async (req, res) => {
           select: "_id name description sequence isEnabled"
         });
     } else {
-      // Not a valid ObjectId format - try to fetch by slug
+      // Not a valid ObjectId format - try to fetch by slug, excluding deleted
       console.log("Fetching product with slug:", productId);
-      item = await Product.findOne({ slug: productId })
+      item = await Product.findOne({ slug: productId, isDeleted: { $ne: true } })
         .populate({
           path: "category",
           select: "_id name description image type parent slug",
@@ -659,7 +744,7 @@ export const getProductsByCategory = async (req, res) => {
 
     if (isSubcategory) {
       // It's a subcategory - find products with this subcategory
-      query = { subcategory: categoryId };
+      query = { subcategory: categoryId, isDeleted: { $ne: true } };
     } else {
       // It's a category - find products directly under this category OR in its subcategories (including nested)
       // Helper function to recursively get all subcategory IDs (including nested ones)
@@ -715,8 +800,14 @@ export const getProductsByCategory = async (req, res) => {
           $or: [
             { subcategory: null },
             { subcategory: { $exists: false } }
-          ]
+          ],
+          isDeleted: { $ne: true }
         };
+      }
+      
+      // Ensure we always filter out deleted products if not already added
+      if (!query.isDeleted) {
+         query.isDeleted = { $ne: true };
       }
     }
 
@@ -841,8 +932,10 @@ export const getProductsBySubcategory = async (req, res) => {
     const allSubcategoryIds = await getAllNestedSubcategoryIds(subcategoryId);
 
     // First priority: Find products where subcategory matches the provided ID or any nested subcategory
+    // Exclude deleted products
     let list = await Product.find({
       subcategory: { $in: allSubcategoryIds },
+      isDeleted: { $ne: true }
     })
       .populate({
         path: "category",
@@ -1360,10 +1453,13 @@ export const updateProduct = async (req, res) => {
   }
 };
 
-// DELETE product
+// DELETE product (Soft Delete)
 export const deleteProduct = async (req, res) => {
   try {
-    const product = await Product.findById(req.params.id);
+    const productId = req.params.id;
+    const forceDelete = req.query.force === 'true'; // Allow permanent delete if requested
+
+    const product = await Product.findById(productId);
 
     if (!product) {
       return res.status(404).json({ error: "Product not found" });
@@ -1371,18 +1467,36 @@ export const deleteProduct = async (req, res) => {
 
     // Remove references from Service collection (Landing Page)
     // We use updateMany with array filters to remove the product from any service titles
+    // Explicitly cast to ObjectId to ensure matching works correctly in $pull
+    const objectIdParam = new mongoose.Types.ObjectId(productId);
+    
     await Service.updateMany(
-      { "titles.items": { $elemMatch: { id: req.params.id, type: 'product' } } },
-      { $pull: { "titles.$[].items": { id: req.params.id, type: 'product' } } }
+      { "titles.items": { $elemMatch: { id: objectIdParam, type: 'product' } } },
+      { $pull: { "titles.$[].items": { id: objectIdParam, type: 'product' } } }
     );
 
-    await Product.findByIdAndDelete(req.params.id);
+    if (forceDelete) {
+      // Permanent delete
+       await Product.findByIdAndDelete(productId);
+       return res.json({
+        success: true,
+        message: "Product permanently deleted successfully",
+      });
+    } else {
+      // Soft delete: isDeleted = true, isActive = false
+      // Use findByIdAndUpdate to avoid validation errors (e.g. missing slug)
+      await Product.findByIdAndUpdate(productId, { 
+        isDeleted: true,
+        isActive: false 
+      });
 
-    return res.json({
-      success: true,
-      message: "Product deleted successfully",
-    });
+      return res.json({
+        success: true,
+        message: "Product moved to trash successfully",
+      });
+    }
   } catch (err) {
+    console.error("Error in deleteProduct:", err); // Log the full error
     if (err.name === 'CastError') {
       return res.status(400).json({ error: "Invalid product ID" });
     }

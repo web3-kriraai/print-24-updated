@@ -41,6 +41,9 @@ export interface Product {
     stock?: number;
     rating?: number;
     salesCount?: number;
+    sortOrder?: number;
+    showAttributePrices?: boolean;
+    isDeleted?: boolean;
 }
 
 interface ManageProductsViewProps {
@@ -49,16 +52,20 @@ interface ManageProductsViewProps {
     productSearchQuery: string;
     setProductSearchQuery: (query: string) => void;
     selectedCategoryFilter: string;
-    setSelectedCategoryFilter: (filter: string) => void;
+    setSelectedCategoryFilter: (categoryId: string) => void;
     selectedSubCategoryFilter: string;
-    setSelectedSubCategoryFilter: (filter: string) => void;
+    setSelectedSubCategoryFilter: (subCategoryId: string) => void;
     handleEditProduct: (id: string) => void;
     handleDeleteProduct: (id: string) => void;
+    handleToggleProductStatus: (id: string) => void;
+    handleRestoreProduct: (id: string) => void;
+    fetchProducts: (categoryId?: string, forceFetch?: boolean) => void;
+    showDeletedProducts: boolean;
+    setShowDeletedProducts: (show: boolean) => void;
     loading: boolean;
     error: string | null;
     success: string | null;
-    fetchProducts: () => void;
-    categories: any[];
+    categories: any[]; // Assuming Category type is not defined here, keeping as any[]
     subCategories: any[];
 }
 
@@ -270,6 +277,8 @@ const ProductItem = React.memo(({
     onEdit,
     onDelete,
     onView,
+    onToggleStatus,
+    onRestore,
     isHovered,
     onMouseEnter,
     onMouseLeave
@@ -279,6 +288,8 @@ const ProductItem = React.memo(({
     onEdit: (id: string) => void;
     onDelete: (id: string) => void;
     onView: (id: string) => void;
+    onToggleStatus: (id: string) => void;
+    onRestore: (id: string) => void;
     isHovered: boolean;
     onMouseEnter: () => void;
     onMouseLeave: () => void;
@@ -315,7 +326,14 @@ const ProductItem = React.memo(({
                         )}
 
                         {/* Status Badge */}
-                        {/* Removed Status Badge */}
+                        {product.isDeleted && (
+                            <span className="absolute top-2 left-2 px-2 py-1 bg-red-500 text-white text-xs font-medium rounded-full">Deleted</span>
+                        )}
+                        {!product.isDeleted && (
+                            <span className={`absolute top-2 left-2 px-2 py-1 text-xs font-medium rounded-full ${product.isActive ? 'bg-green-500 text-white' : 'bg-gray-400 text-white'}`}>
+                                {product.isActive ? 'Active' : 'Inactive'}
+                            </span>
+                        )}
                     </div>
 
                     {/* Product Info */}
@@ -352,34 +370,49 @@ const ProductItem = React.memo(({
 
                         {/* Action Buttons */}
                         <div className="flex gap-2">
-                            <button
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    onView(product._id);
-                                }}
-                                className="flex-1 px-3 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors flex items-center justify-center gap-2 font-medium text-sm"
-                            >
-                                <Eye size={14} />
-                                View
-                            </button>
-                            <button
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    onEdit(product._id);
-                                }}
-                                className="px-3 py-2 bg-teal-50 text-teal-700 rounded-md hover:bg-teal-100 transition-colors flex items-center justify-center gap-2 font-medium text-sm"
-                            >
-                                <Edit size={14} />
-                            </button>
-                            <button
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    onDelete(product._id);
-                                }}
-                                className="px-3 py-2 bg-red-50 text-red-700 rounded-md hover:bg-red-100 transition-colors flex items-center justify-center gap-2 font-medium text-sm"
-                            >
-                                <Trash2 size={14} />
-                            </button>
+                            {product.isDeleted ? (
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onRestore(product._id);
+                                    }}
+                                    className="flex-1 px-3 py-2 bg-green-50 text-green-700 rounded-md hover:bg-green-100 transition-colors flex items-center justify-center gap-2 font-medium text-sm"
+                                >
+                                    <RefreshCw size={14} />
+                                    Restore
+                                </button>
+                            ) : (
+                                <>
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onView(product._id);
+                                        }}
+                                        className="flex-1 px-3 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors flex items-center justify-center gap-2 font-medium text-sm"
+                                    >
+                                        <Eye size={14} />
+                                        View
+                                    </button>
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onEdit(product._id);
+                                        }}
+                                        className="px-3 py-2 bg-teal-50 text-teal-700 rounded-md hover:bg-teal-100 transition-colors flex items-center justify-center gap-2 font-medium text-sm"
+                                    >
+                                        <Edit size={14} />
+                                    </button>
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onDelete(product._id);
+                                        }}
+                                        className="px-3 py-2 bg-red-50 text-red-700 rounded-md hover:bg-red-100 transition-colors flex items-center justify-center gap-2 font-medium text-sm"
+                                    >
+                                        <Trash2 size={14} />
+                                    </button>
+                                </>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -433,7 +466,11 @@ const ProductItem = React.memo(({
                                 <div className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded text-xs font-medium">
                                     {getCategoryName(product.category) || 'Uncategorized'}
                                 </div>
-                                {/* Removed Active Status Badge */}
+                                {product.subcategory ? (
+                                    <span className="text-gray-500 text-xs ml-1">
+                                        ({typeof product.subcategory === 'object' ? product.subcategory.name : 'Sub'})
+                                    </span>
+                                ) : null}
                             </div>
                         </div>
 
@@ -449,36 +486,51 @@ const ProductItem = React.memo(({
                             {/* Action Buttons */}
                             <div className={`flex items-center gap-1 transition-opacity duration-200 
                                 ${isHovered ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        onView(product._id);
-                                    }}
-                                    className="p-2 bg-gray-100 text-gray-600 rounded-md hover:bg-gray-200 transition-colors"
-                                    title="View Details"
-                                >
-                                    <Eye size={14} />
-                                </button>
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        onEdit(product._id);
-                                    }}
-                                    className="p-2 bg-emerald-50 text-emerald-600 rounded-md hover:bg-emerald-100 transition-colors"
-                                    title="Edit Product"
-                                >
-                                    <Edit size={14} />
-                                </button>
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        onDelete(product._id);
-                                    }}
-                                    className="p-2 bg-red-50 text-red-600 rounded-md hover:bg-red-100 transition-colors"
-                                    title="Delete Product"
-                                >
-                                    <Trash2 size={14} />
-                                </button>
+                                {product.isDeleted ? (
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onRestore(product._id);
+                                        }}
+                                        className="p-2 bg-green-50 text-green-600 rounded-md hover:bg-green-100 transition-colors"
+                                        title="Restore Product"
+                                    >
+                                        <RefreshCw size={14} />
+                                    </button>
+                                ) : (
+                                    <>
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onView(product._id);
+                                            }}
+                                            className="p-2 bg-gray-100 text-gray-600 rounded-md hover:bg-gray-200 transition-colors"
+                                            title="View Details"
+                                        >
+                                            <Eye size={14} />
+                                        </button>
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onEdit(product._id);
+                                            }}
+                                            className="p-2 bg-emerald-50 text-emerald-600 rounded-md hover:bg-emerald-100 transition-colors"
+                                            title="Edit Product"
+                                        >
+                                            <Edit size={14} />
+                                        </button>
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onDelete(product._id);
+                                            }}
+                                            className="p-2 bg-red-50 text-red-600 rounded-md hover:bg-red-100 transition-colors"
+                                            title="Delete Product"
+                                        >
+                                            <Trash2 size={14} />
+                                        </button>
+                                    </>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -501,12 +553,16 @@ const ManageProductsView: React.FC<ManageProductsViewProps> = ({
     setSelectedSubCategoryFilter,
     handleEditProduct,
     handleDeleteProduct,
+    handleToggleProductStatus,
+    handleRestoreProduct,
+    fetchProducts,
+    showDeletedProducts,
+    setShowDeletedProducts,
     loading,
     error,
     success,
-    fetchProducts,
     categories,
-    subCategories
+    subCategories,
 }) => {
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
     const [hoveredProductId, setHoveredProductId] = useState<string | null>(null);
@@ -638,6 +694,21 @@ const ManageProductsView: React.FC<ManageProductsViewProps> = ({
                                     </button>
                                 )}
                             </div>
+                            
+                            {/* Show Deleted Toggle */}
+                            <div className="mt-3">
+                                <button
+                                  onClick={() => setShowDeletedProducts(!showDeletedProducts)}
+                                  className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-colors w-full justify-center ${
+                                    showDeletedProducts
+                                      ? "bg-red-50 border-red-200 text-red-700 hover:bg-red-100"
+                                      : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"
+                                  }`}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                  {showDeletedProducts ? "Hide Trash" : "Show Trash"}
+                                </button>
+                            </div>
                         </div>
 
                         {/* Category Filter */}
@@ -752,6 +823,8 @@ const ManageProductsView: React.FC<ManageProductsViewProps> = ({
                                     onEdit={handleEditProduct}
                                     onDelete={handleDeleteProduct}
                                     onView={handleViewProduct}
+                                    onToggleStatus={handleToggleProductStatus}
+                                    onRestore={handleRestoreProduct}
                                     isHovered={hoveredProductId === product._id}
                                     onMouseEnter={() => setHoveredProductId(product._id)}
                                     onMouseLeave={() => setHoveredProductId(null)}
@@ -770,6 +843,8 @@ const ManageProductsView: React.FC<ManageProductsViewProps> = ({
                                     onEdit={handleEditProduct}
                                     onDelete={handleDeleteProduct}
                                     onView={handleViewProduct}
+                                    onToggleStatus={handleToggleProductStatus}
+                                    onRestore={handleRestoreProduct}
                                     isHovered={hoveredProductId === product._id}
                                     onMouseEnter={() => setHoveredProductId(product._id)}
                                     onMouseLeave={() => setHoveredProductId(null)}

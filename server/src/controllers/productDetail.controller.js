@@ -20,8 +20,8 @@ export const getProductDetail = async (req, res) => {
 
     let product;
     if (isObjectId) {
-      // Try to find by ID first
-      product = await Product.findById(productId)
+      // Try to find by ID first, excluding deleted
+      product = await Product.findOne({ _id: productId, isDeleted: { $ne: true } })
         .populate({
           path: "category",
           select: "_id name description image type parent slug",

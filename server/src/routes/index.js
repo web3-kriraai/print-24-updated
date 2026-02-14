@@ -30,6 +30,8 @@ import {
   deleteProduct,
   reorderProducts,
   updateProductsSortOrder,
+  toggleProductStatus,
+  restoreProduct,
 } from "../controllers/productController.js";
 
 /* PRODUCT DETAIL CONTROLLER */
@@ -294,6 +296,18 @@ router.put(
   updateProduct
 );
 router.delete("/products/:id", authMiddleware, adminAuth, deleteProduct);
+router.put(
+  "/products/:id/toggle-status",
+  authMiddleware,
+  adminAuth,
+  toggleProductStatus
+);
+router.put(
+  "/products/:id/restore",
+  authMiddleware,
+  adminAuth,
+  restoreProduct
+);
 
 /* =====================================
    PRODUCT IMAGE MATRIX ROUTES

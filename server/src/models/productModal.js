@@ -175,6 +175,10 @@ const ProductSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Department",
     }],
+
+    // Product Status
+    isActive: { type: Boolean, default: true }, // Verified/Active status
+    isDeleted: { type: Boolean, default: false }, // Soft delete status
   },
   { timestamps: true }
 );

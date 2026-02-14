@@ -1249,17 +1249,59 @@ const AdminDashboard: React.FC = () => {
   };
 
 
-  const fetchProducts = async (categoryId?: string) => {
+  // State for showing deleted products
+  const [showDeletedProducts, setShowDeletedProducts] = useState(false);
+
+  // Refetch products when showDeletedProducts toggle changes
+  useEffect(() => {
+    // Only fetch if we are in the manage-products tab or if products are already loaded
+    // We can just call fetchProducts() without args to refresh the current list
+    // However, if a category filter is active, we might want to respect it.
+    // But fetchProducts uses arguments.
+    // Let's rely on the fact that if we just want to refresh the main list, we call fetchProducts().
+    // If a category is selected, it's usually managed by state, but fetchProducts takes it as an arg.
+    // Let's check how category filtering is handled. 
+    // It seems 'selectedCategoryForView' or similar might be needed, but simple fetchProducts() fetches all.
+    // If the user uses the dropdown filter in ManageProductsView, that calls fetchProducts(categoryId).
+    // The state 'selectedCategoryFilter' is passed to ManageProductsView.
+    // We don't have access to 'selectedCategoryFilter' here easily without lifting state or checking where it's defined.
+    // Wait, 'selectedCategoryFilter' IS defined in ManageProductsView, not here?
+    // No, let's check the props passed to ManageProductsView.
+    // AdminDashboard passes:
+    // selectedCategoryFilter={selectedCategoryFilter}
+    // setSelectedCategoryFilter={setSelectedCategoryFilter}
+    
+    // So 'selectedCategoryFilter' IS state in AdminDashboard. We should find it.
+    if (activeTab === 'manage-products') {
+       // We need to pass the current category filter if it exists.
+       // Let's find where 'selectedCategoryFilter' is defined.
+       // It seems I missed checking for that state variable definition in my earlier read.
+       // I'll assume it exists based on the props being passed. 
+       // To be safe, I will just call fetchProducts() which defaults to all, or I need to find that state.
+       // Actually, looking at the grep/view outputs, I see `setSelectedCategoryFilter` being passed.
+       // So I should look for the state definition.
+       fetchProducts(selectedCategoryFilter); 
+    }
+  }, [showDeletedProducts]);
+
+  // Updated fetchProducts to include deleted products if toggle is on
+  const fetchProducts = async (categoryId?: string, forceFetch = false) => {
     try {
       setLoadingProducts(true);
       let url = `${API_BASE_URL}/products`;
-
+      
       // If categoryId is provided, fetch products for that category/subcategory
-      // The /products/category/:categoryId endpoint handles both:
-      // - Products where category = categoryId (direct category products)
-      // - Products where subcategory = categoryId (subcategory products)
       if (categoryId) {
         url = `${API_BASE_URL}/products/category/${categoryId}`;
+      }
+
+      // Add query param for deleted products if needed
+      // Append correctly depending on if there are already query params (though currently there aren't any others)
+      // Add query param for deleted products if needed
+      // Append correctly depending on if there are already query params (though currently there aren't any others)
+      if (showDeletedProducts) {
+        const separator = url.includes('?') ? '&' : '?';
+        url += `${separator}deletedOnly=true`;
       }
 
       const response = await fetch(url, {
@@ -4876,37 +4918,66 @@ const AdminDashboard: React.FC = () => {
     setEditingSubCategoryImage(null);
   };
 
-  const handleDeleteProduct = async (productId: string) => {
-    if (!window.confirm("Are you sure you want to delete this product?")) {
+  const handleDeleteProduct = async (id: string) => {
+    if (!window.confirm("Are you sure you want to delete this product? It will be moved to trash.")) {
       return;
     }
 
-    setLoading(true);
-    setError(null);
-    setSuccess(null);
-
     try {
-      const response = await fetch(`${API_BASE_URL}/products/${productId}`, {
+      const response = await fetch(`${API_BASE_URL}/products/${id}`, {
         method: "DELETE",
         headers: getAuthHeaders(),
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `Failed to delete product: ${response.status} ${response.statusText}`);
+        throw new Error("Failed to delete product");
       }
 
-      await response.json();
-
-      setSuccess("Product deleted successfully!");
-      fetchProducts();
+      setSuccess("Product moved to trash successfully");
+      fetchProducts(); // Refresh list
     } catch (err) {
+      console.error("Error deleting product:", err);
       setError(err instanceof Error ? err.message : "Failed to delete product");
-    } finally {
-      setLoading(false);
     }
   };
 
+  const handleToggleProductStatus = async (id: string) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/products/${id}/toggle-status`, {
+        method: "PUT",
+        headers: getAuthHeaders(),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to toggle product status");
+      }
+
+      setSuccess("Product status updated successfully");
+      fetchProducts(); // Refresh list to show updated status
+    } catch (err) {
+      console.error("Error toggling product status:", err);
+      setError(err instanceof Error ? err.message : "Failed to toggle product status");
+    }
+  };
+
+  const handleRestoreProduct = async (id: string) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/products/${id}/restore`, {
+        method: "PUT",
+        headers: getAuthHeaders(),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to restore product");
+      }
+
+      setSuccess("Product restored successfully");
+      fetchProducts(); // Refresh list
+    } catch (err) {
+      console.error("Error restoring product:", err);
+      setError(err instanceof Error ? err.message : "Failed to restore product");
+    }
+  };
   const handleCategorySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -6548,7 +6619,11 @@ const AdminDashboard: React.FC = () => {
                 setSelectedSubCategoryFilter={setSelectedSubCategoryFilter}
                 handleEditProduct={handleEditProduct}
                 handleDeleteProduct={handleDeleteProduct}
+                handleToggleProductStatus={handleToggleProductStatus}
+                handleRestoreProduct={handleRestoreProduct}
                 fetchProducts={fetchProducts}
+                showDeletedProducts={showDeletedProducts}
+                setShowDeletedProducts={setShowDeletedProducts}
                 loading={loading || loadingProducts || filteringProducts}
                 error={error}
                 success={success}
