@@ -22,6 +22,7 @@ interface ProductPriceBoxProps {
   selectedDynamicAttributes?: any[];
   quantity?: number;
   showBreakdown?: boolean;
+  numberOfDesigns?: number; // Multiplier for bulk orders
 }
 
 interface PricingData {
@@ -60,7 +61,8 @@ export default function ProductPriceBox({
   productId,
   selectedDynamicAttributes = [],
   quantity = 1,
-  showBreakdown = false
+  showBreakdown = false,
+  numberOfDesigns = 1,
 }: ProductPriceBoxProps) {
   const [pricing, setPricing] = useState<PricingData | null>(null);
   const [pricingMeta, setPricingMeta] = useState<PricingMeta | null>(null);
@@ -115,6 +117,7 @@ export default function ProductPriceBox({
           productId,
           selectedDynamicAttributes: formatAttributesForPricing(selectedDynamicAttributes),
           quantity,
+          numberOfDesigns, // For bulk orders - backend multiplies quantity × numberOfDesigns
         };
 
         // Use pincode from context (IP-detected or user profile)
@@ -297,7 +300,23 @@ export default function ProductPriceBox({
                   })
                   .map((attr: any, index: number) => {
                     const attrName = attr.name || attr.attributeName || attr.type || attr.attributeType || 'Option';
-                    const attrValue = attr.label || attr.value || attr.attributeValue;
+                    const rawValue = attr.label || attr.value || attr.attributeValue;
+
+                    // Safely handle different value types (especially File objects)
+                    let attrValue: React.ReactNode = String(rawValue || '');
+
+                    const isFile = rawValue instanceof File ||
+                      (typeof rawValue === 'object' && rawValue !== null &&
+                        (Object.prototype.toString.call(rawValue) === '[object File]' ||
+                          ('name' in rawValue && 'size' in rawValue)));
+
+                    if (isFile) {
+                      attrValue = (rawValue as any).name;
+                    } else if (typeof rawValue === 'object' && rawValue !== null) {
+                      attrValue = rawValue.label || rawValue.name || JSON.stringify(rawValue);
+                    } else {
+                      attrValue = String(rawValue || '');
+                    }
 
                     return (
                       <div key={index} className="flex justify-between items-center text-sm py-1.5 px-2 rounded hover:bg-gray-50 transition-colors">
@@ -325,8 +344,11 @@ export default function ProductPriceBox({
               <div className="flex justify-between items-center">
                 <span className="text-sm text-gray-600">Subtotal</span>
                 <div className="text-right">
-                  <div className="text-xs text-gray-500 mb-0.5">× {quantity.toLocaleString()} units</div>
-                  <div className="text-base font-bold text-gray-900">{formatPrice(pricing.subtotal)}</div>
+                  <div className="text-xs text-gray-500 mb-0.5">
+                    × {quantity.toLocaleString()} units
+                    {numberOfDesigns > 1 && ` × ${numberOfDesigns} designs`}
+                  </div>
+                  <div className="text-base font-bold text-gray-900">{formatPrice(pricing.subtotal * numberOfDesigns)}</div>
                 </div>
               </div>
             </div>
@@ -335,7 +357,7 @@ export default function ProductPriceBox({
             <div className="px-4 py-3 bg-gray-50 border-b border-gray-100">
               <div className="flex justify-between items-center">
                 <span className="text-sm font-medium text-gray-700">GST ({pricing.gstPercentage}%)</span>
-                <span className="text-base font-bold text-gray-900">{formatPrice(pricing.gstAmount)}</span>
+                <span className="text-base font-bold text-gray-900">{formatPrice(pricing.gstAmount * numberOfDesigns)}</span>
               </div>
             </div>
 
@@ -346,7 +368,7 @@ export default function ProductPriceBox({
                   <div className="text-sm font-bold text-white uppercase tracking-wide mb-0.5">Total Amount</div>
                   <div className="text-xs text-white/90">Inclusive of all taxes</div>
                 </div>
-                <div className="text-3xl font-bold text-white">{formatPrice(pricing.totalPayable)}</div>
+                <div className="text-3xl font-bold text-white">{formatPrice(pricing.totalPayable * numberOfDesigns)}</div>
               </div>
             </div>
           </div>

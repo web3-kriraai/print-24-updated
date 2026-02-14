@@ -1,8 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowRight, Check, Truck, Upload as UploadIcon, FileImage, CreditCard, X, Loader, Info, Lock, AlertCircle, MapPin } from 'lucide-react';
+import { ArrowRight, Check, Truck, Upload as UploadIcon, FileImage, CreditCard, X, Loader, Info, Lock, AlertCircle, MapPin, FileText, UploadCloud, Image as ImageIcon, AlertTriangle } from 'lucide-react';
+import * as pdfjsLib from 'pdfjs-dist';
+
+// Configure PDF.js worker
+pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+
 import { Select } from '../components/ui/select';
+import { Skeleton } from '../components/ui/skeleton.tsx';
 import { API_BASE_URL_WITH_API as API_BASE_URL } from '../lib/apiConfig';
 import BackButton from '../components/BackButton';
 import { applyAttributeRules, type AttributeRule, type Attribute } from '../utils/attributeRuleEngine';
@@ -226,6 +232,33 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
   const [paymentError, setPaymentError] = useState<string | null>(null);
 
   const [promoCodes, setPromoCodes] = useState<string[]>([]);
+
+  // PDF Upload States
+  const MAX_PDF_SIZE_MB = 50;
+  const MAX_PDF_SIZE_BYTES = MAX_PDF_SIZE_MB * 1024 * 1024;
+
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [pdfValidationError, setPdfValidationError] = useState<string | null>(null);
+  const [requiredPageCount, setRequiredPageCount] = useState<number>(0);
+  const [extractedPdfPages, setExtractedPdfPages] = useState<File[]>([]);
+  const [pdfPreviewPages, setPdfPreviewPages] = useState<string[]>([]);
+  const [isPdfProcessing, setIsPdfProcessing] = useState<boolean>(false);
+  const [pdfPageMapping, setPdfPageMapping] = useState<Array<{
+    pageNumber: number;
+    purpose: string;
+    type: 'attribute' | 'design';
+    attributeName?: string;
+    isRequired?: boolean;
+  }>>([]);
+
+  // Bulk Upload States
+  const [numberOfDesigns, setNumberOfDesigns] = useState<string>('');
+  const [bulkCompositePdf, setBulkCompositePdf] = useState<File | null>(null);
+  const [bulkPdfPreviewPages, setBulkPdfPreviewPages] = useState<string[]>([]);
+  const [bulkPdfExtractedPages, setBulkPdfExtractedPages] = useState<File[]>([]);
+  const [isBulkPdfProcessing, setIsBulkPdfProcessing] = useState<boolean>(false);
+  const [bulkPdfError, setBulkPdfError] = useState<string>('');
+
 
   const [radioModalOpen, setRadioModalOpen] = useState(false);
   const [radioModalData, setRadioModalData] = useState<{
@@ -1720,6 +1753,437 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
     fetchDeliveryEstimate();
   }, [selectedProduct]);
 
+  /**
+   * Calculates the number of pages required in the PDF based on product attributes
+   * Dynamically determines page count from attribute descriptions
+   */
+  const calculateRequiredPageCount = () => {
+    let totalPages = 0;
+
+    // Array to store required image uploads from attributes
+    const imageUploadsRequired: Array<{ numberOfImages: number }> = [];
+    let attributesToCheck: any[] = [];
+
+    // Get attributes from PDP or product data
+    if (isInitialized && pdpAttributes.length > 0) {
+      const ruleResult = applyAttributeRules({
+        attributes: pdpAttributes,
+        rules: pdpRules,
+        selectedValues: { ...selectedDynamicAttributes } as Record<string, string | number | boolean | File | any[] | null>,
+      });
+      attributesToCheck = ruleResult.attributes.filter((attr) => attr.isVisible);
+    } else if (selectedProduct?.dynamicAttributes) {
+      attributesToCheck = selectedProduct.dynamicAttributes.filter((attr) => attr.isEnabled);
+    }
+
+    // Count images required from each attribute
+    attributesToCheck.forEach((attr) => {
+      let attributeValues: any[] = [];
+      let attrId: string = '';
+
+      // Extract attribute ID and values
+      if (isInitialized && pdpAttributes.length > 0) {
+        attrId = attr._id;
+        attributeValues = (attr.allowedValues && attr.allowedValues.length > 0)
+          ? (attr.attributeValues || []).filter((av: any) => attr.allowedValues!.includes(av.value))
+          : (attr.attributeValues || []);
+      } else {
+        if (typeof attr.attributeType === 'object' && attr.attributeType !== null) {
+          const attrType = attr.attributeType;
+          attrId = attrType._id;
+          attributeValues = attr.customValues && attr.customValues.length > 0
+            ? attr.customValues
+            : attrType.attributeValues || [];
+        }
+      }
+
+      if (!attrId) return;
+
+      const selectedValue = selectedDynamicAttributes[attrId];
+      if (!selectedValue) return;
+
+      // Find selected option
+      const selectedOption = attributeValues.find((av: any) => av.value === selectedValue);
+      if (!selectedOption || !selectedOption.description) return;
+
+      // Parse description for "Images Required: N" pattern
+      const imagesRequiredMatch = selectedOption.description.match(/Images Required: (\d+)/);
+      const numberOfImagesRequired = imagesRequiredMatch ? parseInt(imagesRequiredMatch[1]) : 0;
+
+      if (numberOfImagesRequired > 0) {
+        imageUploadsRequired.push({ numberOfImages: numberOfImagesRequired });
+        totalPages += numberOfImagesRequired;
+      }
+    });
+
+    return totalPages;
+  };
+
+  /**
+   * Extracts all pages from a PDF file and converts them to PNG images
+   * Returns both File objects and data URLs for preview
+   */
+  const extractPdfPagesToImages = async (file: File): Promise<{ pages: File[], previews: string[] }> => {
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      const numPages = pdf.numPages;
+
+      const extractedPages: File[] = [];
+      const previewUrls: string[] = [];
+
+      for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+        const page = await pdf.getPage(pageNum);
+        const viewport = page.getViewport({ scale: 2.0 }); // Higher scale for better quality
+
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        canvas.height = viewport.height;
+        canvas.width = viewport.width;
+
+        if (context) {
+          await page.render({
+            canvasContext: context,
+            viewport: viewport,
+            canvas: canvas
+          }).promise;
+
+          // Convert canvas to blob
+          const blob = await new Promise<Blob>((resolve) => {
+            canvas.toBlob((b) => resolve(b!), 'image/png');
+          });
+
+          // Create File object from blob
+          const imageFile = new File([blob], `page-${pageNum}.png`, { type: 'image/png' });
+          extractedPages.push(imageFile);
+
+          // Create preview URL
+          previewUrls.push(canvas.toDataURL('image/png'));
+        }
+      }
+
+      return { pages: extractedPages, previews: previewUrls };
+    } catch (error) {
+      console.error('Error extracting PDF pages:', error);
+      throw new Error('Failed to extract PDF pages. Please ensure the file is a valid PDF.');
+    }
+  };
+
+  /**
+   * Main handler for PDF/CDR file uploads
+   * Validates file type, size, page count, and processes the file
+   */
+  const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+
+    if (!file) {
+      setPdfValidationError(null);
+      setPdfFile(null);
+      setExtractedPdfPages([]);
+      setPdfPreviewPages([]);
+      return;
+    }
+
+    // Validate file type - accept PDF or CDR files
+    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    const isCdr = file.name.toLowerCase().endsWith('.cdr') ||
+      file.type === 'application/x-coreldraw' ||
+      file.type === 'application/coreldraw';
+
+    if (!isPdf && !isCdr) {
+      setPdfValidationError('Please upload a valid PDF or CDR file.');
+      setPdfFile(null);
+      setExtractedPdfPages([]);
+      setPdfPreviewPages([]);
+      return;
+    }
+
+    // Validate file size
+    if (file.size > MAX_PDF_SIZE_BYTES) {
+      setPdfValidationError(`File is too large. Maximum size is ${MAX_PDF_SIZE_MB}MB. Your file is ${(file.size / (1024 * 1024)).toFixed(1)}MB.`);
+      setPdfFile(null);
+      setExtractedPdfPages([]);
+      setPdfPreviewPages([]);
+      return;
+    }
+
+    setIsPdfProcessing(true);
+    setPdfValidationError(null);
+
+    try {
+      // Handle CDR files differently - they'll be processed server-side
+      if (isCdr) {
+        const required = calculateRequiredPageCount();
+        setRequiredPageCount(required);
+        setPdfFile(file);
+        setExtractedPdfPages([]);
+        setPdfPreviewPages([]);
+        setPdfValidationError(null);
+        setIsPdfProcessing(false);
+        console.log(`CDR file uploaded: ${file.name}. Will be processed server-side.`);
+        return;
+      }
+
+      // Handle PDF files - extract and preview client-side
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      const numPages = pdf.numPages;
+
+      // Calculate required pages
+      const required = calculateRequiredPageCount();
+      setRequiredPageCount(required);
+
+      // Validate page count
+      if (numPages !== required) {
+        setPdfValidationError(
+          `Invalid page count. Your design file has ${numPages} page${numPages !== 1 ? 's' : ''}, but ${required} page${required !== 1 ? 's are' : ' is'} required.`
+        );
+        setPdfFile(null);
+        setExtractedPdfPages([]);
+        setPdfPreviewPages([]);
+        setIsPdfProcessing(false);
+        return;
+      }
+
+      // Extract pages
+      const { pages, previews } = await extractPdfPagesToImages(file);
+
+      setPdfFile(file);
+      setExtractedPdfPages(pages);
+      setPdfPreviewPages(previews);
+      setPdfValidationError(null);
+
+      // Map extracted pages to dynamic attributes
+      let pageIndex = 0;
+      const imageUploadsRequired: Array<{
+        attrId: string;
+        numberOfImages: number;
+        imagesKey: string;
+      }> = [];
+
+      let attributesToCheck: any[] = [];
+
+      if (isInitialized && pdpAttributes.length > 0) {
+        const ruleResult = applyAttributeRules({
+          attributes: pdpAttributes,
+          rules: pdpRules,
+          selectedValues: { ...selectedDynamicAttributes } as Record<string, string | number | boolean | File | any[] | null>,
+        });
+        attributesToCheck = ruleResult.attributes.filter((attr) => attr.isVisible);
+      } else if (selectedProduct?.dynamicAttributes) {
+        attributesToCheck = selectedProduct.dynamicAttributes.filter((attr) => attr.isEnabled);
+      }
+
+      // Build mapping of attributes requiring images
+      attributesToCheck.forEach((attr) => {
+        let attrType: any = null;
+        let attributeValues: any[] = [];
+        let attrId: string = '';
+
+        if (isInitialized && pdpAttributes.length > 0) {
+          attrId = attr._id;
+          attributeValues = (attr.allowedValues && attr.allowedValues.length > 0)
+            ? (attr.attributeValues || []).filter((av: any) => attr.allowedValues!.includes(av.value))
+            : (attr.attributeValues || []);
+        } else {
+          if (typeof attr.attributeType === 'object' && attr.attributeType !== null) {
+            attrType = attr.attributeType;
+            attrId = attrType._id;
+            attributeValues = attr.customValues && attr.customValues.length > 0
+              ? attr.customValues
+              : attrType.attributeValues || [];
+          }
+        }
+
+        if (!attrId) return;
+
+        const selectedValue = selectedDynamicAttributes[attrId];
+        if (!selectedValue) return;
+
+        const selectedOption = attributeValues.find((av: any) => av.value === selectedValue);
+        if (!selectedOption || !selectedOption.description) return;
+
+        const imagesRequiredMatch = selectedOption.description.match(/Images Required: (\d+)/);
+        const numberOfImagesRequired = imagesRequiredMatch ? parseInt(imagesRequiredMatch[1]) : 0;
+
+        if (numberOfImagesRequired > 0) {
+          imageUploadsRequired.push({
+            attrId,
+            numberOfImages: numberOfImagesRequired,
+            imagesKey: `${attrId}_images`,
+          });
+        }
+      });
+
+      // Update dynamic attributes with extracted pages
+      const updatedDynamicAttributes = { ...selectedDynamicAttributes };
+
+      imageUploadsRequired.forEach((uploadReq) => {
+        const imagesForThisAttr = pages.slice(pageIndex, pageIndex + uploadReq.numberOfImages);
+        updatedDynamicAttributes[uploadReq.imagesKey] = imagesForThisAttr;
+        pageIndex += uploadReq.numberOfImages;
+      });
+
+      setSelectedDynamicAttributes(updatedDynamicAttributes);
+
+      // Generate page mapping metadata for display
+      const pageMappingMetadata: Array<{
+        pageNumber: number;
+        purpose: string;
+        type: 'attribute' | 'design';
+        attributeName?: string;
+        isRequired?: boolean;
+      }> = [];
+
+      let currentPageNum = 1;
+
+      // Map attribute pages
+      imageUploadsRequired.forEach((req) => {
+        const attributeValues: any[] = [];
+        const attr = attributesToCheck.find((a) => {
+          if (isInitialized && pdpAttributes.length > 0) {
+            return a._id === req.attrId;
+          } else {
+            const attrType = typeof a.attributeType === 'object' ? a.attributeType : null;
+            return attrType?._id === req.attrId;
+          }
+        });
+
+        let attrName = '';
+        if (attr) {
+          if (isInitialized && pdpAttributes.length > 0) {
+            attrName = attr.attributeName;
+            attributeValues.push(...(attr.attributeValues || []));
+          } else if (typeof attr.attributeType === 'object') {
+            attrName = attr.attributeType.attributeName;
+            attributeValues.push(...(attr.customValues?.length > 0 ? attr.customValues : attr.attributeType.attributeValues || []));
+          }
+        }
+
+        const selectedValue = selectedDynamicAttributes[req.attrId];
+        const selectedOption = attributeValues.find((av: any) => av.value === selectedValue);
+        const optionLabel = selectedOption?.label || '';
+
+        for (let i = 0; i < req.numberOfImages; i++) {
+          let purposeLabel = '';
+          if (selectedOption?.imageFileNames && selectedOption.imageFileNames[i]) {
+            purposeLabel = selectedOption.imageFileNames[i];
+          } else {
+            purposeLabel = req.numberOfImages > 1
+              ? `${attrName} - ${optionLabel} (Image ${i + 1}/${req.numberOfImages})`
+              : `${attrName} - ${optionLabel}`;
+          }
+
+          pageMappingMetadata.push({
+            pageNumber: currentPageNum,
+            purpose: purposeLabel,
+            type: 'attribute',
+            attributeName: attrName,
+            isRequired: true
+          });
+          currentPageNum++;
+        }
+      });
+
+      setPdfPageMapping(pageMappingMetadata);
+
+    } catch (error) {
+      console.error('PDF processing error:', error);
+      setPdfValidationError(error instanceof Error ? error.message : 'Failed to process PDF. Please try again.');
+      setPdfFile(null);
+      setExtractedPdfPages([]);
+      setPdfPreviewPages([]);
+    } finally {
+      setIsPdfProcessing(false);
+    }
+  };
+
+  /**
+   * Dedicated handler for Bulk PDF/CDR uploads
+   * Validates total page count against (designs * pages per design)
+   */
+  const handleBulkPdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    const numberOfDesignsNum = parseInt(numberOfDesigns) || 0;
+
+    if (!file) {
+      setBulkCompositePdf(null);
+      setBulkPdfPreviewPages([]);
+      setBulkPdfExtractedPages([]);
+      setBulkPdfError('');
+      return;
+    }
+
+    if (numberOfDesignsNum < 1) {
+      setBulkPdfError('Please enter the number of designs first.');
+      setBulkCompositePdf(null);
+      return;
+    }
+
+    // Validate file type
+    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    const isCdr = file.name.toLowerCase().endsWith('.cdr') ||
+      file.type === 'application/x-coreldraw' ||
+      file.type === 'application/coreldraw';
+
+    if (!isPdf && !isCdr) {
+      setBulkPdfError('Please upload a valid PDF or CDR file.');
+      setBulkCompositePdf(null);
+      return;
+    }
+
+    // Check file size (100MB max for bulk)
+    const maxSize = 100 * 1024 * 1024;
+    if (file.size > maxSize) {
+      setBulkPdfError(`File too large. Maximum size: 100MB`);
+      setBulkCompositePdf(null);
+      return;
+    }
+
+    setIsBulkPdfProcessing(true);
+    setBulkPdfError('');
+
+    try {
+      const pagesPerDesign = calculateRequiredPageCount();
+      const expectedTotalPages = numberOfDesignsNum * pagesPerDesign;
+
+      if (isPdf) {
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        const numPages = pdf.numPages;
+
+        if (numPages !== expectedTotalPages) {
+          setBulkPdfError(
+            `Invalid page count. Your bulk file has ${numPages} pages, but ${expectedTotalPages} pages are required (${numberOfDesignsNum} designs × ${pagesPerDesign} pages per design).`
+          );
+          setBulkCompositePdf(null);
+          setBulkPdfPreviewPages([]);
+          setBulkPdfExtractedPages([]);
+          return;
+        }
+
+        // Extract pages for preview
+        const { pages, previews } = await extractPdfPagesToImages(file);
+        setBulkPdfExtractedPages(pages);
+        setBulkPdfPreviewPages(previews);
+      } else if (isCdr) {
+        // We can't easily extract pages from CDR in browser, so we trust server-side processing
+        // but it's good to clear any previous previews
+        setBulkPdfPreviewPages([]);
+        setBulkPdfExtractedPages([]);
+      }
+
+      setBulkCompositePdf(file);
+      setBulkPdfError('');
+    } catch (error) {
+      console.error('Bulk PDF processing error:', error);
+      setBulkPdfError('Failed to process bulk design file. Please ensure it is a valid PDF.');
+      setBulkCompositePdf(null);
+    } finally {
+      setIsBulkPdfProcessing(false);
+    }
+  };
+
   const handleGetLocation = async () => {
     if (!navigator.geolocation) {
       setPaymentError("Geolocation is not supported by your browser.");
@@ -1816,18 +2280,8 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
         firstErrorField.current = document.querySelector('[data-product-select]') as HTMLElement;
       }
     }
-    if (!frontDesignFile) {
-      validationErrors.push('Please upload a reference image');
-      if (!firstErrorField.current) {
-        const fileInput = document.querySelector('input[type="file"][accept*="image"]') as HTMLElement;
-        if (fileInput) {
-          firstErrorField.current = fileInput;
-        } else {
-          const uploadSection = document.querySelector('[data-upload-section]') as HTMLElement;
-          if (uploadSection) firstErrorField.current = uploadSection;
-        }
-      }
-    }
+
+    // Removed mandatory reference image validation as per user request
 
     if (selectedProduct?.dynamicAttributes) {
       selectedProduct.dynamicAttributes.forEach((attr) => {
@@ -1946,10 +2400,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
       setPaymentError("Please select a product.");
       return;
     }
-    if (!frontDesignFile || !frontDesignPreview) {
-      setPaymentError("Please upload a reference image.");
-      return;
-    }
+    // Removed mandatory reference image validation as per user request
     if (!quantity || quantity <= 0) {
       setPaymentError("Please enter a valid quantity (must be greater than 0).");
       return;
@@ -2014,6 +2465,173 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
     try {
       await new Promise((resolve) => setTimeout(resolve, 300));
 
+      // Handle bulk order submission
+      if (orderMode === 'bulk') {
+        const formData = new FormData();
+        formData.append('compositeFile', bulkCompositePdf!);
+        formData.append('distinctDesigns', numberOfDesigns);
+        formData.append('totalCopies', quantity.toString());
+        formData.append('pagesPerDesign', calculateRequiredPageCount().toString());
+        formData.append('productId', selectedProduct._id);
+        formData.append('unitPrice', subtotal.toString());
+        formData.append('totalPrice', (subtotal + gstAmount).toString());
+
+        // Add customer details for bulk order
+        formData.append('customerName', customerName.trim());
+        formData.append('customerEmail', customerEmail.trim());
+        formData.append('mobileNumber', mobileNumber.trim());
+        formData.append('address', address.trim());
+        formData.append('pincode', pincode.trim());
+
+        formData.append('selectedAttributes', JSON.stringify(
+          Object.entries(selectedDynamicAttributes).reduce((acc, [key, value]) => {
+            if (value) {
+              const attr = pdpAttributes.find(a => a._id === key);
+              if (attr) {
+                acc[attr.attributeName] = typeof value === 'object' && !(value instanceof File)
+                  ? JSON.stringify(value)
+                  : String(value);
+              }
+            }
+            return acc;
+          }, {} as Record<string, string>)
+        ));
+
+        // Determine product type for backend
+        let productType = "VISITING_CARD";
+        if (selectedProduct.name.toLowerCase().includes('letterhead')) productType = "LETTERHEAD";
+        if (selectedProduct.name.toLowerCase().includes('envelope')) productType = "ENVELOPE";
+        formData.append('productType', productType);
+        formData.append('hireDesigner', 'false');
+
+        const token = localStorage.getItem("token");
+        const uploadResponse = await fetch(`${API_BASE_URL}/bulk-orders/upload`, {
+          method: 'POST',
+          headers: {
+            ...(token && { Authorization: `Bearer ${token}` }),
+          },
+          body: formData,
+        });
+
+        if (!uploadResponse.ok) {
+          if (uploadResponse.status === 401) {
+            throw new Error('Authentication required. Please login again.');
+          }
+          if (uploadResponse.status === 403) {
+            throw new Error('Access denied: You are not eligible for bulk orders.');
+          }
+          const errorData = await uploadResponse.json().catch(() => ({}));
+          throw new Error(errorData.message || 'Failed to upload bulk order');
+        }
+
+        const result = await uploadResponse.json();
+
+        // Get bulk order details for payment
+        // For bulk orders, the ID is nested in result.data
+        const bulkOrderId = result.data?.bulkOrderId || result.bulkOrderId || result._id;
+
+        // Calculate total amount correctly for bulk orders
+        // numberOfDesigns is already a string state from the bulk upload flow
+        const designs = parseInt(numberOfDesigns) || 1;
+        const totalAmount = (subtotal + gstAmount) * designs;
+
+        console.log("✅ Bulk order created successfully. ID:", bulkOrderId);
+        console.log("💰 Bulk Total amount (including all designs):", totalAmount);
+
+        if (!bulkOrderId) {
+          console.error("❌ No bulkOrderId found in response:", result);
+          alert("Order created but payment ID missing. Please contact support.");
+          return;
+        }
+
+        // Show a professional status update
+        setPaymentError("Order created. Initializing secure payment...");
+
+        // Initialize payment for bulk order
+        try {
+          const paymentToken = localStorage.getItem("token");
+          const paymentResponse = await fetch(`${API_BASE_URL}/payment/initialize`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(paymentToken && { Authorization: `Bearer ${paymentToken}` }),
+            },
+            body: JSON.stringify({
+              orderId: bulkOrderId,
+              amount: Math.round(totalAmount * 100), // Convert to paise/cents
+              currency: "INR",
+              customerInfo: {
+                name: customerName.trim(),
+                email: customerEmail.trim(),
+                phone: mobileNumber.trim(),
+              },
+            }),
+          });
+
+          if (!paymentResponse.ok) {
+            const paymentError = await paymentResponse.json().catch(() => ({}));
+            throw new Error(paymentError.message || "Failed to initialize payment");
+          }
+
+          const paymentData = await paymentResponse.json();
+          const checkoutData = paymentData.checkout_data || paymentData.checkoutData;
+
+          console.log("✅ Payment initialized for bulk order");
+          console.log("🔐 Payment gateway:", paymentData.gateway);
+
+          // Close modal
+          setShowPaymentModal(false);
+          setIsProcessingPayment(false);
+
+          // Redirect to payment gateway
+          const isRedirectRequired = paymentData.redirect_required || false;
+
+          if (isRedirectRequired && paymentData.checkout_url && checkoutData) {
+            console.log('🔄 Redirecting to payment gateway:', paymentData.checkout_url);
+
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = paymentData.checkout_url;
+
+            Object.keys(checkoutData).forEach(key => {
+              const input = document.createElement('input');
+              input.type = 'hidden';
+              input.name = key;
+              input.value = checkoutData[key];
+              form.appendChild(input);
+            });
+
+            document.body.appendChild(form);
+            form.submit();
+          } else {
+            // Fallback: show success and navigate
+            alert(`Bulk order placed successfully!\\n\\nOrder ID: ${bulkOrderId}\\n\\nPlease complete payment to process your order.`);
+
+            // Reset bulk order state
+            setNumberOfDesigns('');
+            setBulkCompositePdf(null);
+            setBulkPdfError('');
+            setOrderMode('single');
+          }
+
+        } catch (paymentError) {
+          console.error("Payment initialization error:", paymentError);
+          setIsProcessingPayment(false);
+
+          // Show error but don't lose the order
+          alert(`Bulk order created (ID: ${bulkOrderId})\\n\\nHowever, payment initialization failed: ${paymentError instanceof Error ? paymentError.message : 'Unknown error'}\\n\\nPlease contact support to complete payment.`);
+
+          // Reset state
+          setNumberOfDesigns('');
+          setBulkCompositePdf(null);
+          setBulkPdfError('');
+          setOrderMode('single');
+        }
+
+        return;
+      }
+
+      // Single order processing continues below
       const uploadedDesign: any = {};
 
       if (!frontDesignPreview || !frontDesignFile) {
@@ -3011,6 +3629,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                       <ProductPriceBox
                         productId={selectedProduct._id}
                         quantity={quantity}
+                        numberOfDesigns={orderMode === 'bulk' ? (parseInt(numberOfDesigns) || 1) : 1}
                         selectedDynamicAttributes={Object.entries(selectedDynamicAttributes)
                           .filter(([_, value]) => value !== null && value !== undefined && value !== '')
                           .map(([key, value]) => {
@@ -3879,6 +4498,8 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                     )}
                                   </div>
 
+
+
                                   {(() => {
                                     let attributesToRender: any[] = [];
 
@@ -4076,92 +4697,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                         </div>
                                                       )}
 
-                                                      {(() => {
-                                                        const selectedValue = selectedDynamicAttributes[attrId];
-                                                        if (!selectedValue) return null;
 
-                                                        const selectedOption = attributeValues.find((av) => av.value === selectedValue);
-                                                        if (!selectedOption || !selectedOption.description) return null;
-
-                                                        const imagesRequiredMatch = selectedOption.description.match(/Images Required: (\d+)/);
-                                                        const numberOfImagesRequired = imagesRequiredMatch ? parseInt(imagesRequiredMatch[1]) : 0;
-
-                                                        if (numberOfImagesRequired <= 0) return null;
-
-                                                        const imagesKey = `${attrId}_images`;
-                                                        const uploadedImages = Array.isArray(selectedDynamicAttributes[imagesKey])
-                                                          ? (selectedDynamicAttributes[imagesKey] as File[])
-                                                          : [];
-
-                                                        return (
-                                                          <div className="mt-4 p-4 bg-cream-50 rounded-lg border border-cream-200">
-                                                            <label className="block text-sm font-semibold text-cream-900 mb-3">
-                                                              Upload Images for {selectedOption.label} ({numberOfImagesRequired} required) *
-                                                            </label>
-                                                            <div className="space-y-3">
-                                                              {Array.from({ length: numberOfImagesRequired }).map((_, index) => {
-                                                                const file = uploadedImages[index] || null;
-                                                                return (
-                                                                  <div key={index} className="flex items-center gap-3">
-                                                                    <input
-                                                                      type="file"
-                                                                      accept="image/*"
-                                                                      data-image-index={index}
-                                                                      data-attr-id={attrId}
-                                                                      onChange={(e) => {
-                                                                        const newFile = e.target.files?.[0] || null;
-                                                                        if (newFile) {
-                                                                          const updatedImages = [...uploadedImages];
-                                                                          while (updatedImages.length <= index) {
-                                                                            updatedImages.push(null as any);
-                                                                          }
-                                                                          updatedImages[index] = newFile;
-                                                                          setSelectedDynamicAttributes({
-                                                                            ...selectedDynamicAttributes,
-                                                                            [imagesKey]: updatedImages
-                                                                          });
-                                                                        }
-                                                                      }}
-                                                                      className="flex-1 px-3 py-2 border border-cream-300 rounded-lg text-sm"
-                                                                    />
-                                                                    {file && (
-                                                                      <div className="flex items-center gap-2">
-                                                                        <span className="text-xs text-cream-600 max-w-[150px] truncate">
-                                                                          {file.name}
-                                                                        </span>
-                                                                        <button
-                                                                          type="button"
-                                                                          onClick={() => {
-                                                                            const updatedImages = [...uploadedImages];
-                                                                            updatedImages[index] = null as any;
-                                                                            setSelectedDynamicAttributes({
-                                                                              ...selectedDynamicAttributes,
-                                                                              [imagesKey]: updatedImages
-                                                                            });
-                                                                            const fileInput = document.querySelector(`input[type="file"][data-image-index="${index}"][data-attr-id="${attrId}"]`) as HTMLInputElement;
-                                                                            if (fileInput) {
-                                                                              fileInput.value = '';
-                                                                            }
-                                                                          }}
-                                                                          className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
-                                                                          title="Remove image"
-                                                                        >
-                                                                          <X size={16} />
-                                                                        </button>
-                                                                      </div>
-                                                                    )}
-                                                                  </div>
-                                                                );
-                                                              })}
-                                                            </div>
-                                                            {uploadedImages.length < numberOfImagesRequired && (
-                                                              <p className="text-xs text-red-600 mt-2">
-                                                                Please upload {numberOfImagesRequired - uploadedImages.length} more image(s)
-                                                              </p>
-                                                            )}
-                                                          </div>
-                                                        );
-                                                      })()}
                                                     </>
                                                   )}
                                                 </div>
@@ -4208,92 +4744,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                         <ArrowRight size={18} className="text-cream-400 group-hover:text-cream-600 transition-colors" />
                                                       </button>
 
-                                                      {(() => {
-                                                        const selectedValue = selectedDynamicAttributes[attrId];
-                                                        if (!selectedValue) return null;
 
-                                                        const selectedOption = attributeValues.find((av) => av.value === selectedValue);
-                                                        if (!selectedOption || !selectedOption.description) return null;
-
-                                                        const imagesRequiredMatch = selectedOption.description.match(/Images Required: (\d+)/);
-                                                        const numberOfImagesRequired = imagesRequiredMatch ? parseInt(imagesRequiredMatch[1]) : 0;
-
-                                                        if (numberOfImagesRequired <= 0) return null;
-
-                                                        const imagesKey = `${attrId}_images`;
-                                                        const uploadedImages = Array.isArray(selectedDynamicAttributes[imagesKey])
-                                                          ? (selectedDynamicAttributes[imagesKey] as File[])
-                                                          : [];
-
-                                                        return (
-                                                          <div className="mt-4 p-4 bg-cream-50 rounded-lg border border-cream-200">
-                                                            <label className="block text-sm font-semibold text-cream-900 mb-3">
-                                                              Upload Images for {selectedOption.label} ({numberOfImagesRequired} required) *
-                                                            </label>
-                                                            <div className="space-y-3">
-                                                              {Array.from({ length: numberOfImagesRequired }).map((_, index) => {
-                                                                const file = uploadedImages[index] || null;
-                                                                return (
-                                                                  <div key={index} className="flex items-center gap-3">
-                                                                    <input
-                                                                      type="file"
-                                                                      accept="image/*"
-                                                                      data-image-index={index}
-                                                                      data-attr-id={attrId}
-                                                                      onChange={(e) => {
-                                                                        const newFile = e.target.files?.[0] || null;
-                                                                        if (newFile) {
-                                                                          const updatedImages = [...uploadedImages];
-                                                                          while (updatedImages.length <= index) {
-                                                                            updatedImages.push(null as any);
-                                                                          }
-                                                                          updatedImages[index] = newFile;
-                                                                          setSelectedDynamicAttributes({
-                                                                            ...selectedDynamicAttributes,
-                                                                            [imagesKey]: updatedImages
-                                                                          });
-                                                                        }
-                                                                      }}
-                                                                      className="flex-1 px-3 py-2 border border-cream-300 rounded-lg text-sm"
-                                                                    />
-                                                                    {file && (
-                                                                      <div className="flex items-center gap-2">
-                                                                        <span className="text-xs text-cream-600 max-w-[150px] truncate">
-                                                                          {file.name}
-                                                                        </span>
-                                                                        <button
-                                                                          type="button"
-                                                                          onClick={() => {
-                                                                            const updatedImages = [...uploadedImages];
-                                                                            updatedImages[index] = null as any;
-                                                                            setSelectedDynamicAttributes({
-                                                                              ...selectedDynamicAttributes,
-                                                                              [imagesKey]: updatedImages
-                                                                            });
-                                                                            const fileInput = document.querySelector(`input[type="file"][data-image-index="${index}"][data-attr-id="${attrId}"]`) as HTMLInputElement;
-                                                                            if (fileInput) {
-                                                                              fileInput.value = '';
-                                                                            }
-                                                                          }}
-                                                                          className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
-                                                                          title="Remove image"
-                                                                        >
-                                                                          <X size={16} />
-                                                                        </button>
-                                                                      </div>
-                                                                    )}
-                                                                  </div>
-                                                                );
-                                                              })}
-                                                            </div>
-                                                            {uploadedImages.length < numberOfImagesRequired && (
-                                                              <p className="text-xs text-red-600 mt-2">
-                                                                Please upload {numberOfImagesRequired - uploadedImages.length} more image(s)
-                                                              </p>
-                                                            )}
-                                                          </div>
-                                                        );
-                                                      })()}
                                                     </>
                                                   )}
                                                 </div>
@@ -4442,16 +4893,567 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                     ) : null;
                                   })()}
 
+
                                   {hasPermission && (
                                     <BulkOrderToggle
                                       orderMode={orderMode}
                                       setOrderMode={setOrderMode}
-                                      setShowBulkWizard={setShowBulkWizard}
                                     />
                                   )}
 
+                                  {/* Upload Section - Toggles based on Order Mode */}
+                                  {(() => {
+                                    if (loading) {
+                                      return (
+                                        <div className="mb-3 sm:mb-4 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden h-[200px] flex flex-col">
+                                          <div className="bg-gray-50 px-5 py-4 border-b">
+                                            <div className="flex gap-3">
+                                              <Skeleton variant="rectangular" className="w-8 h-8 rounded-lg" />
+                                              <div className="space-y-2">
+                                                <Skeleton variant="text" className="w-32 h-4" />
+                                                <Skeleton variant="text" className="w-24 h-3" />
+                                              </div>
+                                            </div>
+                                          </div>
+                                          <div className="p-5 flex-1 flex items-center justify-center">
+                                            <Skeleton variant="rectangular" className="w-full h-full rounded-xl" />
+                                          </div>
+                                        </div>
+                                      )
+                                    }
+
+                                    // Calculate required pages dynamically
+                                    const calculatedPages = calculateRequiredPageCount();
+                                    if (calculatedPages === 0 && orderMode === 'single') return null;
+
+                                    // SINGLE ORDER MODE - Existing PDF Upload UI
+                                    if (orderMode === 'single') {
+                                      return (
+                                        <div className="mb-3 sm:mb-4 bg-white rounded-2xl border border-gray-200 shadow-lg shadow-gray-200/50 overflow-hidden hover:shadow-xl hover:shadow-gray-200/50 transition-all duration-300">
+                                          {/* Header Section */}
+                                          <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 px-4 sm:px-5 py-3 sm:py-4 border-b border-gray-200">
+                                            <div className="flex items-center gap-3">
+                                              <div className="w-9 h-9 rounded-xl bg-white shadow-md flex items-center justify-center ring-1 ring-blue-100">
+                                                <FileText className="w-5 h-5 text-blue-600" />
+                                              </div>
+                                              <div className="flex-1">
+                                                <h3 className="font-bold text-sm sm:text-base text-gray-900">
+                                                  Upload Design File
+                                                </h3>
+                                                <p className="text-xs text-gray-600 mt-0.5 font-medium">
+                                                  {calculatedPages} page{calculatedPages !== 1 ? 's' : ''} required • PDF or CDR • Max: {MAX_PDF_SIZE_MB}MB
+                                                </p>
+                                              </div>
+                                              {pdfFile && !pdfValidationError && (
+                                                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-green-100 to-emerald-100 text-green-700 text-xs font-bold shadow-sm">
+                                                  <Check size={14} strokeWidth={3} />
+                                                  Complete
+                                                </span>
+                                              )}
+                                            </div>
+                                          </div>
+
+                                          {/* Upload Area */}
+                                          <div className="p-4 sm:p-5">
+                                            {/* Upload Input */}
+                                            <input
+                                              type="file"
+                                              id="pdf-upload-input"
+                                              accept=".pdf,.cdr,application/pdf,application/x-coreldraw,application/coreldraw"
+                                              onChange={handlePdfUpload}
+                                              className="hidden"
+                                              data-required-field
+                                            />
+
+                                            {!pdfFile ? (
+                                              /* Upload Prompt */
+                                              <label
+                                                htmlFor="pdf-upload-input"
+                                                className={`block cursor-pointer border-2 border-dashed rounded-xl transition-all duration-300 hover:scale-[1.01] ${pdfValidationError
+                                                  ? 'border-red-400 bg-red-50/50 shadow-inner'
+                                                  : 'border-gray-300 bg-gradient-to-br from-gray-50 to-slate-50 hover:border-blue-500 hover:bg-gradient-to-br hover:from-blue-50 hover:to-indigo-50 hover:shadow-md'
+                                                  }`}
+                                              >
+                                                <div className="p-8 text-center">
+                                                  {isPdfProcessing ? (
+                                                    <div className="flex flex-col items-center">
+                                                      <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-3"></div>
+                                                      <p className="text-sm font-semibold text-gray-700">Processing Design File...</p>
+                                                      <p className="text-xs text-gray-500 mt-1">Extracting pages as images</p>
+                                                    </div>
+                                                  ) : (
+                                                    <>
+                                                      <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center mx-auto mb-4">
+                                                        <UploadCloud className="w-7 h-7 text-blue-600" />
+                                                      </div>
+                                                      <p className="text-base font-bold text-gray-800 mb-1">
+                                                        Click to upload design file
+                                                      </p>
+                                                      <p className="text-sm text-gray-600 mb-2 font-medium">
+                                                        {calculatedPages} page{calculatedPages !== 1 ? 's' : ''} required
+                                                      </p>
+                                                      <p className="text-xs text-gray-500 mb-4">
+                                                        Supports PDF & CDR • Max: {MAX_PDF_SIZE_MB}MB
+                                                      </p>
+                                                      <div className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg text-sm font-bold hover:from-blue-700 hover:to-indigo-700 transition-all hover:shadow-lg hover:scale-105">
+                                                        <FileImage size={16} />
+                                                        Select Design File
+                                                      </div>
+                                                    </>
+                                                  )}
+                                                </div>
+                                              </label>
+                                            ) : (
+                                              /* PDF Upload Success & Preview */
+                                              <div className="space-y-4">
+                                                {/* PDF File Info */}
+                                                <div className="flex items-center justify-between p-4 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-300 rounded-xl shadow-md hover:shadow-lg transition-all">
+                                                  <div className="flex items-center gap-3">
+                                                    <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-md">
+                                                      <FileText className="w-6 h-6 text-white" />
+                                                    </div>
+                                                    <div>
+                                                      <p className="text-sm font-semibold text-gray-900">
+                                                        {pdfFile.name}
+                                                      </p>
+                                                      <p className="text-xs text-gray-600">
+                                                        {pdfFile.name.toLowerCase().endsWith('.cdr')
+                                                          ? `CDR file ready (will be processed server-side)`
+                                                          : `${extractedPdfPages.length} page${extractedPdfPages.length !== 1 ? 's' : ''} extracted`
+                                                        }
+                                                      </p>
+                                                    </div>
+                                                  </div>
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                      setPdfFile(null);
+                                                      setExtractedPdfPages([]);
+                                                      setPdfPreviewPages([]);
+                                                      setPdfValidationError(null);
+                                                      setFrontDesignFile(null);
+                                                      setBackDesignFile(null);
+                                                      setFrontDesignPreview("");
+                                                      setBackDesignPreview("");
+                                                      const fileInput = document.getElementById('pdf-upload-input') as HTMLInputElement;
+                                                      if (fileInput) fileInput.value = '';
+                                                    }}
+                                                    className="px-3 py-1.5 text-xs font-bold text-red-700 bg-red-100 hover:bg-red-200 rounded-lg transition-all hover:shadow-md hover:scale-105"
+                                                  >
+                                                    Remove
+                                                  </button>
+                                                </div>
+
+                                                {/* Extracted Pages with Purpose Labels - Enhanced UI */}
+                                                {pdfPreviewPages.length > 0 && pdfPageMapping.length > 0 && (
+                                                  <div>
+                                                    <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                                                      <FileText size={16} className="text-blue-600" />
+                                                      Page Assignments
+                                                    </h4>
+                                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                                      {pdfPreviewPages.map((preview, index) => {
+                                                        const mapping = pdfPageMapping[index];
+                                                        if (!mapping) return null;
+
+                                                        // Color coding based on type
+                                                        const colorClasses = {
+                                                          border: 'border-blue-400',
+                                                          badge: 'bg-gradient-to-br from-blue-500 to-indigo-600',
+                                                          labelBg: 'bg-gradient-to-r from-blue-600 to-indigo-700'
+                                                        };
+
+                                                        return (
+                                                          <div key={index} className="relative group">
+                                                            {/* Image Container with dynamic aspect ratio */}
+                                                            <div className="w-full relative overflow-hidden rounded-xl ring-2 ring-blue-400 ring-offset-0 shadow-lg hover:shadow-2xl hover:ring-blue-500 transition-all duration-300 hover:scale-[1.02]">
+                                                              <img
+                                                                src={preview}
+                                                                alt={`Page ${index + 1}`}
+                                                                className="w-full bg-white object-contain"
+                                                                style={{ aspectRatio: 'auto' }}
+                                                              />
+                                                            </div>
+
+                                                            {/* Page Number Badge */}
+                                                            <div className={`absolute -top-2 -left-2 w-8 h-8 ${colorClasses.badge} rounded-full flex items-center justify-center shadow-xl border-2 border-white ring-1 ring-blue-200`}>
+                                                              <span className="text-white text-xs font-black">{mapping.pageNumber}</span>
+                                                            </div>
+
+                                                            {/* Required Badge */}
+                                                            {mapping.isRequired && (
+                                                              <div className="absolute -top-2 -right-2 w-7 h-7 bg-gradient-to-br from-red-500 to-rose-600 rounded-full flex items-center justify-center shadow-xl border-2 border-white ring-1 ring-red-200">
+                                                                <span className="text-white text-xs font-black">!</span>
+                                                              </div>
+                                                            )}
+
+                                                            {/* Purpose Label - Always Visible */}
+                                                            <div className={`absolute bottom-0 left-0 right-0 ${colorClasses.labelBg} text-white px-2 py-2.5 rounded-b-xl shadow-md`}>
+                                                              <div className="flex items-center gap-1.5">
+                                                                <ImageIcon size={15} className="flex-shrink-0" />
+                                                                <div className="flex-1 min-w-0">
+                                                                  <p className="text-[11px] font-bold truncate leading-tight">
+                                                                    {mapping.purpose}
+                                                                  </p>
+                                                                  {mapping.type === 'attribute' && (
+                                                                    <p className="text-[9px] opacity-95 truncate font-medium">
+                                                                      {mapping.isRequired ? 'Required' : 'Optional'}
+                                                                    </p>
+                                                                  )}
+                                                                </div>
+                                                              </div>
+                                                            </div>
+
+                                                            {/* Hover Tooltip with Full Details */}
+                                                            <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300 rounded-xl pointer-events-none"></div>
+                                                          </div>
+                                                        );
+                                                      })}
+                                                    </div>
+
+                                                    {/* Legend */}
+                                                    <div className="mt-4 p-3.5 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 border border-blue-200 rounded-xl shadow-sm">
+                                                      <p className="text-xs font-bold text-gray-800 mb-2.5 flex items-center gap-2">
+                                                        <div className="w-5 h-5 rounded-md bg-blue-100 flex items-center justify-center">
+                                                          <Info size={13} className="text-blue-600" />
+                                                        </div>
+                                                        Legend
+                                                      </p>
+                                                      <div className="flex flex-wrap gap-4">
+                                                        <div className="flex items-center gap-2">
+                                                          <div className="w-6 h-6 rounded-lg bg-white shadow-sm flex items-center justify-center">
+                                                            <ImageIcon size={15} className="text-blue-600" />
+                                                          </div>
+                                                          <span className="text-xs text-gray-700 font-medium">Attribute Images</span>
+                                                        </div>
+                                                        <div className="flex items-center gap-2">
+                                                          <div className="w-6 h-6 rounded-lg bg-white shadow-sm flex items-center justify-center">
+                                                            <AlertTriangle size={15} className="text-red-600" />
+                                                          </div>
+                                                          <span className="text-xs text-gray-700 font-medium">Required</span>
+                                                        </div>
+                                                      </div>
+                                                    </div>
+                                                  </div>
+                                                )}
+
+                                                {/* CDR File Information Message */}
+                                                {pdfFile && pdfFile.name.toLowerCase().endsWith('.cdr') && pdfPreviewPages.length === 0 && (
+                                                  <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                                                    <div className="flex items-start gap-2">
+                                                      <Info size={16} className="text-blue-600 mt-0.5 flex-shrink-0" />
+                                                      <div className="text-xs text-blue-900">
+                                                        <p className="font-semibold mb-1">CDR File Uploaded Successfully</p>
+                                                        <p>Your CorelDRAW file will be processed on the server. Page previews are not available for CDR files, but your design will be processed according to the required page count ({requiredPageCount} page{requiredPageCount !== 1 ? 's' : ''}).</p>
+                                                      </div>
+                                                    </div>
+                                                  </div>
+                                                )}
+                                              </div>
+                                            )}
+
+                                            {/* Validation Error */}
+                                            {pdfValidationError && (
+                                              <div className="mt-4 p-4 bg-red-50 border-2 border-red-200 rounded-xl">
+                                                <div className="flex items-start gap-2">
+                                                  <AlertCircle className="text-red-600 flex-shrink-0 mt-0.5" size={18} />
+                                                  <div>
+                                                    <p className="text-sm font-semibold text-red-900 mb-1">Upload Error</p>
+                                                    <p className="text-sm text-red-700">{pdfValidationError}</p>
+                                                  </div>
+                                                </div>
+                                              </div>
+                                            )}
+
+                                            {/* Additional Notes Section */}
+                                            <div className="mt-4 p-4 rounded-lg border-2 border-gray-200 bg-gray-50">
+                                              <div className="flex items-center gap-2 mb-3">
+                                                <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-purple-100 text-purple-700 text-xs font-bold">
+                                                  <Info size={12} />
+                                                </span>
+                                                <h4 className="text-sm font-bold text-gray-900">
+                                                  Additional Notes
+                                                </h4>
+                                                <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-200 text-gray-600 text-[10px] font-semibold">
+                                                  Optional
+                                                </span>
+                                              </div>
+                                              <textarea
+                                                value={orderNotes}
+                                                onChange={(e) => setOrderNotes(e.target.value)}
+                                                placeholder="Any special instructions or notes for your order..."
+                                                className="w-full p-3 rounded-lg border-2 border-gray-200 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none text-sm resize-none bg-white transition-all"
+                                                rows={3}
+                                              />
+                                            </div>
+                                          </div>
+                                        </div>
+                                      );
+                                    }
+
+                                    // BULK ORDER MODE - New Composite PDF Upload UI
+                                    const numberOfDesignsNum = parseInt(numberOfDesigns) || 0;
+                                    const pagesPerDesign = calculateRequiredPageCount();
+                                    const expectedPages = numberOfDesignsNum * pagesPerDesign;
+                                    const fileExt = bulkCompositePdf?.name.toLowerCase() || '';
+
+                                    return (
+                                      <div className="mb-3 sm:mb-4 bg-white rounded-2xl border border-gray-200 shadow-lg shadow-gray-200/50 overflow-hidden hover:shadow-xl hover:shadow-gray-200/50 transition-all duration-300">
+                                        {/* Header Section */}
+                                        <div className="bg-gradient-to-r from-orange-50 via-amber-50 to-yellow-50 px-4 sm:px-5 py-3 sm:py-4 border-b border-gray-200">
+                                          <div className="flex items-center gap-3">
+                                            <div className="w-9 h-9 rounded-xl bg-white shadow-md flex items-center justify-center ring-1 ring-orange-100">
+                                              <UploadIcon className="w-5 h-5 text-orange-600" />
+                                            </div>
+                                            <div className="flex-1">
+                                              <h3 className="font-bold text-sm sm:text-base text-gray-900">
+                                                Bulk Order Upload
+                                              </h3>
+                                              <p className="text-xs text-gray-600 mt-0.5 font-medium">
+                                                Upload composite PDF with multiple designs
+                                              </p>
+                                            </div>
+                                            {bulkCompositePdf && !bulkPdfError && (
+                                              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-green-100 to-emerald-100 text-green-700 text-xs font-bold shadow-sm">
+                                                <Check size={14} strokeWidth={3} />
+                                                Ready
+                                              </span>
+                                            )}
+                                          </div>
+                                        </div>
+
+                                        <div className="p-4 sm:p-5 space-y-4">
+                                          {/* Number of Designs Input */}
+
+                                          {/* Number of Designs Input */}
+                                          <div>
+                                            <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                              Number of Designs *
+                                            </label>
+                                            <input
+                                              type="number"
+                                              min="1"
+                                              max="50"
+                                              value={numberOfDesigns}
+                                              onChange={(e) => setNumberOfDesigns(e.target.value)}
+                                              placeholder="e.g., 30"
+                                              className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent text-lg font-semibold"
+                                            />
+                                            <p className="text-xs text-gray-600 mt-1">How many distinct designs are in your PDF? (Max: 50)</p>
+
+                                            {numberOfDesignsNum > 0 && (
+                                              <div className="mt-3 p-3 bg-orange-50 border border-orange-200 rounded-lg animate-in fade-in slide-in-from-top-1 duration-300">
+                                                <p className="text-sm font-bold text-orange-900 flex items-center gap-2">
+                                                  <Info className="w-4 h-4 text-orange-600" />
+                                                  Required Page Count: {expectedPages} Pages
+                                                </p>
+                                                <p className="text-xs text-orange-700 mt-1">
+                                                  Your PDF/CDR must have exactly {expectedPages} pages ({numberOfDesignsNum} designs × {pagesPerDesign} pages per design)
+                                                </p>
+                                              </div>
+                                            )}
+                                          </div>
+
+                                          {/* Composite PDF Upload */}
+                                          <div>
+                                            <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                              Upload Composite PDF *
+                                            </label>
+                                            <input
+                                              type="file"
+                                              id="bulk-pdf-upload-input"
+                                              accept=".pdf,.cdr,application/pdf,application/x-coreldraw,application/coreldraw"
+                                              onChange={handleBulkPdfUpload}
+                                              className="hidden"
+                                            />
+
+                                            <label
+                                              htmlFor="bulk-pdf-upload-input"
+                                              className={`block cursor-pointer border-2 border-dashed rounded-xl p-6 sm:p-8 text-center transition-all ${bulkPdfError
+                                                ? 'border-red-400 bg-red-50/50'
+                                                : bulkCompositePdf
+                                                  ? 'border-green-400 bg-green-50/30 shadow-inner'
+                                                  : 'border-orange-300 bg-orange-50/30 hover:border-orange-500 hover:bg-orange-50/50 hover:shadow-md'
+                                                }`}
+                                            >
+                                              {isBulkPdfProcessing ? (
+                                                <div className="flex flex-col items-center py-4">
+                                                  <div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mb-3"></div>
+                                                  <p className="text-sm font-bold text-gray-700">Analyzing Bulk File...</p>
+                                                  <p className="text-xs text-gray-500 mt-1">Extracting {expectedPages} design pages</p>
+                                                </div>
+                                              ) : bulkCompositePdf ? (
+                                                <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+                                                  <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-md">
+                                                    <FileText className="w-6 h-6 text-white" />
+                                                  </div>
+                                                  <div className="text-center sm:text-left flex-1 min-w-0">
+                                                    <p className="font-bold text-gray-900 text-sm sm:text-base truncate">{bulkCompositePdf.name}</p>
+                                                    <p className="text-xs sm:text-sm text-gray-600 font-medium">
+                                                      {(bulkCompositePdf.size / (1024 * 1024)).toFixed(2)} MB • {bulkPdfPreviewPages.length > 0 ? `${bulkPdfPreviewPages.length} Pages Extracted` : 'Ready'}
+                                                    </p>
+                                                  </div>
+                                                  <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                      e.preventDefault();
+                                                      setBulkCompositePdf(null);
+                                                      setBulkPdfPreviewPages([]);
+                                                      setBulkPdfExtractedPages([]);
+                                                      const fileInput = document.getElementById('bulk-pdf-upload-input') as HTMLInputElement;
+                                                      if (fileInput) fileInput.value = '';
+                                                    }}
+                                                    className="px-4 py-2 text-xs font-bold text-red-700 bg-red-100 hover:bg-red-200 rounded-xl transition-all hover:shadow-md"
+                                                  >
+                                                    Remove
+                                                  </button>
+                                                </div>
+                                              ) : (
+                                                <div className="py-2">
+                                                  <div className="w-14 h-14 rounded-full bg-orange-100 flex items-center justify-center mx-auto mb-4">
+                                                    <UploadCloud className="w-8 h-8 text-orange-600" />
+                                                  </div>
+                                                  <p className="text-base font-bold text-gray-800 mb-1">
+                                                    Upload your bulk design file
+                                                  </p>
+                                                  <p className="text-sm text-gray-600 mb-3 font-medium">
+                                                    PDF or CDR • Max 100MB
+                                                  </p>
+                                                  <div className="inline-flex items-center gap-2 px-5 py-2.5 bg-orange-600 text-white rounded-xl text-sm font-bold hover:bg-orange-700 transition-all hover:shadow-lg hover:scale-105">
+                                                    <FileText size={16} />
+                                                    Select Bulk File
+                                                  </div>
+                                                </div>
+                                              )}
+                                            </label>
+
+                                            {/* Scrollable Preview Window for Bulk PDF */}
+                                            {bulkPdfPreviewPages.length > 0 && (
+                                              <div className="mt-4 animate-in fade-in slide-in-from-top-4 duration-500">
+                                                <div className="flex items-center justify-between mb-3 px-1">
+                                                  <h4 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                                                    <div className="w-2 h-6 bg-orange-500 rounded-full"></div>
+                                                    Design Preview ({bulkPdfPreviewPages.length} Pages)
+                                                  </h4>
+                                                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Scroll to view all designs</span>
+                                                </div>
+
+                                                <div className="relative group">
+                                                  <div className="custom-scrollbar flex gap-4 overflow-x-auto pb-4 pt-1 snap-x px-1">
+                                                    {bulkPdfPreviewPages.map((preview, index) => (
+                                                      <div
+                                                        key={index}
+                                                        className="flex-shrink-0 w-[180px] sm:w-[220px] snap-start"
+                                                      >
+                                                        <div className="relative aspect-[3/4] bg-white rounded-xl border-2 border-orange-100 shadow-md group/item overflow-hidden hover:border-orange-400 transition-all duration-300">
+                                                          <img
+                                                            src={preview}
+                                                            alt={`Design ${index + 1}`}
+                                                            className="w-full h-full object-contain"
+                                                          />
+                                                          <div className="absolute top-2 left-2 w-7 h-7 bg-orange-600 text-white rounded-full flex items-center justify-center text-[10px] font-black shadow-lg border-2 border-white ring-1 ring-orange-200">
+                                                            {index + 1}
+                                                          </div>
+                                                          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent py-2 px-3 opacity-0 group-hover/item:opacity-100 transition-opacity">
+                                                            <p className="text-[10px] text-white font-bold truncate">
+                                                              {index % pagesPerDesign === 0
+                                                                ? `Design ${Math.floor(index / pagesPerDesign) + 1} - Front`
+                                                                : `Design ${Math.floor(index / pagesPerDesign) + 1} - Back`}
+                                                            </p>
+                                                          </div>
+                                                        </div>
+                                                        <p className="text-center text-[10px] font-bold text-gray-500 mt-2">
+                                                          Page {index + 1}
+                                                        </p>
+                                                      </div>
+                                                    ))}
+                                                  </div>
+
+                                                  {/* Scroll Indicator (Shadows) */}
+                                                  <div className="absolute left-0 top-0 bottom-4 w-8 bg-gradient-to-r from-white to-transparent pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                                                  <div className="absolute right-0 top-0 bottom-4 w-8 bg-gradient-to-l from-white to-transparent pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                                                </div>
+
+                                                <style>{`
+                                                  .custom-scrollbar::-webkit-scrollbar {
+                                                    height: 8px;
+                                                  }
+                                                  .custom-scrollbar::-webkit-scrollbar-track {
+                                                    background: #fdf2f0;
+                                                    border-radius: 10px;
+                                                  }
+                                                  .custom-scrollbar::-webkit-scrollbar-thumb {
+                                                    background: #fb923c;
+                                                    border-radius: 10px;
+                                                  }
+                                                  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+                                                    background: #ea580c;
+                                                  }
+                                                `}</style>
+                                              </div>
+                                            )}
+
+                                            {/* CDR File Support Notice */}
+                                            {bulkCompositePdf && fileExt.endsWith('.cdr') && (
+                                              <div className="mt-4 p-4 bg-orange-50 border border-orange-200 rounded-xl flex items-start gap-3">
+                                                <Info className="w-5 h-5 text-orange-600 flex-shrink-0 mt-0.5" />
+                                                <div className="text-xs text-orange-900">
+                                                  <p className="font-bold mb-1">CDR File Accepted</p>
+                                                  <p>Previews are not available for CDR files. However, we will process your {numberOfDesignsNum} designs using the {expectedPages} pages in your CorelDraw file.</p>
+                                                </div>
+                                              </div>
+                                            )}
+
+                                            {bulkPdfError && (
+                                              <p className="mt-2 text-sm text-red-600 flex items-center gap-1">
+                                                <AlertCircle className="w-4 h-4" />
+                                                {bulkPdfError}
+                                              </p>
+                                            )}
+                                          </div>
+
+                                          {/* Price Summary REMOVED - Now in left sidebar Order Summary */}
+                                          {numberOfDesignsNum > 0 && bulkCompositePdf && (
+                                            <div className="bg-gradient-to-r from-orange-50 to-amber-50 border-2 border-orange-200 rounded-xl p-4 sm:p-5">
+                                              <div className="bg-white/60 rounded-lg p-3 text-xs text-orange-800">
+                                                <p className="font-medium mb-1 truncate">📦 Ready for processing:</p>
+                                                <ul className="space-y-1 ml-4">
+                                                  <li>• Total Designs: {numberOfDesignsNum}</li>
+                                                  <li>• File: {bulkCompositePdf.name}</li>
+                                                </ul>
+                                              </div>
+                                            </div>
+                                          )}
+
+                                          {/* Additional Notes Section */}
+                                          <div className="p-4 rounded-lg border-2 border-gray-200 bg-gray-50">
+                                            <div className="flex items-center gap-2 mb-3">
+                                              <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-purple-100 text-purple-700 text-xs font-bold">
+                                                <Info size={12} />
+                                              </span>
+                                              <h4 className="text-sm font-bold text-gray-900">
+                                                Additional Notes
+                                              </h4>
+                                              <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-200 text-gray-600 text-[10px] font-semibold">
+                                                Optional
+                                              </span>
+                                            </div>
+                                            <textarea
+                                              value={orderNotes}
+                                              onChange={(e) => setOrderNotes(e.target.value)}
+                                              placeholder="Any special instructions or notes for your bulk order..."
+                                              className="w-full p-3 rounded-lg border-2 border-gray-200 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none text-sm resize-none bg-white transition-all"
+                                              rows={3}
+                                            />
+                                          </div>
+                                        </div>
+                                      </div>
+                                    );
+                                  })()}
+
                                   {orderMode === 'single' && (
                                     <>
+
                                       <div className="mt-4 pt-4 border-t border-cream-100">
                                         <button
                                           onClick={handlePlaceOrder}
@@ -4479,6 +5481,55 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                         </div>
                                       </div>
                                     </>
+                                  )}
+
+                                  {orderMode === 'bulk' && (
+                                    <div className="mt-4 pt-4 border-t border-cream-100">
+                                      <button
+                                        onClick={() => {
+                                          // Validate bulk order requirements before showing modal
+                                          const numberOfDesignsNum = parseInt(numberOfDesigns) || 0;
+                                          if (numberOfDesignsNum < 1) {
+                                            setValidationError('Please enter the number of designs (minimum: 1)');
+                                            return;
+                                          }
+                                          if (numberOfDesignsNum > 50) {
+                                            setValidationError('Too many designs. Maximum allowed: 50');
+                                            return;
+                                          }
+                                          if (!bulkCompositePdf) {
+                                            setValidationError('Please upload a composite PDF/CDR file');
+                                            return;
+                                          }
+
+                                          // Show payment modal for bulk order
+                                          setValidationError(null);
+                                          setShowPaymentModal(true);
+                                          setPaymentError(null);
+                                        }}
+                                        disabled={isProcessingPayment || !bulkCompositePdf || !numberOfDesigns}
+                                        className={`w-full py-4 sm:py-5 md:py-6 rounded-xl font-bold text-lg sm:text-xl md:text-2xl transition-all shadow-xl hover:shadow-2xl hover:-translate-y-1 flex items-center justify-center gap-3 min-h-[60px] sm:min-h-[70px] ${isProcessingPayment || !bulkCompositePdf || !numberOfDesigns
+                                          ? 'bg-cream-400 text-cream-700 cursor-not-allowed opacity-60'
+                                          : 'bg-orange-600 text-white hover:bg-orange-700 active:bg-orange-800 cursor-pointer opacity-100'
+                                          }`}
+                                      >
+                                        {isProcessingPayment ? (
+                                          <>
+                                            <Loader className="animate-spin" size={24} />
+                                            <span>Processing Bulk Order...</span>
+                                          </>
+                                        ) : (
+                                          <>
+                                            <Check size={24} />
+                                            <span>Place Bulk Order</span>
+                                          </>
+                                        )}
+                                      </button>
+
+                                      <div className="mt-4 text-center text-xs text-cream-500 flex items-center justify-center gap-2">
+                                        <CreditCard size={14} /> Secure Payment & Data Protection
+                                      </div>
+                                    </div>
                                   )}
                                 </>
                               );
@@ -4883,6 +5934,63 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Payment Confirmation Modal */}
+      <PaymentConfirmationModal
+        isOpen={showPaymentModal}
+        onClose={() => setShowPaymentModal(false)}
+        onConfirm={handlePaymentAndOrder}
+        productId={selectedProduct?._id || ''}
+        productName={selectedProduct?.name || ''}
+        quantity={quantity}
+        numberOfDesigns={orderMode === 'bulk' ? (parseInt(numberOfDesigns) || 1) : 1}
+        selectedDynamicAttributes={Object.entries(selectedDynamicAttributes)
+          .filter(([_, value]) => {
+            // Robust check for File objects or Blob objects
+            if (value instanceof File || value instanceof Blob) return false;
+            if (typeof value === 'object' && value !== null && 'lastModified' in value && 'size' in value && 'type' in value) return false;
+            return value !== null && value !== undefined && value !== '';
+          })
+          .map(([key, value]) => {
+            const attr = pdpAttributes.find(a => a._id === key);
+            const attrName = attr?.attributeName || key;
+
+            let displayValue = value;
+            if (attr?.attributeValues) {
+              const selectedVal = attr.attributeValues.find(v => v.value === value);
+              displayValue = selectedVal?.label || value;
+            }
+
+            // Ensure displayValue is a string
+            if (typeof displayValue === 'object') {
+              displayValue = JSON.stringify(displayValue);
+            }
+
+            return {
+              attributeType: key,
+              value: typeof value === 'object' && !Array.isArray(value)
+                ? JSON.stringify(value)
+                : value,
+              name: attrName,
+              label: String(displayValue) // Force conversion to string
+            };
+          })}
+        customerName={customerName}
+        setCustomerName={setCustomerName}
+        customerEmail={customerEmail}
+        setCustomerEmail={setCustomerEmail}
+        pincode={pincode}
+        setPincode={setPincode}
+        address={address}
+        setAddress={setAddress}
+        mobileNumber={mobileNumber}
+        setMobileNumber={setMobileNumber}
+        estimatedDeliveryDate={estimatedDeliveryDate || undefined}
+        deliveryLocationSource={deliveryLocationSource}
+        onGetLocation={handleGetLocation}
+        isGettingLocation={isGettingLocation}
+        gstPercentage={selectedProduct?.gstPercentage || 18}
+      />
 
       {/* Bulk Upload Wizard Modal */}
       {showBulkWizard && selectedProduct && (

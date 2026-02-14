@@ -44,7 +44,7 @@ import UserContextService from "../services/UserContextService.js";
  */
 export const getPriceQuote = async (req, res) => {
     try {
-        const { productId, pincode, selectedDynamicAttributes = [], quantity = 1 } = req.body;
+        const { productId, pincode, selectedDynamicAttributes = [], quantity = 1, numberOfDesigns = 1 } = req.body;
 
         // Validation
         if (!productId) {
@@ -65,13 +65,16 @@ export const getPriceQuote = async (req, res) => {
         // Use pincode from context (IP-detected if not explicitly provided)
         const resolvedPincode = pricingContext.pincode;
 
+        // Calculate total quantity for bulk orders (numberOfDesigns × quantity)
+        const totalQuantity = parseInt(quantity) * parseInt(numberOfDesigns);
+
         // Resolve price
         const pricingResult = await PricingService.resolvePrice({
             userId,
             productId,
             pincode: resolvedPincode,
             selectedDynamicAttributes,
-            quantity: parseInt(quantity),
+            quantity: totalQuantity, // Use multiplied quantity for bulk orders
             cacheResults: true,
         });
 

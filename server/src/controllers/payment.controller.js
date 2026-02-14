@@ -7,6 +7,7 @@
 import { paymentRouter } from '../services/payment/index.js';
 import PaymentTransaction from '../models/PaymentTransaction.js';
 import Order from '../models/orderModal.js';
+import BulkOrder from '../models/BulkOrder.js';
 import { User } from '../models/User.js';
 
 /**
@@ -15,27 +16,48 @@ import { User } from '../models/User.js';
  */
 export const initializePayment = async (req, res) => {
     try {
-        const { orderId, preferredGateway, paymentMethod } = req.body;
+        console.log('🔵 [Payment Init] Request received:', {
+            body: req.body,
+            user: req.user?._id
+        });
+
+        const { orderId, preferredGateway, paymentMethod, amount, currency, customerInfo } = req.body;
         const userId = req.user?._id;
 
-        // Get order
-        const order = await Order.findById(orderId).populate('user');
+        // Try to find order or bulk order
+        let order = await Order.findById(orderId).populate('user');
+        let bulkOrder = null;
+        let isBulkOrder = false;
+
         if (!order) {
-            return res.status(404).json({ error: 'Order not found' });
+            // Check if it's a bulk order
+            bulkOrder = await BulkOrder.findById(orderId).populate('user');
+            if (bulkOrder) {
+                isBulkOrder = true;
+                console.log('💼 Bulk order found for payment:', bulkOrder._id);
+            } else {
+                return res.status(404).json({ error: 'Order not found' });
+            }
         }
 
+        const orderDoc = isBulkOrder ? bulkOrder : order;
+
         // Verify ownership
-        if (userId && order.user._id.toString() !== userId.toString()) {
+        if (userId && orderDoc.user._id.toString() !== userId.toString()) {
             return res.status(403).json({ error: 'Not authorized to pay for this order' });
         }
 
-        // Check if already paid
-        if (order.paymentStatus === 'COMPLETED') {
+        // Check if already paid (only for regular orders)
+        if (!isBulkOrder && order.paymentStatus === 'COMPLETED') {
             return res.status(400).json({ error: 'Order already paid' });
         }
 
+        // For bulk orders, check status
+        if (isBulkOrder && bulkOrder.paymentStatus === 'COMPLETED') {
+            return res.status(400).json({ error: 'Bulk order already paid' });
+        }
+
         // Check for existing CREATED transaction for this order
-        // Skip this check for redirect-based gateways (PayU, PhonePe) as they need fresh hashes
         const isRedirectGateway = preferredGateway && ['PAYU', 'PHONEPE'].includes(preferredGateway.toUpperCase());
 
         let existingTransaction = null;
@@ -48,7 +70,6 @@ export const initializePayment = async (req, res) => {
         }
 
         if (existingTransaction) {
-            // Return existing transaction data (for popup gateways like Razorpay)
             const provider = await paymentRouter.getProvider(existingTransaction.gateway_name);
             return res.json({
                 success: true,
@@ -58,27 +79,52 @@ export const initializePayment = async (req, res) => {
                 checkout_data: {
                     key: provider?.config?.getPublicKey(),
                     order_id: existingTransaction.gateway_order_id,
-                    amount: existingTransaction.amount * 100 // Convert to paise for frontend
+                    amount: existingTransaction.amount * 100
                 },
-                redirect_required: false // Existing transactions are only for non-redirect gateways
+                redirect_required: false
             });
         }
 
+        // Determine payment amount and currency
+        let paymentAmount, paymentCurrency;
+
+        if (isBulkOrder) {
+            // For bulk orders, use amount from request body (sent from frontend)
+            paymentAmount = amount || bulkOrder.totalPrice || (bulkOrder.priceSnapshot?.totalPayable);
+            paymentCurrency = currency || 'INR';
+        } else {
+            // For regular orders, use price snapshot
+            paymentAmount = order.priceSnapshot.totalPayable;
+            paymentCurrency = order.priceSnapshot.currency || 'INR';
+        }
+
+        // Prepare customer info
+        const customer = {
+            id: orderDoc.user._id,
+            name: customerInfo?.name || orderDoc.user.name || orderDoc.user.firstName,
+            email: customerInfo?.email || orderDoc.user.email,
+            phone: customerInfo?.phone || orderDoc.user.mobileNumber || orderDoc.mobileNumber
+        };
+
+        console.log('💳 Initializing payment:', {
+            orderId: orderDoc._id,
+            isBulkOrder,
+            amount: paymentAmount,
+            currency: paymentCurrency,
+            customer: customer.email
+        });
+
         // Initialize new payment
         const result = await paymentRouter.initializePayment({
-            orderId: order._id,
-            amount: order.priceSnapshot.totalPayable,
-            currency: order.priceSnapshot.currency || 'INR',
+            orderId: orderDoc._id,
+            amount: paymentAmount,
+            currency: paymentCurrency,
             preferredGateway,
             method: paymentMethod,
-            customer: {
-                id: order.user._id,
-                name: order.user.name || order.user.firstName,
-                email: order.user.email,
-                phone: order.user.mobileNumber || order.mobileNumber
-            },
+            customer,
             notes: {
-                order_number: order.orderNumber
+                order_number: isBulkOrder ? `BULK_${orderDoc._id}` : orderDoc.orderNumber,
+                order_type: isBulkOrder ? 'bulk' : 'single'
             }
         });
 

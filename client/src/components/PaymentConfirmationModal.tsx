@@ -33,6 +33,13 @@ interface PaymentConfirmationModalProps {
     onGetLocation: () => void;
     isGettingLocation: boolean;
     gstPercentage?: number;
+    numberOfDesigns?: number; // For bulk orders
+    preCalculatedPricing?: {  // Direct pricing for bulk orders
+        subtotal: number;
+        gstAmount: number;
+        total: number;
+        unitPrice?: number;
+    };
 }
 
 const PaymentConfirmationModal: React.FC<PaymentConfirmationModalProps> = ({
@@ -57,7 +64,9 @@ const PaymentConfirmationModal: React.FC<PaymentConfirmationModalProps> = ({
     deliveryLocationSource,
     onGetLocation,
     isGettingLocation,
-    gstPercentage = 18
+    gstPercentage = 18,
+    numberOfDesigns = 1,
+    preCalculatedPricing
 }) => {
     const [paymentError, setPaymentError] = useState<string | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
@@ -366,7 +375,12 @@ const PaymentConfirmationModal: React.FC<PaymentConfirmationModalProps> = ({
                                                             <span className="text-blue-600">•</span>
                                                             <div>
                                                                 <span className="text-gray-600">{attr.name}:</span>
-                                                                <span className="font-semibold text-gray-900 ml-1">{attr.label || attr.value}</span>
+                                                                <span className="font-semibold text-gray-900 ml-1">
+                                                                    {typeof attr.label === 'object' || typeof attr.value === 'object'
+                                                                        ? String(attr.label || attr.value)
+                                                                        : (attr.label || attr.value)
+                                                                    }
+                                                                </span>
                                                             </div>
                                                         </div>
                                                     ))}
@@ -376,12 +390,43 @@ const PaymentConfirmationModal: React.FC<PaymentConfirmationModalProps> = ({
 
                                         {/* Dynamic Pricing */}
                                         <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-5 border-2 border-blue-200">
-                                            <ProductPriceBox
-                                                productId={productId}
-                                                quantity={quantity}
-                                                selectedDynamicAttributes={selectedDynamicAttributes}
-                                                showBreakdown={true}
-                                            />
+                                            {preCalculatedPricing ? (
+                                                // Direct pricing display for bulk orders
+                                                <div className="space-y-3">
+                                                    <div className="flex justify-between items-center pb-3 border-b border-blue-200">
+                                                        <span className="text-sm font-medium text-gray-700">Quantity</span>
+                                                        <span className="text-sm font-bold text-gray-900">{quantity.toLocaleString()} units</span>
+                                                    </div>
+                                                    {preCalculatedPricing.unitPrice && (
+                                                        <div className="flex justify-between items-center">
+                                                            <span className="text-sm font-medium text-gray-700">Unit Price</span>
+                                                            <span className="text-sm font-semibold text-gray-900">₹{preCalculatedPricing.unitPrice.toFixed(2)}</span>
+                                                        </div>
+                                                    )}
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="text-sm font-medium text-gray-700">Subtotal ({quantity.toLocaleString()} units)</span>
+                                                        <span className="text-sm font-semibold text-gray-900">₹{preCalculatedPricing.subtotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                                    </div>
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="text-sm font-medium text-gray-700">GST ({gstPercentage}%)</span>
+                                                        <span className="text-sm font-semibold text-gray-900">₹{preCalculatedPricing.gstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                                    </div>
+                                                    <div className="flex justify-between items-center pt-3 border-t-2 border-blue-300">
+                                                        <span className="text-base font-bold text-gray-900">Total Payable</span>
+                                                        <span className="text-lg font-bold text-blue-600">₹{preCalculatedPricing.total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                                    </div>
+                                                    <p className="text-xs text-gray-500 text-center mt-2">Price for {quantity.toLocaleString()} units</p>
+                                                </div>
+                                            ) : (
+                                                // Dynamic pricing via ProductPriceBox for single orders
+                                                <ProductPriceBox
+                                                    productId={productId}
+                                                    quantity={quantity}
+                                                    selectedDynamicAttributes={selectedDynamicAttributes}
+                                                    showBreakdown={true}
+                                                    numberOfDesigns={numberOfDesigns}
+                                                />
+                                            )}
                                         </div>
 
                                         {/* Estimated Delivery */}

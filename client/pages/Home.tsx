@@ -86,8 +86,8 @@ const Home: React.FC = () => {
           type: "bulk",
         }));
 
-        digitalCategories.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
-        bulkCategories.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+        digitalCategories.sort((a: Category, b: Category) => (a.sortOrder || 0) - (b.sortOrder || 0));
+        bulkCategories.sort((a: Category, b: Category) => (a.sortOrder || 0) - (b.sortOrder || 0));
 
         setCategories([...digitalCategories, ...bulkCategories]);
       } catch (err) {
@@ -139,18 +139,18 @@ const Home: React.FC = () => {
   return (
     <div className="w-full mt-5 overflow-hidden pr-4">
       <HeroSection />
-      
-      <ServicesSection 
+
+      <ServicesSection
         categories={categories}
         loadingCategories={loadingCategories}
       >
-        <CategoriesSlider 
+        <CategoriesSlider
           categories={categories}
           loadingCategories={loadingCategories}
         />
       </ServicesSection>
-      
-      <ReviewsSection 
+
+      <ReviewsSection
         reviews={reviews}
         loadingReviews={loadingReviews}
         isLoggedIn={isLoggedIn}

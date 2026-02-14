@@ -33,10 +33,10 @@ const designSchema = new mongoose.Schema(
       left: { type: Number, default: 0 },
       right: { type: Number, default: 0 }
     },
-    // Front image (COMPULSORY)
+    // Front image (OPTIONAL - now optional if designFile is provided)
     frontImage: {
-      data: { type: Buffer, required: true }, // Required
-      contentType: { type: String, required: true }, // Required
+      data: Buffer,
+      contentType: String,
       filename: String,
       size: Number
     },
@@ -46,7 +46,32 @@ const designSchema = new mongoose.Schema(
       contentType: String,
       filename: String,
       size: Number
-    }
+    },
+    // Design file (PDF or CDR) - NEW
+    designFile: {
+      data: Buffer,
+      contentType: String,
+      filename: String,
+      size: Number,
+      fileType: { type: String, enum: ['PDF', 'CDR', 'UNKNOWN'] },
+      extractedPageCount: { type: Number, default: 0 }
+    },
+    // Extracted pages from PDF - NEW
+    extractedPages: [{
+      data: Buffer,
+      contentType: String,
+      filename: String,
+      size: Number,
+      pageNumber: Number
+    }],
+    // Page mapping metadata - NEW
+    pageMapping: [{
+      pageNumber: Number,
+      purpose: String,
+      type: { type: String, enum: ['attribute', 'design'] },
+      attributeName: String,
+      isRequired: Boolean
+    }]
   },
   { timestamps: true }
 );
