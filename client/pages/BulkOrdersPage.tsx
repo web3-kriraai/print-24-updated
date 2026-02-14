@@ -254,7 +254,7 @@ const BulkOrdersPage: React.FC = () => {
                                     {order.status === 'ORDER_CREATED' && order.parentOrderId && (
                                         <div className="mt-4 pt-4 border-t border-gray-200">
                                             <button
-                                                onClick={() => navigate(`/orders?parent=${order.parentOrderId._id}`)}
+                                                onClick={() => navigate(`/my-orders?parent=${order.parentOrderId._id}`)}
                                                 className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-2"
                                             >
                                                 <Package className="w-4 h-4" />

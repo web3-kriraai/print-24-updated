@@ -1036,6 +1036,21 @@ export const getSingleOrder = async (req, res) => {
       order.uploadedDesign.backImage.data = `data:${order.uploadedDesign.backImage.contentType || 'image/png'};base64,${buffer.toString("base64")}`;
     }
 
+    // Fetch child orders if this is a bulk parent
+    const childOrders = await Order.find({
+        $or: [
+            { parentOrderId: order._id },
+            { bulkParentOrderId: order._id }
+        ]
+    })
+    .select('orderNumber status paymentStatus quantity product priceSnapshot')
+    .sort({ designSequence: 1 })
+    .lean();
+
+    if (childOrders.length > 0) {
+        order.childOrders = childOrders;
+    }
+
     res.status(200).json(order);
   } catch (error) {
     console.error("Get single order error:", error);
@@ -1043,21 +1058,42 @@ export const getSingleOrder = async (req, res) => {
   }
 };
 
-// Get user's orders - Optimized for fast loading
+// Get user's orders - Supporting filter by parentOrderId
 export const getMyOrders = async (req, res) => {
   try {
     const userId = req.user.id;
-    const limit = parseInt(req.query.limit) || 50; // Limit orders for faster loading
+    const limit = parseInt(req.query.limit) || 50;
     const skip = parseInt(req.query.skip) || 0;
+    const parentId = req.query.parentOrderId || req.query.parent; // Support both
+    const onlyParents = req.query.onlyParents === 'true';
+    const onlyChildren = req.query.onlyChildren === 'true';
 
-    // Optimized query: use lean() for faster queries, don't load image buffers for list view
-    // Limit fields to only what's needed for list display
-    // Note: selectedOptions and selectedDynamicAttributes are included by default (not excluded)
-    const orders = await Order.find({ user: userId })
-      .select("-uploadedDesign -notes -adminNotes -designTimeline -productionTimeline -courierTimeline -productionDetails -designOption -designerAssigned -designFileSentAt -customerResponse -fileUploadedAt -fileStatus -fileRejectionReason -productionStartedAt -movedToPackingAt -packedAt -packedBy -numberOfBoxes -movedToDispatchAt -handedOverToCourierAt -invoiceNumber -invoiceGeneratedAt -invoiceUrl -courierPartner -trackingId -dispatchedAt -courierStatus -deliveredAt -courierTrackingUrl") // Exclude all heavy/unused fields, but keep selectedOptions and selectedDynamicAttributes
+    const query = { user: userId };
+    
+    // If filtering by parent, strictly match children; otherwise exclude children by default? 
+    // Actually, usually MyOrders shows all. But if we want to see children of a specific order, we filter.
+    if (parentId) {
+       query.$or = [
+           { parentOrderId: parentId },
+           { bulkParentOrderId: parentId }
+       ];
+    } else if (onlyParents) {
+       // Only show parent orders (no parentOrderId or bulkParentOrderId)
+       query.parentOrderId = { $exists: false };
+       query.bulkParentOrderId = { $exists: false };
+    } else if (onlyChildren) {
+       // Only show child orders (has parentOrderId or bulkParentOrderId)
+       query.$or = [
+           { parentOrderId: { $exists: true } },
+           { bulkParentOrderId: { $exists: true } }
+       ];
+    }
+
+    const orders = await Order.find(query)
+      .select("-uploadedDesign -notes -adminNotes -designTimeline -productionTimeline -courierTimeline -productionDetails -designOption -designerAssigned -designFileSentAt -customerResponse -fileUploadedAt -fileStatus -fileRejectionReason -productionStartedAt -movedToPackingAt -packedAt -packedBy -numberOfBoxes -movedToDispatchAt -handedOverToCourierAt -invoiceNumber -invoiceGeneratedAt -invoiceUrl -courierPartner -trackingId -dispatchedAt -courierStatus -deliveredAt -courierTrackingUrl +payment_details +priceSnapshot +totalPrice +paymentStatus +advancePaid") // Explicitly include price fields 
       .populate({
         path: "product",
-        select: "name image basePrice subcategory gstPercentage", // Minimal product fields
+        select: "name image basePrice subcategory gstPercentage", 
         populate: {
           path: "subcategory",
           select: "name image",
@@ -1074,10 +1110,9 @@ export const getMyOrders = async (req, res) => {
       .sort({ createdAt: -1 })
       .limit(limit)
       .skip(skip)
-      .lean(); // Use lean() for faster queries - returns plain objects
+      .lean();
 
-    // Return orders array directly for backward compatibility and faster response
-    res.status(200).json(orders);
+    res.status(200).json({ orders }); // Wrap in object to match MyOrders.tsx expectation
   } catch (error) {
     console.error("Get my orders error:", error);
     res.status(500).json({ error: "Failed to fetch orders." });
@@ -1573,17 +1608,30 @@ export const getOrdersWithFilters = async (req, res) => {
  */
 export const getOrderStats = async (req, res) => {
   try {
-    // Total orders
-    const totalOrders = await Order.countDocuments();
+    // Total orders - EXCLUDE child orders
+    const totalOrders = await Order.countDocuments({
+      parentOrderId: { $exists: false },
+      bulkParentOrderId: { $exists: false },
+    });
 
-    // Pending payment
+    // Pending payment - EXCLUDE child orders
     const pendingPayment = await Order.aggregate([
-      { $match: { paymentStatus: { $in: ['PENDING', 'PARTIAL'] } } },
+      {
+        $match: {
+          paymentStatus: { $in: ['PENDING', 'PARTIAL'] },
+          parentOrderId: { $exists: false },
+          bulkParentOrderId: { $exists: false },
+        },
+      },
       {
         $group: {
           _id: null,
           count: { $sum: 1 },
-          amount: { $sum: '$priceSnapshot.totalPayable' },
+          amount: {
+            $sum: {
+              $ifNull: ['$payment_details.amount_paid', '$priceSnapshot.totalPayable'],
+            },
+          },
         },
       },
     ]);
@@ -1600,7 +1648,7 @@ export const getOrderStats = async (req, res) => {
       console.log('Complaint model not available, skipping complaint stats');
     }
 
-    // Today's revenue
+    // Today's revenue - EXCLUDE child orders to avoid double-counting
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const todayRevenue = await Order.aggregate([
@@ -1608,12 +1656,20 @@ export const getOrderStats = async (req, res) => {
         $match: {
           createdAt: { $gte: today },
           paymentStatus: 'COMPLETED',
+          // Exclude child orders - only count parent/standalone orders
+          parentOrderId: { $exists: false },
+          bulkParentOrderId: { $exists: false },
         },
       },
       {
         $group: {
           _id: null,
-          total: { $sum: '$priceSnapshot.totalPayable' },
+          // Use payment_details.amount_paid as primary source, fallback to priceSnapshot.totalPayable
+          total: {
+            $sum: {
+              $ifNull: ['$payment_details.amount_paid', '$priceSnapshot.totalPayable'],
+            },
+          },
         },
       },
     ]);

@@ -289,10 +289,20 @@ const Navbar: React.FC = () => {
                                 navigate("/profile");
                                 setIsProfileDropdownOpen(false);
                               }}
-                              className="w-full flex items-center gap-3 px-4 py-2 text-sm text-cream-700 hover:bg-cream-50 transition-colors" // Increased py-1.5 to py-2
+                              className="w-full flex items-center gap-3 px-4 py-2 text-sm text-cream-700 hover:bg-cream-50 transition-colors"
                             >
                               <UserIcon size={16} />
                               My Profile
+                            </button>
+                            <button
+                              onClick={() => {
+                                navigate("/my-orders");
+                                setIsProfileDropdownOpen(false);
+                              }}
+                              className="w-full flex items-center gap-3 px-4 py-2 text-sm text-cream-700 hover:bg-cream-50 transition-colors"
+                            >
+                              <Package size={16} />
+                              My Orders
                             </button>
                             {userData.role === "admin" && (
                               <>
@@ -305,6 +315,16 @@ const Navbar: React.FC = () => {
                                 >
                                   <Settings size={16} />
                                   Admin Dashboard
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    navigate("/admin/orders");
+                                    setIsProfileDropdownOpen(false);
+                                  }}
+                                  className="w-full flex items-center gap-3 px-4 py-2 text-sm text-cream-700 hover:bg-cream-50 transition-colors"
+                                >
+                                  <Package size={16} />
+                                  Order Management
                                 </button>
                                 <button
                                   onClick={() => {
@@ -450,10 +470,20 @@ const Navbar: React.FC = () => {
                           navigate("/profile");
                           setIsMobileMenuOpen(false);
                         }}
-                        className="w-full text-center text-cream-900 font-medium py-2 flex items-center justify-center gap-2" // Increased padding
+                        className="w-full text-center text-cream-900 font-medium py-2 flex items-center justify-center gap-2"
                       >
                         <UserIcon size={16} />
                         My Profile
+                      </button>
+                      <button
+                        onClick={() => {
+                          navigate("/my-orders");
+                          setIsMobileMenuOpen(false);
+                        }}
+                        className="w-full text-center text-cream-900 font-medium py-2 flex items-center justify-center gap-2"
+                      >
+                        <Package size={16} />
+                        My Orders
                       </button>
 
                       {userData.role === "admin" && (
@@ -467,6 +497,16 @@ const Navbar: React.FC = () => {
                           >
                             <Settings size={16} />
                             Admin Dashboard
+                          </button>
+                          <button
+                            onClick={() => {
+                              navigate("/admin/orders");
+                              setIsMobileMenuOpen(false);
+                            }}
+                            className="w-full text-center text-cream-900 font-medium py-2 flex items-center justify-center gap-2"
+                          >
+                            <Package size={16} />
+                            Order Management
                           </button>
                           <button
                             onClick={() => {

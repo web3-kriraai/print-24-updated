@@ -89,19 +89,16 @@ class PaymentRouter {
     }
 
     /**
-     * Select gateway based on routing strategy
-     * @param {Object} params - Selection parameters
-     * @returns {Object} Selected provider with instance and config
+     * Get list of eligible gateways sorted by priority
+     * @param {Object} params - parameters for selection
+     * @returns {Array} List of eligible provider objects
      */
-    async selectGateway(params = {}) {
-        await this.loadProviders();
-
+    getEligibleGateways(params) {
         const {
             amount = 0,
             currency = 'INR',
             country = 'IN',
             paymentMethod,
-            preferredGateway,
             excludeGateways = []
         } = params;
 
@@ -143,103 +140,99 @@ class PaymentRouter {
                 return true;
             });
 
-        if (eligibleProviders.length === 0) {
+        // Apply routing strategy sorting
+        switch (this.routingStrategy) {
+            case 'PRIORITY':
+                return eligibleProviders.sort((a, b) => (a.config.priority || 999) - (b.config.priority || 999));
+
+            case 'TRAFFIC_SPLIT':
+                // For Traffic Split, we shuffle based on weights, but for fallback list we need a deterministic order?
+                // Actually, let's just use priority for the fallback list order after the primary one.
+                // The primary one is selected by _selectByTrafficSplit.
+                // For simplicity in this fallback implementation, let's return all valid providers sorted by priority
+                // The selectGateway method can still use the strategy for the *single* best choice.
+                return eligibleProviders.sort((a, b) => (a.config.priority || 999) - (b.config.priority || 999));
+
+            case 'INTELLIGENT':
+                // Intelligent sorting
+                return eligibleProviders.map(provider => {
+                    let score = 100;
+                    // Priority bonus (lower priority = higher score)
+                    score += (10 - provider.config.priority) * 5;
+                    // Success rate bonus
+                    const totalRequests = provider.stats.total_requests || 1;
+                    const successRate = (provider.stats.successful || 0) / totalRequests;
+                    score += successRate * 50;
+                    // Penalize recent failures
+                    score -= (provider.config.failure_count || 0) * 10;
+                    return { provider, score };
+                }).sort((a, b) => b.score - a.score).map(x => x.provider);
+
+            default:
+                return eligibleProviders.sort((a, b) => (a.config.priority || 999) - (b.config.priority || 999));
+        }
+    }
+
+    /**
+     * Select gateway based on routing strategy (Returns the single best option)
+     * @param {Object} params - Selection parameters
+     * @returns {Object} Selected provider with instance and config
+     */
+    async selectGateway(params = {}) {
+        await this.loadProviders();
+        const candidates = this.getEligibleGateways(params);
+        
+        if (candidates.length === 0) {
             throw new Error('No eligible payment gateways available');
         }
 
-        // If preferred gateway is specified and eligible, use it
-        if (preferredGateway) {
-            const preferred = eligibleProviders.find(p => p.config.name === preferredGateway);
-            if (preferred) return preferred;
+        // If specific strategy logic is needed beyond sorting, it interacts here.
+        // But getEligibleGateways already sorts them.
+        // For TRAFFIC_SPLIT, we might want to pick one randomly based on weight from the top N?
+        // For now, returning the first one is consistent with Priority/Intelligent.
+        // If Traffic Split is strictly needed for *primary* choice:
+        if (this.routingStrategy === 'TRAFFIC_SPLIT') {
+             return this._selectByTrafficSplit(candidates);
         }
 
-        // Apply routing strategy
-        switch (this.routingStrategy) {
-            case 'PRIORITY':
-                return this._selectByPriority(eligibleProviders);
-
-            case 'TRAFFIC_SPLIT':
-                return this._selectByTrafficSplit(eligibleProviders);
-
-            case 'INTELLIGENT':
-                return this._selectIntelligently(eligibleProviders, params);
-
-            default:
-                return this._selectByPriority(eligibleProviders);
-        }
+        return candidates[0];
     }
 
-    /**
-     * Select by priority (lowest priority number = highest priority)
-     */
+    // Keep strategy helper methods
     _selectByPriority(providers) {
-        const sorted = providers.sort((a, b) => a.config.priority - b.config.priority);
-        return sorted[0];
+        return providers.sort((a, b) => a.config.priority - b.config.priority)[0];
     }
-
-    /**
-     * Select by traffic split percentage
-     */
+    
     _selectByTrafficSplit(providers) {
         const totalSplit = providers.reduce(
             (sum, p) => sum + (p.config.traffic_split_percent || 100),
             0
         );
-
         const random = Math.random() * totalSplit;
         let cumulative = 0;
-
         for (const provider of providers) {
             cumulative += provider.config.traffic_split_percent || 100;
-            if (random <= cumulative) {
-                return provider;
-            }
+            if (random <= cumulative) return provider;
         }
-
         return providers[0];
     }
 
-    /**
-     * Intelligent selection based on multiple factors
-     */
     _selectIntelligently(providers, params) {
-        const scoredProviders = providers.map(provider => {
-            let score = 100;
-
-            // Priority bonus (lower priority = higher score)
-            score += (10 - provider.config.priority) * 5;
-
-            // Success rate bonus
-            const totalRequests = provider.stats.total_requests || 1;
-            const successRate = (provider.stats.successful || 0) / totalRequests;
-            score += successRate * 50;
-
-            // Penalize recent failures
-            score -= (provider.config.failure_count || 0) * 10;
-
-            // TDR consideration (lower TDR = higher score)
-            score -= (provider.config.tdr_rate || 2) * 2;
-
-            // Recency bonus (prefer less recently used for distribution)
-            if (provider.stats.last_used) {
-                const hoursSinceUse = (Date.now() - provider.stats.last_used.getTime()) / (1000 * 60 * 60);
-                score += Math.min(hoursSinceUse * 2, 20);
-            }
-
-            return { provider, score };
-        });
-
-        scoredProviders.sort((a, b) => b.score - a.score);
-        return scoredProviders[0].provider;
+        // ... (logic moved to getEligibleGateways or kept here if needed for single selection)
+        // Since getEligibleGateways handles sorting, we can just return the first one from there 
+        // if we called it. But original selectGateway logic is slightly different so let's stick to using getEligibleGateways for candidates.
+        return providers[0]; 
     }
 
     /**
-     * Initialize a payment with automatic gateway selection
+     * Initialize a payment with automatic gateway selection and fallback
      * @param {Object} paymentRequest - Payment request details
      * @returns {Promise<Object>} Checkout data
      */
     async initializePayment(paymentRequest) {
-        const selected = await this.selectGateway({
+        await this.loadProviders();
+
+        const candidates = this.getEligibleGateways({
             amount: paymentRequest.amount,
             currency: paymentRequest.currency,
             country: paymentRequest.country,
@@ -247,61 +240,76 @@ class PaymentRouter {
             preferredGateway: paymentRequest.preferredGateway
         });
 
-        const startTime = Date.now();
-
-        // Update stats
-        selected.stats.total_requests++;
-        selected.stats.last_used = new Date();
-
-        try {
-            const result = await selected.instance.initializeTransaction({
-                amount: paymentRequest.amount,
-                currency: paymentRequest.currency || 'INR',
-                orderId: paymentRequest.orderId,
-                customer: paymentRequest.customer,
-                notes: paymentRequest.notes
-            });
-
-            selected.stats.successful++;
-            selected.stats.avg_response_time =
-                (selected.stats.avg_response_time + (Date.now() - startTime)) / 2;
-
-            // Create transaction record
-            const transaction = await PaymentTransaction.create({
-                order: paymentRequest.orderId,
-                user: paymentRequest.customer.id,
-                payment_gateway: selected.config._id,
-                gateway_name: selected.config.name,
-                gateway_order_id: result.gatewayOrderId,
-                amount: paymentRequest.amount,
-                currency: paymentRequest.currency || 'INR',
-                status: 'CREATED',
-                expires_at: result.expiresAt,
-                metadata: paymentRequest.metadata
-            });
-
-            return {
-                success: true,
-                gateway: selected.config.name,
-                transaction_id: transaction._id,
-                gateway_order_id: result.gatewayOrderId,
-                checkout_data: result.checkoutData,
-                checkout_url: result.checkoutUrl,
-                redirect_required: result.redirectRequired || false,
-                expires_at: result.expiresAt
-            };
-
-        } catch (error) {
-            selected.stats.failed++;
-
-            // Mark gateway as unhealthy if too many failures
-            if (selected.stats.failed > 5 &&
-                selected.stats.failed / selected.stats.total_requests > 0.3) {
-                await this._markGatewayUnhealthy(selected.config.name);
-            }
-
-            throw error;
+        if (candidates.length === 0) {
+            throw new Error('No eligible payment gateways available for this transaction');
         }
+
+        let lastError = null;
+        let successfulTransaction = null;
+
+        // Try gateways in order
+        for (const selected of candidates) {
+            try {
+                console.log(`Attempting payment via ${selected.config.name} for Order ${paymentRequest.orderId}`);
+                
+                const startTime = Date.now();
+                selected.stats.total_requests++;
+                selected.stats.last_used = new Date();
+
+                const result = await selected.instance.initializeTransaction({
+                    amount: paymentRequest.amount,
+                    currency: paymentRequest.currency || 'INR',
+                    orderId: paymentRequest.orderId,
+                    customer: paymentRequest.customer,
+                    notes: paymentRequest.notes
+                });
+
+                selected.stats.successful++;
+                selected.stats.avg_response_time =
+                    (selected.stats.avg_response_time + (Date.now() - startTime)) / 2;
+
+                // Create transaction record
+                successfulTransaction = await PaymentTransaction.create({
+                    order: paymentRequest.orderId,
+                    user: paymentRequest.customer.id,
+                    payment_gateway: selected.config._id,
+                    gateway_name: selected.config.name,
+                    gateway_order_id: result.gatewayOrderId,
+                    amount: paymentRequest.amount,
+                    currency: paymentRequest.currency || 'INR',
+                    status: 'CREATED',
+                    expires_at: result.expiresAt,
+                    metadata: paymentRequest.metadata
+                });
+
+                return {
+                    success: true,
+                    gateway: selected.config.name,
+                    transaction_id: successfulTransaction._id,
+                    gateway_order_id: result.gatewayOrderId,
+                    checkout_data: result.checkoutData,
+                    checkout_url: result.checkoutUrl,
+                    redirect_required: result.redirectRequired || false,
+                    expires_at: result.expiresAt
+                };
+
+            } catch (error) {
+                console.warn(`Payment initialization failed with ${selected.config.name}:`, error.message);
+                lastError = error;
+                
+                selected.stats.failed++;
+                if (selected.stats.failed > 5 &&
+                    selected.stats.failed / selected.stats.total_requests > 0.3) {
+                    await this._markGatewayUnhealthy(selected.config.name);
+                }
+
+                // Continue to next gateway
+            }
+        }
+
+        // If loop finishes without success
+        console.error('All payment gateways failed to initialize transaction');
+        throw lastError || new Error('All payment gateways available failed to process the request');
     }
 
     /**

@@ -138,6 +138,17 @@ const BulkOrderSchema = new mongoose.Schema(
         },
 
         /* =====================
+           PRICING
+        ====================== */
+        price: {
+            unitPrice: { type: Number, default: 0 },
+            totalPrice: { type: Number, default: 0 }, // Final payable amount including GST
+            gstAmount: { type: Number, default: 0 },
+            netAmount: { type: Number, default: 0 }, // Amount before GST
+            currency: { type: String, default: "INR" },
+        },
+
+        /* =====================
            STATUS TRACKING
         ====================== */
         status: {
@@ -152,6 +163,13 @@ const BulkOrderSchema = new mongoose.Schema(
                 "CANCELLED",
             ],
             default: "UPLOADED",
+            index: true,
+        },
+
+        paymentStatus: {
+            type: String,
+            enum: ["PENDING", "COMPLETED", "FAILED", "REFUNDED"],
+            default: "PENDING",
             index: true,
         },
 

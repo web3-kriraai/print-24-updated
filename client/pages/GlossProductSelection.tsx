@@ -169,6 +169,18 @@ interface PDPSubAttribute {
   parentValue: string;
 }
 
+
+// Helper to load Razorpay SDK
+const loadRazorpayScript = () => {
+  return new Promise((resolve) => {
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
+};
+
 const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedProductId }) => {
   const params = useParams<{ categoryId: string; subCategoryId?: string; nestedSubCategoryId?: string; productId?: string }>();
   const navigate = useNavigate();
@@ -1087,270 +1099,9 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
     }
   };
 
-  useEffect(() => {
-    if (selectedProduct) {
-      let basePrice = selectedProduct.basePrice;
 
-      if (selectedProduct.filters?.orderQuantity?.quantityType === "RANGE_WISE" &&
-        selectedProduct.filters.orderQuantity.rangeWiseQuantities &&
-        selectedProduct.filters.orderQuantity.rangeWiseQuantities.length > 0) {
-        const applicableRange = selectedProduct.filters.orderQuantity.rangeWiseQuantities.find((range) => {
-          return quantity >= range.min && (range.max === null || range.max === undefined || quantity <= range.max);
-        });
-        if (applicableRange && applicableRange.priceMultiplier !== undefined && applicableRange.priceMultiplier !== 1.0) {
-          basePrice = basePrice * applicableRange.priceMultiplier;
-        }
-      }
 
-      let printingOptionImpact = 0;
-      let deliverySpeedImpact = 0;
-      let textureTypeImpact = 0;
-      const dynamicAttributesChargesList: Array<{ name: string; label: string; charge: number }> = [];
 
-      const filterPricesEnabled = selectedProduct.filters?.filterPricesEnabled || false;
-
-      if (filterPricesEnabled) {
-        if (selectedPrintingOption && selectedProduct.filters?.printingOptionPrices) {
-          const priceData = selectedProduct.filters.printingOptionPrices.find((p) => p.name === selectedPrintingOption);
-          if (priceData && priceData.priceAdd !== undefined) {
-            const priceAdd = typeof priceData.priceAdd === 'number' ? priceData.priceAdd : parseFloat(String(priceData.priceAdd)) || 0;
-            const impactPerUnit = priceAdd / 1000;
-            basePrice += impactPerUnit;
-            printingOptionImpact = impactPerUnit * quantity;
-          }
-        }
-
-        if (selectedDeliverySpeed && selectedProduct.filters?.deliverySpeedPrices) {
-          const priceData = selectedProduct.filters.deliverySpeedPrices.find((p) => p.name === selectedDeliverySpeed);
-          if (priceData && priceData.priceAdd !== undefined) {
-            const priceAdd = typeof priceData.priceAdd === 'number' ? priceData.priceAdd : parseFloat(String(priceData.priceAdd)) || 0;
-            const impactPerUnit = priceAdd / 1000;
-            basePrice += impactPerUnit;
-            deliverySpeedImpact = impactPerUnit * quantity;
-          }
-        }
-
-        if (selectedTextureType && selectedProduct.filters?.textureTypePrices) {
-          const priceData = selectedProduct.filters.textureTypePrices.find((p) => p.name === selectedTextureType);
-          if (priceData && priceData.priceAdd !== undefined) {
-            const priceAdd = typeof priceData.priceAdd === 'number' ? priceData.priceAdd : parseFloat(String(priceData.priceAdd)) || 0;
-            const impactPerUnit = priceAdd / 1000;
-            basePrice += impactPerUnit;
-            textureTypeImpact = impactPerUnit * quantity;
-          }
-        }
-      } else {
-        if (selectedProduct.options && Array.isArray(selectedProduct.options)) {
-          selectedProduct.options.forEach((option) => {
-            if (option.name === selectedPrintingOption) {
-              const priceAdd = typeof option.priceAdd === 'number' ? option.priceAdd : parseFloat(String(option.priceAdd)) || 0;
-              if (priceAdd > 0) {
-                const impactPerUnit = priceAdd / 1000;
-                basePrice += impactPerUnit;
-                printingOptionImpact = impactPerUnit * quantity;
-              } else if (priceAdd < 0) {
-                const multiplier = (1 + Math.abs(priceAdd) / 100);
-                const oldPrice = basePrice;
-                basePrice *= multiplier;
-                printingOptionImpact = (basePrice - oldPrice) * quantity;
-              }
-            } else if (option.name === selectedDeliverySpeed) {
-              const priceAdd = typeof option.priceAdd === 'number' ? option.priceAdd : parseFloat(String(option.priceAdd)) || 0;
-              if (priceAdd > 0) {
-                const impactPerUnit = priceAdd / 1000;
-                basePrice += impactPerUnit;
-                deliverySpeedImpact = impactPerUnit * quantity;
-              } else if (priceAdd < 0) {
-                const multiplier = (1 + Math.abs(priceAdd) / 100);
-                const oldPrice = basePrice;
-                basePrice *= multiplier;
-                deliverySpeedImpact = (basePrice - oldPrice) * quantity;
-              }
-            } else if (option.name === selectedTextureType) {
-              const priceAdd = typeof option.priceAdd === 'number' ? option.priceAdd : parseFloat(String(option.priceAdd)) || 0;
-              if (priceAdd > 0) {
-                const impactPerUnit = priceAdd / 1000;
-                basePrice += impactPerUnit;
-                textureTypeImpact = impactPerUnit * quantity;
-              } else if (priceAdd < 0) {
-                const multiplier = (1 + Math.abs(priceAdd) / 100);
-                const oldPrice = basePrice;
-                basePrice *= multiplier;
-                textureTypeImpact = (basePrice - oldPrice) * quantity;
-              }
-            }
-          });
-        }
-      }
-
-      if (!filterPricesEnabled && (!selectedProduct.options || selectedProduct.options.length === 0)) {
-        if (selectedPrintingOption === 'Both Sides') {
-          const oldPrice = basePrice;
-          basePrice *= 1.2;
-          printingOptionImpact = (basePrice - oldPrice) * quantity;
-        }
-        if (selectedDeliverySpeed === 'Express') {
-          const oldPrice = basePrice;
-          basePrice *= 1.3;
-          deliverySpeedImpact = (basePrice - oldPrice) * quantity;
-        }
-        if (selectedTextureType) {
-          const oldPrice = basePrice;
-          basePrice *= 1.15;
-          textureTypeImpact = (basePrice - oldPrice) * quantity;
-        }
-      }
-
-      let productOptionsImpact = 0;
-      if (selectedProduct.options && Array.isArray(selectedProduct.options) && selectedProductOptions.length > 0) {
-        selectedProductOptions.forEach((optionName) => {
-          const option = selectedProduct.options?.find((opt) => opt.name === optionName);
-          if (option && option.priceAdd !== undefined) {
-            const priceAdd = typeof option.priceAdd === 'number' ? option.priceAdd : parseFloat(String(option.priceAdd)) || 0;
-            if (priceAdd !== 0) {
-              const impactPerUnit = priceAdd / 1000;
-              basePrice += impactPerUnit;
-              productOptionsImpact += impactPerUnit * quantity;
-            }
-          }
-        });
-      }
-      setProductOptionsCharge(productOptionsImpact);
-
-      if (selectedProduct.dynamicAttributes && Array.isArray(selectedProduct.dynamicAttributes)) {
-        selectedProduct.dynamicAttributes.forEach((attr) => {
-          if (attr.isEnabled) {
-            const attrType = typeof attr.attributeType === 'object' ? attr.attributeType : null;
-            if (attrType) {
-              const selectedValue = selectedDynamicAttributes[attrType._id];
-              if (selectedValue !== undefined && selectedValue !== null && selectedValue !== "") {
-                const attributeValues = attr.customValues && attr.customValues.length > 0
-                  ? attr.customValues
-                  : attrType.attributeValues || [];
-
-                if (Array.isArray(selectedValue)) {
-                  const selectedLabels: string[] = [];
-                  let totalCharge = 0;
-                  selectedValue.forEach((val) => {
-                    const attrValue = attributeValues.find((av) => av.value === val);
-                    if (attrValue) {
-                      let priceAdd = 0;
-                      if (attrValue.description) {
-                        const priceImpactMatch = attrValue.description.match(/Price Impact: ₹([\d.]+)/);
-                        if (priceImpactMatch) {
-                          priceAdd = parseFloat(priceImpactMatch[1]) || 0;
-                        }
-                      }
-
-                      if (priceAdd > 0) {
-                        totalCharge += priceAdd * quantity;
-                        if (attrValue.label) selectedLabels.push(attrValue.label);
-                      } else if (attrValue.priceMultiplier && attrValue.priceMultiplier !== 1) {
-                        const oldPrice = basePrice;
-                        basePrice = basePrice * attrValue.priceMultiplier;
-                        const charge = (basePrice - oldPrice) * quantity;
-                        totalCharge += charge;
-                        if (attrValue.label) selectedLabels.push(attrValue.label);
-                      }
-                    }
-                  });
-                  if (totalCharge !== 0) {
-                    dynamicAttributesChargesList.push({
-                      name: attrType.attributeName,
-                      label: selectedLabels.join(", ") || "Selected",
-                      charge: totalCharge
-                    });
-                  }
-                } else {
-                  const attrValue = attributeValues.find((av) => av.value === selectedValue);
-                  if (attrValue) {
-                    let priceAdd = 0;
-                    if (attrValue.description) {
-                      const priceImpactMatch = attrValue.description.match(/Price Impact: ₹([\d.]+)/);
-                      if (priceImpactMatch) {
-                        priceAdd = parseFloat(priceImpactMatch[1]) || 0;
-                      }
-                    }
-
-                    if (priceAdd > 0) {
-                      const charge = priceAdd * quantity;
-                      if (charge !== 0) {
-                        dynamicAttributesChargesList.push({
-                          name: attrType.attributeName,
-                          label: attrValue.label || String(selectedValue || ''),
-                          charge: charge
-                        });
-                      }
-                    } else if (attrValue.priceMultiplier && attrValue.priceMultiplier !== 1) {
-                      const oldPrice = basePrice;
-                      basePrice = basePrice * attrValue.priceMultiplier;
-                      const charge = (basePrice - oldPrice) * quantity;
-                      if (charge !== 0) {
-                        dynamicAttributesChargesList.push({
-                          name: attrType.attributeName,
-                          label: attrValue.label || String(selectedValue || ''),
-                          charge: charge
-                        });
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        });
-      }
-
-      const baseSubtotal = basePrice * quantity;
-
-      let discountMultiplier = 1.0;
-      let currentDiscount = null;
-      if (selectedProduct.quantityDiscounts && Array.isArray(selectedProduct.quantityDiscounts)) {
-        const applicableDiscount = selectedProduct.quantityDiscounts.find((discount) => {
-          const minQty = discount.minQuantity || 0;
-          const maxQty = discount.maxQuantity;
-          return quantity >= minQty && (maxQty === null || maxQty === undefined || quantity <= maxQty);
-        });
-
-        if (applicableDiscount) {
-          if (applicableDiscount.priceMultiplier) {
-            discountMultiplier = applicableDiscount.priceMultiplier;
-          } else if (applicableDiscount.discountPercentage) {
-            discountMultiplier = (100 - applicableDiscount.discountPercentage) / 100;
-          }
-          currentDiscount = applicableDiscount.discountPercentage || 0;
-        }
-      }
-
-      const totalAttributeCharges = dynamicAttributesChargesList.reduce((sum, charge) => sum + charge.charge, 0);
-
-      setBaseSubtotalBeforeDiscount(baseSubtotal);
-
-      const calculatedSubtotal = baseSubtotal * discountMultiplier;
-      const subtotalWithCharges = calculatedSubtotal + totalAttributeCharges;
-
-      setSubtotal(subtotalWithCharges);
-      setAppliedDiscount(currentDiscount);
-
-      setPrintingOptionCharge(printingOptionImpact);
-      setDeliverySpeedCharge(deliverySpeedImpact);
-      setTextureTypeCharge(textureTypeImpact);
-      setDynamicAttributesCharges(dynamicAttributesChargesList);
-
-      const designCharge = selectedProduct.additionalDesignCharge || 0;
-      setAdditionalDesignCharge(designCharge);
-
-      const gstPercent = selectedProduct.gstPercentage || 0;
-      const calculatedGst = (subtotalWithCharges + designCharge) * (gstPercent / 100);
-      setGstAmount(calculatedGst);
-
-      const priceExcludingGst = subtotalWithCharges + designCharge;
-      setPrice(priceExcludingGst);
-
-      const perUnitExcludingGst = quantity > 0 ? priceExcludingGst / quantity : basePrice;
-      setPerUnitPriceExcludingGst(perUnitExcludingGst);
-    }
-  }, [selectedProduct, selectedPrintingOption, selectedDeliverySpeed, selectedTextureType, quantity, selectedDynamicAttributes, selectedProductOptions]);
 
   useEffect(() => {
     if (!selectedProduct) return;
@@ -2395,6 +2146,13 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
     setPaymentError(null);
   };
 
+  const handlePriceChange = (pricing: any) => {
+    if (!pricing) return;
+    setSubtotal(pricing.subtotal);
+    setGstAmount(pricing.gstAmount);
+    setPrice(pricing.basePrice);
+  };
+
   const handlePaymentAndOrder = async () => {
     if (!selectedProduct) {
       setPaymentError("Please select a product.");
@@ -2470,7 +2228,8 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
         const formData = new FormData();
         formData.append('compositeFile', bulkCompositePdf!);
         formData.append('distinctDesigns', numberOfDesigns);
-        formData.append('totalCopies', quantity.toString());
+        const calculatedTotalCopies = quantity * (parseInt(numberOfDesigns) || 1);
+        formData.append('totalCopies', calculatedTotalCopies.toString());
         formData.append('pagesPerDesign', calculateRequiredPageCount().toString());
         formData.append('productId', selectedProduct._id);
         formData.append('unitPrice', subtotal.toString());
@@ -2558,7 +2317,13 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
             },
             body: JSON.stringify({
               orderId: bulkOrderId,
-              amount: Math.round(totalAmount * 100), // Convert to paise/cents
+              amount: Math.round(totalAmount), // Send totalAmount directly (already in correct unit/backend handles it?) 
+              // WAIT. Backend Razorpay provider multiplies by 100.
+              // If totalAmount is in Rupees (e.g. 7094.16), backend will make it 709416.
+              // So we should SEND RUPEES.
+              // existing code was: amount: Math.round(totalAmount * 100) -> sending Paise.
+              // If backend multiplies by 100, then we were sending 100x the intended amount.
+              // So removing * 100 is correct.
               currency: "INR",
               customerInfo: {
                 name: customerName.trim(),
@@ -2603,6 +2368,71 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
             document.body.appendChild(form);
             form.submit();
+          } else if (paymentData.gateway === 'RAZORPAY' || (checkoutData && !paymentData.checkout_url)) {
+            // Handle Razorpay Client SDK
+            console.log('💳 Initializing Razorpay Client SDK');
+            
+            const res = await loadRazorpayScript();
+            if (!res) {
+              alert('Razorpay SDK failed to load. Please check your connection.');
+              return;
+            }
+
+            const options = {
+              ...checkoutData,
+handler: async function (response: any) {
+                console.log('✅ Payment Successful:', response);
+                
+                try {
+                  const token = localStorage.getItem('token');
+                  const verifyResponse = await fetch(`${API_BASE_URL}/payment/verify`, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                      razorpay_payment_id: response.razorpay_payment_id,
+                      razorpay_order_id: response.razorpay_order_id,
+                      razorpay_signature: response.razorpay_signature
+                    })
+                  });
+
+                  const verifyResult = await verifyResponse.json();
+
+                  if (verifyResult.success) {
+                    alert(`Payment successful!\\n\\nOrder ID: ${bulkOrderId}`);
+                    // Reset bulk order state
+                    setNumberOfDesigns('');
+                    setBulkCompositePdf(null);
+                    setBulkPdfError('');
+                    setOrderMode('single');
+                    setShowBulkWizard(false);
+                    
+                    // Redirect to bulk orders list
+                    navigate('/bulk-orders');
+                  } else {
+                    console.error('Payment verification failed:', verifyResult);
+                    alert(`Payment successful but verification failed.\\n\\nPlease contact support with Payment ID: ${response.razorpay_payment_id}`);
+                    navigate('/bulk-orders');
+                  }
+                } catch (error) {
+                  console.error('Error verifying payment:', error);
+                  alert(`Payment processed but verification error occurred.\\n\\nPlease check your order status.`);
+                  navigate(`/order/${bulkOrderId}`);
+                }
+              },
+              modal: {
+                ondismiss: function() {
+                  console.log('❌ Payment cancelled by user');
+                  alert('Payment cancelled. Please try again to complete your order.');
+                }
+              }
+            };
+
+            const rzp = new (window as any).Razorpay(options);
+            rzp.open();
+
           } else {
             // Fallback: show success and navigate
             alert(`Bulk order placed successfully!\\n\\nOrder ID: ${bulkOrderId}\\n\\nPlease complete payment to process your order.`);
@@ -3630,6 +3460,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                         productId={selectedProduct._id}
                         quantity={quantity}
                         numberOfDesigns={orderMode === 'bulk' ? (parseInt(numberOfDesigns) || 1) : 1}
+                        onPriceChange={handlePriceChange}
                         selectedDynamicAttributes={Object.entries(selectedDynamicAttributes)
                           .filter(([_, value]) => value !== null && value !== undefined && value !== '')
                           .map(([key, value]) => {

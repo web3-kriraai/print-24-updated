@@ -328,6 +328,22 @@ const OrderSchema = new mongoose.Schema(
     },
 
     /* =====================
+       UPLOADED DESIGN
+    ====================== */
+    uploadedDesign: {
+      frontImage: {
+        data: mongoose.Schema.Types.Mixed, // Buffer (regular) or String (bulk URL)
+        contentType: String,
+        filename: String,
+      },
+      backImage: {
+        data: mongoose.Schema.Types.Mixed,
+        contentType: String,
+        filename: String,
+      },
+    },
+
+    /* =====================
        PAYMENT & ERP
     ====================== */
     paymentGatewayId: {

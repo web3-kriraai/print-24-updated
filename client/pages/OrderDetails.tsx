@@ -123,7 +123,9 @@ interface Order {
   };
   advancePaid?: number;
   paymentStatus?: 'PENDING' | 'PARTIAL' | 'COMPLETED' | 'FAILED' | 'REFUNDED' | 'PARTIALLY_REFUNDED';
+
   paymentGatewayInvoiceId?: string | null;
+  childOrders?: any[]; // For bulk parents
 
   // Modern pricing structure
   priceSnapshot?: {
@@ -572,6 +574,23 @@ const PriceBreakdownPanel: React.FC<{ order: Order }> = ({ order }) => {
             </p>
           </div>
         </div>
+
+        {/* Amount Paid */}
+        {(order.paymentStatus === 'COMPLETED' || (order.payment_details?.amount_paid && order.payment_details.amount_paid > 0) || (order.advancePaid && order.advancePaid > 0)) && (
+          <div className="mt-4 p-4 bg-emerald-50 rounded-xl border border-emerald-100 shadow-sm">
+            <div className="flex justify-between items-center">
+              <div>
+                <p className="text-sm font-bold text-emerald-800">Amount Paid</p>
+                <p className="text-xs text-emerald-600 mt-0.5">
+                  Full payment received
+                </p>
+              </div>
+              <p className="text-xl font-bold text-emerald-700">
+                {formatCurrency(order.payment_details?.amount_paid || order.advancePaid || finalTotal)}
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Payment Status Badge */}
         {order.paymentStatus === 'PENDING' && (
@@ -1368,6 +1387,112 @@ const OrderDetails: React.FC = () => {
           <div className="lg:col-span-2 space-y-8">
             <ProductSpecsPanel order={order} />
 
+            {/* Child Orders Section - For Parent Bulk Orders */}
+            {order.childOrders && order.childOrders.length > 0 && (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                <div className="border-b border-gray-200 px-6 py-4 bg-gradient-to-r from-blue-50 to-white">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-blue-100 rounded-lg">
+                      <Package className="w-5 h-5 text-blue-600" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold text-gray-900">Child Orders</h3>
+                      <p className="text-sm text-gray-600">
+                        {order.childOrders.length} order{order.childOrders.length !== 1 ? 's' : ''} in this bulk order
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Order #
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Product
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Quantity
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Price
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Status
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Payment
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {order.childOrders.map((child: any, idx: number) => (
+                        <tr key={child._id || idx} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <a 
+                              href={`/order/${child._id}`}
+                              className="text-sm font-medium text-blue-600 hover:text-blue-800"
+                            >
+                              {child.orderNumber}
+                            </a>
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-900">
+                            {typeof child.product === 'object' ? child.product?.name : 'Product'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {child.quantity?.toLocaleString() || 0} units
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            {formatCurrency(
+                              child.payment_details?.amount_paid || 
+                              child.priceSnapshot?.totalPayable || 
+                              child.totalPrice || 
+                              0
+                            )}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                              child.status === 'completed' ? 'bg-green-100 text-green-800' :
+                              child.status === 'processing' ? 'bg-blue-100 text-blue-800' :
+                              child.status === 'request' ? 'bg-yellow-100 text-yellow-800' :
+                              'bg-gray-100 text-gray-800'
+                            }`}>
+                              {child.status}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                              child.paymentStatus === 'COMPLETED' ? 'bg-green-100 text-green-800' :
+                              child.paymentStatus === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
+                              'bg-gray-100 text-gray-800'
+                            }`}>
+                              {child.paymentStatus}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot className="bg-gray-50">
+                      <tr>
+                        <td colSpan={2} className="px-6 py-4 text-sm font-bold text-gray-900">
+                          Total
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">
+                          {order.childOrders.reduce((sum: number, child: any) => sum + (child.quantity || 0), 0).toLocaleString()} units
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">
+                          {formatCurrency(order.payment_details?.amount_paid || order.priceSnapshot?.totalPayable || order.totalPrice || 0)}
+                        </td>
+                        <td colSpan={2}></td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+            )}
+
             {order.uploadedDesign && (
               <FileUploadPanel order={order} />
             )}
@@ -1484,6 +1609,16 @@ const OrderDetails: React.FC = () => {
                   <span className="font-medium text-gray-700">Track Order</span>
                   <Truck className="w-4 h-4 text-gray-400" />
                 </button>
+                {/* View Child Orders Button for Bulk Parents */}
+                {order.childOrders && order.childOrders.length > 0 && (
+                  <button
+                    onClick={() => navigate(`/my-orders?parent=${order._id}`)}
+                    className="w-full flex items-center justify-between p-3 bg-indigo-50 hover:bg-indigo-100 rounded-lg border border-indigo-200 transition-colors mt-2"
+                  >
+                    <span className="font-medium text-indigo-700">View Child Orders</span>
+                    <Layers className="w-4 h-4 text-indigo-500" />
+                  </button>
+                )}
               </div>
             </div>
 
@@ -1511,6 +1646,14 @@ const OrderDetails: React.FC = () => {
                     {order.paymentStatus === 'COMPLETED' ? 'Paid' : 'Pending'}
                   </span>
                 </div>
+                {(order.paymentStatus === 'COMPLETED' || (order.payment_details?.amount_paid && order.payment_details.amount_paid > 0) || (order.advancePaid && order.advancePaid > 0)) && (
+                  <div className="flex justify-between items-center pt-2 border-t border-blue-200/50">
+                    <span className="text-gray-600 font-medium">Amount Paid</span>
+                    <span className="font-bold text-green-700">
+                      {formatCurrency(order.payment_details?.amount_paid || order.advancePaid || order.priceSnapshot?.totalPayable || order.totalPrice)}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
           </div>

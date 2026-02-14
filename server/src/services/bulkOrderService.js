@@ -42,6 +42,12 @@ export const createBulkOrder = async ({ userId, config, file, productId }) => {
             pagesPerDesign,
             product: productId,
             productType: productType || "VISITING_CARD",
+            price: {
+                unitPrice: config.unitPrice || 0,
+                totalPrice: config.totalPrice || 0,
+                gstAmount: (config.totalPrice - (config.unitPrice * config.totalCopies)) || 0, // Approx
+                netAmount: (config.unitPrice * config.totalCopies) || 0
+            },
             compositeFile: {
                 url: file.url,
                 publicId: file.publicId,
@@ -190,21 +196,21 @@ export const createOrderHierarchy = async (bulkOrder) => {
             pincode: bulkOrder.user.pincode || "000000",
             mobileNumber: bulkOrder.user.mobileNumber || "0000000000",
 
-            // Dummy price snapshot (you'll need to calculate actual prices)
+            // Real price snapshot from Bulk Order
             priceSnapshot: {
-                basePrice: 0,
-                unitPrice: 0,
+                basePrice: bulkOrder.price.unitPrice || 0,  // Per-unit price
+                unitPrice: bulkOrder.price.unitPrice || 0,
                 quantity: bulkOrder.totalCopies,
                 appliedModifiers: [],
-                subtotal: 0,
-                gstPercentage: 18,
-                gstAmount: 0,
-                totalPayable: bulkOrder.designFee?.totalFee || 0,
+                subtotal: bulkOrder.price.netAmount || 0,
+                gstPercentage: 18, // Assuming 18% standard
+                gstAmount: bulkOrder.price.gstAmount || 0,
+                totalPayable: bulkOrder.price.totalPrice || 0,
                 currency: "INR",
             },
 
             selectedDynamicAttributes: [],
-            paymentStatus: "PENDING",
+            paymentStatus: bulkOrder.paymentStatus || "PENDING",
 
             // Mark as bulk parent
             childOrders: [],
@@ -230,21 +236,23 @@ export const createOrderHierarchy = async (bulkOrder) => {
                 pincode: bulkOrder.user.pincode || "000000",
                 mobileNumber: bulkOrder.user.mobileNumber || "0000000000",
 
-                // Dummy price snapshot
+                // Child order inherits payment status.
+                // WE SET THE PRICE HERE so the user sees the value of this specific part of the order.
+                // It does not imply they have to pay again because paymentStatus will be COMPLETED.
                 priceSnapshot: {
-                    basePrice: 0,
-                    unitPrice: 0,
+                    basePrice: bulkOrder.price.unitPrice || 0,
+                    unitPrice: bulkOrder.price.unitPrice || 0,
                     quantity: asset.copiesAssigned,
                     appliedModifiers: [],
-                    subtotal: 0,
+                    subtotal: (bulkOrder.price.netAmount || 0) / bulkOrder.distinctDesigns,
                     gstPercentage: 18,
-                    gstAmount: 0,
-                    totalPayable: 0,
+                    gstAmount: (bulkOrder.price.gstAmount || 0) / bulkOrder.distinctDesigns,
+                    totalPayable: (bulkOrder.price.totalPrice || 0) / bulkOrder.distinctDesigns,
                     currency: "INR",
                 },
 
                 selectedDynamicAttributes: [],
-                paymentStatus: "PENDING",
+                paymentStatus: bulkOrder.paymentStatus || "PENDING",
 
                 // Bulk tracking
                 isBulkChild: true,
@@ -252,6 +260,15 @@ export const createOrderHierarchy = async (bulkOrder) => {
                 bulkOrderRef: bulkOrder._id,
                 designSequence: asset.designIndex,
                 parentOrderId: parentOrder._id,
+                
+                // Map split asset to uploadedDesign for display
+                uploadedDesign: {
+                    frontImage: {
+                        data: asset.url, // Cloudinary URL
+                        contentType: "application/pdf", // or image/png based on file
+                        filename: `design_${asset.designIndex}.pdf`
+                    }
+                }
             });
 
             childOrder.orderNumber = `${parentOrder.orderNumber}-${String(asset.designIndex).padStart(3, "0")}`;

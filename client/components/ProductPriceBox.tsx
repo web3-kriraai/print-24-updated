@@ -23,6 +23,7 @@ interface ProductPriceBoxProps {
   quantity?: number;
   showBreakdown?: boolean;
   numberOfDesigns?: number; // Multiplier for bulk orders
+  onPriceChange?: (pricing: PricingData | null) => void;
 }
 
 interface PricingData {
@@ -63,6 +64,7 @@ export default function ProductPriceBox({
   quantity = 1,
   showBreakdown = false,
   numberOfDesigns = 1,
+  onPriceChange,
 }: ProductPriceBoxProps) {
   const [pricing, setPricing] = useState<PricingData | null>(null);
   const [pricingMeta, setPricingMeta] = useState<PricingMeta | null>(null);
@@ -151,19 +153,22 @@ export default function ProductPriceBox({
         if (data.success) {
           setPricing(data.pricing);
           setPricingMeta(data.meta);
+          if (onPriceChange) {
+            onPriceChange(data.pricing);
+          }
 
           // Enhanced logging for user information
-          console.log('\\n' + '='.repeat(80));
+          console.log('\n' + '='.repeat(80));
           console.log('💰 PRICING API RESPONSE');
           console.log('='.repeat(80));
 
-          console.log('\\n👤 USER & SEGMENT:');
+          console.log('\n👤 USER & SEGMENT:');
           console.log(`   Segment: ${data.meta.userSegmentName} (${data.meta.userSegment})`);
           console.log(`   Guest Mode: ${data.meta.isGuest ? 'YES' : 'NO'}`);
           console.log(`   Authenticated: ${data.meta.isAuthenticated ? 'YES ✅' : 'NO ❌'}`);
           console.log(`   Pricing Tier: ${data.meta.pricingTier}`);
 
-          console.log('\\n📍 LOCATION:');
+          console.log('\n📍 LOCATION:');
           console.log(`   Pincode: ${data.meta.pincode}`);
           console.log(`   Geo Zone: ${data.meta.geoZone || 'Not mapped'}`);
           console.log(`   Detection Method: ${data.meta.detectedBy}`);
@@ -173,7 +178,7 @@ export default function ProductPriceBox({
             console.log(`   ✅ Location provided via request/localStorage`);
           }
 
-          console.log('\\n💵 PRICING:');
+          console.log('\n💵 PRICING:');
           const currSymbol = getCurrencySymbol(data.pricing.currency || 'INR');
           console.log(`   Base Price: ${currSymbol}${data.pricing.basePrice}`);
           console.log(`   Subtotal: ${currSymbol}${data.pricing.subtotal}`);
@@ -182,7 +187,7 @@ export default function ProductPriceBox({
           console.log(`   Modifiers Applied: ${data.meta.modifiersApplied}`);
 
           if (data.pricing.appliedModifiers?.length > 0) {
-            console.log('\\n🎯 MODIFIERS:');
+            console.log('\n🎯 MODIFIERS:');
             data.pricing.appliedModifiers.forEach((mod: any, i: number) => {
               const name = mod.reason || mod.source || mod.name || 'Modifier';
               const value = mod.value !== undefined ? mod.value : (mod.applied || 0);
@@ -191,7 +196,7 @@ export default function ProductPriceBox({
             });
           }
 
-          console.log('='.repeat(80) + '\\n');
+          console.log('='.repeat(80) + '\n');
         } else if (data.isAvailable === false || data.errorCode === 'PRODUCT_NOT_AVAILABLE') {
           // Product is blocked in this region
           setNotAvailable({

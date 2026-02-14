@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
     Package,
@@ -8,7 +8,9 @@ import {
     AlertCircle,
     Loader,
     ChevronRight,
-    Calendar
+    Calendar,
+    ArrowLeft,
+    Filter
 } from 'lucide-react';
 import { API_BASE_URL_WITH_API as API_BASE_URL } from '../lib/apiConfig';
 import { formatPrice } from '../src/utils/currencyUtils';
@@ -26,6 +28,13 @@ interface Order {
     status: string;
     createdAt: string;
     updatedAt: string;
+    parentOrderId?: string | { _id: string }; // Support both populated and unpopulated
+    payment_details?: {
+        amount_paid?: number;
+    };
+    priceSnapshot?: {
+        totalPayable: number;
+    };
 }
 
 interface PaginationInfo {
@@ -37,16 +46,22 @@ interface PaginationInfo {
 
 const MyOrders: React.FC = () => {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    const parentId = searchParams.get('parent');
+
     const [orders, setOrders] = useState<Order[]>([]);
+    const [allOrders, setAllOrders] = useState<Order[]>([]); // Store all orders for client-side filtering if needed
+    
     const [latestOrder, setLatestOrder] = useState<Order | null>(null);
     const [pagination, setPagination] = useState<PaginationInfo | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [currentPage, setCurrentPage] = useState(1);
+    const [orderFilter, setOrderFilter] = useState<'all' | 'parent' | 'child'>('all');
 
     useEffect(() => {
         fetchOrders(currentPage);
-    }, [currentPage]);
+    }, [currentPage, parentId, orderFilter]); // Added orderFilter to dependencies
 
     const fetchOrders = async (page: number) => {
         try {
@@ -59,7 +74,23 @@ const MyOrders: React.FC = () => {
                 return;
             }
 
-            const response = await fetch(`${API_BASE_URL}/timeline/my-orders?page=${page}&limit=20`, {
+            // Support server-side filtering for parentId and pagination
+            const params = new URLSearchParams();
+            params.append('page', page.toString());
+            params.append('limit', '50'); // Increased limit to find child orders
+            if (parentId) {
+                params.append('parent', parentId);
+            }
+            // Add filter for parent/child orders
+            if (orderFilter === 'parent') {
+                params.append('onlyParents', 'true');
+            } else if (orderFilter === 'child') {
+                params.append('onlyChildren', 'true');
+            }
+            
+            const url = `${API_BASE_URL}/timeline/my-orders?${params.toString()}`;
+
+            const response = await fetch(url, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
@@ -76,8 +107,17 @@ const MyOrders: React.FC = () => {
             }
 
             const data = await response.json();
-            setOrders(data.orders || []);
+            
+            let fetchedOrders = Array.isArray(data) ? data : (data.orders || []);
+            
+            // Server now handles parentId filtering
+            if (parentId && fetchedOrders.length === 0) {
+               // Optional: Handle case where server returns nothing
+            }
+
+            setOrders(fetchedOrders);
             setLatestOrder(data.latestOrder || null);
+            setPagination(data.pagination || null);
             setPagination(data.pagination || null);
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to load orders');
@@ -171,6 +211,47 @@ const MyOrders: React.FC = () => {
                 <div className="mb-8">
                     <h1 className="text-3xl font-bold text-slate-900">My Orders</h1>
                     <p className="text-slate-600 mt-2">Track and manage all your orders</p>
+                    
+                    {/* Filter Dropdown */}
+                    {!parentId && (
+                        <div className="mt-4">
+                            <label htmlFor="orderFilter" className="sr-only">Filter Orders</label>
+                            <div className="relative inline-block">
+                                <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" />
+                                <select
+                                    id="orderFilter"
+                                    value={orderFilter}
+                                    onChange={(e) => setOrderFilter(e.target.value as 'all' | 'parent' | 'child')}
+                                    className="appearance-none bg-white border border-slate-300 rounded-lg pl-10 pr-10 py-2.5 text-sm font-medium text-slate-700 hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent cursor-pointer"
+                                >
+                                    <option value="all">All Orders</option>
+                                    <option value="parent">Parent Orders Only</option>
+                                    <option value="child">Child Orders Only</option>
+                                </select>
+                                <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                                    <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                    
+                    {parentId && (
+                        <div className="mt-4 flex items-center justify-between bg-blue-50 p-4 rounded-lg border border-blue-100">
+                            <div className="flex items-center gap-2 text-blue-800">
+                                <Package className="w-5 h-5" />
+                                <span className="font-medium">Showing Child Orders for Bulk Order</span>
+                            </div>
+                            <button 
+                                onClick={() => navigate('/my-orders')}
+                                className="flex items-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-800"
+                            >
+                                <ArrowLeft className="w-4 h-4" />
+                                View All Orders
+                            </button>
+                        </div>
+                    )}
                 </div>
 
                 {/* Latest Order Banner */}
@@ -273,7 +354,13 @@ const MyOrders: React.FC = () => {
                                         {/* Price & Action */}
                                         <div className="text-right">
                                             <p className="text-2xl font-bold text-slate-900 mb-2">
-                                                {formatPrice(order.totalPrice, 'INR')}
+                                                {formatPrice(
+                                                    order.payment_details?.amount_paid || 
+                                                    order.priceSnapshot?.totalPayable || 
+                                                    order.totalPrice || 
+                                                    0, 
+                                                    'INR'
+                                                )}
                                             </p>
                                             <div className="flex items-center gap-2 text-blue-600 group-hover:text-blue-700 font-medium">
                                                 <span>View Details</span>

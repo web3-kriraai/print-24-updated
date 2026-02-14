@@ -229,8 +229,8 @@ export const verifyPayment = async (req, res) => {
                     raw_response: payuResponse
                 });
 
-                // Update order
-                await Order.findByIdAndUpdate(transaction.order, {
+                // Update order or bulk order
+                let updatedOrder = await Order.findByIdAndUpdate(transaction.order, {
                     paymentStatus: 'COMPLETED',
                     'payment_details.transaction_id': transaction._id,
                     'payment_details.gateway_used': 'PAYU',
@@ -238,6 +238,16 @@ export const verifyPayment = async (req, res) => {
                     'payment_details.captured_at': new Date(),
                     'payment_details.amount_paid': transaction.amount
                 });
+
+                if (!updatedOrder) {
+                    const updatedBulkOrder = await BulkOrder.findByIdAndUpdate(transaction.order, {
+                        paymentStatus: 'COMPLETED'
+                    });
+                     if (updatedBulkOrder) {
+                         updatedBulkOrder.addLog("PAYMENT", "SUCCESS", `Payment successful via PAYU`);
+                         await updatedBulkOrder.save();
+                    }
+                }
 
                 return res.json({
                     success: true,
@@ -279,8 +289,8 @@ export const verifyPayment = async (req, res) => {
                 raw_response: status
             });
 
-            // Update order
-            await Order.findByIdAndUpdate(transaction.order, {
+            // Update order or bulk order
+            let updatedOrder = await Order.findByIdAndUpdate(transaction.order, {
                 paymentStatus: 'COMPLETED',
                 'payment_details.transaction_id': transaction._id,
                 'payment_details.gateway_used': transaction.gateway_name,
@@ -288,6 +298,49 @@ export const verifyPayment = async (req, res) => {
                 'payment_details.captured_at': new Date(),
                 'payment_details.amount_paid': transaction.amount
             });
+
+            if (!updatedOrder) {
+                // Try updating BulkOrder
+                const updatedBulkOrder = await BulkOrder.findByIdAndUpdate(transaction.order, {
+                    paymentStatus: 'COMPLETED',
+                    'payment_details.transaction_id': transaction._id,
+                    'payment_details.gateway_used': transaction.gateway_name,
+                    'payment_details.payment_method': status.paymentMethod,
+                    'payment_details.captured_at': new Date(),
+                    'payment_details.amount_paid': transaction.amount
+                });
+
+                if (updatedBulkOrder) {
+                     updatedBulkOrder.addLog("PAYMENT", "SUCCESS", `Payment successful via ${transaction.gateway_name}`);
+                     await updatedBulkOrder.save();
+
+                     // 🔄 Cascade Payment Status to Child Orders
+                     const childOrdersUpdate = await Order.updateMany(
+                         {
+                             $or: [
+                                 { bulkOrderRef: updatedBulkOrder._id },
+                                 { bulkParentOrderId: updatedBulkOrder._id },
+                                 { parentOrderId: updatedBulkOrder.parentOrderId } // In case parent order was created first
+                             ]
+                         },
+                         {
+                             $set: {
+                                 paymentStatus: 'COMPLETED',
+                                 'payment_details.transaction_id': transaction._id,
+                                 'payment_details.gateway_used': transaction.gateway_name,
+                                 'payment_details.payment_method': status.paymentMethod,
+                                 'payment_details.captured_at': new Date(),
+                                 'payment_details.amount_paid': transaction.amount // Each child shows full amount paid for the batch? Or maybe irrelevant if price is displayed.
+                             }
+                         }
+                     );
+
+                     console.log(`[Payment Verify] Updated ${childOrdersUpdate.modifiedCount} child orders to COMPLETED`);
+
+                } else {
+                    console.warn(`[Payment Verify] Order/BulkOrder not found for transaction ${transaction._id}`);
+                }
+            }
 
             res.json({
                 success: true,

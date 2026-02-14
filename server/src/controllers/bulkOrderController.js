@@ -24,6 +24,9 @@ export const uploadBulkOrder = async (req, res) => {
             hireDesigner,
             productId,
             productType,
+            // Price info
+            unitPrice,
+            totalPrice,
         } = req.body;
 
         // Validate required fields

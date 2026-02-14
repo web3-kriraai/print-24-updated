@@ -214,7 +214,12 @@ const OrderTable: React.FC<OrderTableProps> = ({
                             {order.quantity}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                            ₹{order.priceSnapshot.totalPayable.toLocaleString()}
+                            ₹{(
+                                (order as any).payment_details?.amount_paid || 
+                                order.priceSnapshot?.totalPayable || 
+                                (order as any).totalPrice || 
+                                0
+                            ).toLocaleString()}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                             <span
