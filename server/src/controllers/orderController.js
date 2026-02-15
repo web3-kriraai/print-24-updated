@@ -85,8 +85,6 @@ export const createOrder = async (req, res) => {
             details: process.env.NODE_ENV === 'development' ? err.message : undefined
           });
         }
-      } else {
-        return res.status(400).json({ error: "Front image is required." });
       }
       if (uploadedDesign.backImage && uploadedDesign.backImage.data) {
         try {
@@ -611,8 +609,6 @@ export const createOrderWithAccount = async (req, res) => {
             details: process.env.NODE_ENV === 'development' ? err.message : undefined
           });
         }
-      } else {
-        return res.status(400).json({ error: "Front image is required." });
       }
       if (uploadedDesign.backImage && uploadedDesign.backImage.data) {
         try {

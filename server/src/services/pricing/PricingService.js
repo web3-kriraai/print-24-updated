@@ -164,7 +164,7 @@ class PricingService {
                 gstAmount,
                 totalPayable,
                 appliedModifiers: virtualResult.adjustments.map(adj => ({
-                    source: adj.type,
+                    source: adj.appliesTo || adj.type || 'MODIFIER',
                     reason: adj.modifierName || adj.adjustmentType || adj.type,
                     modifierType: adj.modifierType || 'FIXED',
                     value: adj.value,

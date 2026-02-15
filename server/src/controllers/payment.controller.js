@@ -90,7 +90,7 @@ export const initializePayment = async (req, res) => {
 
         if (isBulkOrder) {
             // For bulk orders, use amount from request body (sent from frontend)
-            paymentAmount = amount || bulkOrder.totalPrice || (bulkOrder.priceSnapshot?.totalPayable);
+            paymentAmount = amount || bulkOrder.price?.totalPrice || (bulkOrder.priceSnapshot?.totalPayable);
             paymentCurrency = currency || 'INR';
         } else {
             // For regular orders, use price snapshot

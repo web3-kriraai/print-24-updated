@@ -90,7 +90,7 @@ const OrderSchema = new mongoose.Schema(
             value: Number,
             source: {
               type: String,
-              enum: ["GLOBAL", "ZONE", "SEGMENT", "PRODUCT", "ATTRIBUTE", "PROMO_CODE", "ZONE_BOOK"],
+              enum: ["GLOBAL", "ZONE", "SEGMENT", "PRODUCT", "ATTRIBUTE", "PROMO_CODE", "ZONE_BOOK", "SEGMENT_BOOK", "COMBINATION", "USER", "CATEGORY", "MODIFIER"],
             },
             modifierId: {
               type: mongoose.Schema.Types.ObjectId,

@@ -135,6 +135,8 @@ export const uploadBulkOrder = async (req, res) => {
                     pagesPerDesign: parseInt(pagesPerDesign),
                     hireDesigner: hireDesigner === "true" || hireDesigner === true,
                     productType: productType || "VISITING_CARD",
+                    unitPrice: parseFloat(unitPrice) || 0,
+                    totalPrice: parseFloat(totalPrice) || 0,
                 },
                 file: {
                     url: uploadResult.secure_url,

@@ -45,8 +45,8 @@ export const createBulkOrder = async ({ userId, config, file, productId }) => {
             price: {
                 unitPrice: config.unitPrice || 0,
                 totalPrice: config.totalPrice || 0,
-                gstAmount: (config.totalPrice - (config.unitPrice * config.totalCopies)) || 0, // Approx
-                netAmount: (config.unitPrice * config.totalCopies) || 0
+                netAmount: (config.unitPrice * config.totalCopies) || 0,
+                gstAmount: Math.max(0, (config.totalPrice || 0) - ((config.unitPrice || 0) * (config.totalCopies || 0)))
             },
             compositeFile: {
                 url: file.url,

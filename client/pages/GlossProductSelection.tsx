@@ -2232,8 +2232,8 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
         formData.append('totalCopies', calculatedTotalCopies.toString());
         formData.append('pagesPerDesign', calculateRequiredPageCount().toString());
         formData.append('productId', selectedProduct._id);
-        formData.append('unitPrice', subtotal.toString());
-        formData.append('totalPrice', (subtotal + gstAmount).toString());
+        formData.append('unitPrice', (subtotal / quantity).toString());
+        formData.append('totalPrice', ((subtotal + gstAmount) * (parseInt(numberOfDesigns) || 1)).toString());
 
         // Add customer details for bulk order
         formData.append('customerName', customerName.trim());
@@ -2464,33 +2464,30 @@ handler: async function (response: any) {
       // Single order processing continues below
       const uploadedDesign: any = {};
 
-      if (!frontDesignPreview || !frontDesignFile) {
-        throw new Error("Front design image is required.");
-      }
+      // Front design is optional — only process if provided
+      if (frontDesignPreview && frontDesignFile) {
+        try {
+          const reader = new FileReader();
+          const frontImageData = await new Promise<string>((resolve, reject) => {
+            reader.onload = () => {
+              const result = reader.result as string;
+              const base64 = result.includes(',') ? result.split(',')[1] : result;
+              resolve(base64);
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(frontDesignFile);
+          });
 
-      try {
-        const reader = new FileReader();
-        const frontImageData = await new Promise<string>((resolve, reject) => {
-          reader.onload = () => {
-            const result = reader.result as string;
-            const base64 = result.includes(',') ? result.split(',')[1] : result;
-            resolve(base64);
-          };
-          reader.onerror = reject;
-          reader.readAsDataURL(frontDesignFile);
-        });
-
-        if (!frontImageData || frontImageData.trim().length === 0) {
-          throw new Error("Invalid front image data. Please upload the image again.");
+          if (frontImageData && frontImageData.trim().length > 0) {
+            uploadedDesign.frontImage = {
+              data: frontImageData,
+              contentType: frontDesignFile.type || "image/png",
+              filename: frontDesignFile.name || "front-design.png",
+            };
+          }
+        } catch (err) {
+          console.error("Error preparing front design image:", err);
         }
-
-        uploadedDesign.frontImage = {
-          data: frontImageData,
-          contentType: frontDesignFile.type || "image/png",
-          filename: frontDesignFile.name || "front-design.png",
-        };
-      } catch (err) {
-        throw new Error(err instanceof Error ? err.message : "Failed to prepare front design image. Please try uploading again.");
       }
 
       if (backDesignFile && backDesignPreview) {
@@ -2862,7 +2859,7 @@ handler: async function (response: any) {
       const paymentToken = localStorage.getItem("token") || responseData.token;
       console.log("🔄 Step 4: Initializing payment...");
       console.log("📦 Order ID:", order._id || order.order?._id);
-      console.log("💰 Amount:", order.totalPrice || order.priceSnapshot?.finalTotal);
+      console.log("💰 Amount:", order.totalPrice || order.priceSnapshot?.totalPayable);
       console.log("🔑 Token available:", !!paymentToken);
 
       try {
@@ -2874,7 +2871,7 @@ handler: async function (response: any) {
           },
           body: JSON.stringify({
             orderId: order._id || order.order?._id,
-            amount: Math.round((order.totalPrice || order.priceSnapshot?.finalTotal || 0) * 100),
+            amount: Math.round(order.totalPrice || order.priceSnapshot?.totalPayable || 0),
             currency: "INR",
             customerInfo: {
               name: customerName.trim(),
@@ -2906,6 +2903,11 @@ handler: async function (response: any) {
 
         console.log(`🔍 Redirect required: ${isRedirectRequired}`);
         console.log(`🔍 Checkout URL: ${paymentData.checkout_url}`);
+
+        // Load Razorpay SDK if needed (for single orders)
+        if (selectedGateway === 'RAZORPAY' && typeof window !== 'undefined' && !(window as any).Razorpay) {
+          await loadRazorpayScript();
+        }
 
         if (isRedirectRequired && paymentData.checkout_url && checkoutData) {
           console.log('🔄 Using redirect-based payment flow');
@@ -3025,8 +3027,9 @@ handler: async function (response: any) {
         navigate(`/order/${order._id || order.order?._id}`);
       }
     } catch (err) {
-      setPaymentError(err instanceof Error ? err.message : "Failed to process payment and create order. Please try again.");
-      setIsProcessingPayment(false);
+      const errorMsg = err instanceof Error ? err.message : "Failed to process payment and create order. Please try again.";
+      setPaymentError(errorMsg);
+      throw err; // Re-throw so PaymentConfirmationModal can catch it and show in local state
     }
   };
 
@@ -5377,50 +5380,6 @@ handler: async function (response: any) {
         )}
       </div>
 
-      <PaymentConfirmationModal
-        isOpen={showPaymentModal}
-        onClose={() => setShowPaymentModal(false)}
-        onConfirm={handlePaymentAndOrder}
-        productId={selectedProduct?._id || ''}
-        productName={selectedProduct?.name || ''}
-        quantity={quantity}
-        selectedDynamicAttributes={Object.entries(selectedDynamicAttributes)
-          .filter(([_, value]) => value !== null && value !== undefined && value !== '')
-          .map(([key, value]) => {
-            const attr = pdpAttributes.find(a => a._id === key);
-            const attrName = attr?.attributeName || key;
-
-            let displayValue = value;
-            if (attr?.attributeValues) {
-              const selectedVal = attr.attributeValues.find(v => v.value === value);
-              displayValue = selectedVal?.label || value;
-            }
-
-            return {
-              attributeType: key,
-              value: typeof value === 'object' && !Array.isArray(value) && !(value instanceof File)
-                ? JSON.stringify(value)
-                : value,
-              name: attrName,
-              label: displayValue
-            };
-          })}
-        customerName={customerName}
-        setCustomerName={setCustomerName}
-        customerEmail={customerEmail}
-        setCustomerEmail={setCustomerEmail}
-        pincode={pincode}
-        setPincode={setPincode}
-        address={address}
-        setAddress={setAddress}
-        mobileNumber={mobileNumber}
-        setMobileNumber={setMobileNumber}
-        estimatedDeliveryDate={estimatedDeliveryDate || undefined}
-        deliveryLocationSource={deliveryLocationSource}
-        onGetLocation={handleGetLocation}
-        isGettingLocation={isGettingLocation}
-        gstPercentage={selectedProduct?.gstPercentage || 18}
-      />
 
       <AnimatePresence>
         {isImageModalOpen && (
