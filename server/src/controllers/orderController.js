@@ -1,5 +1,5 @@
 import BulkOrder from "../models/BulkOrder.js";
-﻿import Order from "../models/orderModal.js";
+import Order from "../models/orderModal.js";
 import Product from "../models/productModal.js";
 import Department from "../models/departmentModal.js";
 import { User } from "../models/User.js";
@@ -28,7 +28,41 @@ export const createOrder = async (req, res) => {
       uploadedDesign,
       notes,
       promoCodes,  // NEW: Promo code support
+      clientId,    // AGENT: Place order on behalf of client
     } = req.body;
+
+    // ========== AGENT ORDER-ON-BEHALF ==========
+    // If agent provides clientId, order is placed for the client using client's pricing
+    let orderUserId = userId;
+    let agentId = null;
+
+    if (clientId) {
+      // Verify agent has client_management feature and client is in their list
+      const agentUser = await User.findById(userId);
+      if (!agentUser) {
+        return res.status(404).json({ error: "Agent user not found" });
+      }
+
+      const isMyClient = agentUser.clients?.some(
+        (c) => c.toString() === clientId
+      );
+
+      if (!isMyClient) {
+        return res.status(403).json({
+          error: "This user is not in your client list. Add them first.",
+        });
+      }
+
+      // Verify client exists
+      const clientUser = await User.findById(clientId);
+      if (!clientUser) {
+        return res.status(404).json({ error: "Client user not found" });
+      }
+
+      orderUserId = clientId;  // Order belongs to the client
+      agentId = userId;        // Track which agent placed it
+      console.log(`🤝 Agent ${userId} placing order on behalf of client ${clientId}`);
+    }
 
     // Validate required fields
     if (!productId || !quantity || !finish || !shape || !pincode || !address || !mobileNumber) {
@@ -344,8 +378,9 @@ export const createOrder = async (req, res) => {
     }
 
     // Calculate pricing using PricingService (NEW)
+    // Use orderUserId for pricing - if agent placed on behalf, use client's pricing tier
     const pricingResult = await PricingService.resolvePrice({
-      userId,
+      userId: orderUserId,
       productId,
       pincode,
       selectedDynamicAttributes: processedDynamicAttributes.map(attr => ({
@@ -360,7 +395,8 @@ export const createOrder = async (req, res) => {
 
     // Create order with immutable priceSnapshot
     const orderData = {
-      user: userId,
+      user: orderUserId,
+      placedByAgent: agentId || undefined,
       orderNumber: orderNumber,
       product: productId,
       quantity: parseInt(quantity),
@@ -1095,18 +1131,18 @@ export const getSingleOrder = async (req, res) => {
 
     // Fetch child orders if this is a bulk parent
     const childOrders = await Order.find({
-        $or: [
-            { parentOrderId: order._id },
-            { bulkParentOrderId: order._id },
-            { _id: { $in: order.childOrderIds || [] } }
-        ]
+      $or: [
+        { parentOrderId: order._id },
+        { bulkParentOrderId: order._id },
+        { _id: { $in: order.childOrderIds || [] } }
+      ]
     })
-    .select('orderNumber status paymentStatus quantity product priceSnapshot')
-    .sort({ designSequence: 1 })
-    .lean();
+      .select('orderNumber status paymentStatus quantity product priceSnapshot')
+      .sort({ designSequence: 1 })
+      .lean();
 
     if (childOrders.length > 0) {
-        order.childOrders = childOrders;
+      order.childOrders = childOrders;
     }
 
     res.status(200).json(order);
@@ -1127,31 +1163,31 @@ export const getMyOrders = async (req, res) => {
     const onlyChildren = req.query.onlyChildren === 'true';
 
     const query = { user: userId };
-    
+
     // If filtering by parent, strictly match children; otherwise exclude children by default? 
     // Actually, usually MyOrders shows all. But if we want to see children of a specific order, we filter.
     if (parentId) {
-       query.$or = [
-           { parentOrderId: parentId },
-           { bulkParentOrderId: parentId }
-       ];
+      query.$or = [
+        { parentOrderId: parentId },
+        { bulkParentOrderId: parentId }
+      ];
     } else if (onlyParents) {
-       // Only show parent orders (no parentOrderId or bulkParentOrderId)
-       query.parentOrderId = { $exists: false };
-       query.bulkParentOrderId = { $exists: false };
+      // Only show parent orders (no parentOrderId or bulkParentOrderId)
+      query.parentOrderId = { $exists: false };
+      query.bulkParentOrderId = { $exists: false };
     } else if (onlyChildren) {
-       // Only show child orders (has parentOrderId or bulkParentOrderId)
-       query.$or = [
-           { parentOrderId: { $exists: true } },
-           { bulkParentOrderId: { $exists: true } }
-       ];
+      // Only show child orders (has parentOrderId or bulkParentOrderId)
+      query.$or = [
+        { parentOrderId: { $exists: true } },
+        { bulkParentOrderId: { $exists: true } }
+      ];
     }
 
     const orders = await Order.find(query)
       .select("-uploadedDesign -notes -adminNotes -designTimeline -productionTimeline -courierTimeline -productionDetails -designOption -designerAssigned -designFileSentAt -customerResponse -fileUploadedAt -fileStatus -fileRejectionReason -productionStartedAt -movedToPackingAt -packedAt -packedBy -numberOfBoxes -movedToDispatchAt -handedOverToCourierAt -invoiceNumber -invoiceGeneratedAt -invoiceUrl -courierPartner -trackingId -dispatchedAt -courierStatus -deliveredAt -courierTrackingUrl +payment_details +priceSnapshot +totalPrice +paymentStatus +advancePaid") // Explicitly include price fields 
       .populate({
         path: "product",
-        select: "name image basePrice subcategory gstPercentage", 
+        select: "name image basePrice subcategory gstPercentage",
         populate: {
           path: "subcategory",
           select: "name image",
@@ -1916,46 +1952,46 @@ export const exportOrders = async (req, res) => {
  * @route GET /api/admin/orders/filter-options
  */
 export const getFilterOptions = async (req, res) => {
+  try {
+    const orderStatusEnum = Order.schema.path('status').enumValues;
+    const paymentStatusEnum = Order.schema.path('paymentStatus').enumValues;
+
+    let customerTypes = [
+      { value: 'retail', label: 'Retail' },
+      { value: 'wholesale', label: 'Wholesale' },
+      { value: 'corporate', label: 'Corporate' }
+    ];
+
     try {
-        const orderStatusEnum = Order.schema.path('status').enumValues;
-        const paymentStatusEnum = Order.schema.path('paymentStatus').enumValues;
-
-        let customerTypes = [
-            { value: 'retail', label: 'Retail' },
-            { value: 'wholesale', label: 'Wholesale' },
-            { value: 'corporate', label: 'Corporate' }
-        ];
-
-        try {
-            const UserSegment = (await import('../models/UserSegment.js')).default;
-            const segments = await UserSegment.find({}).select('segmentCode name').lean();
-            if (segments && segments.length > 0) {
-                customerTypes = segments.map(seg => ({
-                    value: seg.segmentCode.toLowerCase(),
-                    label: seg.name
-                }));
-            }
-        } catch (segError) {
-            console.log('[Filter Options] Using default customer types - segments not available');
-        }
-
-        res.status(200).json({
-            orderStatuses: orderStatusEnum,
-            paymentStatuses: paymentStatusEnum,
-            deliveryStatuses: ['PENDING', 'DISPATCHED', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED', 'FAILED'],
-            customerTypes
-        });
-    } catch (error) {
-        console.error('Get filter options error:', error);
-        res.status(200).json({
-            orderStatuses: ['REQUESTED', 'D ESIGN', 'APPROVED', 'PRODUCTION', 'QC', 'PACKED', 'DISPATCHED', 'DELIVERED', 'CANCELLED', 'REJECTED'],
-            paymentStatuses: ['PENDING', 'PARTIAL', 'COMPLETED', 'FAILED', 'REFUNDED', 'PARTIALLY_REFUNDED'],
-            deliveryStatuses: ['PENDING', 'DISPATCHED', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED', 'FAILED'],
-            customerTypes: [
-                { value: 'retail', label: 'Retail' },
-                { value: 'wholesale', label: 'Wholesale' },
-                { value: 'corporate', label: 'Corporate' }
-            ]
-        });
+      const UserSegment = (await import('../models/UserSegment.js')).default;
+      const segments = await UserSegment.find({}).select('segmentCode name').lean();
+      if (segments && segments.length > 0) {
+        customerTypes = segments.map(seg => ({
+          value: seg.segmentCode.toLowerCase(),
+          label: seg.name
+        }));
+      }
+    } catch (segError) {
+      console.log('[Filter Options] Using default customer types - segments not available');
     }
+
+    res.status(200).json({
+      orderStatuses: orderStatusEnum,
+      paymentStatuses: paymentStatusEnum,
+      deliveryStatuses: ['PENDING', 'DISPATCHED', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED', 'FAILED'],
+      customerTypes
+    });
+  } catch (error) {
+    console.error('Get filter options error:', error);
+    res.status(200).json({
+      orderStatuses: ['REQUESTED', 'D ESIGN', 'APPROVED', 'PRODUCTION', 'QC', 'PACKED', 'DISPATCHED', 'DELIVERED', 'CANCELLED', 'REJECTED'],
+      paymentStatuses: ['PENDING', 'PARTIAL', 'COMPLETED', 'FAILED', 'REFUNDED', 'PARTIALLY_REFUNDED'],
+      deliveryStatuses: ['PENDING', 'DISPATCHED', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED', 'FAILED'],
+      customerTypes: [
+        { value: 'retail', label: 'Retail' },
+        { value: 'wholesale', label: 'Wholesale' },
+        { value: 'corporate', label: 'Corporate' }
+      ]
+    });
+  }
 };

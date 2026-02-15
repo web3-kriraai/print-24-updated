@@ -159,7 +159,7 @@ export const loginUser = async (req, res) => {
     // Compare password
     const match = await bcrypt.compare(password, user.password);
     console.log(`   - Password match result: ${match}`);
-    
+
     if (!match) {
       // Log for debugging (remove in production or make it conditional)
       console.log(`❌ Password comparison failed for user: ${user.email || user.mobileNumber}`);
@@ -180,6 +180,13 @@ export const loginUser = async (req, res) => {
       { expiresIn: "7d" }
     );
 
+    // Populated user with segment for frontend features
+    const populatedUser = await User.findById(user._id).populate("userSegment");
+
+    const features = (populatedUser.userSegment?.features || [])
+      .filter(f => f.isEnabled === true)
+      .map(f => f.featureKey);
+
     return res.json({
       success: true,
       user: {
@@ -188,7 +195,9 @@ export const loginUser = async (req, res) => {
         email: user.email,
         mobileNumber: user.mobileNumber,
         role: user.role,
-        userType: user.userType || "customer", // Include userType in response
+        userType: user.userType || "customer",
+        userSegment: populatedUser.userSegment,
+        features: features
       },
       token,
     });
@@ -727,7 +736,7 @@ export const getUserProfile = async (req, res) => {
     const userId = req.user._id || req.user.id;
     const user = await User.findById(userId)
       .select("-password -emailOtp -emailOtpExpiresAt")
-      .populate("userSegment", "name code description");
+      .populate("userSegment");
 
     if (!user) {
       return res.status(404).json({
@@ -751,6 +760,9 @@ export const getUserProfile = async (req, res) => {
       approvalStatus: user.approvalStatus,
       isEmailVerified: user.isEmailVerified,
       userSegment: user.userSegment,
+      features: (user.userSegment?.features || [])
+        .filter(f => f.isEnabled === true)
+        .map(f => f.featureKey),
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     };
@@ -901,6 +913,12 @@ export const updateUserProfile = async (req, res) => {
 
     await user.save();
 
+    // Fetch populated user to get segment features
+    const populatedUser = await User.findById(user._id).populate("userSegment");
+    const features = (populatedUser.userSegment?.features || [])
+      .filter(f => f.isEnabled === true)
+      .map(f => f.featureKey);
+
     return res.status(200).json({
       success: true,
       message: "Profile updated successfully",
@@ -913,6 +931,8 @@ export const updateUserProfile = async (req, res) => {
         mobileNumber: user.mobileNumber,
         countryCode: user.countryCode,
         role: user.role,
+        userSegment: populatedUser.userSegment,
+        features: features
       },
     });
   } catch (error) {

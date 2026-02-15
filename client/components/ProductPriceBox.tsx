@@ -24,6 +24,7 @@ interface ProductPriceBoxProps {
   showBreakdown?: boolean;
   numberOfDesigns?: number; // Multiplier for bulk orders
   onPriceChange?: (pricing: PricingData | null) => void;
+  clientId?: string;
 }
 
 interface PricingData {
@@ -65,6 +66,7 @@ export default function ProductPriceBox({
   showBreakdown = false,
   numberOfDesigns = 1,
   onPriceChange,
+  clientId,
 }: ProductPriceBoxProps) {
   const [pricing, setPricing] = useState<PricingData | null>(null);
   const [pricingMeta, setPricingMeta] = useState<PricingMeta | null>(null);
@@ -120,6 +122,7 @@ export default function ProductPriceBox({
           selectedDynamicAttributes: formatAttributesForPricing(selectedDynamicAttributes),
           quantity,
           numberOfDesigns, // For bulk orders - backend multiplies quantity × numberOfDesigns
+          clientId,
         };
 
         // Use pincode from context (IP-detected or user profile)
@@ -218,7 +221,7 @@ export default function ProductPriceBox({
     if (productId) {
       fetchPricing();
     }
-  }, [productId, JSON.stringify(selectedDynamicAttributes), quantity, userContext, contextLoading]);
+  }, [productId, JSON.stringify(selectedDynamicAttributes), quantity, userContext, contextLoading, clientId]);
 
   const formatPrice = (value: number | undefined | null) => {
     if (value === undefined || value === null || isNaN(value)) {

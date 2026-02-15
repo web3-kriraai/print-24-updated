@@ -281,7 +281,8 @@ export const bulkImportGeoZones = async (req, res) => {
 export const createUserSegment = async (req, res) => {
     try {
         const UserSegment = (await import('../../models/UserSegment.js')).default;
-        const { name, code, description, priority, isDefault, isActive } = req.body;
+        const { name, code, description, priority, pricingTier, isDefault, isActive,
+            signupForm, requiresApproval, isPubliclyVisible, icon, color } = req.body;
 
         if (!name || !code) {
             return res.status(400).json({ success: false, message: 'Name and code are required' });
@@ -297,8 +298,14 @@ export const createUserSegment = async (req, res) => {
             code,
             description: description || '',
             priority: priority || 0,
+            pricingTier: pricingTier ?? 0,
             isDefault: isDefault || false,
-            isActive: isActive !== false
+            isActive: isActive !== false,
+            signupForm: signupForm && signupForm !== '' ? signupForm : null,
+            requiresApproval: requiresApproval || false,
+            isPubliclyVisible: isPubliclyVisible !== undefined ? isPubliclyVisible : true,
+            icon: icon || '',
+            color: color || '',
         });
 
         res.json({ success: true, userSegment });
@@ -312,16 +319,18 @@ export const updateUserSegment = async (req, res) => {
     try {
         const UserSegment = (await import('../../models/UserSegment.js')).default;
         const { id } = req.params;
-        const { name, code, description, priority, isDefault, isActive,
-                signupForm, requiresApproval, isPubliclyVisible, icon, color } = req.body;
+        const { name, code, description, priority, pricingTier, isDefault, isActive,
+            signupForm, requiresApproval, isPubliclyVisible, icon, color } = req.body;
 
         // If setting as default, unset others
         if (isDefault) {
             await UserSegment.updateMany({}, { isDefault: false });
         }
 
-        const updateData = { name, code, description, priority, isDefault, isActive,
-                             requiresApproval, isPubliclyVisible, icon, color };
+        const updateData = {
+            name, code, description, priority, pricingTier, isDefault, isActive,
+            requiresApproval, isPubliclyVisible, icon, color
+        };
 
         // Handle signupForm - set to null if empty string, otherwise set the ObjectId
         if (signupForm && signupForm !== '') {

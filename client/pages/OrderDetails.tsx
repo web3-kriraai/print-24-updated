@@ -32,6 +32,8 @@ import {
 import { formatCurrency, calculateOrderBreakdown, OrderForCalculation } from '../utils/pricing';
 import { API_BASE_URL_WITH_API as API_BASE_URL } from '../lib/apiConfig';
 import BackButton from '../components/BackButton';
+import PaymentGatewaySelector from '../src/components/PaymentGatewaySelector';
+import { toast } from 'react-hot-toast';
 
 // Types (keep your existing types)
 interface TimelineEvent {
@@ -807,42 +809,43 @@ const OrderDetails: React.FC = () => {
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
 
-  useEffect(() => {
-    const fetchOrderDetails = async () => {
-      if (!orderId) {
-        setError('Order ID is required');
-        setLoading(false);
+  const fetchOrderDetails = async () => {
+    if (!orderId) {
+      setError('Order ID is required');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        navigate('/login');
         return;
       }
 
-      try {
-        const token = localStorage.getItem('token');
-        if (!token) {
-          navigate('/login');
-          return;
-        }
+      const response = await fetch(`${API_BASE_URL}/orders/${orderId}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
 
-        const response = await fetch(`${API_BASE_URL}/orders/${orderId}`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        });
-
-        if (!response.ok) {
-          throw new Error('Failed to fetch order details');
-        }
-
-        const data = await response.json();
-        setOrder(data);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load order details');
-      } finally {
-        setLoading(false);
+      if (!response.ok) {
+        throw new Error('Failed to fetch order details');
       }
-    };
 
+      const data = await response.json();
+      setOrder(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load order details');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchOrderDetails();
   }, [orderId, navigate]);
 
@@ -1303,7 +1306,10 @@ const OrderDetails: React.FC = () => {
 
                   {/* Right: Pay Now CTA */}
                   <div className="md:col-span-2 flex flex-col items-center justify-center text-center space-y-4">
-                    <button className="group relative w-full bg-gradient-to-r from-green-500 via-emerald-500 to-green-600 hover:from-green-600 hover:via-emerald-600 hover:to-green-700 text-white px-8 py-5 rounded-xl font-bold text-lg shadow-2xl shadow-green-500/40 transition-all duration-300 transform hover:scale-105 hover:shadow-green-500/60 overflow-hidden">
+                    <button
+                      onClick={() => setShowPaymentModal(true)}
+                      className="group relative w-full bg-gradient-to-r from-green-500 via-emerald-500 to-green-600 hover:from-green-600 hover:via-emerald-600 hover:to-green-700 text-white px-8 py-5 rounded-xl font-bold text-lg shadow-2xl shadow-green-500/40 transition-all duration-300 transform hover:scale-105 hover:shadow-green-500/60 overflow-hidden"
+                    >
                       <span className="relative z-10 flex items-center justify-center gap-3">
                         <CreditCard className="w-6 h-6" />
                         Pay Now
@@ -1431,7 +1437,7 @@ const OrderDetails: React.FC = () => {
                       {order.childOrders.map((child: any, idx: number) => (
                         <tr key={child._id || idx} className="hover:bg-gray-50">
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <a 
+                            <a
                               href={`/order/${child._id}`}
                               className="text-sm font-medium text-blue-600 hover:text-blue-800"
                             >
@@ -1446,28 +1452,26 @@ const OrderDetails: React.FC = () => {
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                             {formatCurrency(
-                              child.payment_details?.amount_paid || 
-                              child.priceSnapshot?.totalPayable || 
-                              child.totalPrice || 
+                              child.payment_details?.amount_paid ||
+                              child.priceSnapshot?.totalPayable ||
+                              child.totalPrice ||
                               0
                             )}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                              child.status === 'completed' ? 'bg-green-100 text-green-800' :
+                            <span className={`px-2 py-1 text-xs font-semibold rounded-full ${child.status === 'completed' ? 'bg-green-100 text-green-800' :
                               child.status === 'processing' ? 'bg-blue-100 text-blue-800' :
-                              child.status === 'request' ? 'bg-yellow-100 text-yellow-800' :
-                              'bg-gray-100 text-gray-800'
-                            }`}>
+                                child.status === 'request' ? 'bg-yellow-100 text-yellow-800' :
+                                  'bg-gray-100 text-gray-800'
+                              }`}>
                               {child.status}
                             </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                              child.paymentStatus === 'COMPLETED' ? 'bg-green-100 text-green-800' :
+                            <span className={`px-2 py-1 text-xs font-semibold rounded-full ${child.paymentStatus === 'COMPLETED' ? 'bg-green-100 text-green-800' :
                               child.paymentStatus === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
-                              'bg-gray-100 text-gray-800'
-                            }`}>
+                                'bg-gray-100 text-gray-800'
+                              }`}>
                               {child.paymentStatus}
                             </span>
                           </td>
@@ -1659,6 +1663,48 @@ const OrderDetails: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Payment Modal */}
+      {showPaymentModal && order && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50/50">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <CreditCard className="w-5 h-5 text-blue-600" />
+                </div>
+                <h3 className="text-lg font-bold text-gray-900">Complete Payment</h3>
+              </div>
+              <button
+                onClick={() => setShowPaymentModal(false)}
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-1">
+              <PaymentGatewaySelector
+                orderId={order._id}
+                amount={
+                  (order.priceSnapshot?.totalPayable || order.totalPrice) - (order.advancePaid || 0)
+                }
+                onPaymentSuccess={(response) => {
+                  console.log('✅ Payment successful:', response);
+                  toast.success('Payment completed successfully!');
+                  setShowPaymentModal(false);
+                  fetchOrderDetails(); // Refresh order state
+                }}
+                onPaymentFailure={(error) => {
+                  console.error('❌ Payment failed:', error);
+                  toast.error(error.message || 'Payment failed. Please try again.');
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

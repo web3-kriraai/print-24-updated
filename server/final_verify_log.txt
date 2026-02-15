@@ -1,0 +1,22 @@
+Logging in as kenil@gmail.com...
+Logging in as test admin to check user state...
+Logging in as super_agent@print24.com...
+Login successful. Token obtained.
+Checking dashboard stats access...
+Stats result: {
+  "success": true,
+  "stats": {
+    "totalClients": 0,
+    "totalOrders": 0,
+    "totalRevenue": 0,
+    "pendingOrders": 0,
+    "completedOrders": 0,
+    "commissionRate": 0,
+    "totalCommission": 0,
+    "walletBalance": 0,
+    "creditLimit": 0
+  },
+  "recentOrders": [],
+  "monthlyRevenue": []
+}
+✅ API Verification SUCCESS: Dashboard stats accessible

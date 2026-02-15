@@ -12,6 +12,16 @@ const OrderSchema = new mongoose.Schema(
       index: true,
     },
 
+    /* =====================
+       AGENT MANAGEMENT
+    ====================== */
+    placedByAgent: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      // Agent who placed this order on behalf of the client (user field)
+      index: true,
+    },
+
     product: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Product",

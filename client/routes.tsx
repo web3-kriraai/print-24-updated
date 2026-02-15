@@ -30,6 +30,7 @@ import ComplaintTestPage from './pages/ComplaintTestPage';
 import AdminComplaintManagement from './pages/admin/AdminComplaintManagement';
 import OrderManagement from './pages/admin/OrderManagement';
 import BulkOrdersPage from './pages/BulkOrdersPage';
+import AgentDashboard from './components/agent/AgentDashboard';
 // AdminPricingDashboard and AdminPricingHub removed - functionality consolidated into AdminDashboard
 
 // Shared routes configuration for both SSR and client
@@ -75,6 +76,7 @@ export const routes = [
       { path: 'admin/orders', element: <OrderManagement />, errorElement: <ErrorBoundary /> },
       // admin/pricing and admin/pricing-hub removed - use admin/dashboard Pricing tabs instead
       { path: 'employee/dashboard', element: <EmployeeDashboard />, errorElement: <ErrorBoundary /> },
+      { path: 'agent/dashboard', element: <AgentDashboard />, errorElement: <ErrorBoundary /> },
       { path: 'department-portal', element: <DepartmentPortal />, errorElement: <ErrorBoundary /> },
       { path: 'reviews', element: <Reviews />, errorElement: <ErrorBoundary /> },
       // Bulk Orders - Added 2026-02-11

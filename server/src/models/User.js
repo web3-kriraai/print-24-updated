@@ -8,7 +8,7 @@ const userSchema = new mongoose.Schema(
     email: { type: String, required: true, unique: true },
     mobileNumber: { type: String, required: false },
     countryCode: { type: String, required: false },
-    role: { type: String, enum: ["user", "admin", "emp"], default: "user" },
+    role: { type: String, enum: ["user", "admin", "emp", "agent"], default: "user" },
     password: { type: String, required: false }, // Optional - set later in signup flow
     userSegment: { type: mongoose.Schema.Types.ObjectId, ref: "UserSegment" },
     approvalStatus: { type: String, enum: ["pending", "approved", "rejected"], default: "pending" },

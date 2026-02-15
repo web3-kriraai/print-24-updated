@@ -1,0 +1,8 @@
+SEGMENTS_LIST:
+- Name: Retail Customer, Code: RETAIL, Features: ["bulk_order_upload"]
+- Name: Delivery Agent Nepal, Code: DELIVERY AGENT, Features: ["bulk_order_upload"]
+- Name: Corporate Partner, Code: CORPORATE, Features: ["bulk_order_upload","download_invoices","view_brand_kit","advanced_analytics","client_management"]
+- Name: Print Partner, Code: PRINT_PARTNER, Features: ["bulk_order_upload"]
+- Name: Customer, Code: CUSTOMER, Features: ["advanced_analytics"]
+- Name: test, Code: TEST PURPOSE, Features: []
+- Name: Test Kajal, Code: FOR ONLY JAIPUR, Features: []

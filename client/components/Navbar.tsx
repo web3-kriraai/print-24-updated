@@ -19,6 +19,7 @@ interface UserData {
   email: string;
   role: string;
   isEmployee?: boolean;
+  features?: string[];
 }
 
 const Navbar: React.FC = () => {
@@ -304,6 +305,18 @@ const Navbar: React.FC = () => {
                               <Package size={16} />
                               My Orders
                             </button>
+                            {(userData.role === "admin" || (userData.features && userData.features.includes("client_management"))) && (
+                              <button
+                                onClick={() => {
+                                  navigate("/agent/dashboard");
+                                  setIsProfileDropdownOpen(false);
+                                }}
+                                className="w-full flex items-center gap-3 px-4 py-2 text-sm text-cream-700 hover:bg-cream-50 transition-colors"
+                              >
+                                <Settings size={16} />
+                                Agent Dashboard
+                              </button>
+                            )}
                             {userData.role === "admin" && (
                               <>
                                 <button
@@ -441,6 +454,17 @@ const Navbar: React.FC = () => {
                     </>
                   ) : (
                     <>
+                      {(userData.role === "admin" || (userData.features && userData.features.includes("client_management"))) && (
+                        <button
+                          onClick={() => {
+                            navigate("/agent/dashboard");
+                            setIsMobileMenuOpen(false);
+                          }}
+                          className="w-full text-left px-3 py-2 rounded-md text-base font-medium text-cream-600 hover:bg-cream-100 hover:text-cream-900"
+                        >
+                          Agent Dashboard
+                        </button>
+                      )}
                       {/* Mobile User Info */}
                       <div className="px-3 py-2 bg-cream-100 rounded-lg">
                         {" "}

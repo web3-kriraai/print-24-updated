@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowRight, Check, Truck, Upload as UploadIcon, FileImage, CreditCard, X, Loader, Info, Lock, AlertCircle, MapPin, FileText, UploadCloud, Image as ImageIcon, AlertTriangle } from 'lucide-react';
+import { ArrowRight, Check, Truck, Upload as UploadIcon, FileImage, CreditCard, X, Loader, Info, Lock, AlertCircle, MapPin, FileText, UploadCloud, Image as ImageIcon, AlertTriangle, User } from 'lucide-react';
 import * as pdfjsLib from 'pdfjs-dist';
 
 // Configure PDF.js worker
@@ -181,6 +181,14 @@ const loadRazorpayScript = () => {
   });
 };
 
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('token');
+  return {
+    'Content-Type': 'application/json',
+    Authorization: token ? `Bearer ${token}` : '',
+  };
+};
+
 const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedProductId }) => {
   const params = useParams<{ categoryId: string; subCategoryId?: string; nestedSubCategoryId?: string; productId?: string }>();
   const navigate = useNavigate();
@@ -245,6 +253,11 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
   const [promoCodes, setPromoCodes] = useState<string[]>([]);
 
+  // Agent Client Management States
+  const [agentClients, setAgentClients] = useState<any[]>([]);
+  const [selectedClientId, setSelectedClientId] = useState<string>("");
+  const [canManageClients, setCanManageClients] = useState(false);
+
   // PDF Upload States
   const MAX_PDF_SIZE_MB = 50;
   const MAX_PDF_SIZE_BYTES = MAX_PDF_SIZE_MB * 1024 * 1024;
@@ -297,6 +310,60 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
   const { hasPermission } = useBulkOrderPermission();
 
   const firstErrorField = useRef<HTMLElement | null>(null);
+
+  // Agent Clients Fetch Effect
+  useEffect(() => {
+    const userJson = localStorage.getItem("user");
+    if (userJson) {
+      try {
+        const user = JSON.parse(userJson);
+
+        // Check for client_management feature
+        const features = user.features || [];
+        const hasFeature = features.some((f: any) =>
+          (typeof f === 'string' && f === 'client_management') ||
+          (typeof f === 'object' && f.key === 'client_management')
+        );
+        setCanManageClients(!!hasFeature);
+
+        if (hasFeature) {
+          fetch(`${API_BASE_URL}/agent/my-clients`, {
+            headers: getAuthHeaders()
+          })
+            .then(res => res.json())
+            .then(data => {
+              if (data.clients) {
+                setAgentClients(data.clients);
+              }
+            })
+            .catch(err => console.error("Error fetching agent clients:", err));
+        }
+      } catch (err) {
+        console.error("Error parsing user data:", err);
+      }
+    }
+  }, []);
+
+  const handleClientSelect = (clientId: string) => {
+    setSelectedClientId(clientId);
+    if (!clientId) {
+      // Clear fields if no client selected (agent ordering for self?)
+      setCustomerName("");
+      setCustomerEmail("");
+      setMobileNumber("");
+      setAddress("");
+      setPincode("");
+      return;
+    }
+    const client = agentClients.find(c => c._id === clientId);
+    if (client) {
+      setCustomerName(client.name || "");
+      setCustomerEmail(client.email || "");
+      setMobileNumber(client.mobileNumber || "");
+      setAddress(client.address || "");
+      setPincode(client.pincode || "");
+    }
+  };
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -2371,7 +2438,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
           } else if (paymentData.gateway === 'RAZORPAY' || (checkoutData && !paymentData.checkout_url)) {
             // Handle Razorpay Client SDK
             console.log('💳 Initializing Razorpay Client SDK');
-            
+
             const res = await loadRazorpayScript();
             if (!res) {
               alert('Razorpay SDK failed to load. Please check your connection.');
@@ -2380,9 +2447,9 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
             const options = {
               ...checkoutData,
-handler: async function (response: any) {
+              handler: async function (response: any) {
                 console.log('✅ Payment Successful:', response);
-                
+
                 try {
                   const token = localStorage.getItem('token');
                   const verifyResponse = await fetch(`${API_BASE_URL}/payment/verify`, {
@@ -2408,7 +2475,7 @@ handler: async function (response: any) {
                     setBulkPdfError('');
                     setOrderMode('single');
                     setShowBulkWizard(false);
-                    
+
                     // Redirect to bulk orders list
                     navigate('/bulk-orders');
                   } else {
@@ -2423,7 +2490,7 @@ handler: async function (response: any) {
                 }
               },
               modal: {
-                ondismiss: function() {
+                ondismiss: function () {
                   console.log('❌ Payment cancelled by user');
                   alert('Payment cancelled. Please try again to complete your order.');
                 }
@@ -2732,6 +2799,7 @@ handler: async function (response: any) {
 
       const orderData = {
         productId: selectedProduct._id,
+        clientId: selectedClientId || undefined,
         quantity: quantity,
         finish: selectedPrintingOption || "Standard",
         shape: selectedDeliverySpeed || "Rectangular",
@@ -3485,6 +3553,7 @@ handler: async function (response: any) {
                               label: displayValue
                             };
                           })}
+                        clientId={selectedClientId}
                         showBreakdown={false}
                       />
                     </div>
@@ -3715,6 +3784,30 @@ handler: async function (response: any) {
                                   <Info size={16} />
                                   Instructions
                                 </button>
+
+                                {canManageClients && agentClients.length > 0 && (
+                                  <div className="mt-4 mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl shadow-sm">
+                                    <label className="block text-sm font-bold text-blue-900 mb-2 flex items-center gap-2">
+                                      <User size={18} />
+                                      Acting on behalf of Client
+                                    </label>
+                                    <select
+                                      value={selectedClientId}
+                                      onChange={(e) => handleClientSelect(e.target.value)}
+                                      className="w-full p-2.5 bg-white border border-blue-300 rounded-lg text-sm text-blue-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all font-medium"
+                                    >
+                                      <option value="">-- Personal Order (Self) --</option>
+                                      {agentClients.map((client) => (
+                                        <option key={client._id} value={client._id}>
+                                          {client.name} ({client.email})
+                                        </option>
+                                      ))}
+                                    </select>
+                                    <p className="mt-2 text-xs text-blue-600 italic">
+                                      Selecting a client will automatically use their pricing tier and fill their shipping details.
+                                    </p>
+                                  </div>
+                                )}
 
                                 <AnimatePresence>
                                   {isInstructionsOpen && (

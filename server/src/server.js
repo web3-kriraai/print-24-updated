@@ -17,6 +17,7 @@ import currencyRoutes from "./routes/currencyRoutes.js";
 import formBuilderRoutes from "./routes/formBuilderRoutes.js";
 import segmentApplicationRoutes from "./routes/segmentApplicationRoutes.js";
 import paymentRoutes from "./routes/payment.routes.js";
+import agentClientRoutes from "./routes/agentClientRoutes.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -116,6 +117,7 @@ app.use("/api/currency", currencyRoutes);  // Currency conversion API
 app.use("/api/admin/forms", formBuilderRoutes);  // Form builder (admin)
 app.use("/api", segmentApplicationRoutes);  // Segment applications (public + admin)
 app.use("/api/payment", paymentRoutes);  // Payment gateway endpoints
+app.use("/api/agent", agentClientRoutes);  // Agent client management
 
 // Serve static files from client dist (for production)
 // Try production path first (Docker), then fall back to local dev path

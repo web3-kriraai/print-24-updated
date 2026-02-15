@@ -1,5 +1,6 @@
 import Design from "../models/uploadModal.js";
 import { User } from "../models/User.js";
+import UserSegment from "../models/UserSegment.js";
 import bcrypt from "bcrypt";
 
 // Get all uploaded images/designs - Optimized for performance
@@ -12,12 +13,12 @@ export const getAllUploads = async (req, res) => {
 
     // Build query - exclude image buffers by default to prevent timeout
     let query = Design.find();
-    
+
     if (!includeImages) {
       // Exclude image data buffers to prevent timeout and reduce payload
       query = query.select('-frontImage.data -backImage.data');
     }
-    
+
     // Use lean() for faster queries and to avoid Mongoose document issues
     // Add timeout and limit to prevent connection issues
     const uploads = await query
@@ -57,7 +58,7 @@ export const getAllUploads = async (req, res) => {
               // Skip if data is not in a valid format
               frontImageBase64 = null;
             }
-            
+
             if (!frontImageBase64 && buffer && Buffer.isBuffer(buffer)) {
               frontImageBase64 = `data:${upload.frontImage.contentType || "image/png"};base64,${buffer.toString("base64")}`;
             }
@@ -90,7 +91,7 @@ export const getAllUploads = async (req, res) => {
               // Skip if data is not in a valid format
               backImageBase64 = null;
             }
-            
+
             if (!backImageBase64 && buffer && Buffer.isBuffer(buffer)) {
               backImageBase64 = `data:${upload.backImage.contentType || "image/png"};base64,${buffer.toString("base64")}`;
             }
@@ -112,36 +113,36 @@ export const getAllUploads = async (req, res) => {
         bleedArea: upload.bleedArea || { top: 0, bottom: 0, left: 0, right: 0 },
         frontImage: includeImages && frontImageBase64 && upload.frontImage
           ? {
-              data: frontImageBase64,
-              filename: upload.frontImage.filename || "front-image.jpg",
-              size: upload.frontImage.size || 0,
-              contentType: upload.frontImage.contentType || "image/png",
-            }
+            data: frontImageBase64,
+            filename: upload.frontImage.filename || "front-image.jpg",
+            size: upload.frontImage.size || 0,
+            contentType: upload.frontImage.contentType || "image/png",
+          }
           : upload.frontImage
-          ? {
+            ? {
               // Return metadata only (no image data)
               filename: upload.frontImage.filename || "front-image.jpg",
               size: upload.frontImage.size || 0,
               contentType: upload.frontImage.contentType || "image/png",
               hasData: true, // Indicate that image data exists but wasn't loaded
             }
-          : null,
+            : null,
         backImage: includeImages && backImageBase64 && upload.backImage
           ? {
-              data: backImageBase64,
-              filename: upload.backImage.filename || "back-image.jpg",
-              size: upload.backImage.size || 0,
-              contentType: upload.backImage.contentType || "image/png",
-            }
+            data: backImageBase64,
+            filename: upload.backImage.filename || "back-image.jpg",
+            size: upload.backImage.size || 0,
+            contentType: upload.backImage.contentType || "image/png",
+          }
           : upload.backImage
-          ? {
+            ? {
               // Return metadata only (no image data)
               filename: upload.backImage.filename || "back-image.jpg",
               size: upload.backImage.size || 0,
               contentType: upload.backImage.contentType || "image/png",
               hasData: true, // Indicate that image data exists but wasn't loaded
             }
-          : null,
+            : null,
         createdAt: upload.createdAt,
         updatedAt: upload.updatedAt,
       };
@@ -156,16 +157,16 @@ export const getAllUploads = async (req, res) => {
   } catch (err) {
     console.error("Error in getAllUploads:", err);
     console.error("Error stack:", err.stack);
-    
+
     // Handle MongoDB timeout errors specifically
     if (err.name === 'MongoNetworkTimeoutError' || err.name === 'MongoServerSelectionError') {
-      return res.status(503).json({ 
+      return res.status(503).json({
         error: "Database connection timeout. Please try again or use ?includeImages=false to load without images.",
         retry: true
       });
     }
-    
-    res.status(500).json({ 
+
+    res.status(500).json({
       error: err.message,
       details: process.env.NODE_ENV === "development" ? err.stack : undefined
     });
@@ -209,7 +210,7 @@ export const getUploadById = async (req, res) => {
           // Skip if data is not in a valid format
           frontImageBase64 = null;
         }
-        
+
         if (!frontImageBase64 && buffer && Buffer.isBuffer(buffer)) {
           frontImageBase64 = `data:${upload.frontImage.contentType || "image/png"};base64,${buffer.toString("base64")}`;
         }
@@ -242,7 +243,7 @@ export const getUploadById = async (req, res) => {
           // Skip if data is not in a valid format
           backImageBase64 = null;
         }
-        
+
         if (!backImageBase64 && buffer && Buffer.isBuffer(buffer)) {
           backImageBase64 = `data:${upload.backImage.contentType || "image/png"};base64,${buffer.toString("base64")}`;
         }
@@ -263,19 +264,19 @@ export const getUploadById = async (req, res) => {
       bleedArea: upload.bleedArea || { top: 0, bottom: 0, left: 0, right: 0 },
       frontImage: frontImageBase64 && upload.frontImage
         ? {
-            data: frontImageBase64,
-            filename: upload.frontImage.filename || "front-image.jpg",
-            size: upload.frontImage.size || 0,
-            contentType: upload.frontImage.contentType || "image/png",
-          }
+          data: frontImageBase64,
+          filename: upload.frontImage.filename || "front-image.jpg",
+          size: upload.frontImage.size || 0,
+          contentType: upload.frontImage.contentType || "image/png",
+        }
         : null,
       backImage: backImageBase64 && upload.backImage
         ? {
-            data: backImageBase64,
-            filename: upload.backImage.filename || "back-image.jpg",
-            size: upload.backImage.size || 0,
-            contentType: upload.backImage.contentType || "image/png",
-          }
+          data: backImageBase64,
+          filename: upload.backImage.filename || "back-image.jpg",
+          size: upload.backImage.size || 0,
+          contentType: upload.backImage.contentType || "image/png",
+        }
         : null,
       createdAt: upload.createdAt,
       updatedAt: upload.updatedAt,
@@ -283,7 +284,7 @@ export const getUploadById = async (req, res) => {
   } catch (err) {
     console.error("Error in getUploadById:", err);
     console.error("Error stack:", err.stack);
-    res.status(500).json({ 
+    res.status(500).json({
       error: err.message,
       details: process.env.NODE_ENV === "development" ? err.stack : undefined
     });
@@ -517,3 +518,53 @@ export const deleteUpload = async (req, res) => {
   }
 };
 
+// Update user segment
+export const updateUserSegment = async (req, res) => {
+  try {
+    const { username, segmentCode } = req.body;
+
+    if (!username || !segmentCode) {
+      return res.status(400).json({
+        success: false,
+        message: "Username and segment code are required.",
+      });
+    }
+
+    const user = await User.findOne({ name: username });
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found.",
+      });
+    }
+
+    const segment = await UserSegment.findOne({ code: segmentCode.toUpperCase() });
+    if (!segment) {
+      return res.status(404).json({
+        success: false,
+        message: `Segment '${segmentCode}' not found.`,
+      });
+    }
+
+    user.userSegment = segment._id;
+    await user.save();
+
+    return res.json({
+      success: true,
+      message: `User ${username} moved to ${segment.name} segment.`,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        segment: segment.name
+      }
+    });
+  } catch (error) {
+    console.error("Update user segment error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: error.message
+    });
+  }
+};

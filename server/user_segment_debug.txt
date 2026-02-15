@@ -1,0 +1,3 @@
+AGENT_SEGMENTS:
+- User: kenil@gmail.com, Segment: Retail Customer, Features: undefined
+- User: agent@gmail.com, Segment: NONE, Features: undefined

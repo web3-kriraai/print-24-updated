@@ -102,6 +102,8 @@ interface User {
   role: string;
   createdAt: string;
   isEmployee?: boolean;
+  userSegment?: any;
+  features?: string[];
 }
 
 interface Upload {
@@ -586,6 +588,12 @@ const AdminDashboard: React.FC = () => {
     name: "",
     email: "",
     password: "",
+  });
+
+  // User segment update form state
+  const [userSegmentForm, setUserSegmentForm] = useState({
+    username: "",
+    segmentCode: "",
   });
 
   // Data states
@@ -1963,7 +1971,7 @@ const AdminDashboard: React.FC = () => {
           if (container.scrollTop > 0) {
             container.scrollTop = Math.max(0, container.scrollTop - scrollSpeed);
             // Continue scrolling
-            autoScrollIntervalRef.current = setTimeout(scroll, 16);
+            autoScrollIntervalRef.current = setTimeout(scroll, 16) as any;
           } else {
             stopAutoScroll();
           }
@@ -1972,7 +1980,7 @@ const AdminDashboard: React.FC = () => {
           if (container.scrollTop < maxScroll) {
             container.scrollTop = Math.min(maxScroll, container.scrollTop + scrollSpeed);
             // Continue scrolling
-            autoScrollIntervalRef.current = setTimeout(scroll, 16);
+            autoScrollIntervalRef.current = setTimeout(scroll, 16) as any;
           } else {
             stopAutoScroll();
           }
@@ -6261,6 +6269,44 @@ const AdminDashboard: React.FC = () => {
       fetchUsers();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update user role");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdateUserSegment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/admin/update-user-segment`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeaders(),
+        },
+        body: JSON.stringify({
+          username: userSegmentForm.username,
+          segmentCode: userSegmentForm.segmentCode,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await handleApiResponse(response);
+        throw new Error(errorData.message || errorData.error || `Failed to update user segment: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await handleApiResponse(response);
+      setSuccess(data.message || "User segment updated successfully!");
+      setUserSegmentForm({
+        username: "",
+        segmentCode: "",
+      });
+      fetchUsers();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update user segment");
     } finally {
       setLoading(false);
     }
@@ -10659,7 +10705,7 @@ const AdminDashboard: React.FC = () => {
                   <div className="mb-3">
                     <p className="text-sm text-cream-700 mb-2">Current Image:</p>
                     <img
-                      src={getImageUrl((editingSubCategoryImage || '') as string)}
+                      src={(getImageUrl as any)((editingSubCategoryImage || '') as string)}
                       alt="Current subcategory"
                       className="w-32 h-32 object-cover rounded-lg border border-cream-300"
                       onError={(e) => {
@@ -15071,6 +15117,74 @@ const AdminDashboard: React.FC = () => {
               </div>
 
               <div className="border-t border-cream-300 pt-6">
+                <div>
+                  <h2 className="text-xl font-bold text-cream-900 mb-4">
+                    Update User Segment
+                  </h2>
+                  <p className="text-sm text-cream-600 mb-4">
+                    Move external users to different segments (e.g., AGENT, CORPORATE).
+                  </p>
+                  <form onSubmit={handleUpdateUserSegment} className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-cream-900 mb-2">
+                        Username (Name) *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={userSegmentForm.username}
+                        onChange={(e) =>
+                          setUserSegmentForm({
+                            ...userSegmentForm,
+                            username: e.target.value,
+                          })
+                        }
+                        placeholder="Enter user's name"
+                        className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-cream-900 mb-2">
+                        Segment Code *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={userSegmentForm.segmentCode}
+                        onChange={(e) =>
+                          setUserSegmentForm({
+                            ...userSegmentForm,
+                            segmentCode: e.target.value,
+                          })
+                        }
+                        placeholder="Enter segment code (e.g. AGENT, RETAIL)"
+                        className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
+                      />
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="w-full bg-cream-900 text-white px-6 py-3 rounded-lg font-medium hover:bg-cream-800 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      {loading ? (
+                        <>
+                          <Loader className="animate-spin" size={20} />
+                          Updating...
+                        </>
+                      ) : (
+                        <>
+                          <Users size={20} />
+                          Update Segment
+                        </>
+                      )}
+                    </button>
+                  </form>
+                </div>
+              </div>
+
+              <div className="border-t border-cream-300 pt-6">
                 <div className="mb-4 flex justify-between items-center">
                   <h2 className="text-xl font-bold text-cream-900">
                     All Users ({users.length})
@@ -15109,6 +15223,11 @@ const AdminDashboard: React.FC = () => {
                             >
                               {user.role}
                             </span>
+                            {user.userSegment && (
+                              <span className="inline-block px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                Segment: {typeof user.userSegment === 'object' ? user.userSegment.name : user.userSegment}
+                              </span>
+                            )}
                             {user.isEmployee && (
                               <span className="inline-block px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                                 Employee

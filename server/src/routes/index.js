@@ -42,6 +42,7 @@ import {
   getAllUsers,
   getAllEmployees,
   updateUserRole,
+  updateUserSegment,
   deleteUpload,
 } from "../controllers/adminController.js";
 
@@ -271,6 +272,13 @@ router.put(
   authMiddleware,
   requireAdmin,
   updateUserRole
+);
+
+router.put(
+  "/admin/update-user-segment",
+  authMiddleware,
+  requireAdmin,
+  updateUserSegment
 );
 
 /* =====================================

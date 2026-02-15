@@ -337,7 +337,23 @@ class UserContextService {
      * Quick context builder
      */
     async buildContextFromRequest(req) {
-        const user = req.user || null;
+        let user = req.user || null;
+        const clientId = req.body?.clientId || req.query?.clientId;
+
+        // If clientId is provided, we try to build context for the client
+        if (clientId && user) {
+            // Verify agent-client relationship
+            // Build temporary client context if authorized
+            const clientUser = await User.findById(clientId).lean();
+            if (clientUser) {
+                // Verify this user is a client of the agent
+                const isMyClient = user.clients?.some(c => c.toString() === clientId);
+                if (isMyClient || user.role === 'admin') {
+                    console.log(`🤝 Building pricing context for client ${clientId} (Agent: ${user._id})`);
+                    user = clientUser;
+                }
+            }
+        }
 
         // 1. Explicit Pincode Request?
         const explicitPincode = this.extractPincode(req, user);

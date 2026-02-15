@@ -44,7 +44,7 @@ import UserContextService from "../services/UserContextService.js";
  */
 export const getPriceQuote = async (req, res) => {
     try {
-        const { productId, pincode, selectedDynamicAttributes = [], quantity = 1, numberOfDesigns = 1 } = req.body;
+        const { productId, pincode, selectedDynamicAttributes = [], quantity = 1, numberOfDesigns = 1, clientId } = req.body;
 
         // Validation
         if (!productId) {
@@ -54,13 +54,11 @@ export const getPriceQuote = async (req, res) => {
             });
         }
 
-        // Pincode is now optional - will fallback to IP detection
-
-        // Get user ID if authenticated (req.user is set by optionalAuthMiddleware)
-        const userId = req.user?._id || req.user?.id || null;
-
         // Build pricing context from request (handles pincode fallback: request → profile → IP)
         const pricingContext = await UserContextService.buildContextFromRequest(req);
+
+        // Determine effective userId for pricing engine
+        const resolvedUserId = clientId || req.user?._id || req.user?.id || null;
 
         // Use pincode from context (IP-detected if not explicitly provided)
         const resolvedPincode = pricingContext.pincode;
@@ -70,7 +68,7 @@ export const getPriceQuote = async (req, res) => {
 
         // Resolve price
         const pricingResult = await PricingService.resolvePrice({
-            userId,
+            userId: resolvedUserId,
             productId,
             pincode: resolvedPincode,
             selectedDynamicAttributes,
@@ -362,8 +360,8 @@ export const getPriceBreakdown = async (req, res) => {
  * 
  * Body:
  * {
- *   modifierId: "..." // OR
- *   priceBookEntryId: "..."
+ *   modifierId: "" // OR
+ *   priceBookEntryId: ""
  * }
  * 
  * Auth: Admin only

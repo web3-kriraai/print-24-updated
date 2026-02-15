@@ -12,6 +12,8 @@ interface UserSegment {
     name: string;
     code: string;
     description?: string;
+    priority?: number;
+    pricingTier?: number;
     isDefault: boolean;
     isActive: boolean;
     isSystem?: boolean;
@@ -44,6 +46,8 @@ const UserSegmentManager: React.FC = () => {
         name: '',
         code: '',
         description: '',
+        priority: 0,
+        pricingTier: 0,
         isDefault: false,
         isActive: true,
         signupForm: '',
@@ -162,6 +166,8 @@ const UserSegmentManager: React.FC = () => {
             name: segment.name,
             code: segment.code,
             description: segment.description || '',
+            priority: segment.priority || 0,
+            pricingTier: segment.pricingTier ?? 0,
             isDefault: segment.isDefault,
             isActive: segment.isActive,
             signupForm: segment.signupForm?._id || '',
@@ -178,6 +184,8 @@ const UserSegmentManager: React.FC = () => {
             name: '',
             code: '',
             description: '',
+            priority: 0,
+            pricingTier: 0,
             isDefault: false,
             isActive: true,
             signupForm: '',
@@ -257,7 +265,17 @@ const UserSegmentManager: React.FC = () => {
                             )}
 
                             {/* Badges */}
-                            <div className="flex gap-2 mb-4">
+                            <div className="flex flex-wrap gap-2 mb-4">
+                                {segment.pricingTier !== undefined && segment.pricingTier > 0 && (
+                                    <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded text-xs font-medium">
+                                        Tier {segment.pricingTier}
+                                    </span>
+                                )}
+                                {segment.priority !== undefined && segment.priority > 0 && (
+                                    <span className="px-2 py-1 bg-indigo-100 text-indigo-800 rounded text-xs font-medium">
+                                        Priority {segment.priority}
+                                    </span>
+                                )}
                                 {segment.isDefault && (
                                     <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded text-xs font-medium flex items-center gap-1">
                                         <Star size={12} /> Default
@@ -351,6 +369,41 @@ const UserSegmentManager: React.FC = () => {
                                     placeholder="Optional description"
                                     rows={3}
                                 />
+                            </div>
+
+                            {/* Pricing Tier & Priority */}
+                            <div className="grid grid-cols-2 gap-4 mb-4">
+                                <div>
+                                    <label className="block text-sm font-medium mb-2">Pricing Tier</label>
+                                    <select
+                                        value={formData.pricingTier}
+                                        onChange={(e) => setFormData({ ...formData, pricingTier: parseInt(e.target.value) })}
+                                        className="w-full border rounded-lg px-3 py-2"
+                                    >
+                                        <option value={0}>Tier 0 — Retail (default)</option>
+                                        <option value={1}>Tier 1 — Small Business</option>
+                                        <option value={2}>Tier 2 — Corporate</option>
+                                        <option value={3}>Tier 3 — Enterprise</option>
+                                        <option value={4}>Tier 4 — Best Pricing</option>
+                                    </select>
+                                    <p className="text-xs text-gray-500 mt-1">
+                                        Higher tier = better discount pricing
+                                    </p>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium mb-2">Priority</label>
+                                    <input
+                                        type="number"
+                                        value={formData.priority}
+                                        onChange={(e) => setFormData({ ...formData, priority: parseInt(e.target.value) || 0 })}
+                                        className="w-full border rounded-lg px-3 py-2"
+                                        min={0}
+                                        placeholder="0"
+                                    />
+                                    <p className="text-xs text-gray-500 mt-1">
+                                        Higher = resolved first in conflicts
+                                    </p>
+                                </div>
                             </div>
 
                             {/* Default Segment */}

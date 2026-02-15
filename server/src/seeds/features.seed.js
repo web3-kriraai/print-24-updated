@@ -288,6 +288,38 @@ const features = [
                 }
             }
         }
+    },
+    {
+        key: 'client_management',
+        name: 'Client Management',
+        description: 'Manage clients, place orders on their behalf, and track commissions',
+        category: 'AGENTS',
+        subcategory: 'CLIENT_MANAGEMENT',
+        isActive: true,
+        isBeta: false,
+        isPremium: true,
+        icon: '👥',
+        sortOrder: 110,
+        configSchema: {
+            type: 'object',
+            properties: {
+                maxClients: {
+                    type: 'number',
+                    description: 'Maximum number of clients an agent can manage',
+                    default: 50
+                },
+                orderOnBehalf: {
+                    type: 'boolean',
+                    description: 'Allow placing orders on behalf of clients',
+                    default: true
+                },
+                commissionTracking: {
+                    type: 'boolean',
+                    description: 'Enable commission tracking on client orders',
+                    default: true
+                }
+            }
+        }
     }
 ];
 
