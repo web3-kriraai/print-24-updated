@@ -114,6 +114,9 @@ export const initializePayment = async (req, res) => {
             customer: customer.email
         });
 
+        // Capture baseUrl for dynamic callbacks (local vs production)
+        const baseUrl = `${req.protocol}://${req.get('host')}`;
+
         // Initialize new payment
         const result = await paymentRouter.initializePayment({
             orderId: orderDoc._id,
@@ -122,6 +125,7 @@ export const initializePayment = async (req, res) => {
             preferredGateway,
             method: paymentMethod,
             customer,
+            baseUrl, // Pass the baseUrl
             notes: {
                 order_number: isBulkOrder ? `BULK_${orderDoc._id}` : orderDoc.orderNumber,
                 order_type: isBulkOrder ? 'bulk' : 'single'
@@ -243,9 +247,31 @@ export const verifyPayment = async (req, res) => {
                     const updatedBulkOrder = await BulkOrder.findByIdAndUpdate(transaction.order, {
                         paymentStatus: 'COMPLETED'
                     });
-                     if (updatedBulkOrder) {
-                         updatedBulkOrder.addLog("PAYMENT", "SUCCESS", `Payment successful via PAYU`);
-                         await updatedBulkOrder.save();
+
+                    if (updatedBulkOrder) {
+                        updatedBulkOrder.addLog("PAYMENT", "SUCCESS", `Payment successful via PAYU (Bolt)`);
+                        await updatedBulkOrder.save();
+
+                        // 🔄 Cascade Payment Status to Child Orders
+                        const childOrdersUpdate = await Order.updateMany(
+                            {
+                                $or: [
+                                    { bulkOrderRef: updatedBulkOrder._id },
+                                    { bulkParentOrderId: updatedBulkOrder._id }
+                                ]
+                            },
+                            {
+                                $set: {
+                                    paymentStatus: 'COMPLETED',
+                                    'payment_details.transaction_id': transaction._id,
+                                    'payment_details.gateway_used': 'PAYU',
+                                    'payment_details.payment_method': payuResponse.mode || 'PAYU',
+                                    'payment_details.captured_at': new Date(),
+                                    'payment_details.amount_paid': transaction.amount
+                                }
+                            }
+                        );
+                        console.log(`[Payment Verify] Updated ${childOrdersUpdate.modifiedCount} child orders to COMPLETED (PayU)`);
                     }
                 }
 
@@ -253,7 +279,8 @@ export const verifyPayment = async (req, res) => {
                     success: true,
                     status: 'SUCCESS',
                     transaction_id: transaction._id,
-                    order_id: transaction.order
+                    order_id: transaction.order,
+                    redirectUrl: `/order/${transaction.order}?payment=success`
                 });
             } else {
                 // Payment failed

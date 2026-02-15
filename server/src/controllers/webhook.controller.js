@@ -7,6 +7,7 @@
 import PaymentWebhookLog from '../models/PaymentWebhookLog.js';
 import PaymentTransaction from '../models/PaymentTransaction.js';
 import Order from '../models/orderModal.js';
+import BulkOrder from '../models/BulkOrder.js';
 import { paymentRouter } from '../services/payment/index.js';
 
 /**
@@ -315,13 +316,13 @@ async function processPayUCallback(payload, provider) {
                 }
             });
 
-            console.log('💾 Updating order in database...');
-            console.log('   Order ID:', transaction.order);
-            console.log('   Setting paymentStatus to: COMPLETED');
-
+            console.log('💾 Updating order or bulk order in database...');
+            const orderIdForUpdate = transaction.order;
+            
             try {
-                const updatedOrder = await Order.findByIdAndUpdate(
-                    transaction.order,
+                // Try updating as a regular order first
+                let updatedOrder = await Order.findByIdAndUpdate(
+                    orderIdForUpdate,
                     {
                         paymentStatus: 'COMPLETED',
                         'payment_details.transaction_id': transaction._id,
@@ -330,30 +331,68 @@ async function processPayUCallback(payload, provider) {
                         'payment_details.captured_at': new Date(),
                         'payment_details.amount_paid': transaction.amount
                     },
-                    { new: true } // Return updated document
+                    { new: true }
                 );
 
                 if (updatedOrder) {
                     console.log('✅ Order updated successfully!');
                     console.log('   Order Number:', updatedOrder.orderNumber);
                     console.log('   Payment Status:', updatedOrder.paymentStatus);
-                    console.log('   Gateway Used:', updatedOrder.payment_details?.gateway_used);
-                    console.log('   Amount Paid:', updatedOrder.payment_details?.amount_paid);
                 } else {
-                    console.error('❌ Order not found with ID:', transaction.order);
+                    // If not an order, try updating as a bulk order
+                    console.log('ℹ️ Order not found, checking if it is a BulkOrder...');
+                    const updatedBulkOrder = await BulkOrder.findByIdAndUpdate(
+                        orderIdForUpdate,
+                        {
+                            paymentStatus: 'COMPLETED',
+                            // BulkOrder model doesn't have payment_details object in its schema based on our view, 
+                            // but let's check the schema again or just update status
+                        },
+                        { new: true }
+                    );
+
+                    if (updatedBulkOrder) {
+                        console.log('✅ BulkOrder updated successfully!');
+                        updatedBulkOrder.addLog("PAYMENT", "SUCCESS", `Payment successful via PAYU (Callback)`);
+                        await updatedBulkOrder.save();
+
+                        // Cascade to child orders
+                        const childOrdersUpdate = await Order.updateMany(
+                            {
+                                $or: [
+                                    { bulkOrderRef: updatedBulkOrder._id },
+                                    { bulkParentOrderId: updatedBulkOrder._id }
+                                ]
+                            },
+                            {
+                                $set: {
+                                    paymentStatus: 'COMPLETED',
+                                    'payment_details.transaction_id': transaction._id,
+                                    'payment_details.gateway_used': 'PAYU',
+                                    'payment_details.payment_method': mappedMethod,
+                                    'payment_details.captured_at': new Date(),
+                                    'payment_details.amount_paid': transaction.amount
+                                }
+                            }
+                        );
+                        console.log(`✅ Updated ${childOrdersUpdate.modifiedCount} child orders to COMPLETED`);
+                    } else {
+                        console.error('❌ Order/BulkOrder not found with ID:', orderIdForUpdate);
+                    }
                 }
             } catch (updateError) {
-                console.error('❌ Error updating order:', updateError);
-                console.error('   Error details:', updateError.message);
+                console.error('❌ Error updating order/bulkorder:', updateError);
                 throw updateError;
             }
         }
+
+        const redirectPath = `/order/${transaction.order}`;
 
         return {
             processed: true,
             transaction: transaction._id,
             order: transaction.order,
-            redirect: `${process.env.FRONTEND_URL}/order/${transaction.order}?payment=success`
+            redirect: `${process.env.FRONTEND_URL}${redirectPath}?payment=success`
         };
 
     } else if (status === 'failure') {
@@ -367,27 +406,41 @@ async function processPayUCallback(payload, provider) {
                 raw_response: payload
             });
 
-            await Order.findByIdAndUpdate(transaction.order, {
-                paymentStatus: 'FAILED'
-            });
+            try {
+                const updatedOrder = await Order.findByIdAndUpdate(transaction.order, {
+                    paymentStatus: 'FAILED'
+                });
+
+                if (!updatedOrder) {
+                    await BulkOrder.findByIdAndUpdate(transaction.order, {
+                        paymentStatus: 'FAILED'
+                    });
+                }
+            } catch (error) {
+                console.error('❌ Error updating failure status:', error);
+            }
         }
+
+        const redirectPath = `/order/${transaction.order}`;
 
         return {
             processed: true,
             transaction: transaction._id,
             order: transaction.order,
-            redirect: `${process.env.FRONTEND_URL}/order/${transaction.order}?payment=failed`
+            redirect: `${process.env.FRONTEND_URL}${redirectPath}?payment=failed`
         };
 
     } else {
         // Pending or other status
         console.log('⏳ PayU payment pending/other for order:', orderId, 'Status:', status);
 
+        const redirectPath = `/order/${transaction.order}`;
+
         return {
             processed: true,
             transaction: transaction._id,
             status: 'pending',
-            redirect: `${process.env.FRONTEND_URL}/order/${transaction.order}?payment=pending`
+            redirect: `${process.env.FRONTEND_URL}${redirectPath}?payment=pending`
         };
     }
 }

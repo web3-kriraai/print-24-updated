@@ -261,6 +261,7 @@ class PaymentRouter {
                     currency: paymentRequest.currency || 'INR',
                     orderId: paymentRequest.orderId,
                     customer: paymentRequest.customer,
+                    baseUrl: paymentRequest.baseUrl, // Pass the baseUrl
                     notes: paymentRequest.notes
                 });
 
@@ -279,7 +280,10 @@ class PaymentRouter {
                     currency: paymentRequest.currency || 'INR',
                     status: 'CREATED',
                     expires_at: result.expiresAt,
-                    metadata: paymentRequest.metadata
+                    metadata: {
+                        ...paymentRequest.metadata,
+                        order_type: paymentRequest.notes?.order_type || 'single'
+                    }
                 });
 
                 return {

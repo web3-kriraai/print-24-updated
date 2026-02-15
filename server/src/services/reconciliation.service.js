@@ -7,6 +7,7 @@
 import PaymentTransaction from '../models/PaymentTransaction.js';
 import PaymentReconciliationJob from '../models/PaymentReconciliationJob.js';
 import Order from '../models/orderModal.js';
+import BulkOrder from '../models/BulkOrder.js';
 import { paymentRouter } from './payment/index.js';
 
 class ReconciliationService {
@@ -203,8 +204,8 @@ class ReconciliationService {
         transaction.reconciliation_notes = 'Auto-reconciled: Payment captured';
         await transaction.save();
 
-        // Update order
-        await Order.findByIdAndUpdate(transaction.order, {
+        // Update order or bulk order
+        let updatedOrder = await Order.findByIdAndUpdate(transaction.order, {
             paymentStatus: 'COMPLETED',
             'payment_details.transaction_id': transaction._id,
             'payment_details.gateway_used': transaction.gateway_name,
@@ -212,6 +213,38 @@ class ReconciliationService {
             'payment_details.captured_at': transaction.captured_at,
             'payment_details.amount_paid': transaction.amount
         });
+
+        if (!updatedOrder) {
+            // Try updating as a bulk order
+            const updatedBulkOrder = await BulkOrder.findByIdAndUpdate(transaction.order, {
+                paymentStatus: 'COMPLETED'
+            });
+
+            if (updatedBulkOrder) {
+                updatedBulkOrder.addLog("RECONCILIATION", "SUCCESS", `Payment reconciled via ${transaction.gateway_name}`);
+                await updatedBulkOrder.save();
+
+                // 🔄 Cascade Payment Status to Child Orders
+                await Order.updateMany(
+                    {
+                        $or: [
+                            { bulkOrderRef: updatedBulkOrder._id },
+                            { bulkParentOrderId: updatedBulkOrder._id }
+                        ]
+                    },
+                    {
+                        $set: {
+                            paymentStatus: 'COMPLETED',
+                            'payment_details.transaction_id': transaction._id,
+                            'payment_details.gateway_used': transaction.gateway_name,
+                            'payment_details.payment_method': mappedMethod,
+                            'payment_details.captured_at': transaction.captured_at,
+                            'payment_details.amount_paid': transaction.amount
+                        }
+                    }
+                );
+            }
+        }
 
         job.stats.auto_resolved++;
     }
@@ -226,9 +259,15 @@ class ReconciliationService {
         transaction.reconciliation_notes = 'Auto-reconciled: Payment failed';
         await transaction.save();
 
-        await Order.findByIdAndUpdate(transaction.order, {
+        let updatedOrder = await Order.findByIdAndUpdate(transaction.order, {
             paymentStatus: 'FAILED'
         });
+
+        if (!updatedOrder) {
+            await BulkOrder.findByIdAndUpdate(transaction.order, {
+                paymentStatus: 'FAILED'
+            });
+        }
     }
 
     /**

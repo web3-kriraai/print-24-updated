@@ -1,3 +1,4 @@
+import BulkOrder from "../models/BulkOrder.js";
 ﻿import Order from "../models/orderModal.js";
 import Product from "../models/productModal.js";
 import Department from "../models/departmentModal.js";
@@ -975,7 +976,7 @@ export const getSingleOrder = async (req, res) => {
     }
 
     // Find order and verify it belongs to the user (unless admin) - Optimized with lean()
-    const order = await Order.findById(orderId)
+    let order = await Order.findById(orderId)
       .populate({
         path: "product",
         select: "name image basePrice subcategory options discount description instructions attributes minFileWidth maxFileWidth minFileHeight maxFileHeight filters gstPercentage additionalDesignCharge maxFileSizeMB",
@@ -1001,6 +1002,66 @@ export const getSingleOrder = async (req, res) => {
       .lean(); // Use lean() for faster queries - returns plain JavaScript objects
 
     if (!order) {
+      // Fallback: Check if it's a BulkOrder
+      const bulkOrder = await BulkOrder.findById(orderId)
+        .populate({
+          path: "product",
+          select: "name image basePrice subcategory options attributes filters gstPercentage additionalDesignCharge maxFileSizeMB",
+          populate: {
+            path: "subcategory",
+            select: "name image",
+            populate: {
+              path: "category",
+              select: "name"
+            }
+          }
+        })
+        .populate("user", "name email")
+        .lean();
+
+      if (bulkOrder) {
+        // Map BulkOrder to Order-like structure for frontend compatibility
+        const statusMapping = {
+          'UPLOADED': 'request',
+          'VALIDATING': 'processing',
+          'PROCESSING': 'processing',
+          'SPLIT_COMPLETE': 'processing',
+          'ORDER_CREATED': 'completed',
+          'FAILED': 'rejected',
+          'CANCELLED': 'cancelled'
+        };
+
+        order = {
+          ...bulkOrder,
+          quantity: bulkOrder.totalCopies,
+          totalPrice: bulkOrder.price?.totalPrice || 0,
+          status: statusMapping[bulkOrder.status] || 'request',
+          isBulkParent: true,
+          priceSnapshot: {
+            unitPrice: bulkOrder.price?.unitPrice || 0,
+            quantity: bulkOrder.totalCopies,
+            subtotal: bulkOrder.price?.netAmount || 0,
+            gstPercentage: bulkOrder.product?.gstPercentage || 18,
+            gstAmount: bulkOrder.price?.gstAmount || 0,
+            totalPayable: bulkOrder.price?.totalPrice || 0,
+            currency: bulkOrder.price?.currency || 'INR',
+            calculatedAt: bulkOrder.createdAt
+          }
+        };
+
+        // Map design file
+        if (bulkOrder.compositeFile?.url) {
+          order.uploadedDesign = {
+            frontImage: {
+              data: bulkOrder.compositeFile.url,
+              filename: bulkOrder.compositeFile.filename || 'composite-design.pdf'
+            }
+          };
+        }
+      }
+    }
+
+    if (!order) {
       return res.status(404).json({ error: "Order not found" });
     }
 
@@ -1019,13 +1080,13 @@ export const getSingleOrder = async (req, res) => {
 
     // Convert uploaded design buffers to base64 for frontend
     // Since we're using lean(), order is already a plain object
-    if (order.uploadedDesign?.frontImage?.data) {
+    if (order.uploadedDesign?.frontImage?.data && !order.uploadedDesign.frontImage.data.startsWith('http') && !order.uploadedDesign.frontImage.data.startsWith('data:')) {
       const buffer = Buffer.isBuffer(order.uploadedDesign.frontImage.data)
         ? order.uploadedDesign.frontImage.data
         : Buffer.from(order.uploadedDesign.frontImage.data);
       order.uploadedDesign.frontImage.data = `data:${order.uploadedDesign.frontImage.contentType || 'image/png'};base64,${buffer.toString("base64")}`;
     }
-    if (order.uploadedDesign?.backImage?.data) {
+    if (order.uploadedDesign?.backImage?.data && !order.uploadedDesign.backImage.data.startsWith('http') && !order.uploadedDesign.backImage.data.startsWith('data:')) {
       const buffer = Buffer.isBuffer(order.uploadedDesign.backImage.data)
         ? order.uploadedDesign.backImage.data
         : Buffer.from(order.uploadedDesign.backImage.data);
@@ -1036,7 +1097,8 @@ export const getSingleOrder = async (req, res) => {
     const childOrders = await Order.find({
         $or: [
             { parentOrderId: order._id },
-            { bulkParentOrderId: order._id }
+            { bulkParentOrderId: order._id },
+            { _id: { $in: order.childOrderIds || [] } }
         ]
     })
     .select('orderNumber status paymentStatus quantity product priceSnapshot')

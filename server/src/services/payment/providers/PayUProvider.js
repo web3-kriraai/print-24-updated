@@ -71,26 +71,7 @@ class PayUProvider extends IPaymentProvider {
         return hash;
     }
 
-    /**
-     * Generate PayU response verification hash
-     * Format: salt|status|||||||||||email|firstname|productinfo|amount|txnid|key
-     */
-    _generateResponseHash(params) {
-        const {
-            status,
-            email,
-            firstname,
-            productinfo,
-            amount,
-            txnid,
-            key
-        } = params;
 
-        const salt = this.config.secretKey;
-
-        const hashString = `${salt}|${status}|||||||||||${email}|${firstname}|${productinfo}|${amount}|${txnid}|${key}`;
-        return crypto.createHash('sha512').update(hashString).digest('hex');
-    }
 
     /**
      * Initialize a payment transaction
@@ -109,6 +90,9 @@ class PayUProvider extends IPaymentProvider {
             // PayU transaction ID (must be unique)
             const txnid = `PAYU_${orderId}_${Date.now()}`;
 
+            // Determine callback URL base (dynamic for local vs prod)
+            const callbackBase = params.baseUrl || process.env.BASE_URL || 'http://localhost:5000';
+
             // Build payment parameters
             const paymentParams = {
                 key: this.config.publicKey,
@@ -118,8 +102,8 @@ class PayUProvider extends IPaymentProvider {
                 firstname: customer.name || customer.firstName || 'Customer',
                 email: customer.email,
                 phone: customer.phone || '',
-                surl: `${process.env.BASE_URL || 'http://localhost:5000'}/api/payment/callback/payu`,
-                furl: `${process.env.BASE_URL || 'http://localhost:5000'}/api/payment/callback/payu`,
+                surl: `${callbackBase}/api/payment/callback/payu`,
+                furl: `${callbackBase}/api/payment/callback/payu`,
                 // Optional fields
                 lastname: customer.lastName || '',
                 address1: customer.address || '',
