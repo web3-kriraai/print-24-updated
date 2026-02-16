@@ -2409,12 +2409,12 @@ handler: async function (response: any) {
                     setOrderMode('single');
                     setShowBulkWizard(false);
                     
-                    // Redirect to bulk orders list
-                    navigate('/bulk-orders');
+                    // Redirect to order details
+                    navigate(`/order/${bulkOrderId}`);
                   } else {
                     console.error('Payment verification failed:', verifyResult);
                     alert(`Payment successful but verification failed.\\n\\nPlease contact support with Payment ID: ${response.razorpay_payment_id}`);
-                    navigate('/bulk-orders');
+                    navigate(`/order/${bulkOrderId}`);
                   }
                 } catch (error) {
                   console.error('Error verifying payment:', error);
@@ -2442,6 +2442,8 @@ handler: async function (response: any) {
             setBulkCompositePdf(null);
             setBulkPdfError('');
             setOrderMode('single');
+            
+            navigate(`/order/${bulkOrderId}`);
           }
 
         } catch (paymentError) {

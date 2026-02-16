@@ -28,6 +28,7 @@ import {
   X,
   Sparkles,
   AlertCircle,
+  Plus,
 } from 'lucide-react';
 import { formatCurrency, calculateOrderBreakdown, OrderForCalculation } from '../utils/pricing';
 import { API_BASE_URL_WITH_API as API_BASE_URL } from '../lib/apiConfig';
@@ -94,7 +95,7 @@ interface Order {
     description?: string;
     image?: string;
     uploadedImages?: Array<{
-      data: Buffer | string;
+      data: any | string;
       contentType: string;
       filename: string;
     }>;
@@ -182,6 +183,8 @@ interface Order {
     action: string;
     timestamp: string;
   }>;
+  isBulkParent?: boolean;
+  distinctDesigns?: number;
 }
 
 // Status Badge Component
@@ -314,7 +317,7 @@ const ProductSpecsPanel: React.FC<{ order: Order }> = ({ order }) => {
 
       <div className="p-6">
         {/* Basic Info Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+        <div className={`grid grid-cols-1 ${order.isBulkParent ? 'sm:grid-cols-4' : 'sm:grid-cols-3'} gap-4 mb-8`}>
           <div className="bg-gradient-to-br from-blue-50 to-white rounded-xl border border-blue-100 p-4">
             <div className="flex items-center gap-2 mb-2">
               <Tag className="w-4 h-4 text-blue-600" />
@@ -322,6 +325,16 @@ const ProductSpecsPanel: React.FC<{ order: Order }> = ({ order }) => {
             </div>
             <p className="text-gray-900 font-bold text-lg">{order.product.name}</p>
           </div>
+
+          {order.isBulkParent && (
+            <div className="bg-gradient-to-br from-indigo-50 to-white rounded-xl border border-indigo-100 p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Plus className="w-4 h-4 text-indigo-600" />
+                <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold">Designs</p>
+              </div>
+              <p className="text-gray-900 font-bold text-lg">{order.distinctDesigns || 0}</p>
+            </div>
+          )}
 
           <div className="bg-gradient-to-br from-green-50 to-white rounded-xl border border-green-100 p-4">
             <div className="flex items-center gap-2 mb-2">
@@ -835,6 +848,15 @@ const OrderDetails: React.FC = () => {
         }
 
         const data = await response.json();
+        
+        // 🔄 Unified Redirect: If this is a BulkOrder document that has already been converted to an Order hierarchy,
+        // redirect to the official Parent Order detail page for a consistent experience.
+        const parentId = typeof data.parentOrderId === 'object' ? data.parentOrderId?._id : data.parentOrderId;
+        if (data.isBulkParent && parentId && data._id !== parentId) {
+            navigate(`/order/${parentId}`, { replace: true });
+            return;
+        }
+
         setOrder(data);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load order details');
@@ -854,7 +876,7 @@ const OrderDetails: React.FC = () => {
         const status = typeof ds === 'object' ? ds.status : null;
         return status === 'in_progress' || status === 'completed';
       });
-      return typeof firstDept === 'object' ? firstDept.startedAt : undefined;
+      return (typeof firstDept === 'object' ? firstDept.startedAt : undefined) ?? undefined;
     };
 
     const getLastDepartmentComplete = () => {
@@ -872,7 +894,7 @@ const OrderDetails: React.FC = () => {
         return new Date(dsObj.completedAt) > new Date(latestObj.completedAt) ? ds : latest;
       });
 
-      return typeof lastCompleted === 'object' ? lastCompleted.completedAt : undefined;
+      return (typeof lastCompleted === 'object' ? lastCompleted.completedAt : undefined) ?? undefined;
     };
 
     const stages: TimelineEvent[] = [

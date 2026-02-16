@@ -213,6 +213,8 @@ export const createOrderHierarchy = async (bulkOrder) => {
             paymentStatus: bulkOrder.paymentStatus || "PENDING",
 
             // Mark as bulk parent
+            isBulkParent: true,
+            distinctDesigns: bulkOrder.distinctDesigns,
             childOrders: [],
             bulkOrderRef: bulkOrder._id,
         });

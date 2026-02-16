@@ -1001,6 +1001,18 @@ export const getSingleOrder = async (req, res) => {
       })
       .lean(); // Use lean() for faster queries - returns plain JavaScript objects
 
+    if (order) {
+        // Dynamically detect if this is a bulk parent for backward compatibility
+        if (!order.isBulkParent && order.childOrders && order.childOrders.length > 0) {
+            order.isBulkParent = true;
+        }
+
+        // If it's a bulk parent but missing distinctDesigns, try to get it from children count
+        if (order.isBulkParent && !order.distinctDesigns && order.childOrders) {
+            order.distinctDesigns = order.childOrders.length;
+        }
+    }
+
     if (!order) {
       // Fallback: Check if it's a BulkOrder
       const bulkOrder = await BulkOrder.findById(orderId)
@@ -1033,10 +1045,12 @@ export const getSingleOrder = async (req, res) => {
 
         order = {
           ...bulkOrder,
+          _id: bulkOrder._id,
           quantity: bulkOrder.totalCopies,
           totalPrice: bulkOrder.price?.totalPrice || 0,
           status: statusMapping[bulkOrder.status] || 'request',
           isBulkParent: true,
+          distinctDesigns: bulkOrder.distinctDesigns,
           priceSnapshot: {
             unitPrice: bulkOrder.price?.unitPrice || 0,
             quantity: bulkOrder.totalCopies,

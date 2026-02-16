@@ -645,6 +645,15 @@ const Profile: React.FC = () => {
                     Corporate
                   </span>
                 )}
+                {/* User Segment Badge */}
+                {userData.userSegment && (
+                  <span 
+                    className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-800 border border-indigo-200"
+                    title={userData.userSegment.description || ""}
+                  >
+                    Segment: {userData.userSegment.name || userData.userSegment.code}
+                  </span>
+                )}
                 {/* Approval Status Badge */}
                 {userData.approvalStatus && (
                   <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${userData.approvalStatus === "approved"

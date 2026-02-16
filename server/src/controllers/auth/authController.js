@@ -111,14 +111,14 @@ export const loginUser = async (req, res) => {
     // Find user by email or mobile number
     let user;
     if (email) {
-      user = await User.findOne({ email });
+      user = await User.findOne({ email }).populate("userSegment", "name code description");
     } else if (mobileNumber) {
       // Extract digits from mobile number to handle different formats
       const mobileDigits = mobileNumber.replace(/\D/g, "");
 
       // Try to find user with different mobile number formats
       // 1. Try exact match
-      user = await User.findOne({ mobileNumber });
+      user = await User.findOne({ mobileNumber }).populate("userSegment", "name code description");
 
       // 2. If not found, try with country code variations
       if (!user) {
@@ -127,19 +127,19 @@ export const loginUser = async (req, res) => {
           // For India (+91), try without country code
           if (mobileNumber.startsWith("+91") && mobileDigits.length >= 12) {
             const numberWithoutCode = mobileDigits.slice(2); // Remove +91
-            user = await User.findOne({ mobileNumber: numberWithoutCode });
+            user = await User.findOne({ mobileNumber: numberWithoutCode }).populate("userSegment", "name code description");
           }
           // Also try with just the digits
           if (!user) {
-            user = await User.findOne({ mobileNumber: mobileDigits });
+            user = await User.findOne({ mobileNumber: mobileDigits }).populate("userSegment", "name code description");
           }
         } else {
           // If input doesn't have country code, try with country codes
           // Try with +91 prefix (India)
-          user = await User.findOne({ mobileNumber: `+91${mobileNumber}` });
+          user = await User.findOne({ mobileNumber: `+91${mobileNumber}` }).populate("userSegment", "name code description");
           // Try with just digits
           if (!user) {
-            user = await User.findOne({ mobileNumber: mobileDigits });
+            user = await User.findOne({ mobileNumber: mobileDigits }).populate("userSegment", "name code description");
           }
         }
       }
@@ -189,6 +189,7 @@ export const loginUser = async (req, res) => {
         mobileNumber: user.mobileNumber,
         role: user.role,
         userType: user.userType || "customer", // Include userType in response
+        userSegment: user.userSegment, // Include userSegment in response
       },
       token,
     });

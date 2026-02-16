@@ -291,14 +291,22 @@ const OrderSchema = new mongoose.Schema(
       },
     ],
 
-    /* =====================
-       BULK ORDER TRACKING
-    ====================== */
+    isBulkParent: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+
     isBulkChild: {
       type: Boolean,
       default: false,
       index: true,
       // True if this order was created from bulk processing
+    },
+
+    distinctDesigns: {
+      type: Number,
+      // Total designs in the bulk batch
     },
 
     bulkParentOrderId: {
