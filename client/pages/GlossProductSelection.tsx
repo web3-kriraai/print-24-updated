@@ -436,6 +436,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
         attributes: pdpAttributes,
         rules: pdpRules,
         selectedValues: { ...selectedDynamicAttributes } as Record<string, string | number | boolean | File | any[] | null>,
+        quantity: quantity,
       });
 
       // Auto-select single values for visible attributes
@@ -452,27 +453,20 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
           }
         }
         // Apply SET_DEFAULT if no selection and default is set
-        // BUT verify the default value is actually in the filtered list
         if (attr.defaultValue && !selectedDynamicAttributes[attr._id]) {
-          // Check if defaultValue exists in the filtered attributeValues list
           const defaultValueExists = attributeValues.some((av: any) => av.value === attr.defaultValue);
           if (defaultValueExists) {
-            // Use the configured default value
             setSelectedDynamicAttributes((prev) => ({
               ...prev,
               [attr._id]: attr.defaultValue,
             }));
           } else if (attributeValues.length > 0 && attr.inputStyle !== 'CHECKBOX') {
-            // Default value is not in the filtered list, fall back to first available value
-            console.log(`⚠️ Default value "${attr.defaultValue}" for "${attr.attributeName}" not in filtered list. Using first available value: "${attributeValues[0].value}"`);
             setSelectedDynamicAttributes((prev) => ({
               ...prev,
               [attr._id]: attributeValues[0].value,
             }));
           }
         } else if (!selectedDynamicAttributes[attr._id] && attributeValues.length > 0) {
-          // If no default value is set but we have attribute values, set to first value
-          // (except for CHECKBOX which should remain empty)
           if (attr.inputStyle !== 'CHECKBOX') {
             setSelectedDynamicAttributes((prev) => ({
               ...prev,
@@ -482,45 +476,14 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
         }
       });
 
-      // Extract QUANTITY constraints directly from rules
+      // Extract quantity constraints from engine results
       let quantityConstraints: { min?: number; max?: number; step?: number } | null = null;
-
-      for (const rule of pdpRules) {
-        // Skip if rule or when condition is invalid
-        if (!rule || !rule.when || !rule.when.attribute) {
-          continue;
-        }
-
-        // Check if rule condition is met
-        const whenAttributeId = typeof rule.when.attribute === 'object'
-          ? rule.when.attribute._id
-          : rule.when.attribute;
-
-        const selectedValue = selectedDynamicAttributes[whenAttributeId];
-
-        if (selectedValue && String(selectedValue) === rule.when.value) {
-          // Rule condition is met, check for QUANTITY actions
-          for (const action of rule.then) {
-            if (action.action === 'QUANTITY') {
-              // Extract quantity constraints from this action
-              quantityConstraints = {
-                min: action.minQuantity,
-                max: action.maxQuantity,
-                step: action.stepQuantity,
-              };
-              break; // Use first matching QUANTITY action
-            }
-          }
-          if (quantityConstraints) break; // Stop after finding first matching rule
+      for (const attr of ruleResult.attributes) {
+        if (attr.isVisible && attr.quantityConstraints) {
+          quantityConstraints = attr.quantityConstraints;
+          break;
         }
       }
-
-      if (quantityConstraints) {
-        console.log('✅ Quantity constraints activated:', quantityConstraints);
-      } else {
-        console.log('❌ No quantity constraints active');
-      }
-
       setActiveQuantityConstraints(quantityConstraints);
     } else if (selectedProduct && !isInitialized) {
       // Fallback to old logic if PDP not loaded yet
@@ -534,59 +497,46 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
             ? attr.customValues
             : attrType.attributeValues || [];
 
-          // Auto-select if only one value available
           if (attributeValues.length === 1) {
             const singleValue = attributeValues[0];
             if (!selectedDynamicAttributes[attrType._id] || selectedDynamicAttributes[attrType._id] !== singleValue.value) {
-              setSelectedDynamicAttributes({
-                ...selectedDynamicAttributes,
-                [attrType._id]: singleValue.value
-              });
+              setSelectedDynamicAttributes((prev) => ({
+                ...prev,
+                [attrType._id]: singleValue.value,
+              }));
             }
           }
         });
       }
     }
-  }, [selectedProduct, isInitialized, pdpAttributes, pdpRules, selectedDynamicAttributes]);
+  }, [selectedProduct, isInitialized, pdpAttributes, pdpRules, selectedDynamicAttributes, quantity]);
 
   // Validate and adjust quantity when constraints change
   useEffect(() => {
     if (!activeQuantityConstraints) return;
 
     const { min, max, step } = activeQuantityConstraints;
-
-    // Always default to minimum value when constraints change
     let adjustedQuantity = min !== undefined ? min : quantity;
 
-    // Ensure the minimum value respects the step constraint
     if (step !== undefined && step > 0 && min !== undefined) {
-      // Make sure min is a valid step value
       const stepsFromMin = Math.round((adjustedQuantity - min) / step);
       adjustedQuantity = min + (stepsFromMin * step);
     }
 
-    // Update quantity to minimum value
     if (adjustedQuantity !== quantity) {
       console.log(`Quantity set to minimum value ${adjustedQuantity} based on constraints:`, activeQuantityConstraints);
       setQuantity(adjustedQuantity);
-
-      // Note: Auto-scroll to quantity removed to prevent page scrolling on load
-
-      // Show notification about quantity update
       setValidationError(`Quantity set to ${adjustedQuantity.toLocaleString()} (Min: ${min?.toLocaleString()}, Max: ${max?.toLocaleString()}, Step: ${step?.toLocaleString()})`);
       setTimeout(() => setValidationError(null), 5000);
     }
   }, [activeQuantityConstraints]);
 
-  // Note: Auto-scroll to quantity section removed to prevent page from scrolling down on load
-
   // Reset quantity to product minimum when constraints are removed
   useEffect(() => {
     if (activeQuantityConstraints || !selectedProduct) return;
 
-    // Get minimum quantity from product configuration
     const orderQuantity = selectedProduct.filters?.orderQuantity;
-    let minQuantity = 100; // Default fallback
+    let minQuantity = 100;
 
     if (orderQuantity) {
       if (orderQuantity.quantityType === "STEP_WISE" && orderQuantity.stepWiseQuantities && orderQuantity.stepWiseQuantities.length > 0) {
@@ -598,9 +548,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
       }
     }
 
-    // Set to minimum if current quantity doesn't match
     if (quantity !== minQuantity) {
-      console.log(`Quantity reset to product minimum ${minQuantity} (no active constraints)`);
       setQuantity(minQuantity);
     }
   }, [activeQuantityConstraints, selectedProduct]);
@@ -2500,6 +2448,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
         attributes: pdpAttributes,
         rules: pdpRules,
         selectedValues: { ...selectedDynamicAttributes } as Record<string, string | number | boolean | File | any[] | null>,
+        quantity: quantity,
       });
       attributesToCheck = ruleResult.attributes.filter((attr) => attr.isVisible);
     } else if (selectedProduct?.dynamicAttributes) {
@@ -2699,6 +2648,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
           attributes: pdpAttributes,
           rules: pdpRules,
           selectedValues: { ...selectedDynamicAttributes } as Record<string, string | number | boolean | File | any[] | null>,
+          quantity: quantity,
         });
         attributesToCheck = ruleResult.attributes.filter((attr) => attr.isVisible);
       } else if (selectedProduct?.dynamicAttributes) {
@@ -5636,6 +5586,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                     attributes: pdpAttributes,
                                     rules: pdpRules,
                                     selectedValues: { ...selectedDynamicAttributes } as Record<string, string | number | boolean | File | any[] | null>,
+                                    quantity: quantity,
                                   });
 
                                   // Filter to only visible attributes

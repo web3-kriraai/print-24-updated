@@ -13,7 +13,7 @@
  * - SHOW_ONLY: Show only specific values (restrict allowedValues)
  * - SET_DEFAULT: Set default value for attribute
  */
-export const applyAttributeRules = ({ attributes, rules, selectedValues = {} }) => {
+export const applyAttributeRules = ({ attributes, rules, selectedValues = {}, quantity = 0 }) => {
   // Initialize result: all attributes start visible with all values allowed
   const result = attributes.reduce((acc, attr) => {
     acc[attr._id.toString()] = {
@@ -38,16 +38,33 @@ export const applyAttributeRules = ({ attributes, rules, selectedValues = {} }) 
 
   // Evaluate each rule
   for (const rule of sortedRules) {
-    // Check if WHEN condition is met
-    const whenAttributeId =
-      typeof rule.when.attribute === "object"
-        ? rule.when.attribute._id.toString()
-        : rule.when.attribute.toString();
+    let conditionMet = false;
 
-    const selectedValue = selectedValues[whenAttributeId];
+    if (rule.when?.isQuantityCondition) {
+      // Check quantity condition
+      const min = rule.when.minQuantity !== undefined ? rule.when.minQuantity : 0;
+      const max = rule.when.maxQuantity !== undefined ? rule.when.maxQuantity : Infinity;
+      
+      if (quantity >= min && quantity <= max) {
+        conditionMet = true;
+      }
+    } else {
+      // Check attribute-value condition
+      const whenAttributeId =
+        rule.when?.attribute && typeof rule.when.attribute === "object"
+          ? rule.when.attribute._id.toString()
+          : rule.when?.attribute?.toString();
 
-    // Skip if condition attribute is not selected or value doesn't match
-    if (!selectedValue || selectedValue !== rule.when.value) {
+      if (whenAttributeId) {
+        const selectedValue = selectedValues[whenAttributeId];
+        if (selectedValue && selectedValue === rule.when.value) {
+          conditionMet = true;
+        }
+      }
+    }
+
+    // Skip if condition is not met
+    if (!conditionMet) {
       continue;
     }
 

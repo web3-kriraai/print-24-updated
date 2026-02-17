@@ -7,8 +7,11 @@ export interface AttributeRule {
   _id: string;
   name: string;
   when: {
-    attribute: string | { _id: string; attributeName: string };
-    value: string;
+    isQuantityCondition?: boolean;
+    attribute?: string | { _id: string; attributeName: string };
+    value?: string;
+    minQuantity?: number;
+    maxQuantity?: number;
   };
   then: Array<{
     action: "SHOW" | "HIDE" | "SHOW_ONLY" | "SET_DEFAULT" | "QUANTITY";
@@ -40,10 +43,12 @@ export const applyAttributeRules = ({
   attributes,
   rules,
   selectedValues = {},
+  quantity = 0,
 }: {
   attributes: Attribute[];
   rules: AttributeRule[];
   selectedValues?: Record<string, string | number | boolean | File | any[] | null>;
+  quantity?: number;
 }): {
   attributes: Array<Attribute & { isVisible: boolean; allowedValues: string[] | null; defaultValue: string | null; quantityConstraints?: { min?: number; max?: number; step?: number } | null }>;
   selectedValues: Record<string, string | number | boolean | File | any[] | null>;
@@ -70,26 +75,39 @@ export const applyAttributeRules = ({
   // Evaluate each rule
   for (const rule of sortedRules) {
     // Skip if rule or when condition is invalid
-    if (!rule || !rule.when || !rule.when.attribute) {
+    if (!rule || !rule.when) {
       console.warn('Skipping invalid rule:', rule);
       continue;
     }
 
-    // Check if WHEN condition is met
-    const whenAttributeId =
-      typeof rule.when.attribute === "object"
-        ? rule.when.attribute._id?.toString()
-        : rule.when.attribute.toString();
+    let conditionMet = false;
 
-    // Skip if we couldn't resolve the attribute ID
-    if (!whenAttributeId) {
-      continue;
+    if (rule.when.isQuantityCondition) {
+      const min = rule.when.minQuantity !== undefined ? rule.when.minQuantity : 0;
+      const max = rule.when.maxQuantity !== undefined ? rule.when.maxQuantity : Infinity;
+      if (quantity >= min && quantity <= max) {
+        conditionMet = true;
+      }
+    } else {
+      // Check if attribute-based condition attribute exists
+      if (rule.when.attribute) {
+        const whenAttributeId =
+          typeof rule.when.attribute === "object"
+            ? rule.when.attribute._id?.toString()
+            : rule.when.attribute.toString();
+
+        if (whenAttributeId) {
+          const selectedValue = selectedValues[whenAttributeId];
+          // Check if condition value matches selected value
+          if (selectedValue && String(selectedValue) === rule.when.value) {
+            conditionMet = true;
+          }
+        }
+      }
     }
 
-    const selectedValue = selectedValues[whenAttributeId];
-
-    // Skip if condition attribute is not selected or value doesn't match
-    if (!selectedValue || String(selectedValue) !== rule.when.value) {
+    // Skip if condition is not met
+    if (!conditionMet) {
       continue;
     }
 

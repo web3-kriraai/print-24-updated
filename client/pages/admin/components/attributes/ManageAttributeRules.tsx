@@ -68,8 +68,11 @@ interface Rule {
     applicableCategory?: string | Category; // For display/population
     applicableProduct?: string | Product; // For display/population
     when: {
-        attribute: string; // Attribute ID
-        value: string;
+        isQuantityCondition?: boolean;
+        attribute?: string; // Attribute ID
+        value?: string;
+        minQuantity?: number;
+        maxQuantity?: number;
     };
     then: RuleAction[];
     priority: number;
@@ -114,8 +117,11 @@ const ManageAttributeRules: React.FC<ManageAttributeRulesProps> = ({
         scope: "GLOBAL" as "GLOBAL" | "CATEGORY" | "PRODUCT",
         scopeRefId: "",
         when: {
+            isQuantityCondition: false,
             attribute: "",
             value: "",
+            minQuantity: 0,
+            maxQuantity: 0,
         },
         then: [] as RuleAction[],
         priority: 0,
@@ -156,8 +162,14 @@ const ManageAttributeRules: React.FC<ManageAttributeRulesProps> = ({
         try {
             // Basic validation
             if (!ruleForm.name.trim()) throw new Error("Rule name is required");
-            if (!ruleForm.when.attribute) throw new Error("Condition attribute is required");
-            if (!ruleForm.when.value) throw new Error("Condition value is required");
+            if (!ruleForm.when.isQuantityCondition) {
+                if (!ruleForm.when.attribute) throw new Error("Condition attribute is required");
+                if (!ruleForm.when.value) throw new Error("Condition value is required");
+            } else {
+                if (ruleForm.when.minQuantity === undefined && ruleForm.when.maxQuantity === undefined) {
+                    throw new Error("At least one quantity limit (Min or Max) is required");
+                }
+            }
             if (ruleForm.then.length === 0) throw new Error("At least one action is required");
             if (ruleForm.scope !== "GLOBAL" && !ruleForm.scopeRefId) {
                 throw new Error(`Scope reference is required for ${ruleForm.scope} scope`);
@@ -207,7 +219,7 @@ const ManageAttributeRules: React.FC<ManageAttributeRulesProps> = ({
                 name: "",
                 scope: "GLOBAL",
                 scopeRefId: "",
-                when: { attribute: "", value: "" },
+                when: { isQuantityCondition: false, attribute: "", value: "", minQuantity: 0, maxQuantity: 0 },
                 then: [],
                 priority: 0,
                 isActive: true,
@@ -263,8 +275,11 @@ const ManageAttributeRules: React.FC<ManageAttributeRulesProps> = ({
             scope: scope,
             scopeRefId: scopeRefId,
             when: {
-                attribute: typeof rule.when.attribute === 'object' ? (rule.when.attribute as any)._id : rule.when.attribute,
-                value: rule.when.value,
+                isQuantityCondition: rule.when.isQuantityCondition || false,
+                attribute: typeof rule.when.attribute === 'object' ? (rule.when.attribute as any)?._id : rule.when.attribute || "",
+                value: rule.when.value || "",
+                minQuantity: rule.when.minQuantity || 0,
+                maxQuantity: rule.when.maxQuantity || 0,
             },
             then: processedThenActions,
             priority: rule.priority || 0,
@@ -293,8 +308,11 @@ const ManageAttributeRules: React.FC<ManageAttributeRulesProps> = ({
                 applicableCategory: typeof rule.applicableCategory === 'object' ? (rule.applicableCategory as any)?._id : rule.applicableCategory,
                 applicableProduct: typeof rule.applicableProduct === 'object' ? (rule.applicableProduct as any)?._id : rule.applicableProduct,
                 when: {
+                    isQuantityCondition: rule.when.isQuantityCondition,
                     attribute: typeof rule.when.attribute === 'object' ? (rule.when.attribute as any)?._id : rule.when.attribute,
-                    value: rule.when.value
+                    value: rule.when.value,
+                    minQuantity: rule.when.minQuantity,
+                    maxQuantity: rule.when.maxQuantity,
                 },
                 then: (rule.then || []).map((action: any) => ({
                     action: action.action,
@@ -329,6 +347,18 @@ const ManageAttributeRules: React.FC<ManageAttributeRulesProps> = ({
         } finally {
             setLoading(false);
         }
+    };
+
+    const handleResetForm = () => {
+        setRuleForm({
+            name: "",
+            scope: "GLOBAL",
+            scopeRefId: "",
+            when: { isQuantityCondition: false, attribute: "", value: "", minQuantity: 0, maxQuantity: 0 },
+            then: [],
+            priority: 0,
+            isActive: true,
+        });
     };
 
     const handleDeleteRule = async (ruleId: string) => {
@@ -405,9 +435,9 @@ const ManageAttributeRules: React.FC<ManageAttributeRulesProps> = ({
         if (typeof rule.when.attribute === 'object' && rule.when.attribute !== null) {
             whenAttrId = (rule.when.attribute as any)._id;
         } else {
-            whenAttrId = rule.when.attribute;
+            whenAttrId = rule.when.attribute || "";
         }
-        const attrMatch = !attributeRuleFilter || whenAttrId === attributeRuleFilter;
+        const attrMatch = rule.when.isQuantityCondition || !attributeRuleFilter || whenAttrId === attributeRuleFilter;
 
         // Action Filter
         const actionMatch = !ruleActionTypeFilter ||
@@ -507,15 +537,7 @@ const ManageAttributeRules: React.FC<ManageAttributeRulesProps> = ({
                         <button
                             onClick={() => {
                                 setEditingRuleId(null);
-                                setRuleForm({
-                                    name: "",
-                                    scope: "GLOBAL",
-                                    scopeRefId: "",
-                                    when: { attribute: "", value: "" },
-                                    then: [],
-                                    priority: 0,
-                                    isActive: true,
-                                });
+                                handleResetForm();
                                 setShowRuleBuilder(true);
                             }}
                             className="w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-xl hover:from-indigo-600 hover:to-purple-600 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 flex items-center justify-center gap-2 group text-sm font-medium"
@@ -726,13 +748,17 @@ const ManageAttributeRules: React.FC<ManageAttributeRulesProps> = ({
                                                 );
 
                                                 let whenAttrId = "";
-                                                if (typeof rule.when.attribute === 'object' && rule.when.attribute !== null) {
-                                                    whenAttrId = (rule.when.attribute as any)._id;
-                                                } else {
-                                                    whenAttrId = rule.when.attribute;
+                                                let whenAttrName = "Unknown";
+                                                
+                                                if (!rule.when.isQuantityCondition) {
+                                                    if (typeof rule.when.attribute === 'object' && rule.when.attribute !== null) {
+                                                        whenAttrId = (rule.when.attribute as any)._id;
+                                                    } else {
+                                                        whenAttrId = rule.when.attribute || "";
+                                                    }
+                                                    const whenAttrObj = attributeTypes.find(at => at._id === whenAttrId);
+                                                    whenAttrName = whenAttrObj ? (whenAttrObj.systemName || whenAttrObj.attributeName) : 'Unknown';
                                                 }
-                                                const whenAttrObj = attributeTypes.find(at => at._id === whenAttrId);
-                                                const whenAttrName = whenAttrObj ? (whenAttrObj.systemName || whenAttrObj.attributeName) : 'Unknown';
 
                                                 const scopeLabel = rule.scope === "GLOBAL" ? "Global" :
                                                     rule.scope === "CATEGORY" ? `Category: ${typeof rule.applicableCategory === 'object' ? (rule.applicableCategory as any)?.name : 'ID: ' + rule.applicableCategory}` :
@@ -795,14 +821,25 @@ const ManageAttributeRules: React.FC<ManageAttributeRulesProps> = ({
                                                         <td className="px-6 py-4">
                                                             <div className="bg-gradient-to-r from-indigo-50/50 to-purple-50/50 rounded-lg p-2.5">
                                                                 <div className="flex items-center gap-1 text-sm flex-wrap">
-                                                                    <span className="font-medium text-indigo-700 whitespace-nowrap">IF</span>
-                                                                    <span className="text-gray-700 truncate max-w-[120px]" title={whenAttrName}>
-                                                                        {whenAttrName}
-                                                                    </span>
-                                                                    <span className="text-gray-500">=</span>
-                                                                    <span className="font-medium text-gray-800 truncate max-w-[100px]" title={rule.when?.value || ''}>
-                                                                        {rule.when?.value || ''}
-                                                                    </span>
+                                                                    {rule.when.isQuantityCondition ? (
+                                                                        <>
+                                                                            <span className="font-medium text-purple-700 whitespace-nowrap">QTY</span>
+                                                                            <span className="text-gray-700">
+                                                                                {rule.when.minQuantity || 0} - {rule.when.maxQuantity || '∞'}
+                                                                            </span>
+                                                                        </>
+                                                                    ) : (
+                                                                        <>
+                                                                            <span className="font-medium text-indigo-700 whitespace-nowrap">IF</span>
+                                                                            <span className="text-gray-700 truncate max-w-[120px]" title={whenAttrName}>
+                                                                                {whenAttrName}
+                                                                            </span>
+                                                                            <span className="text-gray-500">=</span>
+                                                                            <span className="font-medium text-gray-800 truncate max-w-[100px]" title={rule.when?.value || ''}>
+                                                                                {rule.when?.value || ''}
+                                                                            </span>
+                                                                        </>
+                                                                    )}
                                                                 </div>
                                                             </div>
                                                         </td>
@@ -871,13 +908,17 @@ const ManageAttributeRules: React.FC<ManageAttributeRulesProps> = ({
                                     );
 
                                     let whenAttrId = "";
-                                    if (typeof rule.when.attribute === 'object' && rule.when.attribute !== null) {
-                                        whenAttrId = (rule.when.attribute as any)._id;
-                                    } else {
-                                        whenAttrId = rule.when.attribute;
+                                    let whenAttrName = "Unknown";
+                                    
+                                    if (!rule.when.isQuantityCondition) {
+                                        if (typeof rule.when.attribute === 'object' && rule.when.attribute !== null) {
+                                            whenAttrId = (rule.when.attribute as any)._id;
+                                        } else {
+                                            whenAttrId = rule.when.attribute || "";
+                                        }
+                                        const whenAttrObj = attributeTypes.find(at => at._id === whenAttrId);
+                                        whenAttrName = whenAttrObj ? (whenAttrObj.systemName || whenAttrObj.attributeName) : 'Unknown';
                                     }
-                                    const whenAttrObj = attributeTypes.find(at => at._id === whenAttrId);
-                                    const whenAttrName = whenAttrObj ? (whenAttrObj.systemName || whenAttrObj.attributeName) : 'Unknown';
 
                                     return (
                                         <motion.div
@@ -919,8 +960,17 @@ const ManageAttributeRules: React.FC<ManageAttributeRulesProps> = ({
                                                 <div className="mb-3">
                                                     <div className="bg-gradient-to-r from-indigo-50/50 to-purple-50/50 rounded-lg p-2 mb-2">
                                                         <p className="text-sm text-gray-700 truncate">
-                                                            <span className="font-medium text-indigo-700">IF</span>{" "}
-                                                            {whenAttrName} = {rule.when?.value || ''}
+                                                            {rule.when.isQuantityCondition ? (
+                                                                <>
+                                                                    <span className="font-medium text-purple-700">QTY</span>{" "}
+                                                                    {rule.when.minQuantity || 0} to {rule.when.maxQuantity || '∞'}
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <span className="font-medium text-indigo-700">IF</span>{" "}
+                                                                    {whenAttrName} = {rule.when?.value || ''}
+                                                                </>
+                                                            )}
                                                         </p>
                                                     </div>
                                                     <div className="flex flex-wrap gap-1">
@@ -1146,44 +1196,95 @@ const ManageAttributeRules: React.FC<ManageAttributeRulesProps> = ({
 
                                 {/* Condition Section */}
                                 <div className="bg-gradient-to-r from-indigo-50/50 to-purple-50/50 p-5 rounded-xl border border-indigo-100">
-                                    <div className="flex items-center gap-3 mb-4">
-                                        <div className="p-2 bg-indigo-100 rounded-lg">
-                                            <AlertCircle size={20} className="text-indigo-600" />
+                                    <div className="flex justify-between items-center mb-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2 bg-indigo-100 rounded-lg">
+                                                <AlertCircle size={20} className="text-indigo-600" />
+                                            </div>
+                                            <h4 className="font-semibold text-gray-800">Condition (WHEN)</h4>
                                         </div>
-                                        <h4 className="font-semibold text-gray-800">Condition (WHEN)</h4>
-                                    </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-2">Attribute</label>
-                                            <AdminSearchableDropdown
-                                                label="Select Attribute..."
-                                                value={ruleForm.when.attribute}
-                                                onChange={(val) => setRuleForm({
-                                                    ...ruleForm,
-                                                    when: { attribute: (val as string) || "", value: "" }
-                                                })}
-                                                options={attributeTypes.map((attr) => ({ value: attr._id, label: attr.systemName || attr.attributeName }))}
-                                                required
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-2">Value Equals</label>
-                                            <AdminSearchableDropdown
-                                                label="Select Value..."
-                                                value={ruleForm.when.value}
-                                                onChange={(val) => setRuleForm({
-                                                    ...ruleForm,
-                                                    when: { ...ruleForm.when, value: (val as string) || "" }
-                                                })}
-                                                options={ruleForm.when.attribute ? attributeTypes
-                                                    .find(a => a._id === ruleForm.when.attribute)
-                                                    ?.attributeValues.map((val) => ({ value: val.value, label: val.label || val.value })) || [] : []
-                                                }
-                                                required
-                                                disabled={!ruleForm.when.attribute}
-                                            />
+                                        <div className="flex bg-gray-100 rounded-lg p-1">
+                                            <button
+                                                type="button"
+                                                onClick={() => setRuleForm({ ...ruleForm, when: { ...ruleForm.when, isQuantityCondition: false } })}
+                                                className={`px-3 py-1 rounded-md text-xs font-medium transition-all duration-300 ${!ruleForm.when.isQuantityCondition ? "bg-white shadow-sm text-indigo-600" : "text-gray-500 hover:text-gray-700"}`}
+                                            >
+                                                Attribute
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setRuleForm({ ...ruleForm, when: { ...ruleForm.when, isQuantityCondition: true } })}
+                                                className={`px-3 py-1 rounded-md text-xs font-medium transition-all duration-300 ${ruleForm.when.isQuantityCondition ? "bg-white shadow-sm text-purple-600" : "text-gray-500 hover:text-gray-700"}`}
+                                            >
+                                                Quantity
+                                            </button>
                                         </div>
                                     </div>
+
+                                    {!ruleForm.when.isQuantityCondition ? (
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-2">Attribute</label>
+                                                <AdminSearchableDropdown
+                                                    label="Select Attribute..."
+                                                    value={ruleForm.when.attribute || ""}
+                                                    onChange={(val) => setRuleForm({
+                                                        ...ruleForm,
+                                                        when: { ...ruleForm.when, attribute: (val as string) || "", value: "" }
+                                                    })}
+                                                    options={attributeTypes.map((attr) => ({ value: attr._id, label: attr.systemName || attr.attributeName }))}
+                                                    required={!ruleForm.when.isQuantityCondition}
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-2">Value Equals</label>
+                                                <AdminSearchableDropdown
+                                                    label="Select Value..."
+                                                    value={ruleForm.when.value || ""}
+                                                    onChange={(val) => setRuleForm({
+                                                        ...ruleForm,
+                                                        when: { ...ruleForm.when, value: (val as string) || "" }
+                                                    })}
+                                                    options={ruleForm.when.attribute ? attributeTypes
+                                                        .find(a => a._id === ruleForm.when.attribute)
+                                                        ?.attributeValues.map((val) => ({ value: val.value, label: val.label || val.value })) || [] : []
+                                                    }
+                                                    required={!ruleForm.when.isQuantityCondition}
+                                                    disabled={!ruleForm.when.attribute}
+                                                />
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-2">Minimum Quantity</label>
+                                                <input
+                                                    type="number"
+                                                    value={ruleForm.when.minQuantity || 0}
+                                                    onChange={(e) => setRuleForm({
+                                                        ...ruleForm,
+                                                        when: { ...ruleForm.when, minQuantity: parseInt(e.target.value) || 0 }
+                                                    })}
+                                                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500/30 focus:border-indigo-400 transition-all duration-300"
+                                                    placeholder="e.g. 1"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-2">Maximum Quantity</label>
+                                                <input
+                                                    type="number"
+                                                    value={ruleForm.when.maxQuantity || 0}
+                                                    onChange={(e) => setRuleForm({
+                                                        ...ruleForm,
+                                                        when: { ...ruleForm.when, maxQuantity: parseInt(e.target.value) || 0 }
+                                                    })}
+                                                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500/30 focus:border-indigo-400 transition-all duration-300"
+                                                    placeholder="e.g. 500 (Leave 0 for no limit)"
+                                                />
+                                                <p className="text-xs text-gray-500 mt-1">Set to 0 if no maximum limit is needed</p>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Actions Section */}

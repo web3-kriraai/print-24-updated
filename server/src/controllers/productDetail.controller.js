@@ -225,8 +225,11 @@ export const getProductDetail = async (req, res) => {
         _id: rule._id,
         name: rule.name,
         when: {
+          isQuantityCondition: rule.when.isQuantityCondition,
           attribute: rule.when.attribute,
           value: rule.when.value,
+          minQuantity: rule.when.minQuantity,
+          maxQuantity: rule.when.maxQuantity,
         },
         then: rule.then.map((action) => ({
           action: action.action,

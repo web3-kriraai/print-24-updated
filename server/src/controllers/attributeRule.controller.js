@@ -15,18 +15,28 @@ export const createAttributeRule = async (req, res) => {
       return res.status(400).json({ error: "Rule name is required" });
     }
 
-    if (!when || !when.attribute || !when.value) {
-      return res.status(400).json({ error: "WHEN condition (attribute and value) is required" });
+    if (!when) {
+      return res.status(400).json({ error: "WHEN condition is required" });
+    }
+
+    if (!when.isQuantityCondition && (!when.attribute || !when.value)) {
+      return res.status(400).json({ error: "WHEN condition (attribute and value) is required for attribute-based rules" });
+    }
+
+    if (when.isQuantityCondition && when.minQuantity === undefined && when.maxQuantity === undefined) {
+      return res.status(400).json({ error: "WHEN condition (min and/or max quantity) is required for quantity-based rules" });
     }
 
     if (!then || !Array.isArray(then) || then.length === 0) {
       return res.status(400).json({ error: "THEN actions array is required and must not be empty" });
     }
 
-    // Validate when.attribute exists
-    const whenAttribute = await AttributeType.findById(when.attribute);
-    if (!whenAttribute) {
-      return res.status(400).json({ error: "WHEN attribute not found" });
+    // Validate when.attribute exists if provided
+    if (when.attribute) {
+      const whenAttribute = await AttributeType.findById(when.attribute);
+      if (!whenAttribute) {
+        return res.status(400).json({ error: "WHEN attribute not found" });
+      }
     }
 
     // Validate then actions
@@ -120,8 +130,11 @@ export const createAttributeRule = async (req, res) => {
     const rule = await AttributeRule.create({
       name,
       when: {
-        attribute: when.attribute,
-        value: when.value,
+        isQuantityCondition: when.isQuantityCondition || false,
+        attribute: when.attribute || null,
+        value: when.value || null,
+        minQuantity: when.minQuantity,
+        maxQuantity: when.maxQuantity,
       },
       then: then.map((action) => {
         const actionObj = {
@@ -257,18 +270,28 @@ export const updateAttributeRule = async (req, res) => {
       return res.status(400).json({ error: "Rule name is required" });
     }
 
-    if (!when || !when.attribute || !when.value) {
-      return res.status(400).json({ error: "WHEN condition (attribute and value) is required" });
+    if (!when) {
+      return res.status(400).json({ error: "WHEN condition is required" });
+    }
+
+    if (!when.isQuantityCondition && (!when.attribute || !when.value)) {
+      return res.status(400).json({ error: "WHEN condition (attribute and value) is required for attribute-based rules" });
+    }
+
+    if (when.isQuantityCondition && when.minQuantity === undefined && when.maxQuantity === undefined) {
+      return res.status(400).json({ error: "WHEN condition (min and/or max quantity) is required for quantity-based rules" });
     }
 
     if (!then || !Array.isArray(then) || then.length === 0) {
       return res.status(400).json({ error: "THEN actions array is required and must not be empty" });
     }
 
-    // Validate when.attribute exists
-    const whenAttribute = await AttributeType.findById(when.attribute);
-    if (!whenAttribute) {
-      return res.status(400).json({ error: "WHEN attribute not found" });
+    // Validate when.attribute exists if provided
+    if (when.attribute) {
+      const whenAttribute = await AttributeType.findById(when.attribute);
+      if (!whenAttribute) {
+        return res.status(400).json({ error: "WHEN attribute not found" });
+      }
     }
 
     // Validate then actions
@@ -364,8 +387,11 @@ export const updateAttributeRule = async (req, res) => {
       {
         name,
         when: {
-          attribute: when.attribute,
-          value: when.value,
+          isQuantityCondition: when.isQuantityCondition || false,
+          attribute: when.attribute || null,
+          value: when.value || null,
+          minQuantity: when.minQuantity,
+          maxQuantity: when.maxQuantity,
         },
         then: then.map((action) => {
           const actionObj = {

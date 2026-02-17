@@ -9,15 +9,27 @@ const AttributeRuleSchema = new mongoose.Schema(
 
     // WHEN condition
     when: {
+      isQuantityCondition: {
+        type: Boolean,
+        default: false,
+      },
       attribute: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "AttributeType",
-        required: true,
+        required: false,
       },
       value: {
         type: String,
-        required: true,
-      }
+        required: false,
+      },
+      minQuantity: {
+        type: Number,
+        required: false,
+      },
+      maxQuantity: {
+        type: Number,
+        required: false,
+      },
     },
 
     // THEN actions
