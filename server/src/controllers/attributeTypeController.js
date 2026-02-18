@@ -362,12 +362,7 @@ export const updateAttributeType = async (req, res) => {
         // Get the inputStyle to validate (use updated value if provided, otherwise existing)
         const currentInputStyle = inputStyle !== undefined ? inputStyle : attributeType.inputStyle;
 
-        // For DROPDOWN, RADIO, POPUP input styles, require at least 2 options
-        if (['DROPDOWN', 'RADIO', 'POPUP'].includes(currentInputStyle) && parsedAttributeValues.length < 2) {
-          return res.status(400).json({
-            error: `${currentInputStyle} input style requires at least 2 attribute values. Please add more options.`
-          });
-        }
+
       } catch (err) {
         return res.status(400).json({ error: "Invalid JSON in attributeValues" });
       }
