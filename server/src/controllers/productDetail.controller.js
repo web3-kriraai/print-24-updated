@@ -143,6 +143,7 @@ export const getProductDetail = async (req, res) => {
           attributeName: attrType.attributeName,
           functionType: attrType.functionType,
           inputStyle: attrType.inputStyle,
+          placeholder: attrType.placeholder,
           isPricingAttribute: attrType.isPricingAttribute,
           primaryEffectType: attrType.primaryEffectType,
           isRequired: da.isRequired !== undefined ? da.isRequired : attrType.isRequired || false,

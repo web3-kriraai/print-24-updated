@@ -36,6 +36,7 @@ export interface Attribute {
     hasSubAttributes?: boolean;
   }>;
   defaultValue?: string;
+  placeholder?: string;
   [key: string]: any;
 }
 

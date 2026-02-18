@@ -91,6 +91,9 @@ const ManageImageMatrix: React.FC<{
     const [productSearch, setProductSearch] = useState("");
     const [productDropdownOpen, setProductDropdownOpen] = useState(false);
 
+    // Attribute Filters
+    const [activeAttributeFilters, setActiveAttributeFilters] = useState<Record<string, string>>({});
+
     // Configuration modal state
     const [configModalOpen, setConfigModalOpen] = useState(false);
     const [selectedAttributeIds, setSelectedAttributeIds] = useState<Set<string>>(new Set());
@@ -177,6 +180,11 @@ const ManageImageMatrix: React.FC<{
             });
             if (statusFilter) params.append("status", statusFilter);
 
+            // Add attribute filters to params
+            Object.entries(activeAttributeFilters).forEach(([attrId, value]) => {
+                params.append(`attr_${attrId}`, value);
+            });
+
             const response = await fetch(
                 `${API_BASE_URL}/products/${selectedProductId}/image-matrix?${params}`,
                 { headers: authHeaders() }
@@ -196,7 +204,7 @@ const ManageImageMatrix: React.FC<{
         } finally {
             setLoading(false);
         }
-    }, [selectedProductId, statusFilter, pagination.limit, authHeaders]);
+    }, [selectedProductId, statusFilter, pagination.limit, activeAttributeFilters, authHeaders]);
 
     // Calculate combinations based on selection
     const calculateCombinations = useCallback(() => {
@@ -418,6 +426,29 @@ const ManageImageMatrix: React.FC<{
         setConfigModalOpen(true);
     };
 
+    // Toggle attribute filter for the main grid/list view
+    const toggleAttributeFilter = (attrId: string, value: string) => {
+        setActiveAttributeFilters(prev => {
+            const newFilters = { ...prev };
+            if (newFilters[attrId] === value) {
+                // If clicking same value, remove filter
+                delete newFilters[attrId];
+            } else {
+                // Set or change filter
+                newFilters[attrId] = value;
+            }
+            return newFilters;
+        });
+        setPagination(prev => ({ ...prev, page: 1 })); // Reset to first page
+    };
+
+    // Clear all filters
+    const clearAllFilters = () => {
+        setActiveAttributeFilters({});
+        setStatusFilter("");
+        setPagination(prev => ({ ...prev, page: 1 }));
+    };
+
     // Upload image for entry
     const uploadImage = useCallback(async (entryId: string, file: File) => {
         setUploadingEntryId(entryId);
@@ -581,10 +612,12 @@ const ManageImageMatrix: React.FC<{
     useEffect(() => {
         if (selectedProductId) {
             fetchPreview();
+            setActiveAttributeFilters({}); // Clear filters when product changes
         } else {
             setPreviewData(null);
             setEntries([]);
             setStats({ total: 0, uploaded: 0, missing: 0 });
+            setActiveAttributeFilters({});
         }
     }, [selectedProductId, fetchPreview]);
 
@@ -592,7 +625,7 @@ const ManageImageMatrix: React.FC<{
         if (selectedProductId && stats.total > 0) {
             fetchEntries(1);
         }
-    }, [selectedProductId, statusFilter, stats.total, fetchEntries]);
+    }, [selectedProductId, statusFilter, activeAttributeFilters, stats.total, fetchEntries]);
 
     // Render combination labels
     const renderCombinationLabels = (entry: MatrixEntry) => {
@@ -874,24 +907,30 @@ const ManageImageMatrix: React.FC<{
                                             </div>
                                         </div>
                                         <div className="flex flex-wrap gap-1.5">
-                                            {attr.values.slice(0, 8).map((v) => (
-                                                <span
-                                                    key={v.value}
-                                                    className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] sm:text-xs ${v.hasSubAttributes && (v.subAttributeCount || 0) > 0
-                                                        ? 'bg-purple-100/50 text-purple-700 border border-purple-200'
-                                                        : 'bg-white text-gray-600 border border-gray-100 shadow-sm'
-                                                        }`}
-                                                >
-                                                    <span className="truncate max-w-[80px] sm:max-w-[120px]">{v.label}</span>
-                                                    {v.hasSubAttributes && (
-                                                        <span className="font-bold text-purple-800">
-                                                            ({v.subAttributeCount || 0})
-                                                        </span>
-                                                    )}
-                                                </span>
-                                            ))}
-                                            {attr.values.length > 8 && (
-                                                <span className="text-[10px] text-gray-400 self-center">+{attr.values.length - 8} more</span>
+                                            {attr.values.slice(0, 24).map((v) => {
+                                                const isActive = activeAttributeFilters[attr.id] === v.value;
+                                                return (
+                                                    <button
+                                                        key={v.value}
+                                                        onClick={() => toggleAttributeFilter(attr.id, v.value)}
+                                                        className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] sm:text-xs transition-all duration-200 border ${isActive
+                                                                ? 'bg-purple-600 text-white border-purple-700 shadow-md transform scale-105 z-10'
+                                                                : v.hasSubAttributes && (v.subAttributeCount || 0) > 0
+                                                                    ? 'bg-purple-100/50 text-purple-700 border-purple-200 hover:bg-purple-100'
+                                                                    : 'bg-white text-gray-600 border-gray-100 shadow-sm hover:border-purple-200 hover:bg-purple-50'
+                                                            }`}
+                                                    >
+                                                        <span className="truncate max-w-[80px] sm:max-w-[120px]">{v.label}</span>
+                                                        {v.hasSubAttributes && (
+                                                            <span className={`font-bold ${isActive ? 'text-purple-200' : 'text-purple-800'}`}>
+                                                                ({v.subAttributeCount || 0})
+                                                            </span>
+                                                        )}
+                                                    </button>
+                                                );
+                                            })}
+                                            {attr.values.length > 24 && (
+                                                <span className="text-[10px] text-gray-400 self-center">+{attr.values.length - 24} more</span>
                                             )}
                                         </div>
                                     </div>
@@ -903,24 +942,36 @@ const ManageImageMatrix: React.FC<{
             </div>
 
             {/* Matrix Grid */}
-            {selectedProductId && entries.length > 0 && (
+            {selectedProductId && stats.total > 0 && (
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                     {/* Toolbar */}
                     <div className="px-4 py-3 sm:px-6 sm:py-4 border-b border-gray-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                        <div className="flex items-center gap-3 w-full sm:w-auto">
-                            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Status:</span>
-                            <div className="relative flex-1 sm:flex-none">
-                                <select
-                                    value={statusFilter}
-                                    onChange={(e) => setStatusFilter(e.target.value as any)}
-                                    className="w-full sm:w-auto appearance-none pl-3 pr-10 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400 transition-all duration-300 font-medium"
-                                >
-                                    <option value="">All ({stats.total})</option>
-                                    <option value="UPLOADED">Uploaded ({stats.uploaded})</option>
-                                    <option value="MISSING">Missing ({stats.missing})</option>
-                                </select>
-                                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={14} />
+                        <div className="flex flex-wrap items-center gap-4 w-full sm:w-auto">
+                            <div className="flex items-center gap-3">
+                                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Status:</span>
+                                <div className="relative flex-1 sm:flex-none">
+                                    <select
+                                        value={statusFilter}
+                                        onChange={(e) => setStatusFilter(e.target.value as any)}
+                                        className="w-full sm:w-auto appearance-none pl-3 pr-10 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400 transition-all duration-300 font-medium"
+                                    >
+                                        <option value="">All ({stats.total})</option>
+                                        <option value="UPLOADED">Uploaded ({stats.uploaded})</option>
+                                        <option value="MISSING">Missing ({stats.missing})</option>
+                                    </select>
+                                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={14} />
+                                </div>
                             </div>
+
+                            {(Object.keys(activeAttributeFilters).length > 0 || statusFilter) && (
+                                <button
+                                    onClick={clearAllFilters}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-600 rounded-lg text-xs font-semibold hover:bg-red-100 transition-colors duration-200 border border-red-100"
+                                >
+                                    <X size={14} />
+                                    Clear Filters
+                                </button>
+                            )}
                         </div>
 
                         <div className="flex items-center gap-2 bg-gray-50 p-1.5 rounded-xl border border-gray-200 w-full sm:w-auto justify-center sm:justify-start">
@@ -1115,6 +1166,22 @@ const ManageImageMatrix: React.FC<{
                                     </div>
                                 </div>
                             ))}
+                        </div>
+                    )}
+                    {/* Empty Filter State */}
+                    {entries.length === 0 && !loading && (
+                        <div className="p-12 text-center">
+                            <Filter className="mx-auto text-gray-300 mb-4" size={48} />
+                            <h3 className="text-lg font-medium text-gray-800 mb-2">No Matching Entries</h3>
+                            <p className="text-gray-500 mb-6">
+                                No matrix entries found for the selected filters. Try clearing some filters.
+                            </p>
+                            <button
+                                onClick={clearAllFilters}
+                                className="px-6 py-2 bg-purple-600 text-white rounded-xl font-medium hover:bg-purple-700 transition-all duration-300 shadow-md"
+                            >
+                                Clear All Filters
+                            </button>
                         </div>
                     )}
 

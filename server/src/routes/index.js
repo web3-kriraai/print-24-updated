@@ -32,6 +32,7 @@ import {
   updateProductsSortOrder,
   toggleProductStatus,
   restoreProduct,
+  duplicateProduct,
 } from "../controllers/productController.js";
 
 /* PRODUCT DETAIL CONTROLLER */
@@ -307,6 +308,13 @@ router.put(
   authMiddleware,
   adminAuth,
   restoreProduct
+);
+
+router.post(
+  "/products/:id/duplicate",
+  authMiddleware,
+  adminAuth,
+  duplicateProduct
 );
 
 /* =====================================

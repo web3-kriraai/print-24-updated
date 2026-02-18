@@ -31,7 +31,7 @@ interface RangeQuantity {
     price: string;
 }
 
-interface AttributeTypeForm {
+export interface AttributeTypeForm {
     attributeName: string;
     systemName: string;
     inputStyle: string;
@@ -67,6 +67,7 @@ interface AttributeTypeForm {
     showWhenParentValue: any[];
     hideWhenParentValue: any[];
     existingImage?: string | null;
+    placeholder: string;
 }
 
 interface ManageAttributeTypesProps {
@@ -277,6 +278,7 @@ const ManageAttributeTypes: React.FC<ManageAttributeTypesProps> = ({
                                         parentAttribute: "",
                                         showWhenParentValue: [],
                                         hideWhenParentValue: [],
+                                        placeholder: "",
                                     });
                                     setShowCreateModal(true);
                                 }}

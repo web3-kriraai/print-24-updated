@@ -19,7 +19,8 @@ import {
     CheckCircle,
     ShoppingBag,
     Tag,
-    Layers
+    Layers,
+    Copy
 } from 'lucide-react';
 import { SearchableDropdown } from '../../../../components/SearchableDropdown';
 import { formatCurrency } from '../../../../utils/pricing';
@@ -59,14 +60,19 @@ interface ManageProductsViewProps {
     handleDeleteProduct: (id: string) => void;
     handleToggleProductStatus: (id: string) => void;
     handleRestoreProduct: (id: string) => void;
+    handleDuplicateProduct: (id: string) => void;
     fetchProducts: (categoryId?: string, forceFetch?: boolean) => void;
     showDeletedProducts: boolean;
     setShowDeletedProducts: (show: boolean) => void;
     loading: boolean;
     error: string | null;
+    setError: (error: string | null) => void;
     success: string | null;
-    categories: any[]; // Assuming Category type is not defined here, keeping as any[]
+    setSuccess: (success: string | null) => void;
+    categories: any[];
     subCategories: any[];
+    typeFilter: string;
+    setTypeFilter: (type: string) => void;
 }
 
 interface ProductDetailModalProps {
@@ -279,6 +285,7 @@ const ProductItem = React.memo(({
     onView,
     onToggleStatus,
     onRestore,
+    onDuplicate,
     isHovered,
     onMouseEnter,
     onMouseLeave
@@ -290,6 +297,7 @@ const ProductItem = React.memo(({
     onView: (id: string) => void;
     onToggleStatus: (id: string) => void;
     onRestore: (id: string) => void;
+    onDuplicate: (id: string) => void;
     isHovered: boolean;
     onMouseEnter: () => void;
     onMouseLeave: () => void;
@@ -402,6 +410,17 @@ const ProductItem = React.memo(({
                                     >
                                         <Edit size={14} />
                                     </button>
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onDuplicate(product._id);
+                                        }}
+                                        className="px-3 py-2 bg-blue-50 text-blue-700 rounded-md hover:bg-blue-100 transition-colors flex items-center justify-center gap-2 font-medium text-sm"
+                                        title="Duplicate Product"
+                                    >
+                                        <Copy size={14} />
+                                    </button>
+
                                     <button
                                         onClick={(e) => {
                                             e.stopPropagation();
@@ -522,6 +541,17 @@ const ProductItem = React.memo(({
                                         <button
                                             onClick={(e) => {
                                                 e.stopPropagation();
+                                                onDuplicate(product._id);
+                                            }}
+                                            className="p-2 bg-blue-50 text-blue-600 rounded-md hover:bg-blue-100 transition-colors"
+                                            title="Duplicate Product"
+                                        >
+                                            <Copy size={14} />
+                                        </button>
+
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
                                                 onDelete(product._id);
                                             }}
                                             className="p-2 bg-red-50 text-red-600 rounded-md hover:bg-red-100 transition-colors"
@@ -555,6 +585,7 @@ const ManageProductsView: React.FC<ManageProductsViewProps> = ({
     handleDeleteProduct,
     handleToggleProductStatus,
     handleRestoreProduct,
+    handleDuplicateProduct,
     fetchProducts,
     showDeletedProducts,
     setShowDeletedProducts,
@@ -563,6 +594,8 @@ const ManageProductsView: React.FC<ManageProductsViewProps> = ({
     success,
     categories,
     subCategories,
+    typeFilter,
+    setTypeFilter,
 }) => {
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
     const [hoveredProductId, setHoveredProductId] = useState<string | null>(null);
@@ -571,13 +604,19 @@ const ManageProductsView: React.FC<ManageProductsViewProps> = ({
     const [showDetailModal, setShowDetailModal] = useState(false);
 
     // Prepare dropdown options
-    const categoryOptions = useMemo(() => [
-        { value: '', label: 'All Categories' },
-        ...categories.map(cat => ({
-            value: cat._id,
-            label: cat.name
-        }))
-    ], [categories]);
+    const categoryOptions = useMemo(() => {
+        const filteredCats = typeFilter === 'All' 
+            ? categories 
+            : categories.filter(cat => cat.type === typeFilter);
+            
+        return [
+            { value: '', label: 'All Categories' },
+            ...filteredCats.map(cat => ({
+                value: cat._id,
+                label: cat.name
+            }))
+        ];
+    }, [categories, typeFilter]);
 
     const subCategoryOptions = useMemo(() => [
         { value: '', label: 'All Subcategories' },
@@ -672,7 +711,7 @@ const ManageProductsView: React.FC<ManageProductsViewProps> = ({
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                         {/* Search */}
                         <div>
                             <label className="block text-sm font-medium text-gray-900 mb-2">Search Products</label>
@@ -709,6 +748,34 @@ const ManageProductsView: React.FC<ManageProductsViewProps> = ({
                                   {showDeletedProducts ? "Hide Trash" : "Show Trash"}
                                 </button>
                             </div>
+                        </div>
+
+                        {/* Type Filter */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-900 mb-2">Type</label>
+                            <SearchableDropdown
+                                label="All Types"
+                                value={typeFilter === 'All' ? '' : typeFilter}
+                                onChange={(value) => {
+                                    setTypeFilter(value as string || 'All');
+                                    // Reset category and subcategory when type changes
+                                    setSelectedCategoryFilter('');
+                                    setSelectedSubCategoryFilter('');
+                                }}
+                                options={[
+                                    { value: '', label: 'All Types' },
+                                    { value: 'Digital', label: 'Digital' },
+                                    { value: 'Bulk', label: 'Bulk' }
+                                ]}
+                                className="w-full"
+                                searchPlaceholder="Search types..."
+                                enableSearch={false}
+                                buttonClassName="!border-teal-500 hover:!border-teal-600"
+                                dropdownClassName="!border-teal-500"
+                                searchClassName="!border-teal-500 focus:!border-teal-500 focus:!ring-teal-500"
+                                searchIconClassName="!text-teal-600 !bg-teal-50 hover:!bg-teal-100"
+                                scrollbarColor="#14b8a6"
+                            />
                         </div>
 
                         {/* Category Filter */}
@@ -825,6 +892,7 @@ const ManageProductsView: React.FC<ManageProductsViewProps> = ({
                                     onView={handleViewProduct}
                                     onToggleStatus={handleToggleProductStatus}
                                     onRestore={handleRestoreProduct}
+                                    onDuplicate={handleDuplicateProduct}
                                     isHovered={hoveredProductId === product._id}
                                     onMouseEnter={() => setHoveredProductId(product._id)}
                                     onMouseLeave={() => setHoveredProductId(null)}
@@ -845,6 +913,7 @@ const ManageProductsView: React.FC<ManageProductsViewProps> = ({
                                     onView={handleViewProduct}
                                     onToggleStatus={handleToggleProductStatus}
                                     onRestore={handleRestoreProduct}
+                                    onDuplicate={handleDuplicateProduct}
                                     isHovered={hoveredProductId === product._id}
                                     onMouseEnter={() => setHoveredProductId(product._id)}
                                     onMouseLeave={() => setHoveredProductId(null)}

@@ -87,6 +87,7 @@ interface GlossProduct {
         description?: string;
       }>;
       defaultValue?: string;
+      placeholder?: string;
     };
     isEnabled: boolean;
     isRequired: boolean;
@@ -648,6 +649,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                         inputStyle: attr.inputStyle,
                         attributeValues: attr.attributeValues || [],
                         defaultValue: attr.defaultValue,
+                        placeholder: attr.placeholder,
                       },
                       isEnabled: true,
                       isRequired: attr.isRequired || false,
@@ -1899,10 +1901,28 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
       setProductOptionsCharge(productOptionsImpact);
 
       // Apply dynamic attribute multipliers and track impact
+      // First, evaluate attribute rules to determine which attributes are currently visible
+      const ruleVisibilityMap: Record<string, boolean> = {};
+      if (isInitialized && pdpAttributes.length > 0 && pdpRules.length > 0) {
+        const ruleResult = applyAttributeRules({
+          attributes: pdpAttributes,
+          rules: pdpRules,
+          selectedValues: { ...selectedDynamicAttributes } as Record<string, string | number | boolean | File | any[] | null>,
+          quantity: quantity,
+        });
+        ruleResult.attributes.forEach((attr) => {
+          ruleVisibilityMap[attr._id.toString()] = attr.isVisible;
+        });
+      }
+
       if (selectedProduct.dynamicAttributes && Array.isArray(selectedProduct.dynamicAttributes)) {
         selectedProduct.dynamicAttributes.forEach((attr) => {
           if (attr.isEnabled) {
             const attrType = typeof attr.attributeType === 'object' ? attr.attributeType : null;
+            // Skip attributes that are hidden by attribute rules
+            if (attrType && Object.keys(ruleVisibilityMap).length > 0 && ruleVisibilityMap[attrType._id.toString()] === false) {
+              return;
+            }
             if (attrType) {
               const selectedValue = selectedDynamicAttributes[attrType._id];
               if (selectedValue !== undefined && selectedValue !== null && selectedValue !== "") {
@@ -2055,7 +2075,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
       const perUnitExcludingGst = quantity > 0 ? priceExcludingGst / quantity : basePrice;
       setPerUnitPriceExcludingGst(perUnitExcludingGst);
     }
-  }, [selectedProduct, selectedPrintingOption, selectedDeliverySpeed, selectedTextureType, quantity, selectedDynamicAttributes, selectedProductOptions]);
+  }, [selectedProduct, selectedPrintingOption, selectedDeliverySpeed, selectedTextureType, quantity, selectedDynamicAttributes, selectedProductOptions, pdpAttributes, pdpRules, isInitialized]);
 
   // Update quantity when attribute with step/range quantity is selected
   React.useEffect(() => {
@@ -5518,33 +5538,6 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                   // Fallback to product's quantity configuration
                                   const orderQuantity = selectedProduct.filters.orderQuantity;
                                   const quantityType = orderQuantity.quantityType || "SIMPLE";
-
-                                  if (quantityType === "STEP_WISE" && orderQuantity.stepWiseQuantities && orderQuantity.stepWiseQuantities.length > 0) {
-                                    return (
-                                      <div className="text-xs sm:text-sm text-gray-600 mb-2">
-                                        Available quantities: {orderQuantity.stepWiseQuantities.sort((a, b) => a - b).map(q => q.toLocaleString()).join(", ")}
-                                      </div>
-                                    );
-                                  } else if (quantityType === "RANGE_WISE" && orderQuantity.rangeWiseQuantities && orderQuantity.rangeWiseQuantities.length > 0) {
-                                    return (
-                                      <div className="text-xs sm:text-sm text-gray-600 mb-2 space-y-1">
-                                        {orderQuantity.rangeWiseQuantities.map((range, idx) => (
-                                          <div key={idx}>
-                                            {range.label || `${range.min.toLocaleString()}${range.max ? ` - ${range.max.toLocaleString()}` : "+"} units`}
-                                            {range.priceMultiplier !== 1.0 && (selectedProduct.showAttributePrices !== false) && (
-                                              <span className="ml-2 text-green-600">
-                                                ({range.priceMultiplier > 1 ? "+" : ""}{((range.priceMultiplier - 1) * 100).toFixed(0)}% price)
-                                              </span>
-                                            )}
-                                          </div>
-                                        ))}
-                                      </div>
-                                    );
-                                  } else {
-                                    return (
-                                      <></>
-                                    );
-                                  }
                                 })()}
                                 {appliedDiscount !== null && appliedDiscount > 0 && (
                                   <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded-lg">
@@ -5629,6 +5622,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                           inputStyle: attr.inputStyle,
                                           attributeValues: attributeValues,
                                           defaultValue: attr.defaultValue,
+                                          placeholder: attr.placeholder, // Pass placeholder through
                                         };
                                       } else {
                                         // Legacy product attribute structure
@@ -6003,7 +5997,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                     return next;
                                                   });
                                                 }}
-                                                placeholder={`Enter ${attrType.attributeName}`}
+                                                placeholder={attrType.placeholder || `Enter ${attrType.attributeName}`}
                                                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-gray-500"
                                               />
                                             </div>

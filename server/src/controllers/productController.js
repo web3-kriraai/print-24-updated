@@ -1604,3 +1604,88 @@ export const updateProductsSortOrder = async (req, res) => {
     return res.status(500).json({ error: err.message });
   }
 };
+
+// Duplicate a product
+export const duplicateProduct = async (req, res) => {
+  try {
+    const productId = req.params.id;
+
+    if (!productId) {
+      return res.status(400).json({ error: "Product ID is required" });
+    }
+
+    const product = await Product.findById(productId);
+
+    if (!product) {
+      return res.status(404).json({ error: "Product not found" });
+    }
+
+    // Create a copy of the product data
+    const productData = product.toObject();
+
+    // Remove system fields
+    delete productData._id;
+    delete productData.createdAt;
+    delete productData.updatedAt;
+    delete productData.__v;
+
+    // Reset statistics
+    productData.salesCount = 0;
+    productData.rating = 0;
+    productData.numReviews = 0;
+    productData.reviews = [];
+
+    // Set as inactive by default
+    productData.isActive = false;
+
+    // Update name
+    productData.name = `${productData.name} (Copy)`;
+
+    // Generate new unique slug
+    let baseSlug = productData.slug ? `${productData.slug}-copy` : "";
+    if (!baseSlug) {
+      baseSlug = productData.name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+    }
+
+    let newSlug = baseSlug;
+    let counter = 1;
+    
+    // Check for uniqueness
+    while (await Product.findOne({ slug: newSlug })) {
+      newSlug = `${baseSlug}-${counter}`;
+      counter++;
+    }
+    productData.slug = newSlug;
+
+    // Get max sort order in the same category/subcategory to append at the end
+    const sortOrderQuery = productData.subcategory
+      ? { subcategory: productData.subcategory }
+      : { category: productData.category, subcategory: null };
+      
+    const maxSortOrderProduct = await Product.findOne(sortOrderQuery)
+      .sort({ sortOrder: -1 })
+      .select('sortOrder');
+      
+    if (maxSortOrderProduct && maxSortOrderProduct.sortOrder) {
+      productData.sortOrder = maxSortOrderProduct.sortOrder + 1;
+    } else {
+      productData.sortOrder = 1;
+    }
+
+    // Create the new product
+    const newProduct = await Product.create(productData);
+
+    return res.status(201).json({
+      success: true,
+      message: "Product duplicated successfully",
+      data: newProduct
+    });
+
+  } catch (err) {
+    console.error("Error duplicating product:", err);
+    return res.status(500).json({ error: err.message });
+  }
+};

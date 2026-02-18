@@ -166,6 +166,19 @@ const AttributeTypeSchema = new mongoose.Schema(
         ref: "SubCategory",
       },
     ],
+    // Custom placeholder for text fields
+    placeholder: {
+      type: String,
+      default: "",
+    },
+    // Cascading attributes support
+    parentAttribute: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "AttributeType",
+      default: null,
+    },
+    showWhenParentValue: [{ type: String }],
+    hideWhenParentValue: [{ type: String }],
   },
   { timestamps: true }
 );

@@ -378,6 +378,24 @@ export const getProductMatrix = async (req, res) => {
             query.status = status;
         }
 
+        // Add attribute filters from query params (format: attr_ID=VALUE)
+        Object.keys(req.query).forEach(key => {
+            if (key.startsWith('attr_')) {
+                const attrId = key.replace('attr_', '');
+                const value = req.query[key];
+                if (value) {
+                    // Escape regex special characters in value
+                    const escapedValue = value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                    
+                    // Filter on the attributeCombination Map
+                    // Use regex to match either exact value or parent part of sub-attribute value (parent__sub format)
+                    query[`attributeCombination.${attrId}`] = { 
+                        $regex: new RegExp(`^${escapedValue}(__|$)`) 
+                    };
+                }
+            }
+        });
+
         // Pagination
         const skip = (parseInt(page) - 1) * parseInt(limit);
 

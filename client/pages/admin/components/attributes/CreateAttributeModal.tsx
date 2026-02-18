@@ -68,6 +68,7 @@ interface AttributeTypeForm {
     showWhenParentValue: any[];
     hideWhenParentValue: any[];
     existingImage?: string | null;
+    placeholder?: string;
 }
 
 interface CreateAttributeModalProps {
@@ -358,6 +359,20 @@ const CreateAttributeModal: React.FC<CreateAttributeModalProps> = ({
                                         )}
                                     </div>
 
+                                    {attributeTypeForm.inputStyle === "TEXT_FIELD" && (
+                                        <div className="animate-fadeIn">
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                                Input Placeholder <span className="text-xs text-gray-500 font-normal">(Shown inside)</span>
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={attributeTypeForm.placeholder || ""}
+                                                onChange={(e) => setAttributeTypeForm({ ...attributeTypeForm, placeholder: e.target.value })}
+                                                placeholder="e.g., Enter your text here..."
+                                                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500/30 focus:border-indigo-400 transition-all duration-300 hover:border-indigo-300 text-sm"
+                                            />
+                                        </div>
+                                    )}
                                     <div className="md:col-span-2">
                                         <label className="block text-sm font-medium text-gray-700 mb-2">
                                             Attribute Image <span className="text-xs text-gray-500 font-normal">(to be shown when selecting this attribute)</span>

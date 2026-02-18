@@ -61,7 +61,7 @@ import ManageSequences from "./admin/components/sequences/ManageSequences";
 import AddProductForm from "./admin/components/products/AddProductForm";
 import ManageProductsView from "./admin/components/products/ManageProductsView";
 import SortProductsView from "./admin/components/products/SortProductsView";
-import ManageAttributeTypes from "./admin/components/attributes/ManageAttributeTypes";
+import ManageAttributeTypes, { AttributeTypeForm } from "./admin/components/attributes/ManageAttributeTypes";
 import ManageAttributeRules from "./admin/components/attributes/ManageAttributeRules";
 import ManageSubAttributes from "./admin/components/attributes/ManageSubAttributes";
 import ManageImageMatrix from "./admin/components/attributes/ManageImageMatrix";
@@ -503,6 +503,17 @@ const AdminDashboard: React.FC = () => {
     subcategoryCount: 0,
     deleteText: '',
   });
+
+  // Duplicate confirmation modal state
+  const [duplicateConfirmModal, setDuplicateConfirmModal] = useState<{
+    isOpen: boolean;
+    productId: string;
+    productName: string;
+  }>({
+    isOpen: false,
+    productId: '',
+    productName: '',
+  });
   const [availableParentCategories, setAvailableParentCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
@@ -589,7 +600,7 @@ const AdminDashboard: React.FC = () => {
     adminNotes: "",
   });
 
-
+  const [productTypeFilter, setProductTypeFilter] = useState("All");
 
   // Attribute Types state
   const [attributeTypes, setAttributeTypes] = useState<any[]>([]);
@@ -605,7 +616,7 @@ const AdminDashboard: React.FC = () => {
 
 
 
-  const [attributeTypeForm, setAttributeTypeForm] = useState({
+  const [attributeTypeForm, setAttributeTypeForm] = useState<AttributeTypeForm>({
     attributeName: "",
     systemName: "",
     inputStyle: "DROPDOWN", // How customer selects
@@ -656,6 +667,7 @@ const AdminDashboard: React.FC = () => {
     isCommonAttribute: true, // Default to true for simplicity
     applicableCategories: [] as string[],
     applicableSubCategories: [] as string[],
+    placeholder: "",
   });
 
   // Filtered Attribute Rules
@@ -1399,6 +1411,19 @@ const AdminDashboard: React.FC = () => {
       });
     }
 
+    // Filter by product type (from category type)
+    if (productTypeFilter && productTypeFilter !== "All") {
+      filtered = filtered.filter((product) => {
+        // Find the category of the product
+        const categoryId = product.category && typeof product.category === 'object' 
+          ? product.category._id 
+          : product.category;
+          
+        const category = categories.find(c => c._id === categoryId);
+        return category?.type === productTypeFilter;
+      });
+    }
+
     setFilteredProducts(filtered);
 
     // Small delay to hide loader for better UX
@@ -1407,8 +1432,7 @@ const AdminDashboard: React.FC = () => {
     }, 100);
 
     return () => clearTimeout(timer);
-  }, [products, selectedCategoryFilter, selectedSubCategoryFilter, productSearchQuery]);
-
+  }, [products, selectedCategoryFilter, selectedSubCategoryFilter, productSearchQuery, productTypeFilter]);
 
   const handleSubCategoryFilterChange = async (categoryId: string) => {
     setSelectedSubCategoryFilter(categoryId);
@@ -3082,6 +3106,7 @@ const AdminDashboard: React.FC = () => {
       parentAttribute: attributeTypeForm.parentAttribute || null,
       showWhenParentValue: attributeTypeForm.showWhenParentValue || [],
       hideWhenParentValue: attributeTypeForm.hideWhenParentValue || [],
+      placeholder: attributeTypeForm.placeholder || "",
       // Store fixed quantity min/max as custom fields (will be stored in attributeValues description)
       fixedQuantityMin: attributeTypeForm.isFixedQuantity ? parseInt(attributeTypeForm.fixedQuantityMin) || 0 : undefined,
       fixedQuantityMax: attributeTypeForm.isFixedQuantity ? parseInt(attributeTypeForm.fixedQuantityMax) || 0 : undefined,
@@ -3204,6 +3229,7 @@ const AdminDashboard: React.FC = () => {
         parentAttribute: fullAttributeType.parentAttribute || null,
         showWhenParentValue: JSON.stringify(fullAttributeType.showWhenParentValue || []),
         hideWhenParentValue: JSON.stringify(fullAttributeType.hideWhenParentValue || []),
+        placeholder: fullAttributeType.placeholder || "",
       };
 
       // Debug: Log the payload to verify effectDescription is included
@@ -3285,6 +3311,7 @@ const AdminDashboard: React.FC = () => {
         applicableCategories: [] as string[],
         applicableSubCategories: [] as string[],
         existingImage: null,
+        placeholder: "",
       });
       const wasCreatingFromModal = showCreateAttributeModal;
       const createdAttributeId = data?._id || data?.attributeType?._id;
@@ -3486,9 +3513,14 @@ const AdminDashboard: React.FC = () => {
             : (attributeType.parentAttribute || ""),
           showWhenParentValue: attributeType.showWhenParentValue || [],
           hideWhenParentValue: attributeType.hideWhenParentValue || [],
+          placeholder: attributeType.placeholder || "",
         });
         setEditingAttributeTypeId(attributeTypeId);
-        updateUrl("attribute-types", "edit", attributeTypeId);
+        // Only update URL if we are already on the attribute-types tab
+        // This prevents switching tabs when editing from the Add Product page
+        if (activeTab === "attribute-types") {
+          updateUrl("attribute-types", "edit", attributeTypeId);
+        }
       } else {
         setError("Attribute type not found");
       }
@@ -3616,6 +3648,7 @@ const AdminDashboard: React.FC = () => {
             : (attributeType.parentAttribute || ""),
           showWhenParentValue: attributeType.showWhenParentValue || [],
           hideWhenParentValue: attributeType.hideWhenParentValue || [],
+          placeholder: attributeType.placeholder || "",
         });
         setEditingAttributeTypeId(attributeTypeId);
       }
@@ -4976,6 +5009,43 @@ const AdminDashboard: React.FC = () => {
     } catch (err) {
       console.error("Error restoring product:", err);
       setError(err instanceof Error ? err.message : "Failed to restore product");
+    }
+  };
+
+  const openDuplicateModal = (id: string) => {
+    const product = products.find(p => p._id === id);
+    if (product) {
+      setDuplicateConfirmModal({
+        isOpen: true,
+        productId: id,
+        productName: product.name,
+      });
+    }
+  };
+
+  const confirmDuplicateProduct = async () => {
+    if (!duplicateConfirmModal.productId) return;
+
+    try {
+      setLoading(true);
+      const response = await fetch(`${API_BASE_URL}/products/${duplicateConfirmModal.productId}/duplicate`, {
+        method: "POST",
+        headers: getAuthHeaders(),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to duplicate product");
+      }
+
+      const data = await response.json();
+      setSuccess(`Product duplicated successfully: ${data.data.name}`);
+      fetchProducts(); // Refresh list to show new product
+      setDuplicateConfirmModal({ isOpen: false, productId: '', productName: '' });
+    } catch (err) {
+      console.error("Error duplicating product:", err);
+      setError(err instanceof Error ? err.message : "Failed to duplicate product");
+    } finally {
+      setLoading(false);
     }
   };
   const handleCategorySubmit = async (e: React.FormEvent) => {
@@ -6621,14 +6691,19 @@ const AdminDashboard: React.FC = () => {
                 handleDeleteProduct={handleDeleteProduct}
                 handleToggleProductStatus={handleToggleProductStatus}
                 handleRestoreProduct={handleRestoreProduct}
+                handleDuplicateProduct={openDuplicateModal}
                 fetchProducts={fetchProducts}
                 showDeletedProducts={showDeletedProducts}
                 setShowDeletedProducts={setShowDeletedProducts}
                 loading={loading || loadingProducts || filteringProducts}
                 error={error}
+                setError={setError}
                 success={success}
+                setSuccess={setSuccess}
                 categories={categories}
                 subCategories={subCategories}
+                typeFilter={productTypeFilter}
+                setTypeFilter={setProductTypeFilter}
               />
             )}
 
@@ -8131,6 +8206,62 @@ const AdminDashboard: React.FC = () => {
             </div>
           )
         }
+
+        {/* Duplicate Confirmation Modal */}
+        {duplicateConfirmModal.isOpen && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6"
+            >
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center">
+                  <Copy className="text-blue-600" size={20} />
+                </div>
+                <h3 className="text-xl font-bold text-gray-900">
+                  Duplicate Product
+                </h3>
+              </div>
+
+              <div className="mb-6">
+                <p className="text-gray-600">
+                  Are you sure you want to duplicate <strong>{duplicateConfirmModal.productName}</strong>?
+                </p>
+                <p className="text-gray-500 text-sm mt-2">
+                  This will create a copy of the product with "(Copy)" appended to the name. You can edit the new product details afterwards.
+                </p>
+              </div>
+
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => setDuplicateConfirmModal({ isOpen: false, productId: '', productName: '' })}
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDuplicateProduct}
+                  disabled={loading}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center gap-2"
+                >
+                  {loading ? (
+                    <>
+                      <Loader className="animate-spin" size={16} />
+                      Duplicating...
+                    </>
+                  ) : (
+                    <>
+                      <Copy size={16} />
+                      Duplicate Product
+                    </>
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
 
         {/* View Description Modal */}
         {
