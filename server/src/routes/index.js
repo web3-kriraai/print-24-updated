@@ -41,9 +41,11 @@ import {
   getUploadById,
   createAdmin,
   createEmployee,
+  createDesigner,
   getAllAdmins,
   getAllUsers,
   getAllEmployees,
+  getAllDesigners,
   updateUserRole,
   deleteUpload,
 } from "../controllers/adminController.js";
@@ -354,6 +356,10 @@ router.get("/admin/admins", authMiddleware, adminAuth, getAllAdmins);
 router.get("/admin/users", authMiddleware, adminAuth, getAllUsers);
 
 router.get("/admin/employees", authMiddleware, adminAuth, getAllEmployees);
+
+router.post("/admin/create-designer", authMiddleware, adminAuth, createDesigner);
+
+router.get("/admin/designers", authMiddleware, adminAuth, getAllDesigners);
 
 router.put(
   "/admin/update-user-role",

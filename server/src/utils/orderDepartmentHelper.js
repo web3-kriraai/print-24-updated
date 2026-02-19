@@ -1,7 +1,7 @@
 // Helper function to ensure order is properly assigned to departments after approval
 // This should be called after admin approves an order
 
-import Order from '../models/orderModal.js';
+import Order from '../models/Order.js';
 import Product from '../models/productModal.js';
 import Department from '../models/departmentModal.js';
 

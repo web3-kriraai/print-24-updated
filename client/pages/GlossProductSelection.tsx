@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useParams, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowRight, Check, Truck, Upload as UploadIcon, FileImage, CreditCard, X, Info, Lock, AlertCircle, MapPin, Zap, Square, Circle, FileText, UploadCloud, Image as ImageIcon, AlertTriangle, Video } from 'lucide-react';
+import { ArrowRight, Check, Truck, Upload as UploadIcon, FileImage, CreditCard, X, Info, Lock, AlertCircle, MapPin, Zap, Square, Circle, FileText, UploadCloud, Image as ImageIcon, AlertTriangle, Video, Palette } from 'lucide-react';
 import { Select, SelectOption } from '@/components/ui/select';
 import { ProductImageSkeleton, AttributeCardSkeleton, Skeleton } from '@/components/ui/Skeleton';
 import { LazyImage, CloudinaryLazyImage } from '@/components/ui/LazyImage';
-import { API_BASE_URL_WITH_API as API_BASE_URL } from '../lib/apiConfig';
+import { getAuthHeaders, API_BASE_URL_WITH_API as API_BASE_URL } from '../lib/apiConfig';
+import { joinSlotRoom, onSessionEvent, offSessionEvent, getSocketId } from '../lib/socketClient';
 import { applyAttributeRules, type AttributeRule, type Attribute } from '../utils/attributeRuleEngine';
 import * as pdfjsLib from 'pdfjs-dist';
+import toast from 'react-hot-toast';
 
 // Configure PDF.js worker - use local file for reliability
 pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
@@ -132,6 +134,38 @@ interface GlossProductSelectionProps {
 const MAX_PDF_SIZE_MB = 50;
 const MAX_PDF_SIZE_BYTES = MAX_PDF_SIZE_MB * 1024 * 1024;
 
+// Designer Form Constants
+const DESIGN_FOR_OPTIONS = ["Doctor", "Advocate", "Farmer", "Teacher", "Business Owner", "Shop", "Company", "Other"];
+const DESIGN_STYLE_OPTIONS = ["Simple", "Premium", "Corporate", "Modern", "Creative"];
+const COLOR_PREFERENCE_OPTIONS = ["Light", "Dark", "Multi-Color", "Brand Colors"];
+const LANGUAGE_OPTIONS = ["English", "Hindi", "Gujarati", "Bilingual"];
+
+interface TimeSlot {
+  time: string;
+  isBooked: boolean;
+  isPast: boolean;
+}
+
+interface PhysicalBookingPayload {
+  orderId: string;
+  designerId: string;
+  visitDate: string;
+  timeSlot: string;
+  visitAddress: string;
+  customerPhone: string;
+  advancePaid: number;
+  socketId?: string | null;
+}
+
+interface Designer {
+  _id: string;
+  name: string;
+  hourlyRate: number;
+  sessionSettings?: {
+    basePrice: number;
+  };
+}
+
 const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedProductId }) => {
   const params = useParams<{ categoryId: string; subCategoryId?: string; nestedSubCategoryId?: string; productId?: string }>();
   const navigate = useNavigate();
@@ -230,6 +264,77 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
+
+  // Designer Workflow States
+  const [showDesignerSelectionModal, setShowDesignerSelectionModal] = useState(false);
+  const [showVisualDesignerForm, setShowVisualDesignerForm] = useState(false);
+  const [showPhysicalDesignerList, setShowPhysicalDesignerList] = useState(false);
+  const [designers, setDesigners] = useState<any[]>([]);
+  const [isLoadingDesigners, setIsLoadingDesigners] = useState(false);
+  const [visualFormData, setVisualFormData] = useState({
+    designFor: 'Business Owner',
+    otherDesignFor: '',
+    designStyle: 'Modern',
+    colorPreference: 'Brand Colors',
+    language: 'English',
+    logoAvailable: 'No',
+    photoOnCard: 'No',
+    specialInstructions: '',
+  });
+  const [visualLogoFile, setVisualLogoFile] = useState<File | null>(null);
+  const [visualPhotoFile, setVisualPhotoFile] = useState<File | null>(null);
+  const [isSubmittingDesignerOrder, setIsSubmittingDesignerOrder] = useState(false);
+  const [designMethod, setDesignMethod] = useState<'upload' | 'hire'>('upload');
+
+  // Physical Booking Flow States
+  const [bookingStep, setBookingStep] = useState<1 | 2 | 3>(1); // 1: Visit Type, 2: Date/Address, 3: Designer/Slot
+  const [visitType, setVisitType] = useState<'Office' | 'Home'>('Office');
+  const [physicalVisitAddress, setPhysicalVisitAddress] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
+  const [officeConfig, setOfficeConfig] = useState<{ officeName: string; officeAddress: string; officePhone: string; officeHours: string } | null>(null);
+  const [selectedDate, setSelectedDate] = useState<string>('');
+  const [selectedDesigner, setSelectedDesigner] = useState<Designer | null>(null);
+  const [selectedSlot, setSelectedSlot] = useState<string>('');
+  const [availableSlots, setAvailableSlots] = useState<TimeSlot[]>([]);
+  const [isLoadingSlots, setIsLoadingSlots] = useState(false);
+
+  // Real-time Slot Updates
+  useEffect(() => {
+    if (selectedDesigner?._id && selectedDate) {
+      // 1. Join the room for this designer and date
+      joinSlotRoom(selectedDesigner._id, selectedDate);
+
+      // 2. Listen for slotBooked events
+      const handleSlotBooked = (data: { designerId: string; visitDate: string; timeSlot: string; socketId?: string }) => {
+        console.log('[Socket] Received slotBooked in GlossProductSelection:', data);
+
+        // Ignore if it's OUR own booking notification
+        const myId = getSocketId();
+        if (data.socketId && myId && data.socketId === myId) {
+          console.log('[Socket] Ignoring self-booking notification');
+          return;
+        }
+
+        if (data.designerId === selectedDesigner._id && data.visitDate === selectedDate) {
+          setAvailableSlots(prev => prev.map(slot =>
+            slot.time === data.timeSlot ? { ...slot, isBooked: true } : slot
+          ));
+
+          // Clear selection if it was just booked by someone else
+          if (selectedSlot === data.timeSlot) {
+            setSelectedSlot('');
+            toast.error("The slot you selected was just booked by someone else.");
+          }
+        }
+      };
+
+      onSessionEvent('slotBooked', handleSlotBooked);
+
+      return () => {
+        offSessionEvent('slotBooked', handleSlotBooked);
+      };
+    }
+  }, [selectedDesigner?._id, selectedDate, selectedSlot]);
 
   // RADIO attribute modal state
   const [radioModalOpen, setRadioModalOpen] = useState(false);
@@ -1355,19 +1460,24 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
         // Fetch nested subcategory name if nestedSubCategoryId exists
         if (nestedSubCategoryId) {
-          // Check if we already have it in availableNestedSubcategories
-          const nestedSubCat = availableNestedSubcategories.find(ns => ns._id === nestedSubCategoryId);
-          if (nestedSubCat) {
-            setBreadcrumbNestedSubCategoryName(nestedSubCat.name);
+          // Check if nestedSubCategoryId is actually the productId (happens in 3-segment URLs)
+          if (nestedSubCategoryId === productId) {
+            setBreadcrumbNestedSubCategoryName("");
           } else {
-            // Fetch from API
-            const nestedSubCategoryResponse = await fetch(`${API_BASE_URL}/subcategories/${nestedSubCategoryId}`, {
-              method: "GET",
-              headers: { Accept: "application/json" },
-            });
-            if (nestedSubCategoryResponse.ok) {
-              const nestedSubCategoryData = await nestedSubCategoryResponse.json();
-              setBreadcrumbNestedSubCategoryName(nestedSubCategoryData.name || "");
+            // Check if we already have it in availableNestedSubcategories
+            const nestedSubCat = availableNestedSubcategories.find(ns => ns._id === nestedSubCategoryId);
+            if (nestedSubCat) {
+              setBreadcrumbNestedSubCategoryName(nestedSubCat.name);
+            } else {
+              // Fetch from API
+              const nestedSubCategoryResponse = await fetch(`${API_BASE_URL}/subcategories/${nestedSubCategoryId}`, {
+                method: "GET",
+                headers: { Accept: "application/json" },
+              });
+              if (nestedSubCategoryResponse.ok) {
+                const nestedSubCategoryData = await nestedSubCategoryResponse.json();
+                setBreadcrumbNestedSubCategoryName(nestedSubCategoryData.name || "");
+              }
             }
           }
         } else {
@@ -1530,10 +1640,23 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
               navigate(`/home/allservices/${categoryId}/${subCategoryId}/${nestedSubcategorySlug}/${productSlug}`, { replace: true });
             }
 
-            // Reset filters for new product
-            setSelectedPrintingOption("");
-            setSelectedDeliverySpeed("");
-            setSelectedTextureType("");
+            // Initialize with first options if available (Fix for "Missing required fields: finish, shape" error)
+            if (firstProduct.filters?.printingOption && firstProduct.filters.printingOption.length > 0) {
+              setSelectedPrintingOption(firstProduct.filters.printingOption[0]);
+            } else {
+              setSelectedPrintingOption("");
+            }
+            if (firstProduct.filters?.deliverySpeed && firstProduct.filters.deliverySpeed.length > 0) {
+              setSelectedDeliverySpeed(firstProduct.filters.deliverySpeed[0]);
+            } else {
+              setSelectedDeliverySpeed("");
+            }
+            if (firstProduct.filters?.textureType && firstProduct.filters.textureType.length > 0) {
+              setSelectedTextureType(firstProduct.filters.textureType[0]);
+            } else {
+              setSelectedTextureType("");
+            }
+
             setSelectedDynamicAttributes({});
             setUserSelectedAttributes(new Set());
             setSelectedProductOptions([]);
@@ -3881,6 +4004,198 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
     }
   };
 
+  const fetchDesigners = async (date?: string) => {
+    try {
+      setIsLoadingDesigners(true);
+      // If date is provided, use the physical designers endpoint which might eventually filter by availability
+      const url = date
+        ? `${API_BASE_URL.replace('/api', '')}/api/physical/designers?date=${date}`
+        : `${API_BASE_URL}/session/settings/designers`;
+
+      const response = await fetch(url, {
+        headers: getAuthHeaders()
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setDesigners(data.designers || []);
+        if (data.officeInfo) {
+          setOfficeConfig(data.officeInfo);
+        }
+      }
+    } catch (err) {
+      console.error("Fetch designers error:", err);
+    } finally {
+      setIsLoadingDesigners(false);
+    }
+  };
+
+  const fetchSlots = async (designerId: string, date: string) => {
+    try {
+      setIsLoadingSlots(true);
+      const response = await fetch(`${API_BASE_URL.replace('/api', '')}/api/physical/${designerId}/slots?date=${date}`, {
+        headers: getAuthHeaders()
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setAvailableSlots(data.slots || []);
+      }
+    } catch (err) {
+      console.error("Fetch slots error:", err);
+    } finally {
+      setIsLoadingSlots(false);
+    }
+  };
+
+  const createPhysicalBooking = async (payload: PhysicalBookingPayload) => {
+    const response = await fetch(`${API_BASE_URL.replace('/api', '')}/api/physical/book`, {
+      method: "POST",
+      headers: getAuthHeaders(),
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      const error: any = new Error(errorData.error || "Failed to create physical booking");
+      error.status = response.status;
+      throw error;
+    }
+
+    return await response.json();
+  };
+
+  const createDesignerOrder = async (type: 'visual' | 'physical', designerId?: string) => {
+    try {
+      setIsSubmittingDesignerOrder(true);
+      setPaymentError(null);
+
+      const token = localStorage.getItem("token");
+      if (!token) {
+        alert("Please login to hire a designer");
+        navigate("/login");
+        return;
+      }
+
+      // 1. Prepare Order Data
+      const selectedOptions = selectedProductOptions.map(optionName => {
+        const option = selectedProduct?.options.find((opt: any) => opt.name === optionName);
+        return {
+          optionId: optionName,
+          optionName: option?.name || optionName,
+          priceAdd: option?.priceAdd || 0,
+        };
+      });
+
+      const selectedDynamicAttributesArray: any[] = [];
+      for (const key of Object.keys(selectedDynamicAttributes)) {
+        const value = selectedDynamicAttributes[key];
+        if (value && !(value instanceof File)) {
+          selectedDynamicAttributesArray.push({
+            attributeTypeId: key,
+            attributeValue: value,
+          });
+        }
+      }
+
+      const orderData = {
+        productId: selectedProduct?._id,
+        quantity: quantity,
+        finish: selectedPrintingOption || selectedProduct?.filters?.printingOption?.[0] || "Standard",
+        shape: selectedDeliverySpeed || selectedProduct?.filters?.deliverySpeed?.[0] || "Standard",
+        selectedOptions: selectedOptions,
+        selectedDynamicAttributes: selectedDynamicAttributesArray,
+        totalPrice: price + gstAmount,
+        pincode: pincode.trim(),
+        address: address.trim(),
+        mobileNumber: mobileNumber.trim(),
+        notes: orderNotes || "",
+        needDesigner: true,
+        designerType: type,
+        designStatus: "PendingDesign",
+        designForm: type === 'visual' ? {
+          designFor: visualFormData.designFor === 'Other' ? visualFormData.otherDesignFor : visualFormData.designFor,
+          designStyle: visualFormData.designStyle,
+          colorPreference: visualFormData.colorPreference,
+          language: visualFormData.language,
+          specialInstructions: visualFormData.specialInstructions,
+          logoAvailable: visualFormData.logoAvailable,
+          photoOnCard: visualFormData.photoOnCard,
+        } : null
+      };
+
+      // 2. Create Order
+      const orderResponse = await fetch(`${API_BASE_URL}/orders`, {
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: JSON.stringify(orderData),
+      });
+
+      if (!orderResponse.ok) {
+        const errorData = await orderResponse.json();
+        throw new Error(errorData.error || "Failed to create order");
+      }
+
+      const orderResult = await orderResponse.json();
+      const order = orderResult.order || orderResult;
+      const orderId = order._id;
+
+      // 3. Conditional Step based on type
+      if (type === 'visual') {
+        // Upload files if any
+        if (visualLogoFile || visualPhotoFile) {
+          const formData = new FormData();
+          if (visualLogoFile) formData.append('logo', visualLogoFile);
+          if (visualPhotoFile) formData.append('photo', visualPhotoFile);
+
+          Object.keys(orderData.designForm).forEach(key => {
+            formData.append(key, orderData.designForm[key]);
+          });
+
+          await fetch(`${API_BASE_URL}/designer-orders/${orderId}/design-form`, {
+            method: "POST",
+            headers: getAuthHeaders(),
+            body: formData,
+          });
+        }
+      } else if (type === 'physical' && (selectedDesigner?._id || designerId)) {
+        try {
+          // Create physical booking via new API
+          await createPhysicalBooking({
+            orderId,
+            designerId: selectedDesigner?._id || designerId!,
+            visitDate: selectedDate,
+            timeSlot: selectedSlot,
+            visitAddress: physicalVisitAddress,
+            customerPhone: customerPhone.replace(/[\s\-]/g, ''),
+            advancePaid: 0,
+            socketId: getSocketId()
+          });
+        } catch (bookingErr: any) {
+          if (bookingErr.status === 409) {
+            toast.error("This slot was just booked. Please select another slot.");
+            if (selectedDesigner) {
+              fetchSlots(selectedDesigner._id, selectedDate);
+              setSelectedSlot('');
+            }
+            return; // Stop here, don't navigate
+          }
+          throw bookingErr;
+        }
+      }
+
+      toast.success("Designer request submitted successfully!");
+
+      // Redirect to order details page as requested
+      navigate(`/order/${orderId}`);
+
+    } catch (err: any) {
+      console.error("Designer Order Error:", err);
+      setPaymentError(err.message);
+      toast.error(err.message || "Something went wrong. Please try again.");
+    } finally {
+      setIsSubmittingDesignerOrder(false);
+    }
+  };
+
   // Handler for switching between nested subcategory products (variant filters)
   const handleNestedSubcategoryChange = async (nestedSubcategoryId: string) => {
     try {
@@ -4643,283 +4958,286 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
               <div className="lg:w-1/2">
                 <div className="bg-white p-4 sm:p-6 md:p-8 rounded-2xl sm:rounded-3xl shadow-lg border border-gray-100 min-h-[600px] lg:min-h-[700px] flex flex-col">
                   {/* Product Filters and Order Form */}
-                  <AnimatePresence mode="wait">
-                    <motion.div
-                      key={selectedProduct?._id || 'loading-state'}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -20 }}
-                      transition={{ duration: 0.3 }}
-                      className="flex flex-col h-full"
-                    >
-                      <div className="flex-1 overflow-y-auto pr-2">
-                        {/* POP-OUT DECK VARIANT SELECTOR */}
-                        {categoryProducts.length > 1 && (
-                          <div className="mb-3 relative z-10">
-                            {/* Header Row */}
-                            <div className="flex justify-between items-center ">
-                              <p className="text-[10px] font-bold text-red-500 bg-red-50 px-2 py-0.5 rounded uppercase tracking-widest">Select Product</p>
-                            </div>
-
-                            {/* Deck Container */}
-                            <div className={`relative w-full flex items-center overflow-visible ${categoryProducts.length > 8 ? 'h-48' : 'h-44'}`}>
-                              {/* Scroll Container with overlapping stacking cards */}
-                              {/* On mobile: hidden scroll for touch-friendly swipe. On desktop with 8+ products: show slim scrollbar */}
-                              <div
-                                id="deck-scroll-container"
-                                ref={deckScrollRef}
-                                className={`flex items-center overflow-x-auto pl-4 pr-16 pb-4 -space-x-4 w-full h-full pt-10 cursor-grab ${categoryProducts.length > 8 ? 'hide-scroll md:scrollbar-thin' : 'hide-scroll'}`}
-                                onMouseDown={handleDeckMouseDown}
-                                onMouseMove={handleDeckMouseMove}
-                                onMouseUp={handleDeckMouseUp}
-                                onMouseLeave={handleDeckMouseLeave}
-                                onScroll={handleDeckScroll}
-                              >
-                                {categoryProducts.map((product, index) => {
-                                  const isCurrentProduct = product._id === selectedProduct?._id;
-                                  const productImage = product.image || selectedSubCategory?.image || '/Glossy.png';
-
-                                  return (
-                                    <div
-                                      key={product._id}
-                                      id={`deck-card-${product._id}`}
-                                      onClick={(e) => {
-                                        // Prevent click if user was dragging
-                                        if (hasDraggedRef.current) {
-                                          e.preventDefault();
-                                          e.stopPropagation();
-                                          return;
-                                        }
-                                        if (!isCurrentProduct) {
-                                          // Scroll clicked card into center view
-                                          const cardElement = e.currentTarget;
-                                          cardElement.scrollIntoView({
-                                            behavior: 'smooth',
-                                            block: 'nearest',
-                                            inline: 'center'
-                                          });
-
-                                          // Navigate to the new product
-                                          const newUrl = categoryId && subCategoryId && nestedSubCategoryId
-                                            ? `/home/allservices/${categoryId}/${subCategoryId}/${nestedSubCategoryId}/${product._id}`
-                                            : categoryId && subCategoryId
-                                              ? `/home/allservices/${categoryId}/${subCategoryId}/${product._id}`
-                                              : categoryId
-                                                ? `/home/allservices/${categoryId}/${product._id}`
-                                                : `/home/allservices/${product._id}`;
-                                          navigate(newUrl);
-                                        }
-                                      }}
-                                      className={`deck-card flex-shrink-0 w-24 h-32 rounded-xl border-2 cursor-pointer p-2 flex flex-col items-center justify-center gap-1 select-none bg-white hover:z-50 ${isCurrentProduct ? 'active border-blue-600 shadow-xl' : 'border-gray-200 shadow-sm'
-                                        }`}
-                                      style={{
-                                        zIndex: isCurrentProduct ? 50 : (10 - Math.abs(index - categoryProducts.findIndex(p => p._id === selectedProduct._id))),
-                                        transition: 'all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1)',
-                                      }}
-                                    >
-                                      {/* Blue checkmark badge */}
-                                      <div
-                                        className={`check-badge absolute -top-2 -right-2 bg-blue-600 text-white rounded-full p-1 shadow-md z-30 transition-all duration-300 ${isCurrentProduct ? 'opacity-100 scale-100' : 'opacity-0 scale-50'
-                                          }`}
-                                      >
-                                        <Check size={10} />
-                                      </div>
-
-                                      {/* Product Image */}
-                                      <div className="w-14 h-14 rounded-lg overflow-hidden border border-gray-100 shadow-sm relative z-10 pointer-events-none bg-gray-50">
-                                        <LazyImage
-                                          src={productImage}
-                                          alt={product.name}
-                                          className="w-full h-full object-cover"
-                                          fallbackSrc={selectedSubCategory?.image || '/Glossy.png'}
-                                          showSkeleton={true}
-                                          skeletonVariant="rectangular"
-                                        />
-                                      </div>
-
-                                      {/* Label */}
-                                      <div className="text-center w-full pointer-events-none mt-0.5">
-                                        <span className={`block text-[9px] font-bold uppercase tracking-tight leading-tight line-clamp-2 text-gray-900`}>
-                                          {product.name}
-                                        </span>
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-
-                              {/* Fade Gradients */}
-                              <div className="absolute left-0 top-0 bottom-0 w-10 bg-gradient-to-r from-white to-transparent pointer-events-none z-20"></div>
-                              <div className="absolute right-0 top-0 bottom-0 w-10 bg-gradient-to-l from-white to-transparent pointer-events-none z-20"></div>
-                            </div>
-
-                            {/* Slim Line Scroll Indicator for Deck - Only show when scrollable */}
-                            {categoryProducts.length > 1 && deckScrollWidth > deckClientWidth && (
-                              <div className="w-full max-w-[200px] mx-auto h-0.5 bg-gray-100 rounded-full mt-[-5px] mb-4 overflow-hidden relative z-30">
-                                <div
-                                  className="h-full bg-gray-400 rounded-full transition-all duration-100 ease-out"
-                                  style={{
-                                    width: `${(deckClientWidth / deckScrollWidth) * 100}%`,
-                                    transform: `translateX(${(deckScrollLeft / (deckScrollWidth - deckClientWidth)) * ((deckScrollWidth / deckClientWidth - 1) * 100)}%)`
-                                  }}
-                                />
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Product Header */}
-                        <div className="mb-3 sm:mb-4 relative">
-                          <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
-                            <div className="flex-1">
-                              {/* Product Header with Price */}
-                              <div className="border-b border-gray-100 flex flex-row justify-between items-center pb-4">
-                                <div className="w-full">
-                                  {loading || pdpLoading ? (
-                                    <div className="space-y-2 w-full">
-                                      <Skeleton variant="text" className="h-8 w-3/4 mb-2" />
-                                      <Skeleton variant="text" className="h-4 w-1/2" />
-                                    </div>
-                                  ) : (
-                                    <>
-                                      <h1 className="font-arial-rounded text-xl sm:text-2xl md:text-3xl font-semibold text-gray-900 mb-1">
-                                        {selectedProduct.name}
-                                      </h1>
-                                      {selectedProduct.shortDescription && selectedProduct.shortDescription.trim() !== '' && (
-                                        <div className="mt-1 mb-2">
-                                          <p className="text-base text-gray-600 leading-relaxed font-medium" style={{ fontFamily: "'Funnel Sans', sans-serif" }}>
-                                            {selectedProduct.shortDescription}
-                                          </p>
-                                        </div>
-                                      )}
-                                    </>
-                                  )}
+                  {(() => {
+                    let sectionNum = 1;
+                    return (
+                      <AnimatePresence mode="wait">
+                        <motion.div
+                          key={selectedProduct?._id || 'loading-state'}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -20 }}
+                          transition={{ duration: 0.3 }}
+                          className="flex flex-col h-full"
+                        >
+                          <div className="flex-1 overflow-y-auto pr-2">
+                            {/* POP-OUT DECK VARIANT SELECTOR */}
+                            {categoryProducts.length > 1 && (
+                              <div className="mb-3 relative z-10">
+                                {/* Header Row */}
+                                <div className="flex justify-between items-center ">
+                                  <p className="text-[10px] font-bold text-red-500 bg-red-50 px-2 py-0.5 rounded uppercase tracking-widest">Select Product</p>
                                 </div>
-                              </div>
 
-                              {/* Product Variants Filter - Only shown when nested subcategories exist */}
-                              {loading || pdpLoading ? (
-                                <div className="mb-4 bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-                                  <Skeleton variant="text" className="w-32 h-4 mb-3" />
-                                  <div className="flex flex-wrap gap-2">
-                                    <Skeleton variant="rectangular" className="w-24 h-10 rounded-lg" />
-                                    <Skeleton variant="rectangular" className="w-24 h-10 rounded-lg" />
-                                    <Skeleton variant="rectangular" className="w-24 h-10 rounded-lg" />
-                                  </div>
-                                </div>
-                              ) : (
-                                availableNestedSubcategories.length > 0 && (
-                                  <div className="mb-4 bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-                                    <h3 className="text-xs font-bold text-gray-900 mb-3 tracking-wide uppercase">PRODUCT VARIANTS</h3>
-                                    <div className="flex flex-wrap gap-2">
-                                      {availableNestedSubcategories.map((nestedSub) => {
-                                        const isSelected = selectedNestedSubcategoryId === nestedSub._id;
-                                        return (
-                                          <button
-                                            key={nestedSub._id}
-                                            onClick={() => handleNestedSubcategorySwitch(nestedSub._id)}
-                                            disabled={loading}
-                                            className={`px-4 py-2 rounded-lg border-2 transition-all text-sm font-medium ${isSelected
-                                              ? 'border-gray-900 bg-gray-900 text-white font-bold shadow-md'
-                                              : 'border-gray-300 bg-white text-gray-900 hover:border-gray-600 hover:bg-gray-50'
-                                              } ${loading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                                {/* Deck Container */}
+                                <div className={`relative w-full flex items-center overflow-visible ${categoryProducts.length > 8 ? 'h-48' : 'h-44'}`}>
+                                  {/* Scroll Container with overlapping stacking cards */}
+                                  {/* On mobile: hidden scroll for touch-friendly swipe. On desktop with 8+ products: show slim scrollbar */}
+                                  <div
+                                    id="deck-scroll-container"
+                                    ref={deckScrollRef}
+                                    className={`flex items-center overflow-x-auto pl-4 pr-16 pb-4 -space-x-4 w-full h-full pt-10 cursor-grab ${categoryProducts.length > 8 ? 'hide-scroll md:scrollbar-thin' : 'hide-scroll'}`}
+                                    onMouseDown={handleDeckMouseDown}
+                                    onMouseMove={handleDeckMouseMove}
+                                    onMouseUp={handleDeckMouseUp}
+                                    onMouseLeave={handleDeckMouseLeave}
+                                    onScroll={handleDeckScroll}
+                                  >
+                                    {categoryProducts.map((product, index) => {
+                                      const isCurrentProduct = product._id === selectedProduct?._id;
+                                      const productImage = product.image || selectedSubCategory?.image || '/Glossy.png';
+
+                                      return (
+                                        <div
+                                          key={product._id}
+                                          id={`deck-card-${product._id}`}
+                                          onClick={(e) => {
+                                            // Prevent click if user was dragging
+                                            if (hasDraggedRef.current) {
+                                              e.preventDefault();
+                                              e.stopPropagation();
+                                              return;
+                                            }
+                                            if (!isCurrentProduct) {
+                                              // Scroll clicked card into center view
+                                              const cardElement = e.currentTarget;
+                                              cardElement.scrollIntoView({
+                                                behavior: 'smooth',
+                                                block: 'nearest',
+                                                inline: 'center'
+                                              });
+
+                                              // Navigate to the new product
+                                              const newUrl = categoryId && subCategoryId && nestedSubCategoryId
+                                                ? `/home/allservices/${categoryId}/${subCategoryId}/${nestedSubCategoryId}/${product._id}`
+                                                : categoryId && subCategoryId
+                                                  ? `/home/allservices/${categoryId}/${subCategoryId}/${product._id}`
+                                                  : categoryId
+                                                    ? `/home/allservices/${categoryId}/${product._id}`
+                                                    : `/home/allservices/${product._id}`;
+                                              navigate(newUrl);
+                                            }
+                                          }}
+                                          className={`deck-card flex-shrink-0 w-24 h-32 rounded-xl border-2 cursor-pointer p-2 flex flex-col items-center justify-center gap-1 select-none bg-white hover:z-50 ${isCurrentProduct ? 'active border-blue-600 shadow-xl' : 'border-gray-200 shadow-sm'
+                                            }`}
+                                          style={{
+                                            zIndex: isCurrentProduct ? 50 : (10 - Math.abs(index - categoryProducts.findIndex(p => p._id === selectedProduct._id))),
+                                            transition: 'all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1)',
+                                          }}
+                                        >
+                                          {/* Blue checkmark badge */}
+                                          <div
+                                            className={`check-badge absolute -top-2 -right-2 bg-blue-600 text-white rounded-full p-1 shadow-md z-30 transition-all duration-300 ${isCurrentProduct ? 'opacity-100 scale-100' : 'opacity-0 scale-50'
+                                              }`}
                                           >
-                                            {nestedSub.name}
-                                          </button>
-                                        );
-                                      })}
-                                    </div>
+                                            <Check size={10} />
+                                          </div>
+
+                                          {/* Product Image */}
+                                          <div className="w-14 h-14 rounded-lg overflow-hidden border border-gray-100 shadow-sm relative z-10 pointer-events-none bg-gray-50">
+                                            <LazyImage
+                                              src={productImage}
+                                              alt={product.name}
+                                              className="w-full h-full object-cover"
+                                              fallbackSrc={selectedSubCategory?.image || '/Glossy.png'}
+                                              showSkeleton={true}
+                                              skeletonVariant="rectangular"
+                                            />
+                                          </div>
+
+                                          {/* Label */}
+                                          <div className="text-center w-full pointer-events-none mt-0.5">
+                                            <span className={`block text-[9px] font-bold uppercase tracking-tight leading-tight line-clamp-2 text-gray-900`}>
+                                              {product.name}
+                                            </span>
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
                                   </div>
-                                )
-                              )}
 
-                              {/* Info Sections Row - Buttons displayed in a single row */}
-                              <div className="mt-4 mb-2">
-                                {loading || pdpLoading ? (
-                                  <div className="flex flex-wrap gap-2 mb-2">
-                                    <Skeleton variant="rectangular" className="w-40 h-10 rounded-lg" />
-                                    <Skeleton variant="rectangular" className="w-32 h-10 rounded-lg" />
-                                  </div>
-                                ) : (
-                                  <div className="flex flex-wrap gap-2 mb-2">
-                                    {/* Product Description Button - Only show if description exists */}
-                                    {(selectedProduct.description || (selectedProduct.descriptionArray && selectedProduct.descriptionArray.length > 0)) && (
-                                      <button
-                                        onClick={() => {
-                                          setIsDescriptionOpen(!isDescriptionOpen);
-                                          if (!isDescriptionOpen) {
-                                            setIsInstructionsOpen(false);
-                                            setIsSpecializationOpen(false);
-                                          }
-                                        }}
-                                        className="px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-900 rounded-lg border border-blue-200 text-sm font-medium transition-all flex items-center gap-2 shadow-sm hover:shadow-md"
-                                      >
-                                        <FileText size={16} />
-                                        Product Description
-                                      </button>
-                                    )}
+                                  {/* Fade Gradients */}
+                                  <div className="absolute left-0 top-0 bottom-0 w-10 bg-gradient-to-r from-white to-transparent pointer-events-none z-20"></div>
+                                  <div className="absolute right-0 top-0 bottom-0 w-10 bg-gradient-to-l from-white to-transparent pointer-events-none z-20"></div>
+                                </div>
 
-                                    {/* Instructions Button - Only show if instructions or constraints exist */}
-                                    {(selectedProduct.instructions || selectedProduct.maxFileSizeMB || selectedProduct.minFileWidth || selectedProduct.maxFileWidth || selectedProduct.minFileHeight || selectedProduct.maxFileHeight || selectedProduct.blockCDRandJPG || selectedProduct.additionalDesignCharge || selectedProduct.gstPercentage) && (
-                                      <button
-                                        onClick={() => {
-                                          setIsInstructionsOpen(!isInstructionsOpen);
-                                          if (!isInstructionsOpen) {
-                                            setIsDescriptionOpen(false);
-                                            setIsSpecializationOpen(false);
-                                          }
-                                        }}
-                                        className="px-4 py-2 bg-yellow-50 hover:bg-yellow-100 text-yellow-900 rounded-lg border border-yellow-200 text-sm font-medium transition-all flex items-center gap-2 shadow-sm hover:shadow-md"
-                                      >
-                                        <Info size={16} />
-                                        Instructions
-                                      </button>
-                                    )}
-
-                                    {/* Specialization Button - Only show if specialization exists */}
-                                    {selectedProduct.specialization && (
-                                      <button
-                                        onClick={() => {
-                                          setIsSpecializationOpen(!isSpecializationOpen);
-                                          if (!isSpecializationOpen) {
-                                            setIsDescriptionOpen(false);
-                                            setIsInstructionsOpen(false);
-                                          }
-                                        }}
-                                        className="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-900 rounded-lg border border-red-200 text-sm font-medium transition-all flex items-center gap-2 shadow-sm hover:shadow-md"
-                                      >
-                                        <Info size={16} />
-                                        Specialization
-                                      </button>
-                                    )}
+                                {/* Slim Line Scroll Indicator for Deck - Only show when scrollable */}
+                                {categoryProducts.length > 1 && deckScrollWidth > deckClientWidth && (
+                                  <div className="w-full max-w-[200px] mx-auto h-0.5 bg-gray-100 rounded-full mt-[-5px] mb-4 overflow-hidden relative z-30">
+                                    <div
+                                      className="h-full bg-gray-400 rounded-full transition-all duration-100 ease-out"
+                                      style={{
+                                        width: `${(deckClientWidth / deckScrollWidth) * 100}%`,
+                                        transform: `translateX(${(deckScrollLeft / (deckScrollWidth - deckClientWidth)) * ((deckScrollWidth / deckClientWidth - 1) * 100)}%)`
+                                      }}
+                                    />
                                   </div>
                                 )}
+                              </div>
+                            )}
 
-                                {/* Product Description Expandable Section */}
-                                <AnimatePresence>
-                                  {isDescriptionOpen && selectedProduct && (selectedProduct.description || (selectedProduct.descriptionArray && selectedProduct.descriptionArray.length > 0)) && (
-                                    <motion.div
-                                      initial={{ opacity: 0, height: 0 }}
-                                      animate={{ opacity: 1, height: "auto" }}
-                                      exit={{ opacity: 0, height: 0 }}
-                                      transition={{ duration: 0.3, ease: "easeInOut" }}
-                                      className="overflow-hidden mb-2"
-                                    >
-                                      <div className="p-4 sm:p-6 bg-blue-50 border border-blue-200 rounded-lg">
-                                        <h4 className="text-sm font-bold text-blue-900 mb-3 flex items-center gap-2">
-                                          <FileText size={16} />
-                                          Product Description
-                                        </h4>
-                                        <div className="text-xs sm:text-sm text-blue-800">
-                                          {(() => {
-                                            // First check if description contains HTML (prioritize description field)
-                                            if (selectedProduct.description) {
-                                              const hasHTML = /<[a-z][\s\S]*>/i.test(selectedProduct.description);
-                                              if (hasHTML) {
-                                                // Render HTML description exactly as provided by admin
-                                                return (
-                                                  <>
-                                                    <style>{`
+                            {/* Product Header */}
+                            <div className="mb-3 sm:mb-4 relative">
+                              <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
+                                <div className="flex-1">
+                                  {/* Product Header with Price */}
+                                  <div className="border-b border-gray-100 flex flex-row justify-between items-center pb-4">
+                                    <div className="w-full">
+                                      {loading || pdpLoading ? (
+                                        <div className="space-y-2 w-full">
+                                          <Skeleton variant="text" className="h-8 w-3/4 mb-2" />
+                                          <Skeleton variant="text" className="h-4 w-1/2" />
+                                        </div>
+                                      ) : (
+                                        <>
+                                          <h1 className="font-arial-rounded text-xl sm:text-2xl md:text-3xl font-semibold text-gray-900 mb-1">
+                                            {selectedProduct.name}
+                                          </h1>
+                                          {selectedProduct.shortDescription && selectedProduct.shortDescription.trim() !== '' && (
+                                            <div className="mt-1 mb-2">
+                                              <p className="text-base text-gray-600 leading-relaxed font-medium" style={{ fontFamily: "'Funnel Sans', sans-serif" }}>
+                                                {selectedProduct.shortDescription}
+                                              </p>
+                                            </div>
+                                          )}
+                                        </>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {/* Product Variants Filter - Only shown when nested subcategories exist */}
+                                  {loading || pdpLoading ? (
+                                    <div className="mb-4 bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+                                      <Skeleton variant="text" className="w-32 h-4 mb-3" />
+                                      <div className="flex flex-wrap gap-2">
+                                        <Skeleton variant="rectangular" className="w-24 h-10 rounded-lg" />
+                                        <Skeleton variant="rectangular" className="w-24 h-10 rounded-lg" />
+                                        <Skeleton variant="rectangular" className="w-24 h-10 rounded-lg" />
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    availableNestedSubcategories.length > 0 && (
+                                      <div className="mb-4 bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+                                        <h3 className="text-xs font-bold text-gray-900 mb-3 tracking-wide uppercase">PRODUCT VARIANTS</h3>
+                                        <div className="flex flex-wrap gap-2">
+                                          {availableNestedSubcategories.map((nestedSub) => {
+                                            const isSelected = selectedNestedSubcategoryId === nestedSub._id;
+                                            return (
+                                              <button
+                                                key={nestedSub._id}
+                                                onClick={() => handleNestedSubcategorySwitch(nestedSub._id)}
+                                                disabled={loading}
+                                                className={`px-4 py-2 rounded-lg border-2 transition-all text-sm font-medium ${isSelected
+                                                  ? 'border-gray-900 bg-gray-900 text-white font-bold shadow-md'
+                                                  : 'border-gray-300 bg-white text-gray-900 hover:border-gray-600 hover:bg-gray-50'
+                                                  } ${loading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                                              >
+                                                {nestedSub.name}
+                                              </button>
+                                            );
+                                          })}
+                                        </div>
+                                      </div>
+                                    )
+                                  )}
+
+                                  {/* Info Sections Row - Buttons displayed in a single row */}
+                                  <div className="mt-4 mb-2">
+                                    {loading || pdpLoading ? (
+                                      <div className="flex flex-wrap gap-2 mb-2">
+                                        <Skeleton variant="rectangular" className="w-40 h-10 rounded-lg" />
+                                        <Skeleton variant="rectangular" className="w-32 h-10 rounded-lg" />
+                                      </div>
+                                    ) : (
+                                      <div className="flex flex-wrap gap-2 mb-2">
+                                        {/* Product Description Button - Only show if description exists */}
+                                        {(selectedProduct.description || (selectedProduct.descriptionArray && selectedProduct.descriptionArray.length > 0)) && (
+                                          <button
+                                            onClick={() => {
+                                              setIsDescriptionOpen(!isDescriptionOpen);
+                                              if (!isDescriptionOpen) {
+                                                setIsInstructionsOpen(false);
+                                                setIsSpecializationOpen(false);
+                                              }
+                                            }}
+                                            className="px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-900 rounded-lg border border-blue-200 text-sm font-medium transition-all flex items-center gap-2 shadow-sm hover:shadow-md"
+                                          >
+                                            <FileText size={16} />
+                                            Product Description
+                                          </button>
+                                        )}
+
+                                        {/* Instructions Button - Only show if instructions or constraints exist */}
+                                        {(selectedProduct.instructions || selectedProduct.maxFileSizeMB || selectedProduct.minFileWidth || selectedProduct.maxFileWidth || selectedProduct.minFileHeight || selectedProduct.maxFileHeight || selectedProduct.blockCDRandJPG || selectedProduct.additionalDesignCharge || selectedProduct.gstPercentage) && (
+                                          <button
+                                            onClick={() => {
+                                              setIsInstructionsOpen(!isInstructionsOpen);
+                                              if (!isInstructionsOpen) {
+                                                setIsDescriptionOpen(false);
+                                                setIsSpecializationOpen(false);
+                                              }
+                                            }}
+                                            className="px-4 py-2 bg-yellow-50 hover:bg-yellow-100 text-yellow-900 rounded-lg border border-yellow-200 text-sm font-medium transition-all flex items-center gap-2 shadow-sm hover:shadow-md"
+                                          >
+                                            <Info size={16} />
+                                            Instructions
+                                          </button>
+                                        )}
+
+                                        {/* Specialization Button - Only show if specialization exists */}
+                                        {selectedProduct.specialization && (
+                                          <button
+                                            onClick={() => {
+                                              setIsSpecializationOpen(!isSpecializationOpen);
+                                              if (!isSpecializationOpen) {
+                                                setIsDescriptionOpen(false);
+                                                setIsInstructionsOpen(false);
+                                              }
+                                            }}
+                                            className="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-900 rounded-lg border border-red-200 text-sm font-medium transition-all flex items-center gap-2 shadow-sm hover:shadow-md"
+                                          >
+                                            <Info size={16} />
+                                            Specialization
+                                          </button>
+                                        )}
+                                      </div>
+                                    )}
+
+                                    {/* Product Description Expandable Section */}
+                                    <AnimatePresence>
+                                      {isDescriptionOpen && selectedProduct && (selectedProduct.description || (selectedProduct.descriptionArray && selectedProduct.descriptionArray.length > 0)) && (
+                                        <motion.div
+                                          initial={{ opacity: 0, height: 0 }}
+                                          animate={{ opacity: 1, height: "auto" }}
+                                          exit={{ opacity: 0, height: 0 }}
+                                          transition={{ duration: 0.3, ease: "easeInOut" }}
+                                          className="overflow-hidden mb-2"
+                                        >
+                                          <div className="p-4 sm:p-6 bg-blue-50 border border-blue-200 rounded-lg">
+                                            <h4 className="text-sm font-bold text-blue-900 mb-3 flex items-center gap-2">
+                                              <FileText size={16} />
+                                              Product Description
+                                            </h4>
+                                            <div className="text-xs sm:text-sm text-blue-800">
+                                              {(() => {
+                                                // First check if description contains HTML (prioritize description field)
+                                                if (selectedProduct.description) {
+                                                  const hasHTML = /<[a-z][\s\S]*>/i.test(selectedProduct.description);
+                                                  if (hasHTML) {
+                                                    // Render HTML description exactly as provided by admin
+                                                    return (
+                                                      <>
+                                                        <style>{`
                                                         .product-description-html {
                                                           color: #1e3a8a;
                                                           line-height: 1.6;
@@ -4958,1500 +5276,1561 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                           margin-bottom: 0.125rem;
                                                         }
                                                       `}</style>
-                                                    <div
-                                                      className="product-description-html"
-                                                      dangerouslySetInnerHTML={{ __html: selectedProduct.description }}
-                                                    />
-                                                  </>
-                                                );
-                                              }
-                                            }
-
-                                            // Use descriptionArray if available, otherwise use description
-                                            if (selectedProduct.descriptionArray && Array.isArray(selectedProduct.descriptionArray) && selectedProduct.descriptionArray.length > 0) {
-                                              // Render descriptionArray with formatting
-                                              const renderTextWithBold = (text: string) => {
-                                                const parts = text.split(/(\*\*.*?\*\*)/g);
-                                                return parts.map((part, idx) => {
-                                                  if (part.startsWith('**') && part.endsWith('**')) {
-                                                    const boldText = part.slice(2, -2);
-                                                    return <strong key={idx} className="font-bold text-blue-900">{boldText}</strong>;
+                                                        <div
+                                                          className="product-description-html"
+                                                          dangerouslySetInnerHTML={{ __html: selectedProduct.description }}
+                                                        />
+                                                      </>
+                                                    );
                                                   }
-                                                  return <span key={idx}>{part}</span>;
-                                                });
-                                              };
-
-                                              // Ensure descriptionArray is displayed left to right (correct order)
-                                              // Reverse the array if it's stored in reverse order
-                                              const descriptionLines = [...selectedProduct.descriptionArray].reverse();
-                                              return descriptionLines.map((desc, i) => {
-                                                if (desc.includes(':')) {
-                                                  return (
-                                                    <div key={i} className="mt-1.5 first:mt-0">
-                                                      <p className="font-semibold text-blue-900 mb-1">
-                                                        {renderTextWithBold(desc)}
-                                                      </p>
-                                                    </div>
-                                                  );
-                                                } else if (desc.startsWith('→') || desc.startsWith('->') || desc.startsWith('•')) {
-                                                  const cleanDesc = desc.replace(/^[→•\-]+\s*/, '').trim();
-                                                  return (
-                                                    <p key={i} className="flex items-start leading-tight">
-                                                      <span className="mr-1.5 text-blue-600 mt-0.5">→</span>
-                                                      <span>{renderTextWithBold(cleanDesc)}</span>
-                                                    </p>
-                                                  );
-                                                } else {
-                                                  return (
-                                                    <p key={i} className="flex items-start leading-tight">
-                                                      <span className="mr-1.5 text-blue-600 mt-0.5">→</span>
-                                                      <span>{renderTextWithBold(desc)}</span>
-                                                    </p>
-                                                  );
                                                 }
-                                              });
-                                            } else if (selectedProduct.description) {
-                                              // Render plain text description with formatting (HTML already handled above)
-                                              const descriptionLines = selectedProduct.description.split('\n').map(line => line.trim()).filter(line => line.length > 0);
-                                              const renderTextWithBold = (text: string) => {
-                                                const parts = text.split(/(\*\*.*?\*\*)/g);
-                                                return parts.map((part, idx) => {
-                                                  if (part.startsWith('**') && part.endsWith('**')) {
-                                                    const boldText = part.slice(2, -2);
-                                                    return <strong key={idx} className="font-bold text-blue-900">{boldText}</strong>;
-                                                  }
-                                                  return <span key={idx}>{part}</span>;
-                                                });
-                                              };
-                                              return descriptionLines.map((desc, i) => {
-                                                if (desc.includes(':')) {
-                                                  return (
-                                                    <div key={i} className="mt-1.5 first:mt-0">
-                                                      <p className="font-semibold text-blue-900 mb-1">
-                                                        {renderTextWithBold(desc)}
-                                                      </p>
-                                                    </div>
-                                                  );
-                                                } else if (desc.startsWith('→') || desc.startsWith('->') || desc.startsWith('•')) {
-                                                  const cleanDesc = desc.replace(/^[→•\-]+\s*/, '').trim();
-                                                  return (
-                                                    <p key={i} className="flex items-start leading-tight">
-                                                      <span className="mr-1.5 text-blue-600 mt-0.5">→</span>
-                                                      <span>{renderTextWithBold(cleanDesc)}</span>
-                                                    </p>
-                                                  );
+
+                                                // Use descriptionArray if available, otherwise use description
+                                                if (selectedProduct.descriptionArray && Array.isArray(selectedProduct.descriptionArray) && selectedProduct.descriptionArray.length > 0) {
+                                                  // Render descriptionArray with formatting
+                                                  const renderTextWithBold = (text: string) => {
+                                                    const parts = text.split(/(\*\*.*?\*\*)/g);
+                                                    return parts.map((part, idx) => {
+                                                      if (part.startsWith('**') && part.endsWith('**')) {
+                                                        const boldText = part.slice(2, -2);
+                                                        return <strong key={idx} className="font-bold text-blue-900">{boldText}</strong>;
+                                                      }
+                                                      return <span key={idx}>{part}</span>;
+                                                    });
+                                                  };
+
+                                                  // Ensure descriptionArray is displayed left to right (correct order)
+                                                  // Reverse the array if it's stored in reverse order
+                                                  const descriptionLines = [...selectedProduct.descriptionArray].reverse();
+                                                  return descriptionLines.map((desc, i) => {
+                                                    if (desc.includes(':')) {
+                                                      return (
+                                                        <div key={i} className="mt-1.5 first:mt-0">
+                                                          <p className="font-semibold text-blue-900 mb-1">
+                                                            {renderTextWithBold(desc)}
+                                                          </p>
+                                                        </div>
+                                                      );
+                                                    } else if (desc.startsWith('→') || desc.startsWith('->') || desc.startsWith('•')) {
+                                                      const cleanDesc = desc.replace(/^[→•\-]+\s*/, '').trim();
+                                                      return (
+                                                        <p key={i} className="flex items-start leading-tight">
+                                                          <span className="mr-1.5 text-blue-600 mt-0.5">→</span>
+                                                          <span>{renderTextWithBold(cleanDesc)}</span>
+                                                        </p>
+                                                      );
+                                                    } else {
+                                                      return (
+                                                        <p key={i} className="flex items-start leading-tight">
+                                                          <span className="mr-1.5 text-blue-600 mt-0.5">→</span>
+                                                          <span>{renderTextWithBold(desc)}</span>
+                                                        </p>
+                                                      );
+                                                    }
+                                                  });
+                                                } else if (selectedProduct.description) {
+                                                  // Render plain text description with formatting (HTML already handled above)
+                                                  const descriptionLines = selectedProduct.description.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+                                                  const renderTextWithBold = (text: string) => {
+                                                    const parts = text.split(/(\*\*.*?\*\*)/g);
+                                                    return parts.map((part, idx) => {
+                                                      if (part.startsWith('**') && part.endsWith('**')) {
+                                                        const boldText = part.slice(2, -2);
+                                                        return <strong key={idx} className="font-bold text-blue-900">{boldText}</strong>;
+                                                      }
+                                                      return <span key={idx}>{part}</span>;
+                                                    });
+                                                  };
+                                                  return descriptionLines.map((desc, i) => {
+                                                    if (desc.includes(':')) {
+                                                      return (
+                                                        <div key={i} className="mt-1.5 first:mt-0">
+                                                          <p className="font-semibold text-blue-900 mb-1">
+                                                            {renderTextWithBold(desc)}
+                                                          </p>
+                                                        </div>
+                                                      );
+                                                    } else if (desc.startsWith('→') || desc.startsWith('->') || desc.startsWith('•')) {
+                                                      const cleanDesc = desc.replace(/^[→•\-]+\s*/, '').trim();
+                                                      return (
+                                                        <p key={i} className="flex items-start leading-tight">
+                                                          <span className="mr-1.5 text-blue-600 mt-0.5">→</span>
+                                                          <span>{renderTextWithBold(cleanDesc)}</span>
+                                                        </p>
+                                                      );
+                                                    } else {
+                                                      return (
+                                                        <p key={i} className="flex items-start leading-tight">
+                                                          <span className="mr-1.5 text-blue-600 mt-0.5">→</span>
+                                                          <span>{renderTextWithBold(desc)}</span>
+                                                        </p>
+                                                      );
+                                                    }
+                                                  });
                                                 } else {
-                                                  return (
-                                                    <p key={i} className="flex items-start leading-tight">
-                                                      <span className="mr-1.5 text-blue-600 mt-0.5">→</span>
-                                                      <span>{renderTextWithBold(desc)}</span>
-                                                    </p>
-                                                  );
+                                                  return <p className="text-blue-700 italic">No description available</p>;
                                                 }
-                                              });
-                                            } else {
-                                              return <p className="text-blue-700 italic">No description available</p>;
-                                            }
-                                          })()}
-                                        </div>
-                                      </div>
-                                    </motion.div>
-                                  )}
-                                </AnimatePresence>
-
-                                {/* Instructions Expandable Section */}
-                                <AnimatePresence>
-                                  {isInstructionsOpen && (
-                                    <motion.div
-                                      initial={{ opacity: 0, height: 0 }}
-                                      animate={{ opacity: 1, height: "auto" }}
-                                      exit={{ opacity: 0, height: 0 }}
-                                      transition={{ duration: 0.3, ease: "easeInOut" }}
-                                      className="overflow-hidden"
-                                    >
-                                      <div className="mb-2 p-4 sm:p-6 bg-yellow-50 border border-yellow-200 rounded-lg">
-                                        <h4 className="text-sm font-bold text-yellow-900 mb-3 flex items-center gap-2">
-                                          <Info size={16} />
-                                          Important Instructions - Please Read Carefully
-                                        </h4>
-
-                                        {/* Custom Instructions from Admin */}
-                                        {selectedProduct.instructions && (
-                                          <div className="mb-4 p-3 bg-red-50 border-2 border-red-300 rounded-lg">
-                                            <p className="text-xs font-bold text-red-900 mb-2 flex items-center gap-2">
-                                              <X size={14} className="text-red-600" />
-                                              CRITICAL: Company Not Responsible If Instructions Not Followed
-                                            </p>
-                                            <div className="text-xs sm:text-sm text-red-800 whitespace-pre-line">
-                                              {selectedProduct.instructions}
+                                              })()}
                                             </div>
                                           </div>
-                                        )}
+                                        </motion.div>
+                                      )}
+                                    </AnimatePresence>
+
+                                    {/* Instructions Expandable Section */}
+                                    <AnimatePresence>
+                                      {isInstructionsOpen && (
+                                        <motion.div
+                                          initial={{ opacity: 0, height: 0 }}
+                                          animate={{ opacity: 1, height: "auto" }}
+                                          exit={{ opacity: 0, height: 0 }}
+                                          transition={{ duration: 0.3, ease: "easeInOut" }}
+                                          className="overflow-hidden"
+                                        >
+                                          <div className="mb-2 p-4 sm:p-6 bg-yellow-50 border border-yellow-200 rounded-lg">
+                                            <h4 className="text-sm font-bold text-yellow-900 mb-3 flex items-center gap-2">
+                                              <Info size={16} />
+                                              Important Instructions - Please Read Carefully
+                                            </h4>
+
+                                            {/* Custom Instructions from Admin */}
+                                            {selectedProduct.instructions && (
+                                              <div className="mb-4 p-3 bg-red-50 border-2 border-red-300 rounded-lg">
+                                                <p className="text-xs font-bold text-red-900 mb-2 flex items-center gap-2">
+                                                  <X size={14} className="text-red-600" />
+                                                  CRITICAL: Company Not Responsible If Instructions Not Followed
+                                                </p>
+                                                <div className="text-xs sm:text-sm text-red-800 whitespace-pre-line">
+                                                  {selectedProduct.instructions}
+                                                </div>
+                                              </div>
+                                            )}
 
 
 
-                                        <div className="space-y-3 text-xs sm:text-sm text-yellow-800">
-                                          {/* File Upload Constraints */}
-                                          {(selectedProduct.maxFileSizeMB || selectedProduct.minFileWidth || selectedProduct.maxFileWidth || selectedProduct.minFileHeight || selectedProduct.maxFileHeight || selectedProduct.blockCDRandJPG) && (
-                                            <div>
-                                              <p className="font-semibold text-yellow-900 mb-2">File Upload Requirements:</p>
-                                              <div className="space-y-1 ml-4">
-                                                {selectedProduct.maxFileSizeMB && (
-                                                  <p>• Maximum file size: <strong>{selectedProduct.maxFileSizeMB} MB</strong></p>
-                                                )}
-                                                {(selectedProduct.minFileWidth || selectedProduct.maxFileWidth || selectedProduct.minFileHeight || selectedProduct.maxFileHeight) && (
-                                                  <div>
-                                                    <p>• File dimensions:</p>
-                                                    <div className="ml-4 space-y-1">
-                                                      {(selectedProduct.minFileWidth || selectedProduct.maxFileWidth) && (
-                                                        <p>
-                                                          - Width: <strong>
-                                                            {selectedProduct.minFileWidth && selectedProduct.maxFileWidth
-                                                              ? `${selectedProduct.minFileWidth} - ${selectedProduct.maxFileWidth} pixels`
-                                                              : selectedProduct.minFileWidth
-                                                                ? `Minimum ${selectedProduct.minFileWidth} pixels`
-                                                                : selectedProduct.maxFileWidth
-                                                                  ? `Maximum ${selectedProduct.maxFileWidth} pixels`
-                                                                  : "Any"}
-                                                          </strong>
-                                                        </p>
-                                                      )}
-                                                      {(selectedProduct.minFileHeight || selectedProduct.maxFileHeight) && (
-                                                        <p>
-                                                          - Height: <strong>
-                                                            {selectedProduct.minFileHeight && selectedProduct.maxFileHeight
-                                                              ? `${selectedProduct.minFileHeight} - ${selectedProduct.maxFileHeight} pixels`
-                                                              : selectedProduct.minFileHeight
-                                                                ? `Minimum ${selectedProduct.minFileHeight} pixels`
-                                                                : selectedProduct.maxFileHeight
-                                                                  ? `Maximum ${selectedProduct.maxFileHeight} pixels`
-                                                                  : "Any"}
-                                                          </strong>
-                                                        </p>
-                                                      )}
-                                                    </div>
+                                            <div className="space-y-3 text-xs sm:text-sm text-yellow-800">
+                                              {/* File Upload Constraints */}
+                                              {(selectedProduct.maxFileSizeMB || selectedProduct.minFileWidth || selectedProduct.maxFileWidth || selectedProduct.minFileHeight || selectedProduct.maxFileHeight || selectedProduct.blockCDRandJPG) && (
+                                                <div>
+                                                  <p className="font-semibold text-yellow-900 mb-2">File Upload Requirements:</p>
+                                                  <div className="space-y-1 ml-4">
+                                                    {selectedProduct.maxFileSizeMB && (
+                                                      <p>• Maximum file size: <strong>{selectedProduct.maxFileSizeMB} MB</strong></p>
+                                                    )}
+                                                    {(selectedProduct.minFileWidth || selectedProduct.maxFileWidth || selectedProduct.minFileHeight || selectedProduct.maxFileHeight) && (
+                                                      <div>
+                                                        <p>• File dimensions:</p>
+                                                        <div className="ml-4 space-y-1">
+                                                          {(selectedProduct.minFileWidth || selectedProduct.maxFileWidth) && (
+                                                            <p>
+                                                              - Width: <strong>
+                                                                {selectedProduct.minFileWidth && selectedProduct.maxFileWidth
+                                                                  ? `${selectedProduct.minFileWidth} - ${selectedProduct.maxFileWidth} pixels`
+                                                                  : selectedProduct.minFileWidth
+                                                                    ? `Minimum ${selectedProduct.minFileWidth} pixels`
+                                                                    : selectedProduct.maxFileWidth
+                                                                      ? `Maximum ${selectedProduct.maxFileWidth} pixels`
+                                                                      : "Any"}
+                                                              </strong>
+                                                            </p>
+                                                          )}
+                                                          {(selectedProduct.minFileHeight || selectedProduct.maxFileHeight) && (
+                                                            <p>
+                                                              - Height: <strong>
+                                                                {selectedProduct.minFileHeight && selectedProduct.maxFileHeight
+                                                                  ? `${selectedProduct.minFileHeight} - ${selectedProduct.maxFileHeight} pixels`
+                                                                  : selectedProduct.minFileHeight
+                                                                    ? `Minimum ${selectedProduct.minFileHeight} pixels`
+                                                                    : selectedProduct.maxFileHeight
+                                                                      ? `Maximum ${selectedProduct.maxFileHeight} pixels`
+                                                                      : "Any"}
+                                                              </strong>
+                                                            </p>
+                                                          )}
+                                                        </div>
+                                                      </div>
+                                                    )}
+                                                    {selectedProduct.blockCDRandJPG && (
+                                                      <p>• <strong>CDR and JPG files are not accepted</strong> for this product</p>
+                                                    )}
                                                   </div>
-                                                )}
-                                                {selectedProduct.blockCDRandJPG && (
-                                                  <p>• <strong>CDR and JPG files are not accepted</strong> for this product</p>
-                                                )}
-                                              </div>
+                                                </div>
+                                              )}
+
+                                              {/* Additional Settings */}
+                                              {(selectedProduct.additionalDesignCharge || selectedProduct.gstPercentage) && (
+                                                <div>
+                                                  <p className="font-semibold text-yellow-900 mb-2">Additional Charges:</p>
+                                                  <div className="space-y-1 ml-4">
+                                                    {selectedProduct.additionalDesignCharge && selectedProduct.additionalDesignCharge > 0 && (
+                                                      <p>• Additional Design Charge: <strong>₹{selectedProduct.additionalDesignCharge.toFixed(2)}</strong> (applied if design help is needed)</p>
+                                                    )}
+                                                    {selectedProduct.gstPercentage && selectedProduct.gstPercentage > 0 && (
+                                                      <p>• GST: <strong>{selectedProduct.gstPercentage}%</strong> (applied on subtotal + design charge)</p>
+                                                    )}
+                                                  </div>
+                                                </div>
+                                              )}
+
+                                              {!selectedProduct.instructions && !selectedProduct.maxFileSizeMB && !selectedProduct.minFileWidth && !selectedProduct.maxFileWidth && !selectedProduct.minFileHeight && !selectedProduct.maxFileHeight && !selectedProduct.blockCDRandJPG && !selectedProduct.additionalDesignCharge && !selectedProduct.gstPercentage && (
+                                                <p className="text-yellow-700 italic">No special instructions for this product.</p>
+                                              )}
                                             </div>
-                                          )}
+                                          </div>
+                                        </motion.div>
+                                      )}
+                                    </AnimatePresence>
 
-                                          {/* Additional Settings */}
-                                          {(selectedProduct.additionalDesignCharge || selectedProduct.gstPercentage) && (
-                                            <div>
-                                              <p className="font-semibold text-yellow-900 mb-2">Additional Charges:</p>
-                                              <div className="space-y-1 ml-4">
-                                                {selectedProduct.additionalDesignCharge && selectedProduct.additionalDesignCharge > 0 && (
-                                                  <p>• Additional Design Charge: <strong>₹{selectedProduct.additionalDesignCharge.toFixed(2)}</strong> (applied if design help is needed)</p>
-                                                )}
-                                                {selectedProduct.gstPercentage && selectedProduct.gstPercentage > 0 && (
-                                                  <p>• GST: <strong>{selectedProduct.gstPercentage}%</strong> (applied on subtotal + design charge)</p>
-                                                )}
-                                              </div>
+                                    {/* Specialization Expandable Section */}
+                                    <AnimatePresence>
+                                      {isSpecializationOpen && selectedProduct.specialization && (
+                                        <motion.div
+                                          initial={{ opacity: 0, height: 0 }}
+                                          animate={{ opacity: 1, height: "auto" }}
+                                          exit={{ opacity: 0, height: 0 }}
+                                          transition={{ duration: 0.3, ease: "easeInOut" }}
+                                          className="overflow-hidden"
+                                        >
+                                          <div className="mb-2 p-4 sm:p-6 bg-red-50 border border-red-200 rounded-lg">
+                                            <h4 className="text-sm font-bold text-red-900 mb-3 flex items-center gap-2">
+                                              <Info size={16} />
+                                              Product Specialization
+                                            </h4>
+                                            <div className="text-xs sm:text-sm text-red-800 whitespace-pre-line">
+                                              {selectedProduct.specialization}
                                             </div>
-                                          )}
+                                          </div>
+                                        </motion.div>
+                                      )}
+                                    </AnimatePresence>
+                                  </div>
+                                </div>
 
-                                          {!selectedProduct.instructions && !selectedProduct.maxFileSizeMB && !selectedProduct.minFileWidth && !selectedProduct.maxFileWidth && !selectedProduct.minFileHeight && !selectedProduct.maxFileHeight && !selectedProduct.blockCDRandJPG && !selectedProduct.additionalDesignCharge && !selectedProduct.gstPercentage && (
-                                            <p className="text-yellow-700 italic">No special instructions for this product.</p>
-                                          )}
-                                        </div>
-                                      </div>
-                                    </motion.div>
-                                  )}
-                                </AnimatePresence>
-
-                                {/* Specialization Expandable Section */}
-                                <AnimatePresence>
-                                  {isSpecializationOpen && selectedProduct.specialization && (
-                                    <motion.div
-                                      initial={{ opacity: 0, height: 0 }}
-                                      animate={{ opacity: 1, height: "auto" }}
-                                      exit={{ opacity: 0, height: 0 }}
-                                      transition={{ duration: 0.3, ease: "easeInOut" }}
-                                      className="overflow-hidden"
-                                    >
-                                      <div className="mb-2 p-4 sm:p-6 bg-red-50 border border-red-200 rounded-lg">
-                                        <h4 className="text-sm font-bold text-red-900 mb-3 flex items-center gap-2">
-                                          <Info size={16} />
-                                          Product Specialization
-                                        </h4>
-                                        <div className="text-xs sm:text-sm text-red-800 whitespace-pre-line">
-                                          {selectedProduct.specialization}
-                                        </div>
-                                      </div>
-                                    </motion.div>
-                                  )}
-                                </AnimatePresence>
                               </div>
                             </div>
 
-                          </div>
-                        </div>
-
-                        {(() => {
-                          // Granular Loading: Show Skeletons for Options/Attributes
-                          if (loading || pdpLoading) {
-                            return (
-                              <div className="space-y-6 mt-4">
-                                {/* Section 1 Skeleton */}
-                                <div className="space-y-3">
-                                  <Skeleton variant="text" className="w-32 h-4" />
-                                  <div className="grid grid-cols-2 gap-3">
-                                    {[1, 2, 3, 4].map(i => (
-                                      <Skeleton key={i} variant="rectangular" className="h-12 rounded-xl" />
-                                    ))}
-                                  </div>
-                                </div>
-
-                                {/* Section 2 Skeleton (Dropdowns) */}
-                                <div className="space-y-4">
-                                  <AttributeCardSkeleton />
-                                  <AttributeCardSkeleton />
-                                  <AttributeCardSkeleton />
-                                </div>
-
-                                {/* Quantity Skeleton */}
-                                <div className="space-y-3">
-                                  <Skeleton variant="text" className="w-40 h-4" />
-                                  <Skeleton variant="rectangular" className="h-12 rounded-lg" />
-                                </div>
-                              </div>
-                            );
-                          }
-
-                          if (!selectedProduct) return null;
-
-                          // Calculate section numbers dynamically based on visible sections
-                          let sectionNum = 1;
-                          const hasOptions = selectedProduct.options && selectedProduct.options.length > 0;
-                          const hasPrintingOption = selectedProduct.filters?.printingOption && selectedProduct.filters.printingOption.length > 0;
-                          const hasTextureType = selectedProduct.filters?.textureType && selectedProduct.filters.textureType.length > 0;
-                          const hasDeliverySpeed = selectedProduct.filters?.deliverySpeed && selectedProduct.filters.deliverySpeed.length > 0;
-
-                          return (
-                            <>
-                              {/* Product Options (from options table) */}
-                              {hasOptions && (
-                                <div className="mb-3 sm:mb-4">
-                                  <label className="block text-xs sm:text-sm font-bold text-gray-900 mb-2 sm:mb-3 uppercase tracking-wider">
-                                    {sectionNum++}. Product Options
-                                  </label>
-                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
-                                    {selectedProduct.options.map((option: any, idx: number) => {
-                                      const isSelected = selectedProductOptions.includes(option.name);
-                                      return (
-                                        <button
-                                          key={idx}
-                                          type="button"
-                                          onClick={() => {
-                                            if (isSelected) {
-                                              setSelectedProductOptions(selectedProductOptions.filter(name => name !== option.name));
-                                            } else {
-                                              setSelectedProductOptions([...selectedProductOptions, option.name]);
-                                            }
-                                          }}
-                                          className={`p-4 rounded-xl border text-left transition-all duration-200 relative shadow-sm hover:shadow-md ${isSelected
-                                            ? "border-slate-800 bg-slate-50 text-slate-900 ring-1 ring-slate-800"
-                                            : "border-slate-200 text-slate-600 hover:border-slate-400 hover:bg-slate-50"
-                                            }`}
-                                        >
-                                          {isSelected && (
-                                            <div className="absolute top-2 right-2">
-                                              <Check size={18} className="text-slate-900" />
-                                            </div>
-                                          )}
-                                          <div className="font-bold text-sm mb-1">{option.name}</div>
-                                          {option.description && (
-                                            <p className="text-xs text-gray-600 mt-1">
-                                              {option.description}
-                                            </p>
-                                          )}
-                                          {option.priceAdd !== undefined && option.priceAdd !== 0 && (
-                                            <p className="text-xs text-gray-700 mt-1 font-medium">
-                                              {option.priceAdd > 0 ? '+' : ''}₹{typeof option.priceAdd === 'number' ? option.priceAdd.toFixed(2) : parseFloat(option.priceAdd).toFixed(2)} per 1000 units
-                                            </p>
-                                          )}
-                                          {option.image && (
-                                            <LazyImage
-                                              src={option.image}
-                                              alt={option.name}
-                                              className="w-full h-full object-cover transition-transform duration-200 hover:scale-105 rounded-lg mt-2"
-                                              showSkeleton={true}
-                                              skeletonVariant="rectangular"
-                                            />
-                                          )}
-                                        </button>
-                                      );
-                                    })}
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* Printing Option - Auto-skip if only one option */}
-                              {hasPrintingOption && selectedProduct.filters.printingOption.length > 1 && (
-                                <div className="mb-3 sm:mb-4" data-section="printingOption">
-                                  <label className="block text-xs sm:text-sm font-bold text-gray-900 mb-2 sm:mb-3 uppercase tracking-wider">
-                                    {sectionNum++}. Printing Option
-                                  </label>
-                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
-                                    {selectedProduct.filters.printingOption.map((option) => {
-                                      // Check if filter prices are enabled and get price
-                                      const filterPricesEnabled = selectedProduct.filters?.filterPricesEnabled || false;
-                                      let priceInfo = null;
-                                      if (filterPricesEnabled && selectedProduct.filters?.printingOptionPrices) {
-                                        const priceData = selectedProduct.filters.printingOptionPrices.find((p: any) => p.name === option);
-                                        if (priceData && priceData.priceAdd !== undefined && priceData.priceAdd !== 0) {
-                                          priceInfo = priceData.priceAdd;
-                                        }
-                                      }
-
-                                      return (
-                                        <button
-                                          key={option}
-                                          data-field="printingOption"
-                                          onClick={() => setSelectedPrintingOption(option)}
-                                          className={`p-4 rounded-xl border text-left transition-all duration-200 relative shadow-sm hover:shadow-md ${selectedPrintingOption === option
-                                            ? "border-blue-500 bg-blue-50/50 text-blue-900 ring-1 ring-blue-500"
-                                            : "border-slate-200 text-slate-600 hover:border-blue-300 hover:bg-blue-50/30"
-                                            }`}
-                                        >
-                                          {selectedPrintingOption === option && (
-                                            <div className="absolute top-2 right-2">
-                                              <Check size={18} className="text-blue-600" />
-                                            </div>
-                                          )}
-                                          <div className="font-bold text-sm">{option}</div>
-                                          {priceInfo !== null && (
-                                            <div className="text-xs text-gray-600 mt-1">
-                                              {priceInfo > 0 ? '+' : ''}₹{Math.abs(priceInfo).toFixed(2)} per 1000 units
-                                            </div>
-                                          )}
-                                        </button>
-                                      );
-                                    })}
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* Texture Type (if applicable) - Auto-skip if only one option */}
-                              {hasTextureType && selectedProduct.filters.textureType.length > 1 && (
-                                <div className="mb-3 sm:mb-4">
-                                  <label className="block text-xs sm:text-sm font-bold text-gray-900 mb-2 sm:mb-3 uppercase tracking-wider">
-                                    {sectionNum++}. Texture Type
-                                  </label>
-                                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
-                                    {selectedProduct.filters.textureType.map((texture) => {
-                                      // Check if filter prices are enabled and get price
-                                      const filterPricesEnabled = selectedProduct.filters?.filterPricesEnabled || false;
-                                      let priceInfo = null;
-                                      if (filterPricesEnabled && selectedProduct.filters?.textureTypePrices) {
-                                        const priceData = selectedProduct.filters.textureTypePrices.find((p: any) => p.name === texture);
-                                        if (priceData && priceData.priceAdd !== undefined && priceData.priceAdd !== 0) {
-                                          priceInfo = priceData.priceAdd;
-                                        }
-                                      }
-
-                                      return (
-                                        <button
-                                          key={texture}
-                                          onClick={() => setSelectedTextureType(texture)}
-                                          className={`p-3 rounded-xl border text-xs sm:text-sm font-medium transition-all duration-200 relative shadow-sm hover:shadow-md ${selectedTextureType === texture
-                                            ? "border-purple-500 bg-purple-50/50 text-purple-900 ring-1 ring-purple-500"
-                                            : "border-slate-200 text-slate-600 hover:border-purple-300 hover:bg-purple-50/30"
-                                            }`}
-                                        >
-                                          {selectedTextureType === texture && (
-                                            <div className="absolute top-1 right-1">
-                                              <Check size={16} className="text-purple-600" />
-                                            </div>
-                                          )}
-                                          <div>{texture}</div>
-                                          {priceInfo !== null && (selectedProduct.showAttributePrices !== false) && (
-                                            <div className="text-xs text-gray-600 mt-1">
-                                              {priceInfo > 0 ? '+' : ''}₹{Math.abs(priceInfo).toFixed(2)}/1k
-                                            </div>
-                                          )}
-                                        </button>
-                                      );
-                                    })}
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* Delivery Speed - Auto-skip if only one option */}
-                              {hasDeliverySpeed && selectedProduct.filters.deliverySpeed.length > 1 && (
-                                <div className="mb-3 sm:mb-4" data-section="deliverySpeed">
-                                  <label className="block text-xs sm:text-sm font-bold text-gray-900 mb-2 sm:mb-3 uppercase tracking-wider">
-                                    {sectionNum++}. Delivery Speed
-                                  </label>
-                                  <div className="grid grid-cols-2 gap-2 sm:gap-3">
-                                    {selectedProduct.filters.deliverySpeed.map((speed) => {
-                                      // Check if filter prices are enabled and get price
-                                      const filterPricesEnabled = selectedProduct.filters?.filterPricesEnabled || false;
-                                      let priceInfo = null;
-                                      if (filterPricesEnabled && selectedProduct.filters?.deliverySpeedPrices) {
-                                        const priceData = selectedProduct.filters.deliverySpeedPrices.find((p: any) => p.name === speed);
-                                        if (priceData && priceData.priceAdd !== undefined && priceData.priceAdd !== 0) {
-                                          priceInfo = priceData.priceAdd;
-                                        }
-                                      }
-
-                                      return (
-                                        <button
-                                          key={speed}
-                                          data-field="deliverySpeed"
-                                          onClick={() => setSelectedDeliverySpeed(speed)}
-                                          className={`p-4 rounded-xl border text-left transition-all duration-200 relative shadow-sm hover:shadow-md ${selectedDeliverySpeed === speed
-                                            ? "border-emerald-500 bg-emerald-50/50 text-emerald-900 ring-1 ring-emerald-500"
-                                            : "border-slate-200 text-slate-600 hover:border-emerald-300 hover:bg-emerald-50/30"
-                                            }`}
-                                        >
-                                          {selectedDeliverySpeed === speed && (
-                                            <div className="absolute top-2 right-2">
-                                              <Check size={18} className="text-emerald-600" />
-                                            </div>
-                                          )}
-                                          <div className="font-bold text-sm">{speed}</div>
-                                          {priceInfo !== null && (selectedProduct.showAttributePrices !== false) && (
-                                            <div className="text-xs text-gray-600 mt-1">
-                                              {priceInfo > 0 ? '+' : ''}₹{Math.abs(priceInfo).toFixed(2)} per 1000 units
-                                            </div>
-                                          )}
-                                        </button>
-                                      );
-                                    })}
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* Quantity Selection */}
-                              <div className="mb-3 sm:mb-4" data-section="quantity">
-                                <div className="flex items-center gap-4">
-                                  <label className="text-xs sm:text-sm font-bold text-gray-900 uppercase tracking-wider shrink-0" style={{ minWidth: '200px' }}>
-                                    {sectionNum++}. Select Quantity
-                                  </label>
-                                  <div className="flex-1">
-                                    <Select
-                                      options={generateQuantities(selectedProduct).map((q) => ({
-                                        value: q,
-                                        label: q.toLocaleString()
-                                      }))}
-                                      value={quantity}
-                                      onValueChange={(value) => setQuantity(Number(value))}
-                                      placeholder="Select quantity"
-                                      className="w-full"
-                                      colorTheme="amber"
-                                    />
-                                  </div>
-                                </div>
-
-                                {(() => {
-                                  // PRIORITY 1: Check if active quantity constraints from rules exist
-                                  if (activeQuantityConstraints) {
-                                    const { min, max, step } = activeQuantityConstraints;
-                                    return (
-                                      <div className="text-xs sm:text-sm text-gray-600 mb-2">
-                                        <span className="font-medium">Quantity Rules Applied:</span> Min: {min.toLocaleString()}, Max: {max.toLocaleString()}, Step: {step.toLocaleString()}
-                                      </div>
-                                    );
-                                  }
-
-                                  // PRIORITY 2: Check if any selected attribute has step/range quantity settings
-                                  let attributeQuantityInfo: any = null;
-                                  let attributeName = '';
-
-                                  // Check PDP attributes first (if initialized)
-                                  if (isInitialized && pdpAttributes.length > 0) {
-                                    for (const attr of pdpAttributes) {
-                                      if (!attr.isVisible) continue;
-
-                                      const selectedValue = selectedDynamicAttributes[attr._id];
-                                      if (!selectedValue) continue;
-
-                                      // Check if this attribute has step/range quantity settings
-                                      if ((attr as any).isStepQuantity && (attr as any).stepQuantities && (attr as any).stepQuantities.length > 0) {
-                                        attributeQuantityInfo = {
-                                          type: 'STEP_WISE',
-                                          stepQuantities: (attr as any).stepQuantities
-                                        };
-                                        attributeName = attr.attributeName;
-                                        break;
-                                      }
-
-                                      if ((attr as any).isRangeQuantity && (attr as any).rangeQuantities && (attr as any).rangeQuantities.length > 0) {
-                                        attributeQuantityInfo = {
-                                          type: 'RANGE_WISE',
-                                          rangeQuantities: (attr as any).rangeQuantities
-                                        };
-                                        attributeName = attr.attributeName;
-                                        break;
-                                      }
-                                    }
-                                  }
-
-                                  // Fallback to product attributes if PDP not available
-                                  if (!attributeQuantityInfo && selectedProduct && selectedProduct.dynamicAttributes) {
-                                    for (const attr of selectedProduct.dynamicAttributes) {
-                                      if (!attr.isEnabled) continue;
-
-                                      const attrType = typeof attr.attributeType === 'object' ? attr.attributeType : null;
-                                      if (!attrType) continue;
-
-                                      const selectedValue = selectedDynamicAttributes[attrType._id];
-                                      if (!selectedValue) continue;
-
-                                      // Check if this attribute has step/range quantity settings
-                                      if ((attrType as any).isStepQuantity && (attrType as any).stepQuantities && (attrType as any).stepQuantities.length > 0) {
-                                        attributeQuantityInfo = {
-                                          type: 'STEP_WISE',
-                                          stepQuantities: (attrType as any).stepQuantities
-                                        };
-                                        attributeName = attrType.attributeName;
-                                        break;
-                                      }
-
-                                      if ((attrType as any).isRangeQuantity && (attrType as any).rangeQuantities && (attrType as any).rangeQuantities.length > 0) {
-                                        attributeQuantityInfo = {
-                                          type: 'RANGE_WISE',
-                                          rangeQuantities: (attrType as any).rangeQuantities
-                                        };
-                                        attributeName = attrType.attributeName;
-                                        break;
-                                      }
-                                    }
-                                  }
-
-                                  // If attribute has quantity settings, use those
-                                  if (attributeQuantityInfo) {
-                                    if (attributeQuantityInfo.type === 'STEP_WISE') {
-                                      const stepQuantities = attributeQuantityInfo.stepQuantities
-                                        .map((step: any) => {
-                                          const qty = typeof step === 'object' ? parseFloat(step.quantity) : parseFloat(step);
-                                          return isNaN(qty) ? 0 : qty;
-                                        })
-                                        .filter((qty: number) => qty > 0)
-                                        .sort((a: number, b: number) => a - b);
-
-                                      return (
-                                        <div className="text-xs sm:text-sm text-gray-600 mb-2">
-                                          <span className="font-medium">{attributeName}:</span> Available quantities: {stepQuantities.map(q => q.toLocaleString()).join(", ")}
-                                        </div>
-                                      );
-                                    } else if (attributeQuantityInfo.type === 'RANGE_WISE') {
-                                      return (
-                                        <div className="text-xs sm:text-sm text-gray-600 mb-2 space-y-1">
-                                          <div className="font-medium mb-1">{attributeName}:</div>
-                                          {attributeQuantityInfo.rangeQuantities.map((range: any, idx: number) => {
-                                            const min = typeof range === 'object' ? parseFloat(range.min) : 0;
-                                            const max = typeof range === 'object' && range.max ? parseFloat(range.max) : null;
-                                            const price = typeof range === 'object' ? parseFloat(range.price) : 0;
-
-                                            return (
-                                              <div key={idx}>
-                                                {range.label || `${min.toLocaleString()}${max ? ` - ${max.toLocaleString()}` : "+"} units`}
-                                                {price > 0 && (selectedProduct.showAttributePrices !== false) && (
-                                                  <span className="ml-2 text-green-600">
-                                                    (₹{price.toFixed(2)})
-                                                  </span>
-                                                )}
-                                              </div>
-                                            );
-                                          })}
-                                        </div>
-                                      );
-                                    }
-                                  }
-
-                                  // Fallback to product's quantity configuration
-                                  const orderQuantity = selectedProduct.filters.orderQuantity;
-                                  const quantityType = orderQuantity.quantityType || "SIMPLE";
-
-                                  if (quantityType === "STEP_WISE" && orderQuantity.stepWiseQuantities && orderQuantity.stepWiseQuantities.length > 0) {
-                                    return (
-                                      <div className="text-xs sm:text-sm text-gray-600 mb-2">
-                                        Available quantities: {orderQuantity.stepWiseQuantities.sort((a, b) => a - b).map(q => q.toLocaleString()).join(", ")}
-                                      </div>
-                                    );
-                                  } else if (quantityType === "RANGE_WISE" && orderQuantity.rangeWiseQuantities && orderQuantity.rangeWiseQuantities.length > 0) {
-                                    return (
-                                      <div className="text-xs sm:text-sm text-gray-600 mb-2 space-y-1">
-                                        {orderQuantity.rangeWiseQuantities.map((range, idx) => (
-                                          <div key={idx}>
-                                            {range.label || `${range.min.toLocaleString()}${range.max ? ` - ${range.max.toLocaleString()}` : "+"} units`}
-                                            {range.priceMultiplier !== 1.0 && (selectedProduct.showAttributePrices !== false) && (
-                                              <span className="ml-2 text-green-600">
-                                                ({range.priceMultiplier > 1 ? "+" : ""}{((range.priceMultiplier - 1) * 100).toFixed(0)}% price)
-                                              </span>
-                                            )}
-                                          </div>
+                            {(() => {
+                              // Granular Loading: Show Skeletons for Options/Attributes
+                              if (loading || pdpLoading) {
+                                return (
+                                  <div className="space-y-6 mt-4">
+                                    {/* Section 1 Skeleton */}
+                                    <div className="space-y-3">
+                                      <Skeleton variant="text" className="w-32 h-4" />
+                                      <div className="grid grid-cols-2 gap-3">
+                                        {[1, 2, 3, 4].map(i => (
+                                          <Skeleton key={i} variant="rectangular" className="h-12 rounded-xl" />
                                         ))}
                                       </div>
-                                    );
-                                  } else {
-                                    return (
-                                      <></>
-                                    );
-                                  }
-                                })()}
-                                {appliedDiscount !== null && appliedDiscount > 0 && (
-                                  <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded-lg">
-                                    <p className="text-xs sm:text-sm text-green-800 font-medium">
-                                      🎉 You're saving {appliedDiscount}% on this order! (Bulk discount applied)
-                                    </p>
-                                  </div>
-                                )}
-                                {selectedProduct.quantityDiscounts && selectedProduct.quantityDiscounts.length > 0 && (
-                                  <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                                    <p className="text-xs font-medium text-blue-900 mb-2">Available Quantity Discounts:</p>
-                                    <div className="space-y-1">
-                                      {selectedProduct.quantityDiscounts.map((discount: any, idx: number) => {
-                                        const minQty = discount.minQuantity || 0;
-                                        const maxQty = discount.maxQuantity;
-                                        const discountPct = discount.discountPercentage || 0;
-                                        const range = maxQty
-                                          ? `${minQty.toLocaleString()} - ${maxQty.toLocaleString()} units`
-                                          : `${minQty.toLocaleString()}+ units`;
-                                        return (
-                                          <p key={idx} className="text-xs text-blue-800">
-                                            • {range}: <strong>{discountPct}% off</strong>
-                                          </p>
-                                        );
-                                      })}
+                                    </div>
+
+                                    {/* Section 2 Skeleton (Dropdowns) */}
+                                    <div className="space-y-4">
+                                      <AttributeCardSkeleton />
+                                      <AttributeCardSkeleton />
+                                      <AttributeCardSkeleton />
+                                    </div>
+
+                                    {/* Quantity Skeleton */}
+                                    <div className="space-y-3">
+                                      <Skeleton variant="text" className="w-40 h-4" />
+                                      <Skeleton variant="rectangular" className="h-12 rounded-lg" />
                                     </div>
                                   </div>
-                                )}
-                              </div>
+                                );
+                              }
 
-                              {/* Dynamic Attributes */}
-                              {(() => {
-                                // Use PDP attributes with rule evaluation if available, otherwise fallback to product attributes
-                                let attributesToRender: any[] = [];
+                              if (!selectedProduct) return null;
 
-                                if (isInitialized && pdpAttributes.length > 0) {
-                                  // Apply rules to get evaluated attributes
-                                  const ruleResult = applyAttributeRules({
-                                    attributes: pdpAttributes,
-                                    rules: pdpRules,
-                                    selectedValues: { ...selectedDynamicAttributes } as Record<string, string | number | boolean | File | any[] | null>,
-                                  });
+                              // Calculate section numbers dynamically based on visible sections
+                              let sectionNum = 1;
+                              const hasOptions = selectedProduct.options && selectedProduct.options.length > 0;
+                              const hasPrintingOption = selectedProduct.filters?.printingOption && selectedProduct.filters.printingOption.length > 0;
+                              const hasTextureType = selectedProduct.filters?.textureType && selectedProduct.filters.textureType.length > 0;
+                              const hasDeliverySpeed = selectedProduct.filters?.deliverySpeed && selectedProduct.filters.deliverySpeed.length > 0;
 
-                                  // Filter to only visible attributes
-                                  attributesToRender = ruleResult.attributes
-                                    .filter((attr) => attr.isVisible)
-                                    .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
-                                } else if (selectedProduct.dynamicAttributes) {
-                                  // Fallback to product attributes
-                                  attributesToRender = selectedProduct.dynamicAttributes
-                                    .filter((attr) => attr.isEnabled)
-                                    .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
-                                }
+                              return (
+                                <>
+                                  {/* Product Options (from options table) */}
+                                  {hasOptions && (
+                                    <div className="mb-3 sm:mb-4">
+                                      <label className="block text-xs sm:text-sm font-bold text-gray-900 mb-2 sm:mb-3 uppercase tracking-wider">
+                                        {sectionNum++}. Product Options
+                                      </label>
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
+                                        {selectedProduct.options.map((option: any, idx: number) => {
+                                          const isSelected = selectedProductOptions.includes(option.name);
+                                          return (
+                                            <button
+                                              key={idx}
+                                              type="button"
+                                              onClick={() => {
+                                                if (isSelected) {
+                                                  setSelectedProductOptions(selectedProductOptions.filter(name => name !== option.name));
+                                                } else {
+                                                  setSelectedProductOptions([...selectedProductOptions, option.name]);
+                                                }
+                                              }}
+                                              className={`p-4 rounded-xl border text-left transition-all duration-200 relative shadow-sm hover:shadow-md ${isSelected
+                                                ? "border-slate-800 bg-slate-50 text-slate-900 ring-1 ring-slate-800"
+                                                : "border-slate-200 text-slate-600 hover:border-slate-400 hover:bg-slate-50"
+                                                }`}
+                                            >
+                                              {isSelected && (
+                                                <div className="absolute top-2 right-2">
+                                                  <Check size={18} className="text-slate-900" />
+                                                </div>
+                                              )}
+                                              <div className="font-bold text-sm mb-1">{option.name}</div>
+                                              {option.description && (
+                                                <p className="text-xs text-gray-600 mt-1">
+                                                  {option.description}
+                                                </p>
+                                              )}
+                                              {option.priceAdd !== undefined && option.priceAdd !== 0 && (
+                                                <p className="text-xs text-gray-700 mt-1 font-medium">
+                                                  {option.priceAdd > 0 ? '+' : ''}₹{typeof option.priceAdd === 'number' ? option.priceAdd.toFixed(2) : parseFloat(option.priceAdd).toFixed(2)} per 1000 units
+                                                </p>
+                                              )}
+                                              {option.image && (
+                                                <LazyImage
+                                                  src={option.image}
+                                                  alt={option.name}
+                                                  className="w-full h-full object-cover transition-transform duration-200 hover:scale-105 rounded-lg mt-2"
+                                                  showSkeleton={true}
+                                                  skeletonVariant="rectangular"
+                                                />
+                                              )}
+                                            </button>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  )}
 
-                                return attributesToRender.length > 0 ? (
-                                  <>
-                                    {attributesToRender.map((attr) => {
-                                      // Handle PDP attributes (already evaluated) vs product attributes
-                                      let attrType: any = null;
-                                      let attributeValues: any[] = [];
-                                      let attrId: string = '';
-                                      let isRequired: boolean = false;
-                                      let displayOrder: number = 0;
-                                      let showPrice: boolean = true;
+                                  {/* Printing Option - Auto-skip if only one option */}
+                                  {hasPrintingOption && selectedProduct.filters.printingOption.length > 1 && (
+                                    <div className="mb-3 sm:mb-4" data-section="printingOption">
+                                      <label className="block text-xs sm:text-sm font-bold text-gray-900 mb-2 sm:mb-3 uppercase tracking-wider">
+                                        {sectionNum++}. Printing Option
+                                      </label>
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
+                                        {selectedProduct.filters.printingOption.map((option) => {
+                                          // Check if filter prices are enabled and get price
+                                          const filterPricesEnabled = selectedProduct.filters?.filterPricesEnabled || false;
+                                          let priceInfo = null;
+                                          if (filterPricesEnabled && selectedProduct.filters?.printingOptionPrices) {
+                                            const priceData = selectedProduct.filters.printingOptionPrices.find((p: any) => p.name === option);
+                                            if (priceData && priceData.priceAdd !== undefined && priceData.priceAdd !== 0) {
+                                              priceInfo = priceData.priceAdd;
+                                            }
+                                          }
 
-                                      if (isInitialized && pdpAttributes.length > 0) {
-                                        // PDP attribute structure
-                                        attrId = attr._id;
-                                        isRequired = attr.isRequired || false;
-                                        displayOrder = attr.displayOrder || 0;
-                                        showPrice = attr.showPrice !== undefined ? attr.showPrice : true;
-                                        console.log(`🔍 Attribute "${attr.attributeName}" showPrice:`, attr.showPrice, '-> final:', showPrice);
-                                        attributeValues = (attr.allowedValues && attr.allowedValues.length > 0)
-                                          ? (attr.attributeValues || []).filter((av: any) => attr.allowedValues!.includes(av.value))
-                                          : (attr.attributeValues || []);
+                                          return (
+                                            <button
+                                              key={option}
+                                              data-field="printingOption"
+                                              onClick={() => setSelectedPrintingOption(option)}
+                                              className={`p-4 rounded-xl border text-left transition-all duration-200 relative shadow-sm hover:shadow-md ${selectedPrintingOption === option
+                                                ? "border-blue-500 bg-blue-50/50 text-blue-900 ring-1 ring-blue-500"
+                                                : "border-slate-200 text-slate-600 hover:border-blue-300 hover:bg-blue-50/30"
+                                                }`}
+                                            >
+                                              {selectedPrintingOption === option && (
+                                                <div className="absolute top-2 right-2">
+                                                  <Check size={18} className="text-blue-600" />
+                                                </div>
+                                              )}
+                                              <div className="font-bold text-sm">{option}</div>
+                                              {priceInfo !== null && (
+                                                <div className="text-xs text-gray-600 mt-1">
+                                                  {priceInfo > 0 ? '+' : ''}₹{Math.abs(priceInfo).toFixed(2)} per 1000 units
+                                                </div>
+                                              )}
+                                            </button>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  )}
 
-                                        // Build attrType-like structure for compatibility
-                                        attrType = {
-                                          _id: attr._id,
-                                          attributeName: attr.attributeName,
-                                          inputStyle: attr.inputStyle,
-                                          attributeValues: attributeValues,
-                                          defaultValue: attr.defaultValue,
-                                        };
-                                      } else {
-                                        // Legacy product attribute structure
-                                        if (typeof attr.attributeType === 'object' && attr.attributeType !== null) {
-                                          attrType = attr.attributeType;
-                                          attrId = attrType._id;
-                                        } else if (typeof attr.attributeType === 'string' && attr.attributeType.trim() !== '') {
-                                          return null;
-                                        }
+                                  {/* Texture Type (if applicable) - Auto-skip if only one option */}
+                                  {hasTextureType && selectedProduct.filters.textureType.length > 1 && (
+                                    <div className="mb-3 sm:mb-4">
+                                      <label className="block text-xs sm:text-sm font-bold text-gray-900 mb-2 sm:mb-3 uppercase tracking-wider">
+                                        {sectionNum++}. Texture Type
+                                      </label>
+                                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+                                        {selectedProduct.filters.textureType.map((texture) => {
+                                          // Check if filter prices are enabled and get price
+                                          const filterPricesEnabled = selectedProduct.filters?.filterPricesEnabled || false;
+                                          let priceInfo = null;
+                                          if (filterPricesEnabled && selectedProduct.filters?.textureTypePrices) {
+                                            const priceData = selectedProduct.filters.textureTypePrices.find((p: any) => p.name === texture);
+                                            if (priceData && priceData.priceAdd !== undefined && priceData.priceAdd !== 0) {
+                                              priceInfo = priceData.priceAdd;
+                                            }
+                                          }
 
-                                        if (!attrType || !attrType._id) {
-                                          return null;
-                                        }
+                                          return (
+                                            <button
+                                              key={texture}
+                                              onClick={() => setSelectedTextureType(texture)}
+                                              className={`p-3 rounded-xl border text-xs sm:text-sm font-medium transition-all duration-200 relative shadow-sm hover:shadow-md ${selectedTextureType === texture
+                                                ? "border-purple-500 bg-purple-50/50 text-purple-900 ring-1 ring-purple-500"
+                                                : "border-slate-200 text-slate-600 hover:border-purple-300 hover:bg-purple-50/30"
+                                                }`}
+                                            >
+                                              {selectedTextureType === texture && (
+                                                <div className="absolute top-1 right-1">
+                                                  <Check size={16} className="text-purple-600" />
+                                                </div>
+                                              )}
+                                              <div>{texture}</div>
+                                              {priceInfo !== null && (selectedProduct.showAttributePrices !== false) && (
+                                                <div className="text-xs text-gray-600 mt-1">
+                                                  {priceInfo > 0 ? '+' : ''}₹{Math.abs(priceInfo).toFixed(2)}/1k
+                                                </div>
+                                              )}
+                                            </button>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  )}
 
-                                        attrId = attrType._id;
-                                        isRequired = attr.isRequired || false;
-                                        displayOrder = attr.displayOrder || 0;
-                                        showPrice = attr.showPrice !== undefined ? attr.showPrice : true;
-                                        console.log(`🔍 Legacy Attribute "${attrType.attributeName}" showPrice:`, attr.showPrice, '-> final:', showPrice);
-                                        attributeValues = attr.customValues && attr.customValues.length > 0
-                                          ? attr.customValues
-                                          : attrType.attributeValues || [];
+                                  {/* Delivery Speed - Auto-skip if only one option */}
+                                  {hasDeliverySpeed && selectedProduct.filters.deliverySpeed.length > 1 && (
+                                    <div className="mb-3 sm:mb-4" data-section="deliverySpeed">
+                                      <label className="block text-xs sm:text-sm font-bold text-gray-900 mb-2 sm:mb-3 uppercase tracking-wider">
+                                        {sectionNum++}. Delivery Speed
+                                      </label>
+                                      <div className="grid grid-cols-2 gap-2 sm:gap-3">
+                                        {selectedProduct.filters.deliverySpeed.map((speed) => {
+                                          // Check if filter prices are enabled and get price
+                                          const filterPricesEnabled = selectedProduct.filters?.filterPricesEnabled || false;
+                                          let priceInfo = null;
+                                          if (filterPricesEnabled && selectedProduct.filters?.deliverySpeedPrices) {
+                                            const priceData = selectedProduct.filters.deliverySpeedPrices.find((p: any) => p.name === speed);
+                                            if (priceData && priceData.priceAdd !== undefined && priceData.priceAdd !== 0) {
+                                              priceInfo = priceData.priceAdd;
+                                            }
+                                          }
+
+                                          return (
+                                            <button
+                                              key={speed}
+                                              data-field="deliverySpeed"
+                                              onClick={() => setSelectedDeliverySpeed(speed)}
+                                              className={`p-4 rounded-xl border text-left transition-all duration-200 relative shadow-sm hover:shadow-md ${selectedDeliverySpeed === speed
+                                                ? "border-emerald-500 bg-emerald-50/50 text-emerald-900 ring-1 ring-emerald-500"
+                                                : "border-slate-200 text-slate-600 hover:border-emerald-300 hover:bg-emerald-50/30"
+                                                }`}
+                                            >
+                                              {selectedDeliverySpeed === speed && (
+                                                <div className="absolute top-2 right-2">
+                                                  <Check size={18} className="text-emerald-600" />
+                                                </div>
+                                              )}
+                                              <div className="font-bold text-sm">{speed}</div>
+                                              {priceInfo !== null && (selectedProduct.showAttributePrices !== false) && (
+                                                <div className="text-xs text-gray-600 mt-1">
+                                                  {priceInfo > 0 ? '+' : ''}₹{Math.abs(priceInfo).toFixed(2)} per 1000 units
+                                                </div>
+                                              )}
+                                            </button>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Quantity Selection */}
+                                  <div className="mb-3 sm:mb-4" data-section="quantity">
+                                    <div className="flex items-center gap-4">
+                                      <label className="text-xs sm:text-sm font-bold text-gray-900 uppercase tracking-wider shrink-0" style={{ minWidth: '200px' }}>
+                                        {sectionNum++}. Select Quantity
+                                      </label>
+                                      <div className="flex-1">
+                                        <Select
+                                          options={generateQuantities(selectedProduct).map((q) => ({
+                                            value: q,
+                                            label: q.toLocaleString()
+                                          }))}
+                                          value={quantity}
+                                          onValueChange={(value) => setQuantity(Number(value))}
+                                          placeholder="Select quantity"
+                                          className="w-full"
+                                          colorTheme="amber"
+                                        />
+                                      </div>
+                                    </div>
+
+                                    {(() => {
+                                      // PRIORITY 1: Check if active quantity constraints from rules exist
+                                      if (activeQuantityConstraints) {
+                                        const { min, max, step } = activeQuantityConstraints;
+                                        return (
+                                          <div className="text-xs sm:text-sm text-gray-600 mb-2">
+                                            <span className="font-medium">Quantity Rules Applied:</span> Min: {min.toLocaleString()}, Max: {max.toLocaleString()}, Step: {step.toLocaleString()}
+                                          </div>
+                                        );
                                       }
 
-                                      // For DROPDOWN, RADIO, and POPUP input styles, we need at least 2 options to display
-                                      // For TEXT, NUMBER, FILE_UPLOAD, and other input styles, we can display even with 0 or 1 values
-                                      const requiresMultipleOptions = ['DROPDOWN', 'RADIO', 'POPUP'].includes(attrType.inputStyle);
+                                      // PRIORITY 2: Check if any selected attribute has step/range quantity settings
+                                      let attributeQuantityInfo: any = null;
+                                      let attributeName = '';
 
-                                      if (requiresMultipleOptions) {
-                                        // For dropdown/radio/popup, need at least 2 options
-                                        if (attributeValues.length < 1) {
+                                      // Check PDP attributes first (if initialized)
+                                      if (isInitialized && pdpAttributes.length > 0) {
+                                        for (const attr of pdpAttributes) {
+                                          if (!attr.isVisible) continue;
+
+                                          const selectedValue = selectedDynamicAttributes[attr._id];
+                                          if (!selectedValue) continue;
+
+                                          // Check if this attribute has step/range quantity settings
+                                          if ((attr as any).isStepQuantity && (attr as any).stepQuantities && (attr as any).stepQuantities.length > 0) {
+                                            attributeQuantityInfo = {
+                                              type: 'STEP_WISE',
+                                              stepQuantities: (attr as any).stepQuantities
+                                            };
+                                            attributeName = attr.attributeName;
+                                            break;
+                                          }
+
+                                          if ((attr as any).isRangeQuantity && (attr as any).rangeQuantities && (attr as any).rangeQuantities.length > 0) {
+                                            attributeQuantityInfo = {
+                                              type: 'RANGE_WISE',
+                                              rangeQuantities: (attr as any).rangeQuantities
+                                            };
+                                            attributeName = attr.attributeName;
+                                            break;
+                                          }
+                                        }
+                                      }
+
+                                      // Fallback to product attributes if PDP not available
+                                      if (!attributeQuantityInfo && selectedProduct && selectedProduct.dynamicAttributes) {
+                                        for (const attr of selectedProduct.dynamicAttributes) {
+                                          if (!attr.isEnabled) continue;
+
+                                          const attrType = typeof attr.attributeType === 'object' ? attr.attributeType : null;
+                                          if (!attrType) continue;
+
+                                          const selectedValue = selectedDynamicAttributes[attrType._id];
+                                          if (!selectedValue) continue;
+
+                                          // Check if this attribute has step/range quantity settings
+                                          if ((attrType as any).isStepQuantity && (attrType as any).stepQuantities && (attrType as any).stepQuantities.length > 0) {
+                                            attributeQuantityInfo = {
+                                              type: 'STEP_WISE',
+                                              stepQuantities: (attrType as any).stepQuantities
+                                            };
+                                            attributeName = attrType.attributeName;
+                                            break;
+                                          }
+
+                                          if ((attrType as any).isRangeQuantity && (attrType as any).rangeQuantities && (attrType as any).rangeQuantities.length > 0) {
+                                            attributeQuantityInfo = {
+                                              type: 'RANGE_WISE',
+                                              rangeQuantities: (attrType as any).rangeQuantities
+                                            };
+                                            attributeName = attrType.attributeName;
+                                            break;
+                                          }
+                                        }
+                                      }
+
+                                      // If attribute has quantity settings, use those
+                                      if (attributeQuantityInfo) {
+                                        if (attributeQuantityInfo.type === 'STEP_WISE') {
+                                          const stepQuantities = attributeQuantityInfo.stepQuantities
+                                            .map((step: any) => {
+                                              const qty = typeof step === 'object' ? parseFloat(step.quantity) : parseFloat(step);
+                                              return isNaN(qty) ? 0 : qty;
+                                            })
+                                            .filter((qty: number) => qty > 0)
+                                            .sort((a: number, b: number) => a - b);
+
                                           return (
-                                            <div key={attrId} className="mb-3 sm:mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                                              <label className="block text-xs sm:text-sm font-bold text-gray-900 mb-2 sm:mb-3 uppercase tracking-wider">
-                                                {sectionNum++}. {attrType.attributeName}
-                                                {isRequired && <span className="text-red-500 ml-1">*</span>}
-                                              </label>
-                                              <p className="text-sm text-yellow-800">
-                                                This attribute is not available because it requires at least 2 options. Please contact support.
-                                              </p>
+                                            <div className="text-xs sm:text-sm text-gray-600 mb-2">
+                                              <span className="font-medium">{attributeName}:</span> Available quantities: {stepQuantities.map(q => q.toLocaleString()).join(", ")}
+                                            </div>
+                                          );
+                                        } else if (attributeQuantityInfo.type === 'RANGE_WISE') {
+                                          return (
+                                            <div className="text-xs sm:text-sm text-gray-600 mb-2 space-y-1">
+                                              <div className="font-medium mb-1">{attributeName}:</div>
+                                              {attributeQuantityInfo.rangeQuantities.map((range: any, idx: number) => {
+                                                const min = typeof range === 'object' ? parseFloat(range.min) : 0;
+                                                const max = typeof range === 'object' && range.max ? parseFloat(range.max) : null;
+                                                const price = typeof range === 'object' ? parseFloat(range.price) : 0;
+
+                                                return (
+                                                  <div key={idx}>
+                                                    {range.label || `${min.toLocaleString()}${max ? ` - ${max.toLocaleString()}` : "+"} units`}
+                                                    {price > 0 && (selectedProduct.showAttributePrices !== false) && (
+                                                      <span className="ml-2 text-green-600">
+                                                        (₹{price.toFixed(2)})
+                                                      </span>
+                                                    )}
+                                                  </div>
+                                                );
+                                              })}
                                             </div>
                                           );
                                         }
-                                      } else {
-                                        // For other input types (TEXT, NUMBER, FILE_UPLOAD), can display even with 0 values
-                                        // They don't need pre-defined options
                                       }
 
-                                      // Get sub-attributes for this attribute if available
-                                      const selectedValue = selectedDynamicAttributes[attrId];
-                                      const selectedValueObj = attributeValues.find((av: any) => av.value === selectedValue);
+                                      // Fallback to product's quantity configuration
+                                      const orderQuantity = selectedProduct.filters.orderQuantity;
+                                      const quantityType = orderQuantity.quantityType || "SIMPLE";
 
-                                      // Filter sub-attributes: parentAttribute matches attrId, parentValue matches selectedValue
-                                      // Check if sub-attributes actually exist in the fetched data (don't rely solely on hasSubAttributes flag)
-                                      const subAttributesKey = `${attrId}:${selectedValue || ''}`;
-                                      const availableSubAttributes = selectedValue
-                                        ? (pdpSubAttributes[subAttributesKey] || [])
-                                        : [];
-
-                                      return (
-                                        <div key={attrId} className="mb-3 sm:mb-4">
-                                          {/* Label for non-DROPDOWN/POPUP attributes (stacked layout) */}
-                                          {!(attrType.inputStyle === 'DROPDOWN' || attrType.inputStyle === 'POPUP') && (
-                                            <label className="block text-xs sm:text-sm font-bold text-gray-900 mb-2 sm:mb-3 uppercase tracking-wider">
-                                              {sectionNum++}. {attrType.attributeName}
-                                              {isRequired && <span className="text-red-500 ml-1">*</span>}
-                                            </label>
-                                          )}
-
-                                          {(attrType.inputStyle === 'DROPDOWN' || attrType.inputStyle === 'POPUP') && (
-                                            <div data-attribute={attrId} data-attribute-name={attrType.attributeName}>
-                                              {/* Inline layout for label and select */}
-                                              <div className="flex items-center gap-4">
-                                                <label className="text-xs sm:text-sm font-bold text-gray-900 uppercase tracking-wider shrink-0" style={{ minWidth: '200px' }}>
-                                                  {sectionNum++}. {attrType.attributeName}
-                                                  {isRequired && <span className="text-red-500 ml-1">*</span>}
-                                                </label>
-                                                <div className="flex-1">
-                                                  {attributeValues.length === 0 ? (
-                                                    <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                                                      <p className="text-sm text-yellow-800">
-                                                        No options available.
-                                                      </p>
-                                                    </div>
-                                                  ) : (
-                                                    <Select
-                                                      options={attributeValues
-                                                        .filter((av: any) => av && av.value && av.label)
-                                                        .map((av: any) => {
-                                                          let priceDisplay = '';
-                                                          if (showPrice) {
-                                                            if (av.description) {
-                                                              const priceImpactMatch = av.description.match(/Price Impact: ₹([\d.]+)/);
-                                                              if (priceImpactMatch) {
-                                                                const priceImpact = parseFloat(priceImpactMatch[1]) || 0;
-                                                                if (priceImpact > 0) {
-                                                                  priceDisplay = ` (+₹${priceImpact.toFixed(2)}/unit)`;
-                                                                }
-                                                              }
-                                                            }
-                                                            if (!priceDisplay && av.priceMultiplier && av.priceMultiplier !== 1 && selectedProduct) {
-                                                              const basePrice = selectedProduct.basePrice || 0;
-                                                              const pricePerUnit = basePrice * (av.priceMultiplier - 1);
-                                                              if (Math.abs(pricePerUnit) >= 0.01) {
-                                                                priceDisplay = ` (+₹${pricePerUnit.toFixed(2)}/unit)`;
-                                                              }
-                                                            }
-                                                          }
-                                                          return {
-                                                            value: av.value,
-                                                            label: `${av.label}${priceDisplay}`
-                                                          };
-                                                        })}
-                                                      value={(() => {
-                                                        // Ensure the selected value exists in the filtered options
-                                                        const currentValue = selectedDynamicAttributes[attrId] as string;
-                                                        const valueExists = attributeValues.some((av: any) => av.value === currentValue);
-                                                        // If invalid, show first available option (useEffect will update state properly)
-                                                        return valueExists ? currentValue : (attributeValues.length > 0 ? attributeValues[0].value : "");
-                                                      })()}
-                                                      onValueChange={(value) => {
-                                                        setSelectedDynamicAttributes({
-                                                          ...selectedDynamicAttributes,
-                                                          [attrId]: value
-                                                        });
-                                                        setUserSelectedAttributes(prev => {
-                                                          const next = new Set(prev);
-                                                          next.delete(attrId);
-                                                          next.add(attrId);
-                                                          return next;
-                                                        });
-                                                      }}
-                                                      placeholder={`Select ${attrType.attributeName}`}
-                                                      className="w-full"
-                                                      colorTheme={['indigo', 'rose', 'cyan', 'lime', 'fuchsia'][Math.abs(attrId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)) % 5] as any}
-                                                    />
-                                                  )}
-                                                </div>
-                                              </div>
-                                              {/* Sub-attributes for selected value - unchanged stacked layout */}
-                                              {availableSubAttributes.length > 0 && (
-                                                <div className="mt-4">
-                                                  <label className="block text-xs font-semibold text-gray-700 mb-2">
-                                                    Select {selectedValueObj?.label || attrType.attributeName} Option:
-                                                  </label>
-                                                  <div className="relative">
-                                                    <div className="absolute top-0 left-0 right-0 h-5 bg-gradient-to-b from-white to-transparent pointer-events-none z-10" />
-                                                    <div className="max-h-[400px] overflow-y-auto mini-scrollbar pr-2">
-                                                      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2.5 py-2">
-                                                        {availableSubAttributes.map((subAttr) => {
-                                                          const getSubAttrPriceDisplay = () => {
-                                                            if (!showPrice) return null;
-                                                            if (!subAttr.priceAdd || subAttr.priceAdd === 0) return null;
-                                                            return `+₹${subAttr.priceAdd.toFixed(2)}`;
-                                                          };
-                                                          const subAttrKey = `${attrId}__${selectedValue}`;
-                                                          const isSubAttrSelected = selectedDynamicAttributes[subAttrKey] === subAttr.value;
-                                                          return (
-                                                            <button
-                                                              key={subAttr._id}
-                                                              type="button"
-                                                              onClick={() => {
-                                                                setSelectedDynamicAttributes((prev) => ({
-                                                                  ...prev,
-                                                                  [subAttrKey]: subAttr.value,
-                                                                }));
-                                                                setUserSelectedAttributes(prev => {
-                                                                  const next = new Set(prev);
-                                                                  next.delete(attrId);
-                                                                  next.add(attrId);
-                                                                  return next;
-                                                                });
-                                                              }}
-                                                              className={`group relative flex flex-col items-center p-2 rounded-xl border-2 transition-all duration-200 hover:shadow-md ${isSubAttrSelected
-                                                                ? "border-gray-900 bg-gray-50 shadow-sm"
-                                                                : "border-gray-200 hover:border-gray-400 hover:bg-white"
-                                                                }`}
-                                                            >
-                                                              {/* Selection checkmark */}
-                                                              {isSubAttrSelected && (
-                                                                <div className="absolute -top-1.5 -right-1.5 bg-gray-900 text-white rounded-full p-1 shadow-lg z-10">
-                                                                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                                                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                                                  </svg>
-                                                                </div>
-                                                              )}
-                                                              {/* Square image container */}
-                                                              {subAttr.image && (
-                                                                <div className="w-full aspect-square mb-1.5 overflow-hidden rounded-lg bg-gray-50 border border-gray-100">
-                                                                  <LazyImage
-                                                                    src={subAttr.image}
-                                                                    alt={subAttr.label}
-                                                                    className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
-                                                                    showSkeleton={true}
-                                                                    skeletonVariant="image"
-                                                                  />
-                                                                </div>
-                                                              )}
-                                                              {/* Label */}
-                                                              <div className="text-[11px] font-medium text-gray-900 leading-tight line-clamp-2 text-center w-full">
-                                                                {subAttr.label}
-                                                              </div>
-                                                              {/* Price */}
-                                                              {getSubAttrPriceDisplay() && (
-                                                                <div className="text-[10px] font-semibold text-green-600 mt-0.5">
-                                                                  {getSubAttrPriceDisplay()}
-                                                                </div>
-                                                              )}
-                                                            </button>
-                                                          );
-                                                        })}
-                                                      </div>
-                                                    </div>
-                                                    <div className="absolute bottom-0 left-0 right-0 h-5 bg-gradient-to-t from-white to-transparent pointer-events-none z-10" />
-                                                  </div>
-                                                </div>
-                                              )}
-                                            </div>
-                                          )}
-
-                                          {attrType.inputStyle === 'RADIO' && (
-                                            <div data-attribute={attrId}>
-                                              {attributeValues.length === 0 ? (
-                                                <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                                                  <p className="text-sm text-yellow-800">
-                                                    No options available for this attribute. Please contact support.
-                                                  </p>
-                                                </div>
-                                              ) : (
-                                                <>
-                                                  <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                      const filteredValues = attributeValues.filter((av: any) => av && av.value && av.label);
-                                                      setRadioModalData({
-                                                        attributeId: attrId,
-                                                        attributeName: attrType.attributeName,
-                                                        attributeValues: filteredValues,
-                                                        selectedValue: (selectedDynamicAttributes[attrId] as string) || null,
-                                                        isRequired: isRequired,
-                                                      });
-                                                      setRadioModalOpen(true);
-                                                    }}
-                                                    className="w-full px-4 py-3 border-2 border-dashed border-gray-300 rounded-xl hover:border-gray-400 hover:bg-gray-50 transition-all duration-200 text-left flex items-center justify-between group"
-                                                  >
-                                                    <div className="flex-1">
-                                                      <span className="text-sm font-medium text-gray-700 group-hover:text-gray-900">
-                                                        {selectedDynamicAttributes[attrId]
-                                                          ? attributeValues.find((av: any) => av.value === selectedDynamicAttributes[attrId])?.label || 'Select option'
-                                                          : `Select ${attrType.attributeName}${isRequired ? ' *' : ''}`
-                                                        }
-                                                      </span>
-                                                      {selectedDynamicAttributes[attrId] && (
-                                                        <div className="text-xs text-white0 mt-1">
-                                                          Click to change selection
-                                                        </div>
-                                                      )}
-                                                    </div>
-                                                    <ArrowRight size={18} className="text-gray-400 group-hover:text-gray-600 transition-colors" />
-                                                  </button>
-
-                                                </>
-                                              )}
-                                            </div>
-                                          )}
-
-                                          {attrType.inputStyle === 'CHECKBOX' && (
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3" data-attribute={attrId}>
-                                              {attributeValues.length === 0 ? (
-                                                <div className="col-span-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                                                  <p className="text-sm text-yellow-800">
-                                                    No options available for this attribute. Please contact support.
-                                                  </p>
-                                                </div>
-                                              ) : (
-                                                attributeValues
-                                                  .filter((av: any) => av && av.value && av.label) // Filter out invalid options
-                                                  .map((av: any) => {
-                                                    // Format price display as per unit price
-                                                    const getPriceDisplay = () => {
-                                                      if (!showPrice) return null;
-                                                      // Check for priceImpact first (new format with option usage)
-                                                      if (av.description) {
-                                                        const priceImpactMatch = av.description.match(/Price Impact: ₹([\d.]+)/);
-                                                        if (priceImpactMatch) {
-                                                          const priceImpact = parseFloat(priceImpactMatch[1]) || 0;
-                                                          if (priceImpact > 0) {
-                                                            return `+₹${priceImpact.toFixed(2)}/unit`;
-                                                          }
-                                                        }
-                                                      }
-                                                      // Fall back to priceMultiplier calculation
-                                                      if (!av.priceMultiplier || av.priceMultiplier === 1 || !selectedProduct) return null;
-                                                      const basePrice = selectedProduct.basePrice || 0;
-                                                      const pricePerUnit = basePrice * (av.priceMultiplier - 1);
-                                                      if (Math.abs(pricePerUnit) < 0.01) return null;
-                                                      return `+₹${pricePerUnit.toFixed(2)}/unit`;
-                                                    };
-
-                                                    const isSelected = Array.isArray(selectedDynamicAttributes[attrId]) && (selectedDynamicAttributes[attrId] as any).includes(av.value);
-
-                                                    return (
-                                                      <button
-                                                        key={av.value}
-                                                        type="button"
-                                                        onClick={() => {
-                                                          const current = Array.isArray(selectedDynamicAttributes[attrId]) ? (selectedDynamicAttributes[attrId] as any) : [];
-                                                          const newValue = isSelected
-                                                            ? current.filter((v: any) => v !== av.value)
-                                                            : [...current, av.value];
-                                                          setSelectedDynamicAttributes({
-                                                            ...selectedDynamicAttributes,
-                                                            [attrId]: newValue
-                                                          });
-                                                          // Mark this attribute as user-selected for image updates (preserved order)
-                                                          setUserSelectedAttributes(prev => {
-                                                            const next = new Set(prev);
-                                                            next.delete(attrId);
-                                                            next.add(attrId);
-                                                            return next;
-                                                          });
-                                                        }}
-                                                        className={`p-4 rounded-xl border text-left transition-all duration-200 relative ${isSelected
-                                                          ? "border-gray-900 bg-gray-50 text-gray-900 ring-1 ring-gray-900"
-                                                          : "border-gray-200 text-gray-600 hover:border-gray-400 hover:bg-gray-50"
-                                                          }`}
-                                                      >
-                                                        {isSelected && (
-                                                          <div className="absolute top-2 right-2">
-                                                            <Check size={18} className="text-gray-900" />
-                                                          </div>
-                                                        )}
-                                                        {av.image && (
-                                                          <div className="mb-2 h-32 w-full">
-                                                            <LazyImage
-                                                              src={av.image}
-                                                              alt={av.label}
-                                                              className="w-full h-full object-cover rounded-lg border border-gray-200"
-                                                              showSkeleton={true}
-                                                              skeletonVariant="rectangular"
-                                                            />
-                                                          </div>
-                                                        )}
-                                                        <div className="font-bold text-sm">{av.label}</div>
-                                                        {getPriceDisplay() && (
-                                                          <div className="text-xs text-gray-600 mt-1">
-                                                            {getPriceDisplay()}
-                                                          </div>
-                                                        )}
-                                                      </button>
-                                                    );
-                                                  })
-                                              )}
-                                            </div>
-                                          )}
-
-                                          {attrType.inputStyle === 'TEXT_FIELD' && (
-                                            <div data-attribute={attrId}>
-                                              <input
-                                                type="text"
-                                                value={(selectedDynamicAttributes[attrId] as string) || ""}
-                                                onChange={(e) => {
-                                                  setSelectedDynamicAttributes({
-                                                    ...selectedDynamicAttributes,
-                                                    [attrId]: e.target.value
-                                                  });
-                                                  // Mark this attribute as user-selected for image updates (preserved order)
-                                                  setUserSelectedAttributes(prev => {
-                                                    const next = new Set(prev);
-                                                    next.delete(attrId);
-                                                    next.add(attrId);
-                                                    return next;
-                                                  });
-                                                }}
-                                                placeholder={`Enter ${attrType.attributeName}`}
-                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-gray-500"
-                                              />
-                                            </div>
-                                          )}
-
-                                          {attrType.inputStyle === 'NUMBER' && (
-                                            <div data-attribute={attrId}>
-                                              <input
-                                                type="number"
-                                                value={(selectedDynamicAttributes[attrId] as number) || ""}
-                                                onChange={(e) => {
-                                                  setSelectedDynamicAttributes({
-                                                    ...selectedDynamicAttributes,
-                                                    [attrId]: parseFloat(e.target.value) || 0
-                                                  });
-                                                  // Mark this attribute as user-selected for image updates (preserved order)
-                                                  setUserSelectedAttributes(prev => {
-                                                    const next = new Set(prev);
-                                                    next.delete(attrId);
-                                                    next.add(attrId);
-                                                    return next;
-                                                  });
-                                                }}
-                                                placeholder={`Enter ${attrType.attributeName}`}
-                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-gray-500"
-                                              />
-                                            </div>
-                                          )}
-
-                                          {attrType.inputStyle === 'FILE_UPLOAD' && (
-                                            <div data-attribute={attrId}>
-                                              <input
-                                                type="file"
-                                                onChange={(e) => {
-                                                  const file = e.target.files?.[0] || null;
-                                                  setSelectedDynamicAttributes({
-                                                    ...selectedDynamicAttributes,
-                                                    [attrId]: file
-                                                  });
-                                                  // Mark this attribute as user-selected for image updates (preserved order)
-                                                  setUserSelectedAttributes(prev => {
-                                                    const next = new Set(prev);
-                                                    next.delete(attrId);
-                                                    next.add(attrId);
-                                                    return next;
-                                                  });
-                                                }}
-                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-gray-500"
-                                                accept="*/*"
-                                              />
-                                              {attrType.fileRequirements && (
-                                                <p className="text-xs text-gray-600 mt-1">{attrType.fileRequirements}</p>
-                                              )}
-                                            </div>
-                                          )}
-                                        </div>
-                                      );
-                                    })}
-                                  </>
-                                ) : null;
-                              })()}
-
-                            </>
-                          );
-                        })()}
-
-
-
-                        {/* Unified PDF Upload Section - Replaces Both Image Upload Sections */}
-                        {(() => {
-                          if (loading) {
-                            return (
-                              <div className="mb-3 sm:mb-4 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden h-[200px] flex flex-col">
-                                <div className="bg-gray-50 px-5 py-4 border-b">
-                                  <div className="flex gap-3">
-                                    <Skeleton variant="rectangular" className="w-8 h-8 rounded-lg" />
-                                    <div className="space-y-2">
-                                      <Skeleton variant="text" className="w-32 h-4" />
-                                      <Skeleton variant="text" className="w-24 h-3" />
-                                    </div>
-                                  </div>
-                                </div>
-                                <div className="p-5 flex-1 flex items-center justify-center">
-                                  <Skeleton variant="rectangular" className="w-full h-full rounded-xl" />
-                                </div>
-                              </div>
-                            )
-                          }
-
-                          // Calculate required pages dynamically
-                          const calculatedPages = calculateRequiredPageCount();
-
-                          return (
-                            <div className="mb-3 sm:mb-4 bg-white rounded-2xl border border-gray-200 shadow-lg shadow-gray-200/50 overflow-hidden hover:shadow-xl hover:shadow-gray-200/50 transition-all duration-300">
-                              {/* Header Section */}
-                              <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 px-4 sm:px-5 py-3 sm:py-4 border-b border-gray-200">
-                                <div className="flex items-center gap-3">
-                                  <div className="w-9 h-9 rounded-xl bg-white shadow-md flex items-center justify-center ring-1 ring-blue-100">
-                                    <FileText className="w-5 h-5 text-blue-600" />
-                                  </div>
-                                  <div className="flex-1">
-                                    <h3 className="font-bold text-sm sm:text-base text-gray-900">
-                                      Upload Design File
-                                    </h3>
-                                    <p className="text-xs text-gray-600 mt-0.5 font-medium">
-                                      {calculatedPages} page{calculatedPages !== 1 ? 's' : ''} required • PDF or CDR • Max: {MAX_PDF_SIZE_MB}MB
-                                    </p>
-                                  </div>
-                                  {pdfFile && !pdfValidationError && (
-                                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-green-100 to-emerald-100 text-green-700 text-xs font-bold shadow-sm">
-                                      <Check size={14} strokeWidth={3} />
-                                      Complete
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-
-                              {/* Upload Area */}
-                              <div className="p-4 sm:p-5">
-                                {/* Upload Input */}
-                                <input
-                                  type="file"
-                                  id="pdf-upload-input"
-                                  accept=".pdf,.cdr,application/pdf,application/x-coreldraw,application/coreldraw"
-                                  onChange={handlePdfUpload}
-                                  className="hidden"
-                                  data-required-field
-                                />
-
-                                {!pdfFile ? (
-                                  /* Upload Prompt */
-                                  <label
-                                    htmlFor="pdf-upload-input"
-                                    className={`block cursor-pointer border-2 border-dashed rounded-xl transition-all duration-300 hover:scale-[1.01] ${pdfValidationError
-                                      ? 'border-red-400 bg-red-50/50 shadow-inner'
-                                      : 'border-gray-300 bg-gradient-to-br from-gray-50 to-slate-50 hover:border-blue-500 hover:bg-gradient-to-br hover:from-blue-50 hover:to-indigo-50 hover:shadow-md'
-                                      }`}
-                                  >
-                                    <div className="p-8 text-center">
-                                      {isPdfProcessing ? (
-                                        <div className="flex flex-col items-center">
-                                          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-3"></div>
-                                          <p className="text-sm font-semibold text-gray-700">Processing Design File...</p>
-                                          <p className="text-xs text-gray-500 mt-1">Extracting pages as images</p>
-                                        </div>
-                                      ) : (
-                                        <>
-                                          <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center mx-auto mb-4">
-                                            <UploadCloud className="w-7 h-7 text-blue-600" />
+                                      if (quantityType === "STEP_WISE" && orderQuantity.stepWiseQuantities && orderQuantity.stepWiseQuantities.length > 0) {
+                                        return (
+                                          <div className="text-xs sm:text-sm text-gray-600 mb-2">
+                                            Available quantities: {orderQuantity.stepWiseQuantities.sort((a, b) => a - b).map(q => q.toLocaleString()).join(", ")}
                                           </div>
-                                          <p className="text-base font-bold text-gray-800 mb-1">
-                                            Click to upload design file
-                                          </p>
-                                          <p className="text-sm text-gray-600 mb-2 font-medium">
-                                            {calculatedPages} page{calculatedPages !== 1 ? 's' : ''} required
-                                          </p>
-                                          <p className="text-xs text-gray-500 mb-4">
-                                            Supports PDF & CDR • Max: {MAX_PDF_SIZE_MB}MB
-                                          </p>
-                                          <div className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg text-sm font-bold hover:from-blue-700 hover:to-indigo-700 transition-all hover:shadow-lg hover:scale-105">
-                                            <FileImage size={16} />
-                                            Select Design File
-                                          </div>
-                                        </>
-                                      )}
-                                    </div>
-                                  </label>
-                                ) : (
-                                  /* PDF Upload Success & Preview */
-                                  <div className="space-y-4">
-                                    {/* PDF File Info */}
-                                    <div className="flex items-center justify-between p-4 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-300 rounded-xl shadow-md hover:shadow-lg transition-all">
-                                      <div className="flex items-center gap-3">
-                                        <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-md">
-                                          <FileText className="w-6 h-6 text-white" />
-                                        </div>
-                                        <div>
-                                          <p className="text-sm font-semibold text-gray-900">
-                                            {pdfFile.name}
-                                          </p>
-                                          <p className="text-xs text-gray-600">
-                                            {pdfFile.name.toLowerCase().endsWith('.cdr')
-                                              ? `CDR file ready (will be processed server-side)`
-                                              : `${extractedPdfPages.length} page${extractedPdfPages.length !== 1 ? 's' : ''} extracted`
-                                            }
-                                          </p>
-                                        </div>
-                                      </div>
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setPdfFile(null);
-                                          setExtractedPdfPages([]);
-                                          setPdfPreviewPages([]);
-                                          setPdfValidationError(null);
-                                          // Clear mapped images
-                                          setFrontDesignFile(null);
-                                          setBackDesignFile(null);
-                                          setFrontDesignPreview("");
-                                          setBackDesignPreview("");
-                                          const fileInput = document.getElementById('pdf-upload-input') as HTMLInputElement;
-                                          if (fileInput) fileInput.value = '';
-                                        }}
-                                        className="px-3 py-1.5 text-xs font-bold text-red-700 bg-red-100 hover:bg-red-200 rounded-lg transition-all hover:shadow-md hover:scale-105"
-                                      >
-                                        Remove
-                                      </button>
-                                    </div>
-
-                                    {/* Extracted Pages with Purpose Labels - Enhanced UI */}
-                                    {pdfPreviewPages.length > 0 && pdfPageMapping.length > 0 && (
-                                      <div>
-                                        <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                                          <FileText size={16} className="text-blue-600" />
-                                          Page Assignments
-                                        </h4>
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                                          {pdfPreviewPages.map((preview, index) => {
-                                            const mapping = pdfPageMapping[index];
-                                            if (!mapping) return null;
-
-                                            // Color coding based on type
-                                            const colorClasses = {
-                                              border: 'border-blue-400',
-                                              badge: 'bg-gradient-to-br from-blue-500 to-indigo-600',
-                                              labelBg: 'bg-gradient-to-r from-blue-600 to-indigo-700'
-                                            };
-
-                                            return (
-                                              <div key={index} className="relative group">
-                                                {/* Image Container with dynamic aspect ratio */}
-                                                <div className="w-full relative overflow-hidden rounded-xl ring-2 ring-blue-400 ring-offset-0 shadow-lg hover:shadow-2xl hover:ring-blue-500 transition-all duration-300 hover:scale-[1.02]">
-                                                  <img
-                                                    src={preview}
-                                                    alt={`Page ${index + 1}`}
-                                                    className="w-full bg-white object-contain"
-                                                    style={{ aspectRatio: 'auto' }}
-                                                  />
-                                                </div>
-
-                                                {/* Page Number Badge */}
-                                                <div className={`absolute -top-2 -left-2 w-8 h-8 ${colorClasses.badge} rounded-full flex items-center justify-center shadow-xl border-2 border-white ring-1 ring-blue-200`}>
-                                                  <span className="text-white text-xs font-black">{mapping.pageNumber}</span>
-                                                </div>
-
-                                                {/* Required Badge */}
-                                                {mapping.isRequired && (
-                                                  <div className="absolute -top-2 -right-2 w-7 h-7 bg-gradient-to-br from-red-500 to-rose-600 rounded-full flex items-center justify-center shadow-xl border-2 border-white ring-1 ring-red-200">
-                                                    <span className="text-white text-xs font-black">!</span>
-                                                  </div>
+                                        );
+                                      } else if (quantityType === "RANGE_WISE" && orderQuantity.rangeWiseQuantities && orderQuantity.rangeWiseQuantities.length > 0) {
+                                        return (
+                                          <div className="text-xs sm:text-sm text-gray-600 mb-2 space-y-1">
+                                            {orderQuantity.rangeWiseQuantities.map((range, idx) => (
+                                              <div key={idx}>
+                                                {range.label || `${range.min.toLocaleString()}${range.max ? ` - ${range.max.toLocaleString()}` : "+"} units`}
+                                                {range.priceMultiplier !== 1.0 && (selectedProduct.showAttributePrices !== false) && (
+                                                  <span className="ml-2 text-green-600">
+                                                    ({range.priceMultiplier > 1 ? "+" : ""}{((range.priceMultiplier - 1) * 100).toFixed(0)}% price)
+                                                  </span>
                                                 )}
-
-                                                {/* Purpose Label - Always Visible */}
-                                                <div className={`absolute bottom-0 left-0 right-0 ${colorClasses.labelBg} text-white px-2 py-2.5 rounded-b-xl shadow-md`}>
-                                                  <div className="flex items-center gap-1.5">
-                                                    <ImageIcon size={15} className="flex-shrink-0" />
-                                                    <div className="flex-1 min-w-0">
-                                                      <p className="text-[11px] font-bold truncate leading-tight">
-                                                        {mapping.purpose}
-                                                      </p>
-                                                      {mapping.type === 'attribute' && (
-                                                        <p className="text-[9px] opacity-95 truncate font-medium">
-                                                          {mapping.isRequired ? 'Required' : 'Optional'}
-                                                        </p>
-                                                      )}
-                                                    </div>
-                                                  </div>
-                                                </div>
-
-                                                {/* Hover Tooltip with Full Details */}
-                                                <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300 rounded-xl pointer-events-none"></div>
                                               </div>
+                                            ))}
+                                          </div>
+                                        );
+                                      } else {
+                                        return (
+                                          <></>
+                                        );
+                                      }
+                                    })()}
+                                    {appliedDiscount !== null && appliedDiscount > 0 && (
+                                      <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded-lg">
+                                        <p className="text-xs sm:text-sm text-green-800 font-medium">
+                                          🎉 You're saving {appliedDiscount}% on this order! (Bulk discount applied)
+                                        </p>
+                                      </div>
+                                    )}
+                                    {selectedProduct.quantityDiscounts && selectedProduct.quantityDiscounts.length > 0 && (
+                                      <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                                        <p className="text-xs font-medium text-blue-900 mb-2">Available Quantity Discounts:</p>
+                                        <div className="space-y-1">
+                                          {selectedProduct.quantityDiscounts.map((discount: any, idx: number) => {
+                                            const minQty = discount.minQuantity || 0;
+                                            const maxQty = discount.maxQuantity;
+                                            const discountPct = discount.discountPercentage || 0;
+                                            const range = maxQty
+                                              ? `${minQty.toLocaleString()} - ${maxQty.toLocaleString()} units`
+                                              : `${minQty.toLocaleString()}+ units`;
+                                            return (
+                                              <p key={idx} className="text-xs text-blue-800">
+                                                • {range}: <strong>{discountPct}% off</strong>
+                                              </p>
                                             );
                                           })}
                                         </div>
-
-                                        {/* Legend */}
-                                        <div className="mt-4 p-3.5 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 border border-blue-200 rounded-xl shadow-sm">
-                                          <p className="text-xs font-bold text-gray-800 mb-2.5 flex items-center gap-2">
-                                            <div className="w-5 h-5 rounded-md bg-blue-100 flex items-center justify-center">
-                                              <Info size={13} className="text-blue-600" />
-                                            </div>
-                                            Legend
-                                          </p>
-                                          <div className="flex flex-wrap gap-4">
-                                            <div className="flex items-center gap-2">
-                                              <div className="w-6 h-6 rounded-lg bg-white shadow-sm flex items-center justify-center">
-                                                <ImageIcon size={15} className="text-blue-600" />
-                                              </div>
-                                              <span className="text-xs text-gray-700 font-medium">Attribute Images</span>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                              <div className="w-6 h-6 rounded-lg bg-white shadow-sm flex items-center justify-center">
-                                                <AlertTriangle size={15} className="text-red-600" />
-                                              </div>
-                                              <span className="text-xs text-gray-700 font-medium">Required</span>
-                                            </div>
-                                          </div>
-                                        </div>
                                       </div>
                                     )}
-
-                                    {/* CDR File Information Message */}
-                                    {pdfFile && pdfFile.name.toLowerCase().endsWith('.cdr') && pdfPreviewPages.length === 0 && (
-                                      <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                                        <div className="flex items-start gap-2">
-                                          <Info size={16} className="text-blue-600 mt-0.5 flex-shrink-0" />
-                                          <div className="text-xs text-blue-900">
-                                            <p className="font-semibold mb-1">CDR File Uploaded Successfully</p>
-                                            <p>Your CorelDRAW file will be processed on the server. Page previews are not available for CDR files, but your design will be processed according to the required page count ({requiredPageCount} page{requiredPageCount !== 1 ? 's' : ''}).</p>
-                                          </div>
-                                        </div>
-                                      </div>
-                                    )}
-
-
                                   </div>
-                                )}
 
-                                {/* Validation Error */}
-                                {pdfValidationError && (
-                                  <div className="mt-4 p-4 bg-red-50 border-2 border-red-200 rounded-xl">
-                                    <div className="flex items-start gap-2">
-                                      <AlertCircle className="text-red-600 flex-shrink-0 mt-0.5" size={18} />
-                                      <div>
-                                        <p className="text-sm font-semibold text-red-900 mb-1">Upload Error</p>
-                                        <p className="text-sm text-red-700">{pdfValidationError}</p>
+                                  {/* Dynamic Attributes */}
+                                  {(() => {
+                                    // Use PDP attributes with rule evaluation if available, otherwise fallback to product attributes
+                                    let attributesToRender: any[] = [];
+
+                                    if (isInitialized && pdpAttributes.length > 0) {
+                                      // Apply rules to get evaluated attributes
+                                      const ruleResult = applyAttributeRules({
+                                        attributes: pdpAttributes,
+                                        rules: pdpRules,
+                                        selectedValues: { ...selectedDynamicAttributes } as Record<string, string | number | boolean | File | any[] | null>,
+                                      });
+
+                                      // Filter to only visible attributes
+                                      attributesToRender = ruleResult.attributes
+                                        .filter((attr) => attr.isVisible)
+                                        .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+                                    } else if (selectedProduct.dynamicAttributes) {
+                                      // Fallback to product attributes
+                                      attributesToRender = selectedProduct.dynamicAttributes
+                                        .filter((attr) => attr.isEnabled)
+                                        .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+                                    }
+
+                                    return attributesToRender.length > 0 ? (
+                                      <>
+                                        {attributesToRender.map((attr) => {
+                                          // Handle PDP attributes (already evaluated) vs product attributes
+                                          let attrType: any = null;
+                                          let attributeValues: any[] = [];
+                                          let attrId: string = '';
+                                          let isRequired: boolean = false;
+                                          let displayOrder: number = 0;
+                                          let showPrice: boolean = true;
+
+                                          if (isInitialized && pdpAttributes.length > 0) {
+                                            // PDP attribute structure
+                                            attrId = attr._id;
+                                            isRequired = attr.isRequired || false;
+                                            displayOrder = attr.displayOrder || 0;
+                                            showPrice = attr.showPrice !== undefined ? attr.showPrice : true;
+                                            console.log(`🔍 Attribute "${attr.attributeName}" showPrice:`, attr.showPrice, '-> final:', showPrice);
+                                            attributeValues = (attr.allowedValues && attr.allowedValues.length > 0)
+                                              ? (attr.attributeValues || []).filter((av: any) => attr.allowedValues!.includes(av.value))
+                                              : (attr.attributeValues || []);
+
+                                            // Build attrType-like structure for compatibility
+                                            attrType = {
+                                              _id: attr._id,
+                                              attributeName: attr.attributeName,
+                                              inputStyle: attr.inputStyle,
+                                              attributeValues: attributeValues,
+                                              defaultValue: attr.defaultValue,
+                                            };
+                                          } else {
+                                            // Legacy product attribute structure
+                                            if (typeof attr.attributeType === 'object' && attr.attributeType !== null) {
+                                              attrType = attr.attributeType;
+                                              attrId = attrType._id;
+                                            } else if (typeof attr.attributeType === 'string' && attr.attributeType.trim() !== '') {
+                                              return null;
+                                            }
+
+                                            if (!attrType || !attrType._id) {
+                                              return null;
+                                            }
+
+                                            attrId = attrType._id;
+                                            isRequired = attr.isRequired || false;
+                                            displayOrder = attr.displayOrder || 0;
+                                            showPrice = attr.showPrice !== undefined ? attr.showPrice : true;
+                                            console.log(`🔍 Legacy Attribute "${attrType.attributeName}" showPrice:`, attr.showPrice, '-> final:', showPrice);
+                                            attributeValues = attr.customValues && attr.customValues.length > 0
+                                              ? attr.customValues
+                                              : attrType.attributeValues || [];
+                                          }
+
+                                          // For DROPDOWN, RADIO, and POPUP input styles, we need at least 2 options to display
+                                          // For TEXT, NUMBER, FILE_UPLOAD, and other input styles, we can display even with 0 or 1 values
+                                          const requiresMultipleOptions = ['DROPDOWN', 'RADIO', 'POPUP'].includes(attrType.inputStyle);
+
+                                          if (requiresMultipleOptions) {
+                                            // For dropdown/radio/popup, need at least 2 options
+                                            if (attributeValues.length < 1) {
+                                              return (
+                                                <div key={attrId} className="mb-3 sm:mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                                                  <label className="block text-xs sm:text-sm font-bold text-gray-900 mb-2 sm:mb-3 uppercase tracking-wider">
+                                                    {sectionNum++}. {attrType.attributeName}
+                                                    {isRequired && <span className="text-red-500 ml-1">*</span>}
+                                                  </label>
+                                                  <p className="text-sm text-yellow-800">
+                                                    This attribute is not available because it requires at least 2 options. Please contact support.
+                                                  </p>
+                                                </div>
+                                              );
+                                            }
+                                          } else {
+                                            // For other input types (TEXT, NUMBER, FILE_UPLOAD), can display even with 0 values
+                                            // They don't need pre-defined options
+                                          }
+
+                                          // Get sub-attributes for this attribute if available
+                                          const selectedValue = selectedDynamicAttributes[attrId];
+                                          const selectedValueObj = attributeValues.find((av: any) => av.value === selectedValue);
+
+                                          // Filter sub-attributes: parentAttribute matches attrId, parentValue matches selectedValue
+                                          // Check if sub-attributes actually exist in the fetched data (don't rely solely on hasSubAttributes flag)
+                                          const subAttributesKey = `${attrId}:${selectedValue || ''}`;
+                                          const availableSubAttributes = selectedValue
+                                            ? (pdpSubAttributes[subAttributesKey] || [])
+                                            : [];
+
+                                          return (
+                                            <div key={attrId} className="mb-3 sm:mb-4">
+                                              {/* Label for non-DROPDOWN/POPUP attributes (stacked layout) */}
+                                              {!(attrType.inputStyle === 'DROPDOWN' || attrType.inputStyle === 'POPUP') && (
+                                                <label className="block text-xs sm:text-sm font-bold text-gray-900 mb-2 sm:mb-3 uppercase tracking-wider">
+                                                  {sectionNum++}. {attrType.attributeName}
+                                                  {isRequired && <span className="text-red-500 ml-1">*</span>}
+                                                </label>
+                                              )}
+
+                                              {(attrType.inputStyle === 'DROPDOWN' || attrType.inputStyle === 'POPUP') && (
+                                                <div data-attribute={attrId} data-attribute-name={attrType.attributeName}>
+                                                  {/* Inline layout for label and select */}
+                                                  <div className="flex items-center gap-4">
+                                                    <label className="text-xs sm:text-sm font-bold text-gray-900 uppercase tracking-wider shrink-0" style={{ minWidth: '200px' }}>
+                                                      {sectionNum++}. {attrType.attributeName}
+                                                      {isRequired && <span className="text-red-500 ml-1">*</span>}
+                                                    </label>
+                                                    <div className="flex-1">
+                                                      {attributeValues.length === 0 ? (
+                                                        <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                                                          <p className="text-sm text-yellow-800">
+                                                            No options available.
+                                                          </p>
+                                                        </div>
+                                                      ) : (
+                                                        <Select
+                                                          options={attributeValues
+                                                            .filter((av: any) => av && av.value && av.label)
+                                                            .map((av: any) => {
+                                                              let priceDisplay = '';
+                                                              if (showPrice) {
+                                                                if (av.description) {
+                                                                  const priceImpactMatch = av.description.match(/Price Impact: ₹([\d.]+)/);
+                                                                  if (priceImpactMatch) {
+                                                                    const priceImpact = parseFloat(priceImpactMatch[1]) || 0;
+                                                                    if (priceImpact > 0) {
+                                                                      priceDisplay = ` (+₹${priceImpact.toFixed(2)}/unit)`;
+                                                                    }
+                                                                  }
+                                                                }
+                                                                if (!priceDisplay && av.priceMultiplier && av.priceMultiplier !== 1 && selectedProduct) {
+                                                                  const basePrice = selectedProduct.basePrice || 0;
+                                                                  const pricePerUnit = basePrice * (av.priceMultiplier - 1);
+                                                                  if (Math.abs(pricePerUnit) >= 0.01) {
+                                                                    priceDisplay = ` (+₹${pricePerUnit.toFixed(2)}/unit)`;
+                                                                  }
+                                                                }
+                                                              }
+                                                              return {
+                                                                value: av.value,
+                                                                label: `${av.label}${priceDisplay}`
+                                                              };
+                                                            })}
+                                                          value={(() => {
+                                                            // Ensure the selected value exists in the filtered options
+                                                            const currentValue = selectedDynamicAttributes[attrId] as string;
+                                                            const valueExists = attributeValues.some((av: any) => av.value === currentValue);
+                                                            // If invalid, show first available option (useEffect will update state properly)
+                                                            return valueExists ? currentValue : (attributeValues.length > 0 ? attributeValues[0].value : "");
+                                                          })()}
+                                                          onValueChange={(value) => {
+                                                            setSelectedDynamicAttributes({
+                                                              ...selectedDynamicAttributes,
+                                                              [attrId]: value
+                                                            });
+                                                            setUserSelectedAttributes(prev => {
+                                                              const next = new Set(prev);
+                                                              next.delete(attrId);
+                                                              next.add(attrId);
+                                                              return next;
+                                                            });
+                                                          }}
+                                                          placeholder={`Select ${attrType.attributeName}`}
+                                                          className="w-full"
+                                                          colorTheme={['indigo', 'rose', 'cyan', 'lime', 'fuchsia'][Math.abs(attrId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)) % 5] as any}
+                                                        />
+                                                      )}
+                                                    </div>
+                                                  </div>
+                                                  {/* Sub-attributes for selected value - unchanged stacked layout */}
+                                                  {availableSubAttributes.length > 0 && (
+                                                    <div className="mt-4">
+                                                      <label className="block text-xs font-semibold text-gray-700 mb-2">
+                                                        Select {selectedValueObj?.label || attrType.attributeName} Option:
+                                                      </label>
+                                                      <div className="relative">
+                                                        <div className="absolute top-0 left-0 right-0 h-5 bg-gradient-to-b from-white to-transparent pointer-events-none z-10" />
+                                                        <div className="max-h-[400px] overflow-y-auto mini-scrollbar pr-2">
+                                                          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2.5 py-2">
+                                                            {availableSubAttributes.map((subAttr) => {
+                                                              const getSubAttrPriceDisplay = () => {
+                                                                if (!showPrice) return null;
+                                                                if (!subAttr.priceAdd || subAttr.priceAdd === 0) return null;
+                                                                return `+₹${subAttr.priceAdd.toFixed(2)}`;
+                                                              };
+                                                              const subAttrKey = `${attrId}__${selectedValue}`;
+                                                              const isSubAttrSelected = selectedDynamicAttributes[subAttrKey] === subAttr.value;
+                                                              return (
+                                                                <button
+                                                                  key={subAttr._id}
+                                                                  type="button"
+                                                                  onClick={() => {
+                                                                    setSelectedDynamicAttributes((prev) => ({
+                                                                      ...prev,
+                                                                      [subAttrKey]: subAttr.value,
+                                                                    }));
+                                                                    setUserSelectedAttributes(prev => {
+                                                                      const next = new Set(prev);
+                                                                      next.delete(attrId);
+                                                                      next.add(attrId);
+                                                                      return next;
+                                                                    });
+                                                                  }}
+                                                                  className={`group relative flex flex-col items-center p-2 rounded-xl border-2 transition-all duration-200 hover:shadow-md ${isSubAttrSelected
+                                                                    ? "border-gray-900 bg-gray-50 shadow-sm"
+                                                                    : "border-gray-200 hover:border-gray-400 hover:bg-white"
+                                                                    }`}
+                                                                >
+                                                                  {/* Selection checkmark */}
+                                                                  {isSubAttrSelected && (
+                                                                    <div className="absolute -top-1.5 -right-1.5 bg-gray-900 text-white rounded-full p-1 shadow-lg z-10">
+                                                                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                                                      </svg>
+                                                                    </div>
+                                                                  )}
+                                                                  {/* Square image container */}
+                                                                  {subAttr.image && (
+                                                                    <div className="w-full aspect-square mb-1.5 overflow-hidden rounded-lg bg-gray-50 border border-gray-100">
+                                                                      <LazyImage
+                                                                        src={subAttr.image}
+                                                                        alt={subAttr.label}
+                                                                        className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
+                                                                        showSkeleton={true}
+                                                                        skeletonVariant="image"
+                                                                      />
+                                                                    </div>
+                                                                  )}
+                                                                  {/* Label */}
+                                                                  <div className="text-[11px] font-medium text-gray-900 leading-tight line-clamp-2 text-center w-full">
+                                                                    {subAttr.label}
+                                                                  </div>
+                                                                  {/* Price */}
+                                                                  {getSubAttrPriceDisplay() && (
+                                                                    <div className="text-[10px] font-semibold text-green-600 mt-0.5">
+                                                                      {getSubAttrPriceDisplay()}
+                                                                    </div>
+                                                                  )}
+                                                                </button>
+                                                              );
+                                                            })}
+                                                          </div>
+                                                        </div>
+                                                        <div className="absolute bottom-0 left-0 right-0 h-5 bg-gradient-to-t from-white to-transparent pointer-events-none z-10" />
+                                                      </div>
+                                                    </div>
+                                                  )}
+                                                </div>
+                                              )}
+
+                                              {attrType.inputStyle === 'RADIO' && (
+                                                <div data-attribute={attrId}>
+                                                  {attributeValues.length === 0 ? (
+                                                    <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                                                      <p className="text-sm text-yellow-800">
+                                                        No options available for this attribute. Please contact support.
+                                                      </p>
+                                                    </div>
+                                                  ) : (
+                                                    <>
+                                                      <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                          const filteredValues = attributeValues.filter((av: any) => av && av.value && av.label);
+                                                          setRadioModalData({
+                                                            attributeId: attrId,
+                                                            attributeName: attrType.attributeName,
+                                                            attributeValues: filteredValues,
+                                                            selectedValue: (selectedDynamicAttributes[attrId] as string) || null,
+                                                            isRequired: isRequired,
+                                                          });
+                                                          setRadioModalOpen(true);
+                                                        }}
+                                                        className="w-full px-4 py-3 border-2 border-dashed border-gray-300 rounded-xl hover:border-gray-400 hover:bg-gray-50 transition-all duration-200 text-left flex items-center justify-between group"
+                                                      >
+                                                        <div className="flex-1">
+                                                          <span className="text-sm font-medium text-gray-700 group-hover:text-gray-900">
+                                                            {selectedDynamicAttributes[attrId]
+                                                              ? attributeValues.find((av: any) => av.value === selectedDynamicAttributes[attrId])?.label || 'Select option'
+                                                              : `Select ${attrType.attributeName}${isRequired ? ' *' : ''}`
+                                                            }
+                                                          </span>
+                                                          {selectedDynamicAttributes[attrId] && (
+                                                            <div className="text-xs text-white0 mt-1">
+                                                              Click to change selection
+                                                            </div>
+                                                          )}
+                                                        </div>
+                                                        <ArrowRight size={18} className="text-gray-400 group-hover:text-gray-600 transition-colors" />
+                                                      </button>
+
+                                                    </>
+                                                  )}
+                                                </div>
+                                              )}
+
+                                              {attrType.inputStyle === 'CHECKBOX' && (
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3" data-attribute={attrId}>
+                                                  {attributeValues.length === 0 ? (
+                                                    <div className="col-span-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                                                      <p className="text-sm text-yellow-800">
+                                                        No options available for this attribute. Please contact support.
+                                                      </p>
+                                                    </div>
+                                                  ) : (
+                                                    attributeValues
+                                                      .filter((av: any) => av && av.value && av.label) // Filter out invalid options
+                                                      .map((av: any) => {
+                                                        // Format price display as per unit price
+                                                        const getPriceDisplay = () => {
+                                                          if (!showPrice) return null;
+                                                          // Check for priceImpact first (new format with option usage)
+                                                          if (av.description) {
+                                                            const priceImpactMatch = av.description.match(/Price Impact: ₹([\d.]+)/);
+                                                            if (priceImpactMatch) {
+                                                              const priceImpact = parseFloat(priceImpactMatch[1]) || 0;
+                                                              if (priceImpact > 0) {
+                                                                return `+₹${priceImpact.toFixed(2)}/unit`;
+                                                              }
+                                                            }
+                                                          }
+                                                          // Fall back to priceMultiplier calculation
+                                                          if (!av.priceMultiplier || av.priceMultiplier === 1 || !selectedProduct) return null;
+                                                          const basePrice = selectedProduct.basePrice || 0;
+                                                          const pricePerUnit = basePrice * (av.priceMultiplier - 1);
+                                                          if (Math.abs(pricePerUnit) < 0.01) return null;
+                                                          return `+₹${pricePerUnit.toFixed(2)}/unit`;
+                                                        };
+
+                                                        const isSelected = Array.isArray(selectedDynamicAttributes[attrId]) && (selectedDynamicAttributes[attrId] as any).includes(av.value);
+
+                                                        return (
+                                                          <button
+                                                            key={av.value}
+                                                            type="button"
+                                                            onClick={() => {
+                                                              const current = Array.isArray(selectedDynamicAttributes[attrId]) ? (selectedDynamicAttributes[attrId] as any) : [];
+                                                              const newValue = isSelected
+                                                                ? current.filter((v: any) => v !== av.value)
+                                                                : [...current, av.value];
+                                                              setSelectedDynamicAttributes({
+                                                                ...selectedDynamicAttributes,
+                                                                [attrId]: newValue
+                                                              });
+                                                              // Mark this attribute as user-selected for image updates (preserved order)
+                                                              setUserSelectedAttributes(prev => {
+                                                                const next = new Set(prev);
+                                                                next.delete(attrId);
+                                                                next.add(attrId);
+                                                                return next;
+                                                              });
+                                                            }}
+                                                            className={`p-4 rounded-xl border text-left transition-all duration-200 relative ${isSelected
+                                                              ? "border-gray-900 bg-gray-50 text-gray-900 ring-1 ring-gray-900"
+                                                              : "border-gray-200 text-gray-600 hover:border-gray-400 hover:bg-gray-50"
+                                                              }`}
+                                                          >
+                                                            {isSelected && (
+                                                              <div className="absolute top-2 right-2">
+                                                                <Check size={18} className="text-gray-900" />
+                                                              </div>
+                                                            )}
+                                                            {av.image && (
+                                                              <div className="mb-2 h-32 w-full">
+                                                                <LazyImage
+                                                                  src={av.image}
+                                                                  alt={av.label}
+                                                                  className="w-full h-full object-cover rounded-lg border border-gray-200"
+                                                                  showSkeleton={true}
+                                                                  skeletonVariant="rectangular"
+                                                                />
+                                                              </div>
+                                                            )}
+                                                            <div className="font-bold text-sm">{av.label}</div>
+                                                            {getPriceDisplay() && (
+                                                              <div className="text-xs text-gray-600 mt-1">
+                                                                {getPriceDisplay()}
+                                                              </div>
+                                                            )}
+                                                          </button>
+                                                        );
+                                                      })
+                                                  )}
+                                                </div>
+                                              )}
+
+                                              {attrType.inputStyle === 'TEXT_FIELD' && (
+                                                <div data-attribute={attrId}>
+                                                  <input
+                                                    type="text"
+                                                    value={(selectedDynamicAttributes[attrId] as string) || ""}
+                                                    onChange={(e) => {
+                                                      setSelectedDynamicAttributes({
+                                                        ...selectedDynamicAttributes,
+                                                        [attrId]: e.target.value
+                                                      });
+                                                      // Mark this attribute as user-selected for image updates (preserved order)
+                                                      setUserSelectedAttributes(prev => {
+                                                        const next = new Set(prev);
+                                                        next.delete(attrId);
+                                                        next.add(attrId);
+                                                        return next;
+                                                      });
+                                                    }}
+                                                    placeholder={`Enter ${attrType.attributeName}`}
+                                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-gray-500"
+                                                  />
+                                                </div>
+                                              )}
+
+                                              {attrType.inputStyle === 'NUMBER' && (
+                                                <div data-attribute={attrId}>
+                                                  <input
+                                                    type="number"
+                                                    value={(selectedDynamicAttributes[attrId] as number) || ""}
+                                                    onChange={(e) => {
+                                                      setSelectedDynamicAttributes({
+                                                        ...selectedDynamicAttributes,
+                                                        [attrId]: parseFloat(e.target.value) || 0
+                                                      });
+                                                      // Mark this attribute as user-selected for image updates (preserved order)
+                                                      setUserSelectedAttributes(prev => {
+                                                        const next = new Set(prev);
+                                                        next.delete(attrId);
+                                                        next.add(attrId);
+                                                        return next;
+                                                      });
+                                                    }}
+                                                    placeholder={`Enter ${attrType.attributeName}`}
+                                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-gray-500"
+                                                  />
+                                                </div>
+                                              )}
+
+                                              {attrType.inputStyle === 'FILE_UPLOAD' && (
+                                                <div data-attribute={attrId}>
+                                                  <input
+                                                    type="file"
+                                                    onChange={(e) => {
+                                                      const file = e.target.files?.[0] || null;
+                                                      setSelectedDynamicAttributes({
+                                                        ...selectedDynamicAttributes,
+                                                        [attrId]: file
+                                                      });
+                                                      // Mark this attribute as user-selected for image updates (preserved order)
+                                                      setUserSelectedAttributes(prev => {
+                                                        const next = new Set(prev);
+                                                        next.delete(attrId);
+                                                        next.add(attrId);
+                                                        return next;
+                                                      });
+                                                    }}
+                                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-gray-500"
+                                                    accept="*/*"
+                                                  />
+                                                  {attrType.fileRequirements && (
+                                                    <p className="text-xs text-gray-600 mt-1">{attrType.fileRequirements}</p>
+                                                  )}
+                                                </div>
+                                              )}
+                                            </div>
+                                          );
+                                        })}
+                                      </>
+                                    ) : null;
+                                  })()}
+
+                                </>
+                              );
+                            })()}
+
+
+
+                            {/* Design Selection and Upload Section */}
+                            {(() => {
+                              if (loading) {
+                                return (
+                                  <div className="mb-3 sm:mb-4 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden h-[200px] flex flex-col">
+                                    <div className="bg-gray-50 px-5 py-4 border-b">
+                                      <div className="flex gap-3">
+                                        <Skeleton variant="rectangular" className="w-8 h-8 rounded-lg" />
+                                        <div className="space-y-2">
+                                          <Skeleton variant="text" className="w-32 h-4" />
+                                          <Skeleton variant="text" className="w-24 h-3" />
+                                        </div>
                                       </div>
                                     </div>
+                                    <div className="p-5 flex-1 flex items-center justify-center">
+                                      <Skeleton variant="rectangular" className="w-full h-full rounded-xl" />
+                                    </div>
                                   </div>
-                                )}
+                                );
+                              }
 
-                                {/* Additional Notes Section */}
-                                <div className="mt-4 p-4 rounded-lg border-2 border-gray-200 bg-gray-50">
-                                  <div className="flex items-center gap-2 mb-3">
-                                    <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-purple-100 text-purple-700 text-xs font-bold">
-                                      <Info size={12} />
-                                    </span>
-                                    <h4 className="text-sm font-bold text-gray-900">
-                                      Additional Notes
-                                    </h4>
-                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-200 text-gray-600 text-[10px] font-semibold">
-                                      Optional
-                                    </span>
+                              return (
+                                <>
+                                  {/* Design Method Selection */}
+                                  <div className="mb-6">
+                                    <label className="block text-xs sm:text-sm font-bold text-gray-900 mb-4 uppercase tracking-wider">
+                                      {sectionNum++}. How would you like to provide your design?
+                                    </label>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                      <button
+                                        type="button"
+                                        onClick={() => setDesignMethod('upload')}
+                                        className={`p-4 rounded-xl border-2 text-left transition-all duration-300 relative group ${designMethod === 'upload'
+                                          ? "border-blue-600 bg-blue-50/50 shadow-md ring-1 ring-blue-600"
+                                          : "border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50/20"
+                                          }`}
+                                      >
+                                        <div className="flex items-center gap-3 mb-2">
+                                          <div className={`p-2 rounded-lg ${designMethod === 'upload' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500 group-hover:bg-blue-100 group-hover:text-blue-600'}`}>
+                                            <UploadIcon size={20} />
+                                          </div>
+                                          <span className={`font-bold text-sm ${designMethod === 'upload' ? 'text-blue-900' : 'text-gray-700'}`}>Upload My Design</span>
+                                        </div>
+                                        <p className="text-xs text-gray-500 leading-relaxed">
+                                          I have my own print-ready design (PDF or CDR) and want to upload it now.
+                                        </p>
+                                        {designMethod === 'upload' && (
+                                          <div className="absolute top-3 right-3">
+                                            <Check size={18} className="text-blue-600" />
+                                          </div>
+                                        )}
+                                      </button>
+
+                                      <button
+                                        type="button"
+                                        onClick={() => setDesignMethod('hire')}
+                                        className={`p-4 rounded-xl border-2 text-left transition-all duration-300 relative group ${designMethod === 'hire'
+                                          ? "border-indigo-600 bg-indigo-50/50 shadow-md ring-1 ring-indigo-600"
+                                          : "border-gray-200 bg-white hover:border-indigo-300 hover:bg-indigo-50/20"
+                                          }`}
+                                      >
+                                        <div className="flex items-center gap-3 mb-2">
+                                          <div className={`p-2 rounded-lg ${designMethod === 'hire' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-500 group-hover:bg-indigo-100 group-hover:text-indigo-600'}`}>
+                                            <Palette size={20} />
+                                          </div>
+                                          <span className={`font-bold text-sm ${designMethod === 'hire' ? 'text-indigo-900' : 'text-gray-700'}`}>Hire a Professional</span>
+                                        </div>
+                                        <p className="text-xs text-gray-500 leading-relaxed">
+                                          I need professional help to create a stunning design for my product.
+                                        </p>
+                                        {designMethod === 'hire' && (
+                                          <div className="absolute top-3 right-3">
+                                            <Check size={18} className="text-indigo-600" />
+                                          </div>
+                                        )}
+                                      </button>
+                                    </div>
                                   </div>
-                                  <textarea
-                                    value={orderNotes}
-                                    onChange={(e) => setOrderNotes(e.target.value)}
-                                    placeholder="Any special instructions or notes for your order..."
-                                    className="w-full p-3 rounded-lg border-2 border-gray-200 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none text-sm resize-none bg-white transition-all"
-                                    rows={3}
-                                  />
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })()}
 
-                      </div>
-
-                      {/* Premium Sticky Footer with Total Price + CTA */}
-                      {loading ? (
-                        <div className="mt-auto pt-6 border-t border-gray-100 bg-white bottom-0 z-10">
-                          <div className="flex justify-between items-end mb-4">
-                            <div className="space-y-2">
-                              <Skeleton variant="text" className="w-24 h-3" />
-                              <Skeleton variant="text" className="w-32 h-8" />
-                            </div>
-                            <Skeleton variant="text" className="w-24 h-4" />
-                          </div>
-                          <Skeleton variant="rectangular" className="w-full h-14 rounded-xl" />
-                        </div>
-                      ) : (
-                        <div className="mt-auto pt-6 border-t border-gray-100 bg-white bottom-0 z-10">
-                          <div className="flex justify-between items-end mb-4">
-                            <div>
-                              <p className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-1">Estimated Total Value</p>
-                              <div className="flex items-baseline gap-1">
-                                <span className="text-3xl font-bold text-gray-900">
-                                  ₹{(() => {
-                                    const totalPrice = (price + gstAmount);
-                                    const [integerPart, decimalPart] = totalPrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).split('.');
+                                  {/* Unified PDF Upload Section - Replaces Both Image Upload Sections */}
+                                  {designMethod === 'upload' && (() => {
+                                    const calculatedPages = calculateRequiredPageCount();
                                     return (
-                                      <>
-                                        {integerPart}
-                                        <span className="text-xl">.{decimalPart}</span>
-                                      </>
+                                      <div className="mb-3 sm:mb-4 bg-white rounded-2xl border border-gray-200 shadow-lg shadow-gray-200/50 overflow-hidden hover:shadow-xl hover:shadow-gray-200/50 transition-all duration-300">
+                                        {/* Header Section */}
+                                        <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 px-4 sm:px-5 py-3 sm:py-4 border-b border-gray-200">
+                                          <div className="flex items-center gap-3">
+                                            <div className="w-9 h-9 rounded-xl bg-white shadow-md flex items-center justify-center ring-1 ring-blue-100">
+                                              <FileText className="w-5 h-5 text-blue-600" />
+                                            </div>
+                                            <div className="flex-1">
+                                              <h3 className="font-bold text-sm sm:text-base text-gray-900">
+                                                Upload Design File
+                                              </h3>
+                                              <p className="text-xs text-gray-600 mt-0.5 font-medium">
+                                                {calculatedPages} page{calculatedPages !== 1 ? 's' : ''} required • PDF or CDR • Max: {MAX_PDF_SIZE_MB}MB
+                                              </p>
+                                            </div>
+                                            {pdfFile && !pdfValidationError && (
+                                              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-green-100 to-emerald-100 text-green-700 text-xs font-bold shadow-sm">
+                                                <Check size={14} strokeWidth={3} />
+                                                Complete
+                                              </span>
+                                            )}
+                                          </div>
+                                        </div>
+
+                                        {/* Upload Area */}
+                                        <div className="p-4 sm:p-5">
+                                          {/* Upload Input */}
+                                          <input
+                                            type="file"
+                                            id="pdf-upload-input"
+                                            accept=".pdf,.cdr,application/pdf,application/x-coreldraw,application/coreldraw"
+                                            onChange={handlePdfUpload}
+                                            className="hidden"
+                                            data-required-field
+                                          />
+
+                                          {!pdfFile ? (
+                                            /* Upload Prompt */
+                                            <label
+                                              htmlFor="pdf-upload-input"
+                                              className={`block cursor-pointer border-2 border-dashed rounded-xl transition-all duration-300 hover:scale-[1.01] ${pdfValidationError
+                                                ? 'border-red-400 bg-red-50/50 shadow-inner'
+                                                : 'border-gray-300 bg-gradient-to-br from-gray-50 to-slate-50 hover:border-blue-500 hover:bg-gradient-to-br hover:from-blue-50 hover:to-indigo-50 hover:shadow-md'
+                                                }`}
+                                            >
+                                              <div className="p-8 text-center">
+                                                {isPdfProcessing ? (
+                                                  <div className="flex flex-col items-center">
+                                                    <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-3"></div>
+                                                    <p className="text-sm font-semibold text-gray-700">Processing Design File...</p>
+                                                    <p className="text-xs text-gray-500 mt-1">Extracting pages as images</p>
+                                                  </div>
+                                                ) : (
+                                                  <>
+                                                    <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center mx-auto mb-4">
+                                                      <UploadCloud className="w-7 h-7 text-blue-600" />
+                                                    </div>
+                                                    <p className="text-base font-bold text-gray-800 mb-1">
+                                                      Click to upload design file
+                                                    </p>
+                                                    <p className="text-sm text-gray-600 mb-2 font-medium">
+                                                      {calculatedPages} page{calculatedPages !== 1 ? 's' : ''} required
+                                                    </p>
+                                                    <p className="text-xs text-gray-500 mb-4">
+                                                      Supports PDF & CDR • Max: {MAX_PDF_SIZE_MB}MB
+                                                    </p>
+                                                    <div className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg text-sm font-bold hover:from-blue-700 hover:to-indigo-700 transition-all hover:shadow-lg hover:scale-105">
+                                                      <FileImage size={16} />
+                                                      Select Design File
+                                                    </div>
+                                                  </>
+                                                )}
+                                              </div>
+                                            </label>
+                                          ) : (
+                                            /* PDF Upload Success & Preview */
+                                            <div className="space-y-4">
+                                              {/* PDF File Info */}
+                                              <div className="flex items-center justify-between p-4 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-300 rounded-xl shadow-md hover:shadow-lg transition-all">
+                                                <div className="flex items-center gap-3">
+                                                  <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-md">
+                                                    <FileText className="w-6 h-6 text-white" />
+                                                  </div>
+                                                  <div>
+                                                    <p className="text-sm font-semibold text-gray-900">
+                                                      {pdfFile.name}
+                                                    </p>
+                                                    <p className="text-xs text-gray-600">
+                                                      {pdfFile.name.toLowerCase().endsWith('.cdr')
+                                                        ? `CDR file ready (will be processed server-side)`
+                                                        : `${extractedPdfPages.length} page${extractedPdfPages.length !== 1 ? 's' : ''} extracted`
+                                                      }
+                                                    </p>
+                                                  </div>
+                                                </div>
+                                                <button
+                                                  type="button"
+                                                  onClick={() => {
+                                                    setPdfFile(null);
+                                                    setExtractedPdfPages([]);
+                                                    setPdfPreviewPages([]);
+                                                    setPdfValidationError(null);
+                                                    // Clear mapped images
+                                                    setFrontDesignFile(null);
+                                                    setBackDesignFile(null);
+                                                    setFrontDesignPreview("");
+                                                    setBackDesignPreview("");
+                                                    const fileInput = document.getElementById('pdf-upload-input') as HTMLInputElement;
+                                                    if (fileInput) fileInput.value = '';
+                                                  }}
+                                                  className="px-3 py-1.5 text-xs font-bold text-red-700 bg-red-100 hover:bg-red-200 rounded-lg transition-all hover:shadow-md hover:scale-105"
+                                                >
+                                                  Remove
+                                                </button>
+                                              </div>
+
+                                              {/* Extracted Pages with Purpose Labels - Enhanced UI */}
+                                              {pdfPreviewPages.length > 0 && pdfPageMapping.length > 0 && (
+                                                <div>
+                                                  <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                                                    <FileText size={16} className="text-blue-600" />
+                                                    Page Assignments
+                                                  </h4>
+                                                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                                    {pdfPreviewPages.map((preview, index) => {
+                                                      const mapping = pdfPageMapping[index];
+                                                      if (!mapping) return null;
+
+                                                      // Color coding based on type
+                                                      const colorClasses = {
+                                                        border: 'border-blue-400',
+                                                        badge: 'bg-gradient-to-br from-blue-500 to-indigo-600',
+                                                        labelBg: 'bg-gradient-to-r from-blue-600 to-indigo-700'
+                                                      };
+
+                                                      return (
+                                                        <div key={index} className="relative group">
+                                                          {/* Image Container with dynamic aspect ratio */}
+                                                          <div className="w-full relative overflow-hidden rounded-xl ring-2 ring-blue-400 ring-offset-0 shadow-lg hover:shadow-2xl hover:ring-blue-500 transition-all duration-300 hover:scale-[1.02]">
+                                                            <img
+                                                              src={preview}
+                                                              alt={`Page ${index + 1}`}
+                                                              className="w-full bg-white object-contain"
+                                                              style={{ aspectRatio: 'auto' }}
+                                                            />
+                                                          </div>
+
+                                                          {/* Page Number Badge */}
+                                                          <div className={`absolute -top-2 -left-2 w-8 h-8 ${colorClasses.badge} rounded-full flex items-center justify-center shadow-xl border-2 border-white ring-1 ring-blue-200`}>
+                                                            <span className="text-white text-xs font-black">{mapping.pageNumber}</span>
+                                                          </div>
+
+                                                          {/* Required Badge */}
+                                                          {mapping.isRequired && (
+                                                            <div className="absolute -top-2 -right-2 w-7 h-7 bg-gradient-to-br from-red-500 to-rose-600 rounded-full flex items-center justify-center shadow-xl border-2 border-white ring-1 ring-red-200">
+                                                              <span className="text-white text-xs font-black">!</span>
+                                                            </div>
+                                                          )}
+
+                                                          {/* Purpose Label - Always Visible */}
+                                                          <div className={`absolute bottom-0 left-0 right-0 ${colorClasses.labelBg} text-white px-2 py-2.5 rounded-b-xl shadow-md`}>
+                                                            <div className="flex items-center gap-1.5">
+                                                              <ImageIcon size={15} className="flex-shrink-0" />
+                                                              <div className="flex-1 min-w-0">
+                                                                <p className="text-[11px] font-bold truncate leading-tight">
+                                                                  {mapping.purpose}
+                                                                </p>
+                                                                {mapping.type === 'attribute' && (
+                                                                  <p className="text-[9px] opacity-95 truncate font-medium">
+                                                                    {mapping.isRequired ? 'Required' : 'Optional'}
+                                                                  </p>
+                                                                )}
+                                                              </div>
+                                                            </div>
+                                                          </div>
+
+                                                          {/* Hover Tooltip with Full Details */}
+                                                          <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300 rounded-xl pointer-events-none"></div>
+                                                        </div>
+                                                      );
+                                                    })}
+                                                  </div>
+
+                                                  {/* Legend */}
+                                                  <div className="mt-4 p-3.5 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 border border-blue-200 rounded-xl shadow-sm">
+                                                    <p className="text-xs font-bold text-gray-800 mb-2.5 flex items-center gap-2">
+                                                      <div className="w-5 h-5 rounded-md bg-blue-100 flex items-center justify-center">
+                                                        <Info size={13} className="text-blue-600" />
+                                                      </div>
+                                                      Legend
+                                                    </p>
+                                                    <div className="flex flex-wrap gap-4">
+                                                      <div className="flex items-center gap-2">
+                                                        <div className="w-6 h-6 rounded-lg bg-white shadow-sm flex items-center justify-center">
+                                                          <ImageIcon size={15} className="text-blue-600" />
+                                                        </div>
+                                                        <span className="text-xs text-gray-700 font-medium">Attribute Images</span>
+                                                      </div>
+                                                      <div className="flex items-center gap-2">
+                                                        <div className="w-6 h-6 rounded-lg bg-white shadow-sm flex items-center justify-center">
+                                                          <AlertTriangle size={15} className="text-red-600" />
+                                                        </div>
+                                                        <span className="text-xs text-gray-700 font-medium">Required</span>
+                                                      </div>
+                                                    </div>
+                                                  </div>
+                                                </div>
+                                              )}
+
+                                              {/* CDR File Information Message */}
+                                              {pdfFile && pdfFile.name.toLowerCase().endsWith('.cdr') && pdfPreviewPages.length === 0 && (
+                                                <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                                                  <div className="flex items-start gap-2">
+                                                    <Info size={16} className="text-blue-600 mt-0.5 flex-shrink-0" />
+                                                    <div className="text-xs text-blue-900">
+                                                      <p className="font-semibold mb-1">CDR File Uploaded Successfully</p>
+                                                      <p>Your CorelDRAW file will be processed on the server. Page previews are not available for CDR files, but your design will be processed according to the required page count ({requiredPageCount} page{requiredPageCount !== 1 ? 's' : ''}).</p>
+                                                    </div>
+                                                  </div>
+                                                </div>
+                                              )}
+
+
+                                            </div>
+                                          )}
+
+                                          {/* Validation Error */}
+                                          {pdfValidationError && (
+                                            <div className="mt-4 p-4 bg-red-50 border-2 border-red-200 rounded-xl">
+                                              <div className="flex items-start gap-2">
+                                                <AlertCircle className="text-red-600 flex-shrink-0 mt-0.5" size={18} />
+                                                <div>
+                                                  <p className="text-sm font-semibold text-red-900 mb-1">Upload Error</p>
+                                                  <p className="text-sm text-red-700">{pdfValidationError}</p>
+                                                </div>
+                                              </div>
+                                            </div>
+                                          )}
+
+                                          {/* Additional Notes Section */}
+                                          <div className="mt-4 p-4 rounded-lg border-2 border-gray-200 bg-gray-50">
+                                            <div className="flex items-center gap-2 mb-3">
+                                              <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-purple-100 text-purple-700 text-xs font-bold">
+                                                <Info size={12} />
+                                              </span>
+                                              <h4 className="text-sm font-bold text-gray-900">
+                                                Additional Notes
+                                              </h4>
+                                              <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-200 text-gray-600 text-[10px] font-semibold">
+                                                Optional
+                                              </span>
+                                            </div>
+                                            <textarea
+                                              value={orderNotes}
+                                              onChange={(e) => setOrderNotes(e.target.value)}
+                                              placeholder="Any special instructions or notes for your order..."
+                                              className="w-full p-3 rounded-lg border-2 border-gray-200 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none text-sm resize-none bg-white transition-all"
+                                              rows={3}
+                                            />
+                                          </div>
+                                        </div>
+                                      </div>
                                     );
                                   })()}
-                                </span>
-                                <span className="text-xs text-gray-500 font-medium">incl. taxes</span>
+                                </>
+                              );
+                            })()}
+                          </div>
+
+                          {/* Premium Sticky Footer with Total Price + CTA */}
+                          {
+                            loading ? (
+                              <div className="mt-auto pt-6 border-t border-gray-100 bg-white bottom-0 z-10">
+                                <div className="flex justify-between items-end mb-4">
+                                  <div className="space-y-2">
+                                    <Skeleton variant="text" className="w-24 h-3" />
+                                    <Skeleton variant="text" className="w-32 h-8" />
+                                  </div>
+                                  <Skeleton variant="text" className="w-24 h-4" />
+                                </div>
+                                <Skeleton variant="rectangular" className="w-full h-14 rounded-xl" />
                               </div>
-                            </div>
-                            <div className="text-right text-xs text-green-600 font-medium flex flex-col items-end">
-                              <span className="flex items-center gap-1">
-                                <Zap size={12} className="text-green-600" />
-                                Fast Production
-                              </span>
-                              {/* <span className="text-gray-600">
+                            ) : (
+                              <div className="mt-auto pt-6 border-t border-gray-100 bg-white bottom-0 z-10">
+                                <div className="flex justify-between items-end mb-4">
+                                  <div>
+                                    <p className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-1">Estimated Total Value</p>
+                                    <div className="flex items-baseline gap-1">
+                                      <span className="text-3xl font-bold text-gray-900">
+                                        ₹{(() => {
+                                          const totalPrice = (price + gstAmount);
+                                          const [integerPart, decimalPart] = totalPrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).split('.');
+                                          return (
+                                            <>
+                                              {integerPart}
+                                              <span className="text-xl">.{decimalPart}</span>
+                                            </>
+                                          );
+                                        })()}
+                                      </span>
+                                      <span className="text-xs text-gray-500 font-medium">incl. taxes</span>
+                                    </div>
+                                  </div>
+                                  <div className="text-right text-xs text-green-600 font-medium flex flex-col items-end">
+                                    <span className="flex items-center gap-1">
+                                      <Zap size={12} className="text-green-600" />
+                                      Fast Production
+                                    </span>
+                                    {/* <span className="text-gray-600">
                                 Est. Delivery: <strong className="text-gray-900">
                                   {(() => {
                                     const d = new Date();
@@ -6460,53 +6839,58 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                   })()}
                                 </strong>
                               </span> */}
-                            </div>
-                          </div>
+                                  </div>
+                                </div>
 
-                          <button
-                            onClick={handlePlaceOrder}
-                            disabled={isProcessingPayment}
-                            className={`w-full py-4 rounded-xl font-bold text-base transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 flex items-center justify-center gap-2 group ${isProcessingPayment
-                              ? 'bg-gray-400 text-gray-700 cursor-not-allowed opacity-60'
-                              : 'bg-gray-900 text-white hover:bg-black'
-                              }`}
-                          >
-                            {isProcessingPayment ? (
-                              <>
-                                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                                <span>Processing...</span>
-                              </>
-                            ) : (
-                              <>
-                                <span>Customize Design</span>
-                                <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
-                              </>
-                            )}
-                          </button>
+                                {designMethod === 'upload' ? (
+                                  <button
+                                    onClick={handlePlaceOrder}
+                                    disabled={isProcessingPayment}
+                                    className={`w-full py-4 rounded-xl font-bold text-base transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 flex items-center justify-center gap-2 group ${isProcessingPayment
+                                      ? 'bg-gray-400 text-gray-700 cursor-not-allowed opacity-60'
+                                      : 'bg-gray-900 text-white hover:bg-black'
+                                      }`}
+                                  >
+                                    {isProcessingPayment ? (
+                                      <>
+                                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                        <span>Processing...</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <span>Customize Design</span>
+                                        <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                                      </>
+                                    )}
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={() => {
+                                      const token = localStorage.getItem("token");
+                                      if (!token) {
+                                        navigate("/login");
+                                      } else {
+                                        setShowDesignerSelectionModal(true);
+                                      }
+                                    }}
+                                    className="w-full py-4 rounded-xl font-bold text-base bg-blue-600 text-white hover:bg-blue-700 transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 flex items-center justify-center gap-2 group"
+                                  >
+                                    <Video size={18} />
+                                    <span>Hire Designer</span>
+                                  </button>
+                                )}
 
-                          <button
-                            onClick={() => {
-                              const token = localStorage.getItem("token");
-                              if (!token) {
-                                navigate("/login");
-                              } else {
-                                navigate("/client-dashboard");
-                              }
-                            }}
-                            className="w-full mt-3 py-4 rounded-xl font-bold text-base bg-blue-600 text-white hover:bg-blue-700 transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 flex items-center justify-center gap-2 group"
-                          >
-                            <Video size={18} />
-                            <span>Connect with Designer</span>
-                          </button>
-
-                          <div className="mt-3 text-center text-xs text-gray-400 flex items-center justify-center gap-2">
-                            <Lock size={12} />
-                            <span>Secure Payment & Data Protection</span>
-                          </div>
-                        </div>
-                      )}
-                    </motion.div>
-                  </AnimatePresence>
+                                <div className="mt-3 text-center text-xs text-gray-400 flex items-center justify-center gap-2">
+                                  <Lock size={12} />
+                                  <span>Secure Payment & Data Protection</span>
+                                </div>
+                              </div>
+                            )
+                          }
+                        </motion.div>
+                      </AnimatePresence>
+                    );
+                  })()}
                 </div>
               </div>
             </div>
@@ -7140,9 +7524,568 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
           </motion.div>
         )}
       </AnimatePresence>
+      {/* Designer Selection Modal */}
+      <AnimatePresence>
+        {showDesignerSelectionModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-6 border-b border-gray-100 flex justify-between items-center">
+                <h3 className="text-xl font-bold text-gray-900">Hire a Professional Designer</h3>
+                <button onClick={() => setShowDesignerSelectionModal(false)} className="text-gray-400 hover:text-gray-600">
+                  <X size={24} />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-4">
+                <div
+                  onClick={() => {
+                    setShowDesignerSelectionModal(false);
+                    setShowVisualDesignerForm(true);
+                  }}
+                  className="group p-4 border-2 border-gray-100 rounded-xl hover:border-blue-500 hover:bg-blue-50/50 transition-all cursor-pointer flex gap-4"
+                >
+                  <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center text-blue-600 shrink-0 group-hover:scale-110 transition-transform">
+                    <Video size={24} />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-gray-900">Visual Designer</h4>
+                    <p className="text-sm text-gray-500">Submit requirements online and our team will design it for you. Perfect for standard layouts.</p>
+                  </div>
+                </div>
+
+                <div
+                  onClick={() => {
+                    setShowDesignerSelectionModal(false);
+                    setShowPhysicalDesignerList(true);
+                    fetchDesigners();
+                  }}
+                  className="group p-4 border-2 border-gray-100 rounded-xl hover:border-purple-500 hover:bg-purple-50/50 transition-all cursor-pointer flex gap-4"
+                >
+                  <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center text-purple-600 shrink-0 group-hover:scale-110 transition-transform">
+                    <MapPin size={24} />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-gray-900">Physical Designer</h4>
+                    <p className="text-sm text-gray-500">Book a designer for a physical visit or office meeting. Best for complex branding and direct coordination.</p>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Visual Designer Requirement Form Modal */}
+      <AnimatePresence>
+        {showVisualDesignerForm && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-6 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white z-10">
+                <h3 className="text-xl font-bold text-gray-900">Design Requirement Form</h3>
+                <button onClick={() => setShowVisualDesignerForm(false)} className="text-gray-400 hover:text-gray-600">
+                  <X size={24} />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Design For */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-gray-700">Card / Design For</label>
+                    <select
+                      value={visualFormData.designFor}
+                      onChange={(e) => setVisualFormData({ ...visualFormData, designFor: e.target.value })}
+                      className="w-full p-2.5 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none"
+                    >
+                      {DESIGN_FOR_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                    </select>
+                    {visualFormData.designFor === 'Other' && (
+                      <input
+                        type="text"
+                        placeholder="Specify category..."
+                        value={visualFormData.otherDesignFor}
+                        onChange={(e) => setVisualFormData({ ...visualFormData, otherDesignFor: e.target.value })}
+                        className="w-full mt-2 p-2.5 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none"
+                      />
+                    )}
+                  </div>
+
+                  {/* Design Style */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-gray-700">Design Style</label>
+                    <div className="flex flex-wrap gap-2">
+                      {DESIGN_STYLE_OPTIONS.map(opt => (
+                        <button
+                          key={opt}
+                          onClick={() => setVisualFormData({ ...visualFormData, designStyle: opt })}
+                          className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${visualFormData.designStyle === opt ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                        >
+                          {opt}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Color Preference */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-gray-700">Color Preference</label>
+                    <select
+                      value={visualFormData.colorPreference}
+                      onChange={(e) => setVisualFormData({ ...visualFormData, colorPreference: e.target.value })}
+                      className="w-full p-2.5 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none"
+                    >
+                      {COLOR_PREFERENCE_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                    </select>
+                  </div>
+
+                  {/* Language */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-gray-700">Language</label>
+                    <div className="flex flex-wrap gap-2">
+                      {LANGUAGE_OPTIONS.map(opt => (
+                        <button
+                          key={opt}
+                          onClick={() => setVisualFormData({ ...visualFormData, language: opt })}
+                          className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${visualFormData.language === opt ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                        >
+                          {opt}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Uploads */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-3">
+                    <label className="text-sm font-bold text-gray-700">Logo Available?</label>
+                    <div className="flex gap-4">
+                      {['Yes', 'No'].map(opt => (
+                        <label key={opt} className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="logoAvailable"
+                            checked={visualFormData.logoAvailable === opt}
+                            onChange={() => setVisualFormData({ ...visualFormData, logoAvailable: opt })}
+                          />
+                          <span className="text-sm">{opt}</span>
+                        </label>
+                      ))}
+                    </div>
+                    {visualFormData.logoAvailable === 'Yes' && (
+                      <div className="relative group border-2 border-dashed border-gray-200 rounded-xl p-4 hover:border-blue-400 transition-all">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => setVisualLogoFile(e.target.files?.[0] || null)}
+                          className="absolute inset-0 opacity-0 cursor-pointer"
+                        />
+                        <div className="flex flex-col items-center justify-center gap-1 text-gray-500">
+                          <UploadCloud size={20} />
+                          <span className="text-xs">{visualLogoFile ? visualLogoFile.name : 'Upload Logo'}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-3">
+                    <label className="text-sm font-bold text-gray-700">Photo on Card?</label>
+                    <div className="flex gap-4">
+                      {['Yes', 'No'].map(opt => (
+                        <label key={opt} className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="photoOnCard"
+                            checked={visualFormData.photoOnCard === opt}
+                            onChange={() => setVisualFormData({ ...visualFormData, photoOnCard: opt })}
+                          />
+                          <span className="text-sm">{opt}</span>
+                        </label>
+                      ))}
+                    </div>
+                    {visualFormData.photoOnCard === 'Yes' && (
+                      <div className="relative group border-2 border-dashed border-gray-200 rounded-xl p-4 hover:border-blue-400 transition-all">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => setVisualPhotoFile(e.target.files?.[0] || null)}
+                          className="absolute inset-0 opacity-0 cursor-pointer"
+                        />
+                        <div className="flex flex-col items-center justify-center gap-1 text-gray-500">
+                          <ImageIcon size={20} />
+                          <span className="text-xs">{visualPhotoFile ? visualPhotoFile.name : 'Upload Photo'}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-bold text-gray-700">Any Special Instructions</label>
+                  <textarea
+                    value={visualFormData.specialInstructions}
+                    onChange={(e) => setVisualFormData({ ...visualFormData, specialInstructions: e.target.value })}
+                    placeholder="E.g. Font preferences, social media icons, back side details..."
+                    className="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm min-h-[100px]"
+                  />
+                </div>
+
+                <button
+                  onClick={() => createDesignerOrder('visual')}
+                  disabled={isSubmittingDesignerOrder}
+                  className="w-full py-4 bg-gray-900 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-black transition-all disabled:opacity-50"
+                >
+                  {isSubmittingDesignerOrder ? 'Submitting...' : 'Submit Requirements & Continue'}
+                  <ArrowRight size={20} />
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Physical Designer List Modal */}
+      <AnimatePresence>
+        {showPhysicalDesignerList && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-white z-10">
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900">
+                    {bookingStep === 1 && "Choose Visit Type"}
+                    {bookingStep === 2 && "Select Date & Location"}
+                    {bookingStep === 3 && "Pick Your Designer & Time"}
+                  </h3>
+                  <p className="text-sm text-gray-500">
+                    {bookingStep === 1 && "Select how you would like to consult"}
+                    {bookingStep === 2 && "When and where should the consultation happen?"}
+                    {bookingStep === 3 && "Select from our expert designers available on your date"}
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowPhysicalDesignerList(false);
+                    setBookingStep(1);
+                  }}
+                  className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                >
+                  <X size={24} className="text-gray-400" />
+                </button>
+              </div>
+
+              <div className="p-6 overflow-y-auto flex-1">
+                {bookingStep === 1 && (
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <button
+                        onClick={() => {
+                          setVisitType('Office');
+                          setPhysicalVisitAddress('At Prints24 Office');
+                        }}
+                        className={`p-5 rounded-2xl border-2 transition-all text-left flex flex-col gap-2 ${visitType === 'Office' ? 'border-blue-600 bg-blue-50 shadow-md' : 'border-gray-100 hover:border-blue-200'}`}
+                      >
+                        <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center">
+                          <MapPin size={24} />
+                        </div>
+                        <div>
+                          <span className="font-bold text-gray-900 block text-lg">Office Visit</span>
+                          <span className="text-sm text-gray-500">Meet our designers at our store for free consultation.</span>
+                        </div>
+                        {visitType === 'Office' && <div className="mt-auto pt-2 text-blue-600 flex items-center gap-1 text-xs font-bold uppercase tracking-wider"><Check size={14} /> Selected</div>}
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setVisitType('Home');
+                          setPhysicalVisitAddress('');
+                        }}
+                        className={`p-5 rounded-2xl border-2 transition-all text-left flex flex-col gap-2 ${visitType === 'Home' ? 'border-blue-600 bg-blue-50 shadow-md' : 'border-gray-100 hover:border-blue-200'}`}
+                      >
+                        <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center">
+                          <Truck size={24} />
+                        </div>
+                        <div>
+                          <span className="font-bold text-gray-900 block text-lg">Home Visit</span>
+                          <span className="text-sm text-gray-500">Get a professional designer to visit your location.</span>
+                        </div>
+                        {visitType === 'Home' && <div className="mt-auto pt-2 text-blue-600 flex items-center gap-1 text-xs font-bold uppercase tracking-wider"><Check size={14} /> Selected</div>}
+                      </button>
+                    </div>
+
+                    <button
+                      onClick={() => setBookingStep(2)}
+                      className="w-full py-4 bg-gray-900 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-black shadow-lg transition-all"
+                    >
+                      Next Step
+                      <ArrowRight size={20} />
+                    </button>
+                  </div>
+                )}
+
+                {bookingStep === 2 && (
+                  <div className="space-y-6">
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <label className="text-sm font-bold text-gray-700 flex items-center gap-2">
+                          <Zap size={16} className="text-blue-500" /> Select Consultation Date
+                        </label>
+                        <input
+                          type="date"
+                          value={selectedDate}
+                          min={new Date().toISOString().split('T')[0]}
+                          onChange={(e) => {
+                            setSelectedDate(e.target.value);
+                            setSelectedDesigner(null);
+                            setSelectedSlot('');
+                          }}
+                          className="w-full p-4 rounded-xl border-2 border-gray-100 focus:border-blue-500 outline-none text-base font-medium transition-all bg-gray-50 focus:bg-white"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        {visitType === 'Home' ? (
+                          <>
+                            <label className="text-sm font-bold text-gray-700 flex items-center gap-2">
+                              <MapPin size={16} className="text-blue-500" /> Your Visit Address
+                            </label>
+                            <textarea
+                              value={physicalVisitAddress}
+                              onChange={(e) => setPhysicalVisitAddress(e.target.value)}
+                              placeholder="Enter the full address where the designer should visit..."
+                              className="w-full p-4 rounded-xl border-2 border-gray-100 focus:border-blue-500 outline-none text-sm min-h-[100px] transition-all bg-gray-50 focus:bg-white"
+                            />
+                          </>
+                        ) : (
+                          <div className="p-4 rounded-xl bg-blue-50 border border-blue-100 space-y-2">
+                            <label className="text-sm font-bold text-blue-800 flex items-center gap-2">
+                              <MapPin size={16} /> Office Visit Information
+                            </label>
+                            {officeConfig?.officeAddress ? (
+                              <div className="space-y-1 mt-2">
+                                <p className="text-sm text-blue-700 font-medium">
+                                  📍 {officeConfig.officeAddress}
+                                </p>
+                                {officeConfig?.officePhone && (
+                                  <p className="text-sm text-blue-700">
+                                    📞 {officeConfig.officePhone}
+                                  </p>
+                                )}
+                              </div>
+                            ) : (
+                              <p className="text-sm text-blue-700 leading-relaxed mt-2">
+                                You're welcome to visit our design studio at your selected date and time.
+                                Our team will be ready to assist you during your scheduled slot.
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Customer Mobile Number — required for all booking types */}
+                      <div className="space-y-2">
+                        <label className="text-sm font-bold text-gray-700 flex items-center gap-2">
+                          📱 Your Mobile Number <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="tel"
+                          value={customerPhone}
+                          onChange={(e) => setCustomerPhone(e.target.value)}
+                          placeholder="e.g. 9876543210 or +919876543210"
+                          maxLength={15}
+                          className={`w-full p-4 rounded-xl border-2 outline-none text-base font-medium transition-all bg-gray-50 focus:bg-white ${customerPhone && !/^(\+\d{1,3})?\d{10}$/.test(customerPhone.replace(/[\s\-]/g, ''))
+                            ? 'border-red-300 focus:border-red-500'
+                            : 'border-gray-100 focus:border-blue-500'
+                            }`}
+                        />
+                        {customerPhone && !/^(\+\d{1,3})?\d{10}$/.test(customerPhone.replace(/[\s\-]/g, '')) && (
+                          <p className="text-xs text-red-500 mt-1">Please enter a valid 10-digit mobile number</p>
+                        )}
+                      </div>
+
+                      <div className="flex gap-4">
+                        <button
+                          onClick={() => setBookingStep(1)}
+                          className="flex-1 py-4 border-2 border-gray-100 text-gray-700 rounded-xl font-bold hover:bg-gray-50 transition-all"
+                        >
+                          Back
+                        </button>
+                        <button
+                          disabled={
+                            !selectedDate ||
+                            (visitType === 'Home' && !physicalVisitAddress.trim()) ||
+                            !customerPhone ||
+                            !/^(\+\d{1,3})?\d{10}$/.test(customerPhone.replace(/[\s\-]/g, ''))
+                          }
+                          onClick={() => {
+                            fetchDesigners(selectedDate);
+                            setBookingStep(3);
+                          }}
+                          className="flex-[2] py-4 bg-gray-900 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-black shadow-lg transition-all disabled:opacity-50"
+                        >
+                          Find Available Designers
+                          <ArrowRight size={20} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {bookingStep === 3 && (
+                  <div className="space-y-6">
+                    {isLoadingDesigners ? (
+                      <div className="py-20 flex flex-col items-center justify-center gap-4">
+                        <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin shadow-lg" />
+                        <p className="text-gray-500 font-bold animate-pulse">Finding available experts...</p>
+                      </div>
+                    ) : designers.length === 0 ? (
+                      <div className="text-center py-20 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200">
+                        <AlertCircle size={40} className="mx-auto text-gray-300 mb-2" />
+                        <p className="text-gray-500 font-medium">No designers available on this date.</p>
+                        <button onClick={() => setBookingStep(2)} className="text-blue-600 font-bold text-sm hover:underline mt-2">Try another date</button>
+                      </div>
+                    ) : (
+                      <div className="space-y-6">
+                        {/* Designer List */}
+                        <div className="space-y-3">
+                          <label className="text-xs font-bold text-gray-400 uppercase tracking-widest px-1">Select Designer</label>
+                          <div className="grid grid-cols-1 gap-3">
+                            {designers.map((designer) => (
+                              <button
+                                key={designer._id}
+                                onClick={() => {
+                                  setSelectedDesigner(designer);
+                                  setSelectedSlot('');
+                                  fetchSlots(designer._id, selectedDate);
+                                }}
+                                className={`p-4 rounded-2xl border-2 transition-all text-left flex items-center gap-4 ${selectedDesigner?._id === designer._id ? 'border-blue-600 bg-blue-50' : 'border-gray-50 hover:border-gray-200 hover:bg-white'}`}
+                              >
+                                <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xl shrink-0 uppercase">
+                                  {designer.name.charAt(0)}
+                                </div>
+                                <div className="flex-1">
+                                  <div className="font-bold text-gray-900">{designer.name}</div>
+                                  <div className="text-xs text-blue-600 font-bold">₹{designer.hourlyRate || 500} / hr</div>
+                                  {designer.address ? (
+                                    <div className="text-xs text-gray-500 mt-1">📍 {designer.address}</div>
+                                  ) : null}
+                                  {designer.mobileNumber ? (
+                                    <div className="text-xs text-gray-500">📞 {designer.mobileNumber}</div>
+                                  ) : null}
+                                </div>
+                                {selectedDesigner?._id === designer._id && (
+                                  <div className="w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center">
+                                    <Check size={14} />
+                                  </div>
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Slot Selection */}
+                        {selectedDesigner && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            className="space-y-3 pt-4 border-t border-gray-100"
+                          >
+                            <label className="text-xs font-bold text-gray-400 uppercase tracking-widest px-1">Select Time Slot</label>
+                            {isLoadingSlots ? (
+                              <div className="p-8 flex justify-center"><div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div></div>
+                            ) : availableSlots.length === 0 ? (
+                              <p className="text-xs text-red-500 font-medium bg-red-50 p-3 rounded-lg">All slots booked for this designer on this date. Please try another designer or date.</p>
+                            ) : (
+                              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                                {availableSlots.map(slot => {
+                                  const isDisabled = slot.isBooked || slot.isPast;
+                                  let btnClass = '';
+                                  if (slot.isBooked) {
+                                    btnClass = 'bg-red-50 border-red-200 text-red-400 cursor-not-allowed';
+                                  } else if (slot.isPast) {
+                                    btnClass = 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed';
+                                  } else if (selectedSlot === slot.time) {
+                                    btnClass = 'bg-green-600 border-green-600 text-white shadow-md';
+                                  } else {
+                                    btnClass = 'border-green-100 text-green-700 bg-green-50/30 hover:border-green-500 hover:bg-green-50';
+                                  }
+                                  return (
+                                    <button
+                                      key={slot.time}
+                                      disabled={isDisabled}
+                                      onClick={() => setSelectedSlot(slot.time)}
+                                      className={`py-2 px-1 rounded-lg border text-[10px] sm:text-xs font-bold transition-all ${btnClass}`}
+                                    >
+                                      {slot.time}
+                                      {slot.isBooked && <span className="block text-[8px] uppercase tracking-tighter mt-0.5">Booked</span>}
+                                      {slot.isPast && !slot.isBooked && <span className="block text-[8px] uppercase tracking-tighter mt-0.5">Past</span>}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </motion.div>
+                        )}
+
+                        <div className="flex gap-4 pt-4">
+                          <button
+                            onClick={() => setBookingStep(2)}
+                            className="flex-1 py-4 border-2 border-gray-100 text-gray-700 rounded-xl font-bold hover:bg-gray-50 transition-all"
+                          >
+                            Back
+                          </button>
+                          <button
+                            disabled={!selectedDesigner || !selectedSlot || isSubmittingDesignerOrder}
+                            onClick={() => createDesignerOrder('physical')}
+                            className="flex-[2] py-4 bg-blue-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-blue-700 shadow-lg transition-all disabled:opacity-50"
+                          >
+                            {isSubmittingDesignerOrder ? 'Booking...' : 'Confirm Booking'}
+                            {!isSubmittingDesignerOrder && <ArrowRight size={20} />}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div >
   );
 };
 
 export default GlossProductSelection;
-

@@ -1,5 +1,5 @@
 import Department from "../models/departmentModal.js";
-import Order from "../models/orderModal.js";
+import Order from "../models/Order.js";
 import Sequence from "../models/sequenceModal.js";
 
 // Create a new department
@@ -39,7 +39,7 @@ export const createDepartment = async (req, res) => {
 export const getAllDepartments = async (req, res) => {
   try {
     const { isEnabled } = req.query;
-    
+
     let query = {};
     if (isEnabled !== undefined) {
       query.isEnabled = isEnabled === 'true';
@@ -125,7 +125,7 @@ export const deleteDepartment = async (req, res) => {
   try {
     const { id } = req.params;
     const department = await Department.findById(id);
-    
+
     if (!department) {
       return res.status(404).json({ error: "Department not found" });
     }
@@ -137,8 +137,8 @@ export const deleteDepartment = async (req, res) => {
 
     if (sequencesUsingDepartment.length > 0) {
       const sequenceNames = sequencesUsingDepartment.map(seq => seq.name).join(", ");
-      return res.status(400).json({ 
-        error: `Cannot delete department. It is being used in ${sequencesUsingDepartment.length} sequence(s): ${sequenceNames}. Please remove this department from the sequence(s) before deleting.` 
+      return res.status(400).json({
+        error: `Cannot delete department. It is being used in ${sequencesUsingDepartment.length} sequence(s): ${sequenceNames}. Please remove this department from the sequence(s) before deleting.`
       });
     }
 
@@ -149,8 +149,8 @@ export const deleteDepartment = async (req, res) => {
     });
 
     if (activeOrders.length > 0) {
-      return res.status(400).json({ 
-        error: `Cannot delete department. ${activeOrders.length} active order(s) are assigned to this department.` 
+      return res.status(400).json({
+        error: `Cannot delete department. ${activeOrders.length} active order(s) are assigned to this department.`
       });
     }
 

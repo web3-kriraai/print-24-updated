@@ -1,4 +1,4 @@
-import Order from "../models/orderModal.js";
+import Order from "../models/Order.js";
 import Department from "../models/departmentModal.js";
 import Product from "../models/productModal.js";
 
@@ -23,8 +23,8 @@ export const departmentAction = async (req, res) => {
 
     // Check if order is approved (status must be "approved", "processing", or "completed")
     if (order.status === "request") {
-      return res.status(400).json({ 
-        error: "Order must be approved by admin before starting production. Current status: request" 
+      return res.status(400).json({
+        error: "Order must be approved by admin before starting production. Current status: request"
       });
     }
 
@@ -41,7 +41,7 @@ export const departmentAction = async (req, res) => {
 
     // Special department ID that allows all employees to perform actions
     const ALL_EMPLOYEES_DEPARTMENT_ID = "69327f9850162220fa7bff29";
-    
+
     // Check if operator is assigned to department (if operators are specified)
     // Exception: Allow all employees for the specific department
     if (departmentId !== ALL_EMPLOYEES_DEPARTMENT_ID) {
@@ -64,9 +64,9 @@ export const departmentAction = async (req, res) => {
     let departmentsInSequence = [];
     if (product.productionSequence && product.productionSequence.length > 0) {
       const deptIds = product.productionSequence.map(dept => typeof dept === 'object' ? dept._id : dept);
-      const departments = await Department.find({ 
+      const departments = await Department.find({
         _id: { $in: deptIds },
-        isEnabled: true 
+        isEnabled: true
       });
       departmentsInSequence = deptIds
         .map(id => departments.find(d => d._id.toString() === id.toString()))
@@ -109,8 +109,8 @@ export const departmentAction = async (req, res) => {
     if (action === "start") {
       // Check if department has received a request (status must be "pending")
       if (deptStatus.status !== "pending") {
-        return res.status(400).json({ 
-          error: `Cannot start "${department.name}". Department must receive a request first (current status: ${deptStatus.status}).` 
+        return res.status(400).json({
+          error: `Cannot start "${department.name}". Department must receive a request first (current status: ${deptStatus.status}).`
         });
       }
     }
@@ -126,8 +126,8 @@ export const departmentAction = async (req, res) => {
     };
 
     if (!validTransitions[currentStatus]?.includes(action)) {
-      return res.status(400).json({ 
-        error: `Invalid transition. Current status: ${currentStatus}. Allowed actions: ${validTransitions[currentStatus]?.join(", ") || "none"}` 
+      return res.status(400).json({
+        error: `Invalid transition. Current status: ${currentStatus}. Allowed actions: ${validTransitions[currentStatus]?.join(", ") || "none"}`
       });
     }
 
@@ -174,7 +174,7 @@ export const departmentAction = async (req, res) => {
     if (!order.productionTimeline) {
       order.productionTimeline = [];
     }
-    
+
     // Map action to timeline action format (must match enum in Order model: ["started", "paused", "resumed", "stopped", "completed"])
     const actionMap = {
       "start": "started",
@@ -184,7 +184,7 @@ export const departmentAction = async (req, res) => {
       "stop": "stopped"
     };
     const timelineAction = actionMap[action] || "started";
-    
+
     order.productionTimeline.push({
       department: departmentId,
       action: timelineAction,
@@ -202,8 +202,8 @@ export const departmentAction = async (req, res) => {
         return sequenceDeptIds.has(deptId);
       }
     );
-    
-    const allCompleted = relevantDeptStatuses.length > 0 && 
+
+    const allCompleted = relevantDeptStatuses.length > 0 &&
       relevantDeptStatuses.every(ds => ds.status === "completed");
     const anyInProgress = relevantDeptStatuses.some(ds => ds.status === "in_progress");
     const anyStopped = relevantDeptStatuses.some(ds => ds.status === "stopped");
@@ -229,10 +229,10 @@ export const departmentAction = async (req, res) => {
         );
 
         // If next department status doesn't exist or is not already in progress/completed, send request
-        const shouldSendRequest = !nextDeptStatus || 
-          (nextDeptStatus.status !== "in_progress" && 
-           nextDeptStatus.status !== "completed" && 
-           nextDeptStatus.status !== "paused");
+        const shouldSendRequest = !nextDeptStatus ||
+          (nextDeptStatus.status !== "in_progress" &&
+            nextDeptStatus.status !== "completed" &&
+            nextDeptStatus.status !== "paused");
 
         if (shouldSendRequest) {
           const nextNow = new Date();
@@ -323,7 +323,7 @@ export const departmentAction = async (req, res) => {
       path: "productionTimeline.department",
       select: "name",
     });
-    
+
     // Convert uploaded design buffers to base64 for frontend
     const orderObj = order.toObject();
     if (order.uploadedDesign?.frontImage?.data) {
@@ -342,7 +342,7 @@ export const departmentAction = async (req, res) => {
     console.error("DEPARTMENT ACTION ERROR ===>", err);
     console.error("Error details:", err.message);
     console.error("Error stack:", err.stack);
-    return res.status(500).json({ 
+    return res.status(500).json({
       error: err.message || "Failed to perform department action",
       details: process.env.NODE_ENV === 'development' ? err.stack : undefined
     });
@@ -367,7 +367,7 @@ export const getDepartmentOrders = async (req, res) => {
   try {
     const { departmentId } = req.params;
     const { status } = req.query; // Filter by department status: pending, in_progress, paused, completed, stopped
-    
+
     // Special department ID that should show orders even if not in sequence
     const ALL_EMPLOYEES_DEPARTMENT_ID = "69327f9850162220fa7bff29";
 
@@ -431,11 +431,11 @@ export const getDepartmentOrders = async (req, res) => {
       // Since we're using lean(), productionSequence might not be populated
       // We'll handle this in the filtering logic below
     });
-    
+
     // Single batch query for all departments
     const allDepartmentsMap = new Map();
     if (allDeptIdsSet.size > 0) {
-      const allDepartments = await Department.find({ 
+      const allDepartments = await Department.find({
         _id: { $in: Array.from(allDeptIdsSet) }
       });
       allDepartments.forEach(dept => {
@@ -449,7 +449,7 @@ export const getDepartmentOrders = async (req, res) => {
     // 3. All previous departments in the sequence are completed (so order is ready for this department)
     // Filter orders: only show if department is in sequence and all previous departments are completed
     const filteredOrders = [];
-    
+
     for (const order of orders) {
       const deptStatus = order.departmentStatuses?.find(
         (ds) => {
@@ -472,10 +472,10 @@ export const getDepartmentOrders = async (req, res) => {
       // Since we're using lean(), productionSequence might not be populated
       // We'll need to fetch it separately or include it in the query
       let departmentsInSequence = [];
-      
+
       // Try to get productionSequence from product (might be populated or just IDs)
       const productionSequence = product.productionSequence || [];
-      
+
       if (productionSequence.length > 0) {
         // Handle both populated objects and ObjectIds
         const deptIds = productionSequence.map(dept => {
@@ -484,7 +484,7 @@ export const getDepartmentOrders = async (req, res) => {
           }
           return typeof dept === 'object' ? dept.toString() : dept?.toString();
         }).filter(id => id);
-        
+
         // Fetch departments if not already in map
         const missingDeptIds = deptIds.filter(id => !allDepartmentsMap.has(id));
         if (missingDeptIds.length > 0) {
@@ -493,7 +493,7 @@ export const getDepartmentOrders = async (req, res) => {
             allDepartmentsMap.set(dept._id.toString(), dept);
           });
         }
-        
+
         departmentsInSequence = deptIds
           .map(id => allDepartmentsMap.get(id))
           .filter(d => d !== undefined && d !== null);
@@ -556,14 +556,14 @@ export const getDepartmentOrders = async (req, res) => {
               return deptId === prevDept._id.toString();
             }
           );
-          
+
           // If previous department doesn't exist or is not completed, don't show this order
           if (!prevDeptStatus || prevDeptStatus.status !== "completed") {
             allPreviousCompleted = false;
             break;
           }
         }
-        
+
         if (!allPreviousCompleted) {
           continue; // Skip this order - previous departments not completed yet
         }
@@ -583,7 +583,7 @@ export const getDepartmentOrders = async (req, res) => {
     const includeImages = req.query.includeImages === 'true';
     const ordersWithImages = filteredOrders.map((order) => {
       const orderObj = order.toObject();
-      
+
       // Only convert images if explicitly requested (for detail views)
       // For list views, exclude image data to reduce payload size
       if (includeImages) {

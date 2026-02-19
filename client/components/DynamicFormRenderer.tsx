@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import axios from 'axios';
-import { 
-  Eye, EyeOff, Upload, X, FileText, Mail, Phone, Lock, 
-  Calendar, Hash, Type, CheckSquare, ListFilter, CheckCircle, 
-  Shield, Loader, Key, Globe, User, Building, Briefcase, 
+import {
+  Eye, EyeOff, Upload, X, FileText, Mail, Phone, Lock,
+  Calendar, Hash, Type, CheckSquare, ListFilter, CheckCircle,
+  Shield, Loader, Key, Globe, User, Building, Briefcase,
   Smartphone, Link, CalendarDays, FileCheck, AlertTriangle,
   Clock, ShieldCheck, Sparkles, ChevronDown
 } from 'lucide-react';
@@ -59,7 +59,7 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState<Record<string, boolean>>({});
-  
+
   // OTP Verification State
   const [emailVerified, setEmailVerified] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
@@ -67,7 +67,7 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
   const [otpError, setOtpError] = useState('');
   const [sendingOtp, setSendingOtp] = useState(false);
   const [verifyingOtp, setVerifyingOtp] = useState(false);
-  
+
   // Password Validation State
   const [passwordStrength, setPasswordStrength] = useState(0);
   const [passwordsMatch, setPasswordsMatch] = useState(false);
@@ -186,7 +186,7 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
   // Send OTP to email
   const handleSendOTP = async (fieldId: string) => {
     const email = formData[fieldId];
-    
+
     if (!email) {
       setOtpError('Please enter your email first');
       return;
@@ -204,7 +204,7 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
 
     try {
       const response = await axios.post('/api/otp/send-email', { email });
-      
+
       if (response.data.success) {
         setOtpSent(true);
         setOtpError('');
@@ -221,7 +221,7 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
   // Verify OTP
   const handleVerifyOTP = async (fieldId: string) => {
     const email = formData[fieldId];
-    
+
     if (!otp || otp.length !== 6) {
       setOtpError('Please enter the 6-digit code');
       return;
@@ -232,7 +232,7 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
 
     try {
       const response = await axios.post('/api/otp/verify-email', { email, otp });
-      
+
       if (response.data.success) {
         setEmailVerified(true);
         setOtpError('');
@@ -250,19 +250,19 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
   // Calculate password strength
   const calculatePasswordStrength = (password: string): number => {
     if (!password) return 0;
-    
+
     let strength = 0;
-    
+
     // Length check
     if (password.length >= 8) strength += 20;
     if (password.length >= 12) strength += 10;
-    
+
     // Character variety checks
     if (/[a-z]/.test(password)) strength += 20; // lowercase
     if (/[A-Z]/.test(password)) strength += 20; // uppercase
     if (/\d/.test(password)) strength += 15; // numbers
     if (/[@$!%*?&]/.test(password)) strength += 15; // special chars
-    
+
     return Math.min(strength, 100);
   };
 
@@ -270,7 +270,7 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
   const checkPasswordsMatch = (): boolean => {
     const password = formData['password'];
     const confirmPassword = formData['confirmPassword'];
-    
+
     if (!password || !confirmPassword) return false;
     return password === confirmPassword;
   };
@@ -283,7 +283,7 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
     } else {
       setPasswordStrength(0);
     }
-    
+
     // Check if passwords match
     setPasswordsMatch(checkPasswordsMatch());
   }, [formData['password'], formData['confirmPassword']]);
@@ -372,10 +372,10 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
 
   const getFieldIcon = (fieldType: string, fieldId?: string) => {
     const iconProps = { className: "w-5 h-5" };
-    
+
     switch (fieldType) {
       case 'email': return <Mail {...iconProps} />;
-      case 'password': 
+      case 'password':
       case 'confirmPassword': return <Key {...iconProps} />;
       case 'phone': return <Smartphone {...iconProps} />;
       case 'number': return <Hash {...iconProps} />;
@@ -409,17 +409,16 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
   const renderField = (field: FormFieldSchema) => {
     const value = formData[field.fieldId] || '';
     const error = errors[field.fieldId];
-    
+
     // Determine column span
     // Email, Textarea, File, Radio, Checkbox, and Section headers take full width
     const isFullWidth = ['email', 'textarea', 'file', 'radio', 'checkbox'].includes(field.fieldType) || field.fieldId === 'section_header';
     const colSpanClass = isFullWidth ? 'col-span-1 md:col-span-2' : 'col-span-1';
 
-    const baseInputStyles = `w-full px-4 py-3 border rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 text-gray-800 placeholder-gray-400 ${
-      error 
-        ? 'border-red-400 bg-red-50/30 focus:border-red-500 focus:ring-red-200' 
+    const baseInputStyles = `w-full px-4 py-3 border rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 text-gray-800 placeholder-gray-400 ${error
+        ? 'border-red-400 bg-red-50/30 focus:border-red-500 focus:ring-red-200'
         : 'border-gray-300 bg-white hover:border-gray-400 focus:border-blue-500 focus:ring-blue-200'
-    }`;
+      }`;
 
     // Common label rendering
     const Label = () => (
@@ -462,7 +461,7 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
                 </span>
               )}
             </div>
-            
+
             <div className="flex gap-3 items-start">
               <div className="flex-1 relative">
                 <input
@@ -494,7 +493,7 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
                 </button>
               )}
             </div>
-            
+
             {/* OTP Verification UI - Inline below input */}
             {!emailVerified && otpSent && (
               <div className="mt-4 p-4 bg-blue-50/50 border border-blue-100 rounded-lg animate-fadeIn">
@@ -561,7 +560,7 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
       case 'password':
         const isPasswordField = field.fieldId === 'password';
         const isConfirmPasswordField = field.fieldId === 'confirmPassword';
-        
+
         return (
           <div key={field.fieldId} className={colSpanClass}>
             <div className="flex items-center justify-between mb-2">
@@ -570,15 +569,14 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
                 {field.validation?.required && <span className="text-red-500 ml-1">*</span>}
               </label>
               {isConfirmPasswordField && formData['confirmPassword'] && (
-                <span className={`inline-flex items-center gap-1 text-xs font-medium ${
-                  passwordsMatch ? 'text-green-700' : 'text-red-700'
-                }`}>
+                <span className={`inline-flex items-center gap-1 text-xs font-medium ${passwordsMatch ? 'text-green-700' : 'text-red-700'
+                  }`}>
                   {passwordsMatch ? <CheckCircle size={12} /> : <X size={12} />}
                   {passwordsMatch ? 'Match' : 'Mismatch'}
                 </span>
               )}
             </div>
-            
+
             <div className="relative">
               <input
                 type={showPassword[field.fieldId] ? 'text' : 'password'}
@@ -595,9 +593,9 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
                 {showPassword[field.fieldId] ? <EyeOff size={18} /> : <Eye size={18} />}
               </button>
             </div>
-            
+
             <ErrorMessage />
-            
+
             {/* Password Strength Indicator */}
             {isPasswordField && value && (
               <div className="mt-3">
@@ -608,16 +606,15 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
                   <div className={`flex-1 rounded-full ${passwordStrength >= 100 ? 'bg-green-500' : 'bg-gray-200'}`} />
                 </div>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-                   {[
+                  {[
                     { label: '8+ chars', check: value.length >= 8 },
                     { label: 'Uppercase', check: /[A-Z]/.test(value) },
                     { label: 'Lowercase', check: /[a-z]/.test(value) },
                     { label: 'Number', check: /\d/.test(value) },
                     { label: 'Symbol', check: /[@$!%*?&]/.test(value) }
                   ].map((item, idx) => (
-                    <div key={idx} className={`flex items-center gap-1.5 text-xs ${
-                      item.check ? 'text-green-600 font-medium' : 'text-gray-400'
-                    }`}>
+                    <div key={idx} className={`flex items-center gap-1.5 text-xs ${item.check ? 'text-green-600 font-medium' : 'text-gray-400'
+                      }`}>
                       {item.check ? <CheckCircle size={10} /> : <div className="w-2.5 h-2.5 rounded-full border border-gray-300" />}
                       {item.label}
                     </div>
@@ -625,7 +622,7 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
                 </div>
               </div>
             )}
-            
+
             <HelpText />
           </div>
         );
@@ -683,13 +680,12 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
             <Label />
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {field.options?.map((option) => (
-                <label 
-                  key={option.value} 
-                  className={`flex items-center p-3 border rounded-lg transition-all cursor-pointer ${
-                    value === option.value 
-                      ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500' 
+                <label
+                  key={option.value}
+                  className={`flex items-center p-3 border rounded-lg transition-all cursor-pointer ${value === option.value
+                      ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500'
                       : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                  }`}
+                    }`}
                 >
                   <input
                     type="radio"
@@ -711,9 +707,8 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
       case 'checkbox':
         return (
           <div key={field.fieldId} className={colSpanClass}>
-            <label className={`flex items-start p-4 border rounded-lg transition-all cursor-pointer ${
-               value === true ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
-            }`}>
+            <label className={`flex items-start p-4 border rounded-lg transition-all cursor-pointer ${value === true ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
+              }`}>
               <input
                 type="checkbox"
                 checked={value === true}
@@ -736,11 +731,10 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
         return (
           <div key={field.fieldId} className={colSpanClass}>
             <Label />
-            <div className={`relative border-2 border-dashed rounded-xl p-6 transition-all text-center ${
-              error 
-                ? 'border-red-300 bg-red-50/20' 
+            <div className={`relative border-2 border-dashed rounded-xl p-6 transition-all text-center ${error
+                ? 'border-red-300 bg-red-50/20'
                 : 'border-gray-300 bg-gray-50 hover:border-blue-400 hover:bg-blue-50/30'
-            }`}>
+              }`}>
               <input
                 type="file"
                 onChange={(e) => handleFileChange(field.fieldId, e.target.files)}
@@ -803,7 +797,7 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
             {requiredFields} required
           </span>
         </div>
-        
+
         {formSchema.instructions && (
           <p className="text-gray-600 text-sm leading-relaxed">{formSchema.instructions}</p>
         )}
@@ -833,7 +827,7 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
             <ShieldCheck size={14} className="text-green-600" />
             Secure Form
           </p>
-          
+
           <div className="flex gap-3 w-full sm:w-auto">
             <button
               type="button"
@@ -846,7 +840,7 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
             >
               Clear
             </button>
-            
+
             <button
               type="submit"
               disabled={submitting}
@@ -867,11 +861,11 @@ const DynamicFormRenderer: React.FC<DynamicFormRendererProps> = ({
           </div>
         </div>
       </form>
-      
+
       {/* Progress Bar */}
       <div className="mt-4 flex items-center gap-3 px-1">
         <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-          <div 
+          <div
             className="h-full bg-blue-600 transition-all duration-500 ease-out"
             style={{ width: `${Math.min(100, (Object.keys(formData).length / sortedFields.length) * 100)}%` }}
           />

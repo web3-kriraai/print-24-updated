@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import toast, { Toaster } from 'react-hot-toast';
 import {
   CheckCircle2,
   Circle,
@@ -19,7 +20,7 @@ import {
   Info,
 } from 'lucide-react';
 import { formatCurrency, calculateOrderBreakdown, OrderForCalculation } from '../utils/pricing';
-import { API_BASE_URL_WITH_API as API_BASE_URL } from '../lib/apiConfig';
+import { getAuthHeaders, API_BASE_URL_WITH_API as API_BASE_URL } from '../lib/apiConfig';
 import BackButton from '../components/BackButton';
 
 // Types
@@ -138,6 +139,10 @@ interface Order {
     action: string;
     timestamp: string;
   }>;
+  designStatus?: string;
+  finalPdfUrl?: string;
+  needDesigner?: boolean;
+  designerType?: string;
 }
 
 // Subcomponents
@@ -814,6 +819,28 @@ const FileUploadPanel: React.FC<{ order: Order }> = ({ order }) => {
     });
   }
 
+  const handleDownloadFinal = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/designer-orders/${order._id}/file`, {
+        headers: getAuthHeaders()
+      });
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${order.orderNumber}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      } else {
+        toast.error("Failed to download file");
+      }
+    } catch (err) {
+      toast.error("Download error");
+    }
+  };
+
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 h-full">
       <div className="flex justify-between items-start mb-4">
@@ -871,10 +898,34 @@ const FileUploadPanel: React.FC<{ order: Order }> = ({ order }) => {
             </div>
           ))}
         </div>
-      ) : (
+      ) : !order.finalPdfUrl ? (
         <div className="bg-amber-50 text-amber-800 p-3 rounded-lg text-sm mb-4 flex gap-2">
           <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-          <p>No files uploaded yet.</p>
+          <p>No design files uploaded yet.</p>
+        </div>
+      ) : null}
+
+      {order.finalPdfUrl && (
+        <div className="mt-4">
+          <h4 className="text-sm font-bold text-green-700 mb-3 flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4" />
+            Final Design Ready
+          </h4>
+          <div className="border-2 border-green-200 bg-green-50 rounded-xl p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-white rounded-lg flex items-center justify-center text-green-600 border border-green-200 shadow-sm">
+                <FileCheck className="w-6 h-6" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-slate-900">Production Ready File</p>
+                <p className="text-xs text-slate-500">Provided by Professional Designer</p>
+              </div>
+            </div>
+            <button onClick={handleDownloadFinal} className="bg-green-600 hover:bg-green-700">
+              <Download className="w-4 h-4 mr-2" />
+              Download PDF
+            </button>
+          </div>
         </div>
       )}
     </div>

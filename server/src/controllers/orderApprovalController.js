@@ -1,4 +1,4 @@
-import Order from '../models/orderModal.js';
+import Order from '../models/Order.js';
 import Product from '../models/productModal.js';
 import Department from '../models/departmentModal.js';
 

@@ -1,4 +1,4 @@
-import Order from "../models/orderModal.js";
+import Order from "../models/Order.js";
 import Product from "../models/productModal.js";
 import Department from "../models/departmentModal.js";
 import { User } from "../models/User.js";
@@ -25,12 +25,48 @@ export const createOrder = async (req, res) => {
       mobileNumber,
       uploadedDesign,
       notes,
+      selectedDynamicAttributes,
+      advancePaid,
+      paymentStatus,
+      paymentGatewayInvoiceId,
+      paperGSM,
+      paperQuality,
+      laminationType,
+      specialEffects,
+      needDesigner,
+      designerType,
+      designForm,
     } = req.body;
 
+    console.log('[DEBUG] createOrder Body:', {
+      productId,
+      quantity,
+      finish,
+      shape,
+      totalPrice,
+      pincode,
+      address,
+      mobileNumber,
+      bodyKeys: Object.keys(req.body)
+    });
+
     // Validate required fields
-    if (!productId || !quantity || !finish || !shape || !totalPrice || !pincode || !address || !mobileNumber) {
+    const missingFields = [];
+    if (!productId) missingFields.push('productId');
+    if (!quantity) missingFields.push('quantity');
+    if (!finish) missingFields.push('finish');
+    if (!shape) missingFields.push('shape');
+    if (!totalPrice) missingFields.push('totalPrice');
+    // if (!pincode) missingFields.push('pincode');
+    // if (!address) missingFields.push('address');
+    // if (!mobileNumber) missingFields.push('mobileNumber');
+
+    if (missingFields.length > 0) {
+      console.log(`[DEBUG] Missing Fields for product ${productId}:`, missingFields);
       return res.status(400).json({
-        error: "Missing required fields: productId, quantity, finish, shape, totalPrice, pincode, address, mobileNumber",
+        error: `Missing required fields for order: ${missingFields.join(', ')}`,
+        missingFields,
+        productId
       });
     }
 
@@ -100,8 +136,8 @@ export const createOrder = async (req, res) => {
             details: process.env.NODE_ENV === 'development' ? err.message : undefined
           });
         }
-      } else {
-        return res.status(400).json({ error: "Front image is required." });
+      } else if (!needDesigner && !req.body.needDesigner) {
+        return res.status(400).json({ error: "Front image is required for regular orders." });
       }
 
       if (uploadedDesign.backImage && uploadedDesign.backImage.data) {
@@ -185,7 +221,11 @@ export const createOrder = async (req, res) => {
         }
       }
     } else {
-      return res.status(400).json({ error: "Uploaded design is required." });
+      // If we don't have uploadedDesign, we only allow it if needDesigner is true
+      const isDesignerOrder = needDesigner === true || needDesigner === "true" || (req.body && (req.body.needDesigner === true || req.body.needDesigner === "true"));
+      if (!isDesignerOrder) {
+        return res.status(400).json({ error: "Uploaded design is required for regular orders." });
+      }
     }
 
     // DO NOT initialize department statuses at order creation
@@ -445,6 +485,11 @@ export const createOrder = async (req, res) => {
       paperQuality: req.body.paperQuality || null,
       laminationType: req.body.laminationType || null,
       specialEffects: req.body.specialEffects || [],
+      // Designer Integration
+      needDesigner: needDesigner === true || needDesigner === "true",
+      designerType: designerType || null,
+      designStatus: needDesigner ? "PendingDesign" : null,
+      designForm: designForm || {},
     };
 
     const order = new Order(orderData);
@@ -536,6 +581,10 @@ export const createOrderWithAccount = async (req, res) => {
       paperQuality,
       laminationType,
       specialEffects,
+      // Designer Integration
+      needDesigner,
+      designerType,
+      designForm,
     } = req.body;
 
     // Validate required fields
@@ -545,9 +594,9 @@ export const createOrderWithAccount = async (req, res) => {
       });
     }
 
-    if (!productId || !quantity || !finish || !shape || !totalPrice || !pincode || !address) {
+    if (!productId || !quantity || !finish || !shape || !totalPrice) {
       return res.status(400).json({
-        error: "Missing required order fields: productId, quantity, finish, shape, totalPrice, pincode, address",
+        error: "Missing required order fields: productId, quantity, finish, shape, totalPrice",
       });
     }
 
@@ -636,8 +685,8 @@ export const createOrderWithAccount = async (req, res) => {
             details: process.env.NODE_ENV === 'development' ? err.message : undefined
           });
         }
-      } else {
-        return res.status(400).json({ error: "Front image is required." });
+      } else if (!needDesigner && !req.body.needDesigner) {
+        return res.status(400).json({ error: "Front image is required for regular orders." });
       }
 
       if (uploadedDesign.backImage && uploadedDesign.backImage.data) {
@@ -714,7 +763,11 @@ export const createOrderWithAccount = async (req, res) => {
         }
       }
     } else {
-      return res.status(400).json({ error: "Uploaded design is required." });
+      // If we don't have uploadedDesign, we only allow it if needDesigner is true
+      const isDesignerOrder = needDesigner === true || needDesigner === "true" || (req.body && (req.body.needDesigner === true || req.body.needDesigner === "true"));
+      if (!isDesignerOrder) {
+        return res.status(400).json({ error: "Uploaded design is required for regular orders." });
+      }
     }
 
     // DO NOT initialize department statuses at order creation
@@ -893,6 +946,11 @@ export const createOrderWithAccount = async (req, res) => {
       paperQuality: paperQuality || null,
       laminationType: laminationType || null,
       specialEffects: specialEffects || [],
+      // Designer Integration
+      needDesigner: needDesigner === true || needDesigner === "true",
+      designerType: designerType || null,
+      designStatus: needDesigner ? "PendingDesign" : null,
+      designForm: designForm || {},
     };
 
     const order = new Order(orderData);
@@ -1041,10 +1099,10 @@ export const getSingleOrder = async (req, res) => {
       return res.status(404).json({ error: "Order not found" });
     }
 
-    // Check if user owns the order, is admin, or is an employee
+    // Check if user owns the order, is admin, is an employee, or is a designer
     const userRole = req.user.role;
     const orderUserId = typeof order.user === 'object' ? order.user._id.toString() : order.user.toString();
-    if (orderUserId !== userId && userRole !== "admin" && userRole !== "emp") {
+    if (orderUserId !== userId && userRole !== "admin" && userRole !== "emp" && userRole !== "designer") {
       return res.status(403).json({ error: "Access denied. This order does not belong to you." });
     }
 

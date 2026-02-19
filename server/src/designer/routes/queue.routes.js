@@ -7,10 +7,13 @@ import {
     setDesignerOffline,
 } from "../services/queue.service.js";
 
+import { checkOfficeHours } from "../middlewares/checkOfficeHours.js";
+
 const router = express.Router();
 
 /* USER JOIN QUEUE */
-router.post("/join", async (req, res) => {
+// Apply Office Hours middleware
+router.post("/join", checkOfficeHours, async (req, res) => {
     const { userId, tier } = req.body;
 
     await addUserToQueue(userId, tier);

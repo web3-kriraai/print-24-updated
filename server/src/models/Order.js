@@ -37,7 +37,7 @@ const OrderSchema = new mongoose.Schema(
         priceAdd: Number,
         description: String, // Option description
         image: String, // Option image URL if available
-      },
+      }
     ],
     // Selected dynamic attributes with complete information
     selectedDynamicAttributes: [
@@ -87,15 +87,15 @@ const OrderSchema = new mongoose.Schema(
     },
     pincode: {
       type: String,
-      required: true,
+      required: false, // Changed to false to allow bypass
     },
     address: {
       type: String,
-      required: true,
+      required: false, // Changed to false to allow bypass
     },
     mobileNumber: {
       type: String,
-      required: true,
+      required: false, // Changed to false to allow bypass
     },
     uploadedDesign: {
       frontImage: {
@@ -133,6 +133,29 @@ const OrderSchema = new mongoose.Schema(
           isRequired: Boolean,
         }],
       },
+    },
+    // Designer Integration Fields
+    needDesigner: {
+      type: Boolean,
+      default: false,
+    },
+    designerType: {
+      type: String,
+      enum: ["visual", "physical", null],
+      default: null,
+    },
+    designStatus: {
+      type: String,
+      enum: ["PendingDesign", "InDesign", "FinalReady", null],
+      default: null,
+    },
+    designForm: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null,
+    },
+    finalPdfUrl: {
+      type: String,
+      default: null,
     },
     notes: {
       type: String,
@@ -381,6 +404,9 @@ const OrderSchema = new mongoose.Schema(
     specialEffects: [{
       type: String, // e.g., "UV", "Embossed UV", "Texture", "Foiling", "Die-cut shape"
     }],
+
+    // Designer Integration Fields removed from here (duplicates)
+
   },
   { timestamps: true }
 );

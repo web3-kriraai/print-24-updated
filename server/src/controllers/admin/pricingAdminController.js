@@ -4,7 +4,7 @@ import PriceModifier from "../../models/PriceModifier.js";
 import GeoZone from "../../models/GeoZon.js";
 import UserSegment from "../../models/UserSegment.js";
 import AttributeType from "../../models/attributeTypeModal.js";
-import Product from "../../models/productModal.js";
+import Order from "../../models/Order.js";
 import PricingService from "../../services/pricing/PricingService.js";
 
 /**
@@ -509,7 +509,7 @@ export const getAllPricingLogs = async (req, res) => {
 
         // Import the model
         const PricingCalculationLog = (await import('../../models/PricingCalculationLogschema.js')).default;
-        const Order = (await import('../../models/orderModal.js')).default;
+        const Order = (await import('../../models/Order.js')).default;
 
         // Build query
         const query = {};

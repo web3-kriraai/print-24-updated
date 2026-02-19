@@ -1,33 +1,32 @@
 import express from "express";
-
-import { createSession } from "../services/session.service.js";
-import { generateToken } from "../config/livekit.js";
-import { startTimer } from "../services/timer.service.js";
+import { startSessionHandler, extendSessionHandler, completeSessionHandler, getSessionHandler, addArtifactHandler, getArtifactsHandler } from "../controllers/session.controller.js";
 
 const router = express.Router();
 
-router.post("/start", async (req, res) => {
-    try {
-        console.log("➡️ session.routes.js /start called");
-        const { userId, designerId } = req.body;
+// Matches GET /api/session/:id (get session details)
+router.get("/:id", getSessionHandler);
 
-        const session = await createSession(userId, designerId);
+// Matches POST /api/session/start (body: sessionId)
+router.post("/start", startSessionHandler);
 
-        const userToken = await generateToken(userId, session.roomName);
-        const designerToken = await generateToken(designerId, session.roomName);
-
-        await startTimer(session._id.toString(), session.roomName, 900);
-
-        res.json({
-            sessionId: session._id,
-            roomName: session.roomName,
-            userToken,
-            designerToken,
-        });
-    } catch (error) {
-        console.error("Start session error:", error);
-        res.status(500).json({ message: "Failed to start session" });
-    }
+// Matches POST /api/session/:id/start (optional, redirects to handler)
+router.post("/:id/start", (req, res, next) => {
+    req.body.sessionId = req.params.id;
+    startSessionHandler(req, res, next);
 });
+
+// Matches POST /api/session/:id/extend
+router.post("/:id/extend", extendSessionHandler);
+
+// Matches POST /api/session/:id/complete
+router.post("/:id/complete", completeSessionHandler);
+
+// Artifacts (Notes, Chat)
+router.post("/:id/artifact", addArtifactHandler);
+router.get("/:id/artifacts", getArtifactsHandler);
+
+// Pause/Resume (Manual/Testing)
+router.post("/:id/pause", (await import("../controllers/session.controller.js")).pauseSessionHandler);
+router.post("/:id/resume", (await import("../controllers/session.controller.js")).resumeSessionHandler);
 
 export default router;

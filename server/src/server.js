@@ -21,8 +21,15 @@ import featureRoutes from "./routes/featureRoutes.js";
 import sessionRoutes from "./designer/routes/session.routes.js";
 import webhookRoutes from "./designer/routes/webhook.routes.js";
 import queueRoutes from "./designer/routes/queue.routes.js";
+import sessionSettingsRoutes from "./designer/routes/settings.routes.js";
+import designerOrderRoutes from "./designer/routes/designerOrder.routes.js";
+import designerRequestRoutes from "./designer/routes/designerRequest.routes.js"; // New designer request routes
+import physicalBookingRoutes from "./designer/routes/physicalBooking.routes.js"; // Physical designer visit routes
+import { initializeSocket } from "./designer/config/socket.js";
 import "./designer/workers/timer.worker.js";
 import "./designer/workers/queue.worker.js";
+import { restoreSessions } from "./crashRecovery.js";
+import http from "http";
 
 const app = express();
 
@@ -117,9 +124,14 @@ app.use("/api", uploadRoutes);
 app.use("/api/timeline", timelineRoutes);
 app.use("/api/about", aboutRoutes);
 app.use("/api/features", featureRoutes);
+app.use("/api/session/settings", sessionSettingsRoutes);
 app.use("/api/session", sessionRoutes);
 app.use("/api/queue", queueRoutes);
 app.use("/api/webhook", webhookRoutes);
+app.use("/api/designer-orders", designerOrderRoutes);
+app.use("/api/designer-requests", designerRequestRoutes); // New designer request routes
+app.use("/api/physical", physicalBookingRoutes); // Physical designer visit routes
+
 
 // Error handler to ensure CORS headers are set even on errors
 app.use((err, req, res, next) => {
@@ -207,11 +219,24 @@ mongoose
   .then(() => {
     console.log("✅ MongoDB connected successfully");
     const port = process.env.PORT || 5000;
-    app.listen(port, () => {
+
+    const server = http.createServer(app);
+    const io = initializeSocket(server);
+
+    server.listen(port, () => {
       console.log(`========================================`);
       console.log(`🚀 Backend Server running on port ${port}`);
       console.log(`📦 API Mode - Access: http://localhost:${port}/api`);
+      console.log(`🔌 Socket.io initialized`);
       console.log(`========================================`);
+
+      // Restore Redis Timers (Crash Recovery)
+      restoreSessions();
+
+      // Seed Office Config
+      import("./designer/scripts/seedOfficeConfig.js").then(({ seedOfficeConfig }) => {
+        seedOfficeConfig();
+      });
     });
   })
   .catch((err) => {

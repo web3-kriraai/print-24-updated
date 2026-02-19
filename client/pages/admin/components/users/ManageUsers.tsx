@@ -57,6 +57,15 @@ const ManageUsers: React.FC<ManageUsersProps> = ({ setError }) => {
         role: "user",
     });
 
+    // Create Designer Overlay
+    const [showCreateDesignerModal, setShowCreateDesignerModal] = useState(false);
+    const [createDesignerForm, setCreateDesignerForm] = useState({
+        name: "",
+        email: "",
+        password: "",
+        specialization: "",
+    });
+
     const fetchUsers = async () => {
         setLoading(true);
         try {
@@ -173,6 +182,36 @@ const ManageUsers: React.FC<ManageUsersProps> = ({ setError }) => {
         }
     };
 
+    const handleCreateDesigner = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setLoading(true);
+        try {
+            const response = await fetch(`${API_BASE_URL}/admin/create-designer`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    ...getAuthHeaders(),
+                },
+                body: JSON.stringify(createDesignerForm),
+            });
+
+            if (!response.ok) {
+                const data = await response.json();
+                throw new Error(data.message || "Failed to create designer");
+            }
+
+            toast.success("Designer created successfully");
+            setShowCreateDesignerModal(false);
+            setCreateDesignerForm({ name: "", email: "", password: "", specialization: "" });
+            fetchUsers();
+        } catch (err) {
+            console.error("Error creating designer:", err);
+            toast.error(err instanceof Error ? err.message : "Failed to create designer");
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const roleColors: Record<string, string> = {
         admin: "bg-purple-100 text-purple-800",
         user: "bg-blue-100 text-blue-800",
@@ -208,6 +247,14 @@ const ManageUsers: React.FC<ManageUsersProps> = ({ setError }) => {
                     >
                         <UserPlus size={18} />
                         Create User
+                    </button>
+
+                    <button
+                        onClick={() => setShowCreateDesignerModal(true)}
+                        className="bg-purple-600 text-white px-4 py-2.5 rounded-xl shadow-sm hover:shadow-md transition-all flex items-center gap-2 text-sm font-medium hover:bg-purple-700"
+                    >
+                        <ShieldCheck size={18} />
+                        Create Designer
                     </button>
 
                     <button
@@ -587,6 +634,100 @@ const ManageUsers: React.FC<ManageUsersProps> = ({ setError }) => {
                                     >
                                         {loading ? <Loader size={18} className="animate-spin" /> : <UserPlus size={18} />}
                                         Create User
+                                    </button>
+                                </div>
+                            </form>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
+
+            {/* Create Designer Modal */}
+            <AnimatePresence>
+                {showCreateDesignerModal && (
+                    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            className="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden"
+                        >
+                            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gradient-to-r from-purple-50 to-indigo-50">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2 bg-purple-600 rounded-lg">
+                                        <ShieldCheck size={20} className="text-white" />
+                                    </div>
+                                    <h3 className="text-lg font-bold text-gray-900">Create New Designer</h3>
+                                </div>
+                                <button
+                                    onClick={() => setShowCreateDesignerModal(false)}
+                                    className="text-gray-400 hover:text-gray-600 transition-colors"
+                                >
+                                    <X size={20} />
+                                </button>
+                            </div>
+
+                            <form onSubmit={handleCreateDesigner} className="p-6 space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Full Name *</label>
+                                    <input
+                                        type="text"
+                                        required
+                                        value={createDesignerForm.name}
+                                        onChange={e => setCreateDesignerForm({ ...createDesignerForm, name: e.target.value })}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                                        placeholder="John Doe"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Email Address *</label>
+                                    <input
+                                        type="email"
+                                        required
+                                        value={createDesignerForm.email}
+                                        onChange={e => setCreateDesignerForm({ ...createDesignerForm, email: e.target.value })}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                                        placeholder="designer@example.com"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Password *</label>
+                                    <input
+                                        type="password"
+                                        required
+                                        minLength={6}
+                                        value={createDesignerForm.password}
+                                        onChange={e => setCreateDesignerForm({ ...createDesignerForm, password: e.target.value })}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                                        placeholder="••••••••"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Specialization</label>
+                                    <input
+                                        type="text"
+                                        value={createDesignerForm.specialization}
+                                        onChange={e => setCreateDesignerForm({ ...createDesignerForm, specialization: e.target.value })}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                                        placeholder="e.g., Logo Design, Print Design"
+                                    />
+                                </div>
+
+                                <div className="pt-4 flex gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowCreateDesignerModal(false)}
+                                        className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        disabled={loading}
+                                        className="flex-1 px-4 py-2.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium disabled:opacity-70 flex justify-center items-center gap-2"
+                                    >
+                                        {loading ? <Loader size={18} className="animate-spin" /> : <ShieldCheck size={18} />}
+                                        Create Designer
                                     </button>
                                 </div>
                             </form>

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Video, Clock, ArrowLeft, Calendar, MessageSquare, Image as ImageIcon } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import toast, { Toaster } from 'react-hot-toast';
+import { getAuthHeaders, API_BASE_URL_WITH_API as API_BASE_URL } from '../lib/apiConfig';
 
 // Simple UI Components
 const Button = ({ children, variant = "default", size = "default", className = "", ...props }: any) => {
@@ -96,20 +97,60 @@ export default function ClientDashboard() {
     const navigate = useNavigate();
     const [isOfficeHours] = useState(true);
     const [queuePosition, setQueuePosition] = useState<number | null>(null);
+    const [designers, setDesigners] = useState<any[]>([]);
+    const [isLoadingDesigners, setIsLoadingDesigners] = useState(true);
+    const [selectedDesigner, setSelectedDesigner] = useState<string | null>(null);
+
+    const [orders, setOrders] = useState<any[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+
+    const fetchOrders = async () => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/orders/my-orders`, {
+                headers: getAuthHeaders()
+            });
+            if (response.ok) {
+                const data = await response.json();
+                // Filter only orders that requested a designer
+                setOrders(data.filter((o: any) => o.needDesigner));
+            }
+        } catch (err) {
+            console.error("Fetch orders error:", err);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const fetchDesigners = async () => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/session/settings/designers`, {
+                headers: getAuthHeaders()
+            });
+            if (response.ok) {
+                const data = await response.json();
+                setDesigners(data.designers);
+            }
+        } catch (err) {
+            console.error("Fetch designers error:", err);
+        } finally {
+            setIsLoadingDesigners(false);
+        }
+    };
 
     useEffect(() => {
         const token = localStorage.getItem("token");
-        const user = localStorage.getItem("user");
-
-        if (!token || !user) {
+        if (!token) {
             navigate("/login");
+            return;
         }
+        fetchOrders();
+        fetchDesigners();
     }, [navigate]);
 
-    const handleConnectNow = () => {
+    const handleConnectNow = async (designerId?: string) => {
         const token = localStorage.getItem("token");
-        const user = localStorage.getItem("user");
-        if (!token || !user) {
+        const userStr = localStorage.getItem("user");
+        if (!token || !userStr) {
             navigate("/login");
             return;
         }
@@ -119,9 +160,34 @@ export default function ClientDashboard() {
             return;
         }
 
-        // Simulate adding to queue
-        setQueuePosition(3);
-        toast.success('Added to queue! A designer will connect with you shortly.');
+        try {
+            const response = await fetch(`${API_BASE_URL}/designer-requests`, {
+                method: 'POST',
+                headers: {
+                    ...getAuthHeaders(),
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    designerType: 'visual', // Default to visual for live meetings
+                    assignedDesigner: designerId || null,
+                    designForm: {
+                        source: 'Live Dashboard',
+                        timestamp: new Date().toISOString()
+                    }
+                })
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                toast.success(designerId ? `Connecting you with your selected designer...` : 'Added to queue! A designer will connect with you shortly.');
+                setQueuePosition(1); // Real position logic could be added here
+            } else {
+                toast.error('Failed to connect with designer');
+            }
+        } catch (err) {
+            console.error("Connect error:", err);
+            toast.error('Network error. Please try again.');
+        }
     };
 
     const handleScheduleCallback = () => {
@@ -130,7 +196,6 @@ export default function ClientDashboard() {
 
     return (
         <div className="min-h-screen bg-gray-50">
-            <Toaster position="top-right" />
             {/* Header */}
             <header className="bg-white border-b border-gray-200">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
@@ -212,49 +277,116 @@ export default function ClientDashboard() {
                             </CardContent>
                         </Card>
 
-                        {/* Session History */}
+                        {/* Designer List Section */}
+                        <div className="space-y-4">
+                            <h2 className="text-xl font-bold text-gray-900 px-1">Available Designers</h2>
+                            <div className="grid sm:grid-cols-2 gap-4">
+                                {isLoadingDesigners ? (
+                                    <div className="col-span-full py-12 flex justify-center">
+                                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+                                    </div>
+                                ) : designers.length === 0 ? (
+                                    <p className="col-span-full text-center text-gray-500 py-8 bg-white rounded-lg border">No designers currently available</p>
+                                ) : (
+                                    designers.map((designer) => (
+                                        <Card key={designer._id} className="overflow-hidden flex flex-col">
+                                            <CardHeader className="p-4 pb-2">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold">
+                                                        {designer.name.charAt(0)}
+                                                    </div>
+                                                    <div>
+                                                        <CardTitle className="text-lg">{designer.name}</CardTitle>
+                                                        <Badge variant="outline" className="text-[10px] py-0">Professional Designer</Badge>
+                                                    </div>
+                                                </div>
+                                            </CardHeader>
+                                            <CardContent className="p-4 pt-0 flex-1 flex flex-col justify-between">
+                                                <div className="space-y-2 mb-4">
+                                                    <div className="flex justify-between items-center text-sm">
+                                                        <span className="text-gray-500">Base Price ({Math.floor(designer.sessionSettings.baseDuration / 60)} min)</span>
+                                                        <span className="font-bold text-gray-900">₹{designer.sessionSettings.basePrice}</span>
+                                                    </div>
+                                                    <div className="flex justify-between items-center text-sm">
+                                                        <span className="text-gray-500">Extension ({Math.floor(designer.sessionSettings.extensionDuration / 60)} min)</span>
+                                                        <span className="font-semibold text-gray-700">₹{designer.sessionSettings.extensionPrice}</span>
+                                                    </div>
+                                                </div>
+                                                <Button
+                                                    onClick={() => handleConnectNow(designer._id)}
+                                                    className="w-full"
+                                                    size="sm"
+                                                    disabled={!!queuePosition}
+                                                >
+                                                    Connect with {designer.name.split(' ')[0]}
+                                                </Button>
+                                            </CardContent>
+                                        </Card>
+                                    ))
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Design Request Status */}
                         <Card>
                             <CardHeader>
-                                <CardTitle>Session History</CardTitle>
+                                <CardTitle>Design Request Status</CardTitle>
                                 <CardDescription>
-                                    Your previous design consultations and saved context
+                                    Track progress on your design requirements
                                 </CardDescription>
                             </CardHeader>
                             <CardContent>
                                 <div className="space-y-4">
-                                    {mockSessionHistory.map((session) => (
-                                        <div
-                                            key={session.id}
-                                            className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors"
-                                        >
-                                            <div className="flex items-start justify-between mb-2">
-                                                <div>
-                                                    <p className="font-semibold text-gray-900">{session.designer}</p>
-                                                    <p className="text-sm text-gray-500">
-                                                        {new Date(session.date).toLocaleDateString('en-US', {
-                                                            month: 'long',
-                                                            day: 'numeric',
-                                                            year: 'numeric'
-                                                        })}
-                                                    </p>
+                                    {isLoading ? (
+                                        <p className="text-center text-gray-500 py-8">Loading requests...</p>
+                                    ) : orders.length === 0 ? (
+                                        <p className="text-center text-gray-500 py-8 italic">No active design requests</p>
+                                    ) : (
+                                        orders.map((order) => (
+                                            <div
+                                                key={order._id}
+                                                className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors"
+                                            >
+                                                <div className="flex items-start justify-between mb-2">
+                                                    <div>
+                                                        <p className="font-semibold text-gray-900">Order #{order.orderNumber}</p>
+                                                        <p className="text-sm text-gray-500">
+                                                            {order.designForm?.designFor || "Custom Design"}
+                                                        </p>
+                                                    </div>
+                                                    <Badge
+                                                        variant={order.designStatus === "FinalReady" ? "default" : "outline"}
+                                                        className={order.designStatus === "InDesign" ? "bg-blue-100 text-blue-700 border-none" : ""}
+                                                    >
+                                                        {order.designStatus || "Pending"}
+                                                    </Badge>
                                                 </div>
-                                                <Badge variant="outline">{session.duration}</Badge>
+
+                                                <div className="flex items-center gap-4 mt-3">
+                                                    <div className="flex-1 bg-gray-100 h-1.5 rounded-full overflow-hidden">
+                                                        <div
+                                                            className={`h-full transition-all duration-500 ${order.designStatus === "FinalReady" ? 'bg-green-500 w-full' :
+                                                                order.designStatus === "InDesign" ? 'bg-blue-500 w-2/3' :
+                                                                    'bg-amber-500 w-1/3'
+                                                                }`}
+                                                        />
+                                                    </div>
+                                                    <span className="text-[10px] uppercase font-bold text-gray-400">
+                                                        {order.designStatus === "FinalReady" ? "100%" :
+                                                            order.designStatus === "InDesign" ? "66%" : "33%"}
+                                                    </span>
+                                                </div>
+
+                                                {order.designStatus === "FinalReady" && (
+                                                    <div className="mt-4 pt-3 border-t border-gray-100 flex justify-end">
+                                                        <Button size="sm" variant="default" onClick={() => navigate(`/orders/${order._id}`)}>
+                                                            View Final Design
+                                                        </Button>
+                                                    </div>
+                                                )}
                                             </div>
-
-                                            <p className="text-sm text-gray-700 mb-3">{session.notes}</p>
-
-                                            {session.artifacts.length > 0 && (
-                                                <div className="flex flex-wrap gap-2">
-                                                    {session.artifacts.map((artifact, idx) => (
-                                                        <Badge key={idx} variant="secondary" className="gap-1.5">
-                                                            <ImageIcon className="w-3 h-3" />
-                                                            {artifact}
-                                                        </Badge>
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </div>
-                                    ))}
+                                        ))
+                                    )}
                                 </div>
                             </CardContent>
                         </Card>

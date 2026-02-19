@@ -7,14 +7,15 @@ const userSchema = new mongoose.Schema(
     lastName: { type: String, required: false },
     email: { type: String, required: true, unique: true },
     mobileNumber: { type: String, required: false },
+    address: { type: String, required: false },
     countryCode: { type: String, required: false },
-    role: { type: String, enum: ["user", "admin", "emp"], default: "user" },
+    role: { type: String, enum: ["user", "admin", "emp", "designer"], default: "user" },
     password: { type: String, required: false }, // Optional - set later in signup flow
     userSegment: { type: mongoose.Schema.Types.ObjectId, ref: "UserSegment" },
     approvalStatus: { type: String, enum: ["pending", "approved", "rejected"], default: "pending" },
     userType: { type: String, default: "customer" },
     profileImage: { type: String, default: null },
-    
+
     // ========== Dynamic Segment System ==========
     // Replaced hardcoded signupIntent enum with flexible segment code
     signupIntent: {
@@ -23,13 +24,13 @@ const userSchema = new mongoose.Schema(
       uppercase: true,
       trim: true,
     },
-    
+
     // Application reference (if user applied through a form)
     segmentApplication: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "SegmentApplication",
     },
-    
+
     // Email verification fields
     isEmailVerified: { type: Boolean, default: false },
     emailOtp: { type: String }, // Hashed OTP
@@ -175,6 +176,47 @@ const userSchema = new mongoose.Schema(
         enum: ['DAILY', 'WEEKLY', 'MONTHLY'],
         default: 'WEEKLY'
       }
+    },
+
+    /* =====================
+       DESIGNER SESSION SETTINGS
+       Added: 2026-02-16
+    ====================== */
+    sessionSettings: {
+      baseDuration: { type: Number, default: 900 }, // default 15 mins (900s)
+      basePrice: { type: Number, default: 500 },    // default ₹500
+      extensionDuration: { type: Number, default: 900 }, // default 15 mins (900s)
+      extensionPrice: { type: Number, default: 300 }     // default ₹300
+    },
+
+    /* =====================
+       PHYSICAL DESIGNER VISIT FIELDS
+       Added: 2026-02-18
+       Purpose: Hourly rate for physical visits + cumulative earnings tracking
+    ====================== */
+    // hourlyRate: snapshotted into PhysicalDesignerBooking at booking time.
+    // Only admin should be able to update this field.
+    hourlyRate: {
+      type: Number,
+      default: 500, // Default ₹500/hr
+      min: 0
+    },
+    // Cumulative hours worked across all completed physical visits
+    totalHoursWorked: {
+      type: Number,
+      default: 0,
+      min: 0
+    },
+    // Cumulative earnings across all completed physical visits
+    totalEarnings: {
+      type: Number,
+      default: 0,
+      min: 0
+    },
+    // Track if the designer is online and available for pickups
+    isOnline: {
+      type: Boolean,
+      default: false
     },
   },
   { timestamps: true }
