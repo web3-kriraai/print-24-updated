@@ -389,13 +389,13 @@ export const createProduct = async (req, res) => {
 export const toggleProductStatus = async (req, res) => {
   try {
     const productId = req.params.id;
-    
+
     if (!productId) {
       return res.status(400).json({ error: "Product ID is required" });
     }
 
     const product = await Product.findById(productId);
-    
+
     if (!product) {
       return res.status(404).json({ error: "Product not found" });
     }
@@ -424,13 +424,13 @@ export const toggleProductStatus = async (req, res) => {
 export const restoreProduct = async (req, res) => {
   try {
     const productId = req.params.id;
-    
+
     if (!productId) {
       return res.status(400).json({ error: "Product ID is required" });
     }
 
     const product = await Product.findById(productId);
-    
+
     if (!product) {
       return res.status(404).json({ error: "Product not found" });
     }
@@ -459,17 +459,25 @@ export const getAllProducts = async (req, res) => {
     // Check for query parameter to include deleted products (for admin view)
     const showDeleted = req.query.includeDeleted === 'true';
     const deletedOnly = req.query.deletedOnly === 'true';
-    
+
     // Base query logic:
     // 1. deletedOnly=true -> Show ONLY deleted products
     // 2. includeDeleted=true -> Show ALL products (deleted + active)
     // 3. Default -> Show ONLY active (non-deleted) products
-    let query = { isDeleted: { $ne: true } };
+    // 4. includeInactive -> If true, show inactive products (for admin)
+
+    // Default query: Not deleted AND Active
+    let query = { isDeleted: { $ne: true }, isActive: true };
+    const includeInactive = req.query.includeInactive === 'true';
 
     if (deletedOnly) {
       query = { isDeleted: true };
     } else if (showDeleted) {
+      // Show all (deleted and non-deleted), ignore active status
       query = {};
+    } else if (includeInactive) {
+      // Show all non-deleted (active and inactive)
+      query = { isDeleted: { $ne: true } };
     }
 
     const list = await Product.find(query)
@@ -558,11 +566,22 @@ export const getSingleProduct = async (req, res) => {
     // Check if identifier is a MongoDB ObjectId (24 hex characters)
     const isObjectId = /^[0-9a-fA-F]{24}$/.test(productId);
 
+    const includeInactive = req.query.includeInactive === 'true';
+    const baseQuery = {
+      _id: productId,
+      isDeleted: { $ne: true }
+    };
+
+    // Filter by active unless includeInactive is explicitly true
+    if (!includeInactive) {
+      baseQuery.isActive = true;
+    }
+
     let item;
     if (isObjectId) {
-      // Try to find by ID first, excluding deleted
-      console.log("Fetching product with ID:", productId);
-      item = await Product.findOne({ _id: productId, isDeleted: { $ne: true } })
+      // Try to find by ID first, excluding deleted (and inactive unless requested)
+      console.log("Fetching product with ID:", productId, "Include Inactive:", includeInactive);
+      item = await Product.findOne(baseQuery)
         .populate({
           path: "category",
           select: "_id name description image type parent slug",
@@ -598,9 +617,17 @@ export const getSingleProduct = async (req, res) => {
           select: "_id name description sequence isEnabled"
         });
     } else {
-      // Not a valid ObjectId format - try to fetch by slug, excluding deleted
+      // Not a valid ObjectId format - try to fetch by slug, excluding deleted (and inactive unless requested)
       console.log("Fetching product with slug:", productId);
-      item = await Product.findOne({ slug: productId, isDeleted: { $ne: true } })
+      const slugQuery = {
+        slug: productId,
+        isDeleted: { $ne: true }
+      };
+      if (!includeInactive) {
+        slugQuery.isActive = true;
+      }
+
+      item = await Product.findOne(slugQuery)
         .populate({
           path: "category",
           select: "_id name description image type parent slug",
@@ -804,10 +831,16 @@ export const getProductsByCategory = async (req, res) => {
           isDeleted: { $ne: true }
         };
       }
-      
+
       // Ensure we always filter out deleted products if not already added
       if (!query.isDeleted) {
-         query.isDeleted = { $ne: true };
+        query.isDeleted = { $ne: true };
+      }
+
+      // Filter inactive products unless requested
+      const includeInactive = req.query.includeInactive === 'true';
+      if (!includeInactive && !query.isActive) {
+        query.isActive = true;
       }
     }
 
@@ -1469,7 +1502,7 @@ export const deleteProduct = async (req, res) => {
     // We use updateMany with array filters to remove the product from any service titles
     // Explicitly cast to ObjectId to ensure matching works correctly in $pull
     const objectIdParam = new mongoose.Types.ObjectId(productId);
-    
+
     await Service.updateMany(
       { "titles.items": { $elemMatch: { id: objectIdParam, type: 'product' } } },
       { $pull: { "titles.$[].items": { id: objectIdParam, type: 'product' } } }
@@ -1477,17 +1510,17 @@ export const deleteProduct = async (req, res) => {
 
     if (forceDelete) {
       // Permanent delete
-       await Product.findByIdAndDelete(productId);
-       return res.json({
+      await Product.findByIdAndDelete(productId);
+      return res.json({
         success: true,
         message: "Product permanently deleted successfully",
       });
     } else {
       // Soft delete: isDeleted = true, isActive = false
       // Use findByIdAndUpdate to avoid validation errors (e.g. missing slug)
-      await Product.findByIdAndUpdate(productId, { 
+      await Product.findByIdAndUpdate(productId, {
         isDeleted: true,
-        isActive: false 
+        isActive: false
       });
 
       return res.json({
@@ -1652,7 +1685,7 @@ export const duplicateProduct = async (req, res) => {
 
     let newSlug = baseSlug;
     let counter = 1;
-    
+
     // Check for uniqueness
     while (await Product.findOne({ slug: newSlug })) {
       newSlug = `${baseSlug}-${counter}`;
@@ -1664,11 +1697,11 @@ export const duplicateProduct = async (req, res) => {
     const sortOrderQuery = productData.subcategory
       ? { subcategory: productData.subcategory }
       : { category: productData.category, subcategory: null };
-      
+
     const maxSortOrderProduct = await Product.findOne(sortOrderQuery)
       .sort({ sortOrder: -1 })
       .select('sortOrder');
-      
+
     if (maxSortOrderProduct && maxSortOrderProduct.sortOrder) {
       productData.sortOrder = maxSortOrderProduct.sortOrder + 1;
     } else {

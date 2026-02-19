@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useClientOnly } from "../hooks/useClientOnly";
 import { useInactivitySlider } from "../hooks/useInactivitySlider";
-import { Link } from "react-router-dom";
+import { useLocation, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowRight,
@@ -73,6 +73,7 @@ interface Review {
 }
 
 const Home: React.FC = () => {
+  const location = useLocation();
   const [currentSlide, setCurrentSlide] = useState(0);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loadingReviews, setLoadingReviews] = useState(true);
@@ -127,6 +128,10 @@ const Home: React.FC = () => {
     };
     fetchAbout();
 
+    // Check if we should scroll to banner section after load
+    // Persistence: If coming from navigation state OR if we have a saved service in session storage (handles reloads)
+    const shouldScrollToBanner = (location.state as any)?.scrollToBanner;
+
     // Fetch Services
     const fetchServicesList = async () => {
       try {
@@ -138,7 +143,30 @@ const Home: React.FC = () => {
 
         setServices(visibleServices);
         if (visibleServices.length > 0) {
-          setSelectedService(visibleServices[0]);
+          // Priority 1: serviceId from navigation state (clicking breadcrumb service link)
+          // Priority 2: sessionStorage (previously selected service, persists across pages)
+          // Priority 3: first service (default)
+          const stateServiceId = (location.state as any)?.serviceId;
+          const savedServiceId = stateServiceId || sessionStorage.getItem("selectedServiceId");
+          const restoredService = savedServiceId
+            ? visibleServices.find((s: Service) => s._id === savedServiceId)
+            : null;
+          const serviceToSelect = restoredService || visibleServices[0];
+          setSelectedService(serviceToSelect);
+          // Keep sessionStorage in sync
+          sessionStorage.setItem("selectedServiceId", serviceToSelect._id);
+          sessionStorage.setItem("selectedServiceName", serviceToSelect.name);
+        }
+
+        // Scroll to banner section if navigating back from a product page or on reload
+        if (shouldScrollToBanner) {
+          setTimeout(() => {
+            const banner = document.querySelector('.service-banner-container') as HTMLElement;
+            if (banner) {
+              // For reloads/navigation, use smooth scroll to ensure it's visible and stable
+              banner.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+          }, 400); // Increased delay to ensure component is fully rendered
         }
       } catch (error) {
         console.error("Error fetching services:", error);
@@ -204,6 +232,9 @@ const Home: React.FC = () => {
     const service = services.find(s => s._id === serviceId);
     if (service) {
       setSelectedService(service);
+      // Persist selected service so it can be restored when navigating back from product detail
+      sessionStorage.setItem("selectedServiceId", serviceId);
+      sessionStorage.setItem("selectedServiceName", service.name);
     }
   };
 

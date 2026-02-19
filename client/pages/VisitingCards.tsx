@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useParams, useNavigate } from 'react-router-dom';
+import { Link, useParams, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowRight, Loader, X, Clock, FileText, Star } from 'lucide-react';
 import GlossProductSelection from './GlossProductSelection';
@@ -39,6 +39,7 @@ interface Product {
 const VisitingCards: React.FC = () => {
   const { categoryId, subCategoryId, nestedSubCategoryId } = useParams<{ categoryId?: string; subCategoryId?: string; nestedSubCategoryId?: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const [categoryName, setCategoryName] = useState('');
   const [categoryDescription, setCategoryDescription] = useState('');
   const [categoryImage, setCategoryImage] = useState<string>('');
@@ -49,6 +50,26 @@ const VisitingCards: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isGlossFinish, setIsGlossFinish] = useState(false);
   const [forcedProductId, setForcedProductId] = useState<string | null>(null);
+
+  // Service breadcrumb state - read from router state or sessionStorage
+  const [breadcrumbServiceName, setBreadcrumbServiceName] = useState<string>('');
+  const [breadcrumbServiceId, setBreadcrumbServiceId] = useState<string>('');
+
+  useEffect(() => {
+    const stateServiceName = (location.state as any)?.serviceName;
+    const stateServiceId = (location.state as any)?.serviceId;
+    if (stateServiceName && stateServiceId) {
+      setBreadcrumbServiceName(stateServiceName);
+      setBreadcrumbServiceId(stateServiceId);
+      sessionStorage.setItem('selectedServiceId', stateServiceId);
+      sessionStorage.setItem('selectedServiceName', stateServiceName);
+    } else {
+      const savedName = sessionStorage.getItem('selectedServiceName');
+      const savedId = sessionStorage.getItem('selectedServiceId');
+      if (savedName) setBreadcrumbServiceName(savedName);
+      if (savedId) setBreadcrumbServiceId(savedId);
+    }
+  }, [location.state]);
 
   // Scroll to top when route params change
   useEffect(() => {
@@ -1217,8 +1238,14 @@ const VisitingCards: React.FC = () => {
             <div className="flex flex-col gap-3 text-center md:text-left">
               {/* Breadcrumb with pill style */}
               <div className="flex items-center justify-center md:justify-start gap-2 text-xs sm:text-sm font-medium">
-                <Link to="/" className="px-3 py-1 rounded-full bg-white/60 backdrop-blur-sm text-gray-600 hover:bg-white hover:text-gray-900 transition-all duration-300 shadow-sm">
-                  Home
+                <Link
+                  to="/"
+                  state={breadcrumbServiceId
+                    ? { serviceId: breadcrumbServiceId, scrollToBanner: true }
+                    : { scrollToBanner: true }}
+                  className="px-3 py-1 rounded-full bg-white/60 backdrop-blur-sm text-gray-600 hover:bg-white hover:text-gray-900 transition-all duration-300 shadow-sm"
+                >
+                  {breadcrumbServiceName || 'Home'}
                 </Link>
                 <ArrowRight size={14} className="text-gray-400" />
                 <span className="px-3 py-1 rounded-full bg-gradient-to-r from-rose-500 to-purple-500 text-white font-semibold shadow-md">
@@ -1228,7 +1255,7 @@ const VisitingCards: React.FC = () => {
 
               {/* Animated title */}
               <motion.h1
-                className="font-serif text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold bg-gradient-to-r from-gray-900 via-purple-800 to-rose-900 bg-clip-text text-transparent"
+                className="font-serif text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold bg-gradient-to-r from-gray-900 via-purple-800 to-rose-900 bg-clip-text text-transparent pb-2 leading-tight"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.6 }}
@@ -1285,6 +1312,7 @@ const VisitingCards: React.FC = () => {
                           ? `/home/allservices/${categoryId}/${subCategoryIdForLink}`
                           : `/home/allservices/${subCategoryIdForLink}`
                         }
+                        state={{ serviceId: breadcrumbServiceId, serviceName: breadcrumbServiceName }}
                         className="group block h-full"
                         onClick={() => {
                           window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -1310,7 +1338,7 @@ const VisitingCards: React.FC = () => {
                           {/* Content */}
                           <div className="px-5 sm:px-6 py-5 sm:py-6 flex flex-col flex-grow">
                             <div className="mb-3">
-                              <h3 className="font-serif text-xl sm:text-2xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent group-hover:from-purple-700 group-hover:to-rose-600 transition-all duration-400">
+                              <h3 className="font-serif text-xl sm:text-2xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent group-hover:from-purple-700 group-hover:to-rose-600 transition-all duration-400 pb-1 leading-tight">
                                 {subCategory.name}
                               </h3>
                               {subCategory.shortDescription && (
@@ -1448,6 +1476,7 @@ const VisitingCards: React.FC = () => {
                                     ? `/home/allservices/${categoryId}/${product._id}`
                                     : `/home/allservices/${product._id}`
                               }
+                              state={{ serviceId: breadcrumbServiceId, serviceName: breadcrumbServiceName }}
                               className="group block w-full"
                               onClick={() => {
                                 window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -1466,7 +1495,7 @@ const VisitingCards: React.FC = () => {
                                 {/* Product Content */}
                                 <div className="flex-1 flex flex-col min-w-0">
                                   <div className="flex items-start justify-between gap-3 mb-2">
-                                    <h3 className="font-serif text-base sm:text-lg font-bold text-gray-900 group-hover:bg-gradient-to-r group-hover:from-purple-700 group-hover:to-rose-600 group-hover:bg-clip-text group-hover:text-transparent transition-all duration-300 flex-1">
+                                    <h3 className="font-serif text-base sm:text-lg font-bold text-gray-900 group-hover:bg-gradient-to-r group-hover:from-purple-700 group-hover:to-rose-600 group-hover:bg-clip-text group-hover:text-transparent transition-all duration-300 flex-1 pb-1 leading-tight">
                                       {product.name}
                                     </h3>
                                     <div className="text-right flex-shrink-0 flex items-center gap-2">
@@ -1614,7 +1643,7 @@ const VisitingCards: React.FC = () => {
                 {/* Title */}
                 <div className="text-center">
                   <motion.h3
-                    className="font-serif text-2xl sm:text-3xl md:text-4xl font-bold bg-gradient-to-r from-gray-900 via-purple-800 to-rose-900 bg-clip-text text-transparent mb-3"
+                    className="font-serif text-2xl sm:text-3xl md:text-4xl font-bold bg-gradient-to-r from-gray-900 via-purple-800 to-rose-900 bg-clip-text text-transparent mb-3 pb-1 leading-tight"
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.5 }}
@@ -1646,7 +1675,7 @@ const VisitingCards: React.FC = () => {
                     <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-rose-400 to-purple-500 flex items-center justify-center text-white shadow-lg group-hover:scale-110 transition-transform duration-300">
                       <Clock size={28} />
                     </div>
-                    <div className="font-bold text-3xl sm:text-4xl bg-gradient-to-r from-rose-500 to-purple-600 bg-clip-text text-transparent mb-2">24h</div>
+                    <div className="font-bold text-3xl sm:text-4xl bg-gradient-to-r from-rose-500 to-purple-600 bg-clip-text text-transparent mb-2 pb-1 leading-tight">24h</div>
                     <div className="text-sm font-medium text-gray-500 uppercase tracking-wider">Fast Production</div>
                   </motion.div>
 
@@ -1661,7 +1690,7 @@ const VisitingCards: React.FC = () => {
                     <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white shadow-lg group-hover:scale-110 transition-transform duration-300">
                       <FileText size={28} />
                     </div>
-                    <div className="font-bold text-3xl sm:text-4xl bg-gradient-to-r from-blue-500 to-purple-600 bg-clip-text text-transparent mb-2">300+</div>
+                    <div className="font-bold text-3xl sm:text-4xl bg-gradient-to-r from-blue-500 to-purple-600 bg-clip-text text-transparent mb-2 pb-1 leading-tight">300+</div>
                     <div className="text-sm font-medium text-gray-500 uppercase tracking-wider">GSM Premium Paper</div>
                   </motion.div>
 
@@ -1676,7 +1705,7 @@ const VisitingCards: React.FC = () => {
                     <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-amber-400 to-rose-500 flex items-center justify-center text-white shadow-lg group-hover:scale-110 transition-transform duration-300">
                       <Star size={28} />
                     </div>
-                    <div className="font-bold text-3xl sm:text-4xl bg-gradient-to-r from-amber-500 to-rose-600 bg-clip-text text-transparent mb-2">100%</div>
+                    <div className="font-bold text-3xl sm:text-4xl bg-gradient-to-r from-amber-500 to-rose-600 bg-clip-text text-transparent mb-2 pb-1 leading-tight">100%</div>
                     <div className="text-sm font-medium text-gray-500 uppercase tracking-wider">Satisfaction Guaranteed</div>
                   </motion.div>
                 </div>

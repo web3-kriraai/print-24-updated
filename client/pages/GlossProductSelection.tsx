@@ -156,6 +156,28 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
   const [breadcrumbCategoryName, setBreadcrumbCategoryName] = useState<string>("");
   const [breadcrumbSubCategoryName, setBreadcrumbSubCategoryName] = useState<string>("");
   const [breadcrumbNestedSubCategoryName, setBreadcrumbNestedSubCategoryName] = useState<string>("");
+  // Service name for breadcrumb root - from router state or sessionStorage
+  const [breadcrumbServiceName, setBreadcrumbServiceName] = useState<string>("");
+  const [breadcrumbServiceId, setBreadcrumbServiceId] = useState<string>("");
+
+  // Read service info from router state or sessionStorage for the breadcrumb root
+  useEffect(() => {
+    const stateServiceName = (location.state as any)?.serviceName;
+    const stateServiceId = (location.state as any)?.serviceId;
+    if (stateServiceName && stateServiceId) {
+      setBreadcrumbServiceName(stateServiceName);
+      setBreadcrumbServiceId(stateServiceId);
+      // Keep sessionStorage in sync so it's available on internal nav (variant switches etc.)
+      sessionStorage.setItem("selectedServiceId", stateServiceId);
+      sessionStorage.setItem("selectedServiceName", stateServiceName);
+    } else {
+      // Fallback: read from sessionStorage (set when user clicked a service on Home page)
+      const savedName = sessionStorage.getItem("selectedServiceName");
+      const savedId = sessionStorage.getItem("selectedServiceId");
+      if (savedName) setBreadcrumbServiceName(savedName);
+      if (savedId) setBreadcrumbServiceId(savedId);
+    }
+  }, [location.state]);
 
 
   // PDP API data state
@@ -4184,9 +4206,12 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
         {/* Breadcrumb Navigation */}
         <div className="mb-4 sm:mb-6">
           <div className="flex items-center flex-wrap gap-2 text-xs sm:text-sm font-medium">
-            {/* Home Link */}
+            {/* Home / Service Link */}
             <Link
               to="/"
+              state={breadcrumbServiceId
+                ? { serviceId: breadcrumbServiceId, scrollToBanner: true }
+                : { scrollToBanner: true }}
               className="px-3 py-1 rounded-full bg-white/60 backdrop-blur-sm text-gray-600 hover:bg-white hover:text-gray-900 transition-all duration-300 shadow-sm"
               onClick={() => {
                 const mainNav = document.querySelector('nav');
@@ -4198,7 +4223,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                 window.scrollTo(0, 0);
               }}
             >
-              Home
+              {breadcrumbServiceName || "Home"}
             </Link>
 
             {/* Category Link - if categoryId exists in URL */}
@@ -4271,9 +4296,18 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
             {selectedProduct && (
               <>
                 <ArrowRight size={14} className="text-gray-400" />
-                <span className="px-3 py-1 rounded-full bg-gradient-to-r from-rose-500 to-purple-500 text-white font-semibold shadow-md">
+                <Link
+                  to="/"
+                  state={breadcrumbServiceId
+                    ? { serviceId: breadcrumbServiceId, scrollToBanner: true }
+                    : { scrollToBanner: true }}
+                  className="px-3 py-1 rounded-full bg-gradient-to-r from-rose-500 to-purple-500 text-white font-semibold shadow-md hover:opacity-90 transition-opacity"
+                  onClick={() => {
+                    window.scrollTo(0, 0);
+                  }}
+                >
                   {selectedProduct.name}
-                </span>
+                </Link>
               </>
             )}
           </div>
@@ -4876,10 +4910,6 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                       className="overflow-hidden mb-2"
                                     >
                                       <div className="p-4 sm:p-6 bg-blue-50 border border-blue-200 rounded-lg">
-                                        <h4 className="text-sm font-bold text-blue-900 mb-3 flex items-center gap-2">
-                                          <FileText size={16} />
-                                          Product Description
-                                        </h4>
                                         <div className="text-xs sm:text-sm text-blue-800">
                                           {(() => {
                                             // First check if description contains HTML (prioritize description field)
@@ -5040,10 +5070,6 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                       className="overflow-hidden"
                                     >
                                       <div className="mb-2 p-4 sm:p-6 bg-yellow-50 border border-yellow-200 rounded-lg">
-                                        <h4 className="text-sm font-bold text-yellow-900 mb-3 flex items-center gap-2">
-                                          <Info size={16} />
-                                          Important Instructions - Please Read Carefully
-                                        </h4>
 
                                         {/* Custom Instructions from Admin */}
                                         {selectedProduct.instructions && (
@@ -5114,10 +5140,10 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                             <div>
                                               <p className="font-semibold text-yellow-900 mb-2">Additional Charges:</p>
                                               <div className="space-y-1 ml-4">
-                                                {selectedProduct.additionalDesignCharge && selectedProduct.additionalDesignCharge > 0 && (
+                                                {selectedProduct.additionalDesignCharge > 0 && (
                                                   <p>• Additional Design Charge: <strong>₹{selectedProduct.additionalDesignCharge.toFixed(2)}</strong> (applied if design help is needed)</p>
                                                 )}
-                                                {selectedProduct.gstPercentage && selectedProduct.gstPercentage > 0 && (
+                                                {selectedProduct.gstPercentage > 0 && (
                                                   <p>• GST: <strong>{selectedProduct.gstPercentage}%</strong> (applied on subtotal + design charge)</p>
                                                 )}
                                               </div>
@@ -5144,10 +5170,6 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                       className="overflow-hidden"
                                     >
                                       <div className="mb-2 p-4 sm:p-6 bg-red-50 border border-red-200 rounded-lg">
-                                        <h4 className="text-sm font-bold text-red-900 mb-3 flex items-center gap-2">
-                                          <Info size={16} />
-                                          Product Specialization
-                                        </h4>
                                         <div className="text-xs sm:text-sm text-red-800 whitespace-pre-line">
                                           {selectedProduct.specialization}
                                         </div>
@@ -5770,7 +5792,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                   </label>
                                                   <div className="relative">
                                                     <div className="absolute top-0 left-0 right-0 h-5 bg-gradient-to-b from-white to-transparent pointer-events-none z-10" />
-                                                    <div className="max-h-[400px] overflow-y-auto mini-scrollbar pr-2">
+                                                    <div className="max-h-[220px] overflow-y-auto mini-scrollbar pr-2">
                                                       <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2.5 py-2">
                                                         {availableSubAttributes.map((subAttr) => {
                                                           const getSubAttrPriceDisplay = () => {
@@ -5811,15 +5833,14 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                               )}
                                                               {/* Square image container */}
                                                               {subAttr.image && (
-                                                                <div className="w-full aspect-square mb-1.5 overflow-hidden rounded-lg bg-gray-50 border border-gray-100">
-                                                                  <LazyImage
-                                                                    src={subAttr.image}
-                                                                    alt={subAttr.label}
-                                                                    className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
-                                                                    showSkeleton={true}
-                                                                    skeletonVariant="image"
-                                                                  />
-                                                                </div>
+                                                                <LazyImage
+                                                                  src={subAttr.image}
+                                                                  alt={subAttr.label}
+                                                                  className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
+                                                                  showSkeleton={true}
+                                                                  skeletonVariant="image"
+                                                                />
+
                                                               )}
                                                               {/* Label */}
                                                               <div className="text-[11px] font-medium text-gray-900 leading-tight line-clamp-2 text-center w-full">

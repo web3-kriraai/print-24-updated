@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { Edit, Trash2, Plus, Search, Loader, Sparkles, ChevronRight, Palette, Settings, Layers, Copy } from "lucide-react";
+import { Edit, Trash2, Plus, Search, Loader, Sparkles, ChevronRight, Palette, Settings, Layers, Copy, AlertTriangle, X, ShieldAlert } from "lucide-react";
 import { API_BASE_URL_WITH_API as API_BASE_URL } from "../../../../lib/apiConfig";
 import { Select } from "../../../../components/ui/select";
 import CreateAttributeModal from "./CreateAttributeModal";
@@ -130,6 +130,11 @@ const ManageAttributeTypes: React.FC<ManageAttributeTypesProps> = ({
 
     // Create/Edit modal state
     const [showCreateModal, setShowCreateModal] = useState(false);
+
+    // Attribute usage popup state
+    const [usagePopup, setUsagePopup] = useState<{ show: boolean; attributeName: string; productCount: number; productNames: string[] }>({
+        show: false, attributeName: "", productCount: 0, productNames: []
+    });
 
     const ITEMS_PER_PAGE = 10;
 
@@ -356,7 +361,24 @@ const ManageAttributeTypes: React.FC<ManageAttributeTypesProps> = ({
                                             <td className="px-6 py-4">
                                                 <div className="flex items-center justify-center gap-2">
                                                     <button
-                                                        onClick={() => {
+                                                        onClick={async () => {
+                                                            try {
+                                                                const res = await fetch(`${API_BASE_URL}/attribute-types/${at._id}/check-usage`, {
+                                                                    headers: getAuthHeaders(),
+                                                                });
+                                                                const data = await res.json();
+                                                                if (data.isInUse) {
+                                                                    setUsagePopup({
+                                                                        show: true,
+                                                                        attributeName: at.attributeName,
+                                                                        productCount: data.productCount,
+                                                                        productNames: data.productNames || []
+                                                                    });
+                                                                    return;
+                                                                }
+                                                            } catch (err) {
+                                                                console.error("Error checking attribute usage:", err);
+                                                            }
                                                             handleEditAttributeType(at._id);
                                                             setShowCreateModal(true);
                                                         }}
@@ -567,6 +589,78 @@ const ManageAttributeTypes: React.FC<ManageAttributeTypesProps> = ({
                                         <span>Create Duplicate</span>
                                     </>
                                 )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Attribute In-Use Popup */}
+            {usagePopup.show && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fadeIn" onClick={() => setUsagePopup({ show: false, attributeName: "", productCount: 0, productNames: [] })}>
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden animate-slideUp" onClick={(e) => e.stopPropagation()}>
+                        {/* Header */}
+                        <div className="bg-gradient-to-r from-amber-500 to-orange-500 p-6 text-white">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2 bg-white/20 rounded-lg">
+                                        <ShieldAlert size={24} />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-xl font-bold">Attribute Protected</h3>
+                                        <p className="text-amber-100 text-sm">This attribute is currently in use</p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => setUsagePopup({ show: false, attributeName: "", productCount: 0, productNames: [] })}
+                                    className="p-1.5 bg-white/20 rounded-lg hover:bg-white/30 transition-colors"
+                                >
+                                    <X size={18} />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Body */}
+                        <div className="p-6 space-y-4">
+                            <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+                                <AlertTriangle size={20} className="text-amber-600 mt-0.5 flex-shrink-0" />
+                                <div>
+                                    <p className="text-sm font-semibold text-amber-800">
+                                        Cannot edit "{usagePopup.attributeName}"
+                                    </p>
+                                    <p className="text-sm text-amber-700 mt-1">
+                                        This attribute is assigned to <span className="font-bold">{usagePopup.productCount}</span> product{usagePopup.productCount !== 1 ? 's' : ''}. Remove it from all products before editing.
+                                    </p>
+                                </div>
+                            </div>
+
+                            {usagePopup.productNames.length > 0 && (
+                                <div>
+                                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Products using this attribute:</p>
+                                    <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                                        {usagePopup.productNames.map((name, i) => (
+                                            <div key={i} className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg">
+                                                <div className="w-1.5 h-1.5 bg-amber-500 rounded-full flex-shrink-0"></div>
+                                                <span className="text-sm text-gray-700 truncate">{name}</span>
+                                            </div>
+                                        ))}
+                                        {usagePopup.productCount > usagePopup.productNames.length && (
+                                            <p className="text-xs text-gray-500 pl-5 pt-1">
+                                                ...and {usagePopup.productCount - usagePopup.productNames.length} more
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Footer */}
+                        <div className="bg-gray-50 px-6 py-4 flex justify-end">
+                            <button
+                                onClick={() => setUsagePopup({ show: false, attributeName: "", productCount: 0, productNames: [] })}
+                                className="px-6 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl hover:from-amber-600 hover:to-orange-600 transition-all duration-300 font-medium"
+                            >
+                                Got it
                             </button>
                         </div>
                     </div>

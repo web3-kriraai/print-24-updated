@@ -1,6 +1,6 @@
-import React from "react";
+import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Edit, Trash2, Plus, Loader, Sparkles, X, Palette, Settings, Layers } from "lucide-react";
+import { Edit, Trash2, Plus, Loader, Sparkles, X, Palette, Settings, Layers, GripVertical } from "lucide-react";
 import { API_BASE_URL_WITH_API as API_BASE_URL } from "../../../../lib/apiConfig";
 import { Select } from "../../../../components/ui/select";
 import toast from "react-hot-toast";
@@ -106,6 +106,43 @@ const CreateAttributeModal: React.FC<CreateAttributeModalProps> = ({
     getAuthHeaders,
     onSuccess,
 }) => {
+    const [dragIndex, setDragIndex] = useState<number | null>(null);
+    const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+
+    const handleDragStart = (e: React.DragEvent, index: number) => {
+        setDragIndex(index);
+        e.dataTransfer.effectAllowed = 'move';
+        // Add a ghost image or styling if needed
+        const target = e.currentTarget as HTMLElement;
+        target.style.opacity = '0.4';
+    };
+
+    const handleDragOver = (e: React.DragEvent, index: number) => {
+        e.preventDefault();
+        setDragOverIndex(index);
+    };
+
+    const handleDrop = (e: React.DragEvent, index: number) => {
+        e.preventDefault();
+        if (dragIndex === null || dragIndex === index) return;
+
+        const updatedOptions = [...attributeTypeForm.attributeOptionsTable];
+        const [movedItem] = updatedOptions.splice(dragIndex, 1);
+        updatedOptions.splice(index, 0, movedItem);
+
+        setAttributeTypeForm({
+            ...attributeTypeForm,
+            attributeOptionsTable: updatedOptions
+        });
+    };
+
+    const handleDragEnd = (e: React.DragEvent) => {
+        setDragIndex(null);
+        setDragOverIndex(null);
+        const target = e.currentTarget as HTMLElement;
+        target.style.opacity = '1';
+    };
+
     const handleClose = () => {
         if (!loading) {
             setEditingAttributeTypeId(null);
@@ -521,6 +558,7 @@ const CreateAttributeModal: React.FC<CreateAttributeModalProps> = ({
                                                 <table className="w-full border-collapse">
                                                     <thead>
                                                         <tr className="bg-gradient-to-r from-purple-50 to-pink-50">
+                                                            <th className="border border-purple-100 px-2 py-3 text-center text-sm font-medium text-gray-700 w-10"></th>
                                                             <th className="border border-purple-100 px-4 py-3 text-left text-sm font-medium text-gray-700">Option Name *</th>
                                                             <th className="border border-purple-100 px-4 py-3 text-left text-sm font-medium text-gray-700">Option Usage *</th>
                                                             {attributeTypeForm.attributeOptionsTable.some(opt => opt.optionUsage?.price) && (
@@ -538,7 +576,18 @@ const CreateAttributeModal: React.FC<CreateAttributeModalProps> = ({
                                                     </thead>
                                                     <tbody>
                                                         {attributeTypeForm.attributeOptionsTable.map((option, index) => (
-                                                            <tr key={index} className="hover:bg-gradient-to-r hover:from-purple-50/30 hover:to-pink-50/30 transition-all duration-300 group">
+                                                            <tr
+                                                                key={index}
+                                                                draggable
+                                                                onDragStart={(e) => handleDragStart(e, index)}
+                                                                onDragOver={(e) => handleDragOver(e, index)}
+                                                                onDrop={(e) => handleDrop(e, index)}
+                                                                onDragEnd={handleDragEnd}
+                                                                className={`hover:bg-gradient-to-r hover:from-purple-50/30 hover:to-pink-50/30 transition-all duration-300 group ${dragOverIndex === index ? "border-t-2 border-purple-500" : ""} ${dragIndex === index ? "bg-purple-50/50" : ""}`}
+                                                            >
+                                                                <td className="border border-purple-100 px-2 py-3 text-center cursor-grab active:cursor-grabbing">
+                                                                    <GripVertical size={16} className="text-gray-400 group-hover:text-purple-500 transition-colors mx-auto" />
+                                                                </td>
                                                                 <td className="border border-purple-100 px-4 py-3">
                                                                     <input
                                                                         type="text"
@@ -620,7 +669,7 @@ const CreateAttributeModal: React.FC<CreateAttributeModalProps> = ({
                                                                                     }}
                                                                                     className="w-full px-3 py-2.5 border border-purple-100 rounded-lg text-sm focus:ring-2 focus:ring-purple-500/30 focus:border-purple-400 transition-all duration-300"
                                                                                     placeholder="Enter amount"
-                                                                                    step="0.01"
+                                                                                    step="0.000001"
                                                                                     min="0"
                                                                                 />
                                                                             </div>
@@ -840,7 +889,7 @@ const CreateAttributeModal: React.FC<CreateAttributeModalProps> = ({
                                                         onChange={(e) => setAttributeTypeForm({ ...attributeTypeForm, priceEffectAmount: e.target.value })}
                                                         className="flex-1 px-4 py-2.5 border border-blue-100 rounded-lg focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all duration-300"
                                                         placeholder="e.g., 20 (means +₹20 per 1000 units)"
-                                                        step="0.00001"
+                                                        step="0.000001"
                                                         min="0"
                                                         required={attributeTypeForm.isPriceEffect}
                                                     />
@@ -894,7 +943,7 @@ const CreateAttributeModal: React.FC<CreateAttributeModalProps> = ({
                                                             className="flex-1 px-3 py-2 border border-purple-100 rounded-lg text-sm"
                                                             placeholder="quantity"
                                                             min="0"
-                                                            step="100"
+                                                            step="0.000001"
                                                         />
                                                         <input
                                                             type="number"
@@ -907,7 +956,7 @@ const CreateAttributeModal: React.FC<CreateAttributeModalProps> = ({
                                                             className="flex-1 px-3 py-2 border border-purple-100 rounded-lg text-sm"
                                                             placeholder="price"
                                                             min="0"
-                                                            step="0.01"
+                                                            step="0.000001"
                                                         />
                                                         <button
                                                             type="button"
@@ -969,7 +1018,7 @@ const CreateAttributeModal: React.FC<CreateAttributeModalProps> = ({
                                                             className="flex-1 px-3 py-2 border border-emerald-100 rounded-lg text-sm"
                                                             placeholder="min"
                                                             min="0"
-                                                            step="100"
+                                                            step="0.000001"
                                                         />
                                                         <span className="text-gray-400">—</span>
                                                         <input
@@ -983,7 +1032,7 @@ const CreateAttributeModal: React.FC<CreateAttributeModalProps> = ({
                                                             className="flex-1 px-3 py-2 border border-emerald-100 rounded-lg text-sm"
                                                             placeholder="max"
                                                             min="0"
-                                                            step="100"
+                                                            step="0.000001"
                                                         />
                                                         <input
                                                             type="number"
@@ -996,7 +1045,7 @@ const CreateAttributeModal: React.FC<CreateAttributeModalProps> = ({
                                                             className="flex-1 px-3 py-2 border border-emerald-100 rounded-lg text-sm"
                                                             placeholder="price"
                                                             min="0"
-                                                            step="0.01"
+                                                            step="0.000001"
                                                         />
                                                         <button
                                                             type="button"

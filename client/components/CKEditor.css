@@ -1,0 +1,179 @@
+@import url('https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,400;0,700;1,400;1,700&display=swap');
+
+@media print {
+    body {
+        margin: 0 !important;
+    }
+}
+
+:root {
+    --ck-content-font-family: Lato;
+    --ck-sidebar-width: 0px;
+    /* Collapsed sidebar */
+}
+
+.main-container {
+    font-family: var(--ck-content-font-family);
+    width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.main-container .presence {
+    margin-bottom: 8px;
+    display: none;
+    /* Hide presence */
+}
+
+.editor-container__editor-wrapper {
+    display: flex;
+    width: 100%;
+}
+
+.editor-container_include-annotations .editor-container__editor .ck.ck-editor__editable {
+    margin-right: 0;
+}
+
+.editor-container_classic-editor .editor-container__editor {
+    min-width: 100%;
+    max-width: 100%;
+}
+
+.editor-container__sidebar {
+    min-width: 0;
+    max-width: 0;
+    margin: 0;
+    display: none;
+    /* Hide sidebar completely */
+}
+
+.revision-history {
+    display: none;
+}
+
+.revision-history__wrapper {
+    display: flex;
+}
+
+.revision-history__wrapper .ck.ck-editor {
+    margin: 0;
+    width: 100%;
+}
+
+.revision-history__wrapper .revision-history__sidebar {
+    border: 1px solid var(--ck-color-base-border);
+    border-left: 0;
+    width: var(--ck-sidebar-width);
+    min-height: 100%;
+    display: none;
+    /* Hide revision history sidebar */
+}
+
+.revision-history__wrapper .revision-history__sidebar .ck-revision-history-sidebar {
+    height: 100%;
+}
+
+.editor_container__word-count .ck-word-count {
+    color: var(--ck-color-text);
+    display: flex;
+    height: 20px;
+    gap: var(--ck-spacing-small);
+    justify-content: flex-end;
+    font-size: var(--ck-font-size-base);
+    line-height: var(--ck-line-height-base);
+    font-family: var(--ck-font-face);
+    padding: var(--ck-spacing-small) var(--ck-spacing-standard);
+}
+
+.editor-container_include-word-count.editor-container_classic-editor .editor_container__word-count {
+    border: 1px solid var(--ck-color-base-border);
+    border-radius: var(--ck-border-radius);
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+    border-top: none;
+}
+
+/* Custom Theme Overrides matching the Dashboard */
+
+/* Main editor styling */
+.ck.ck-editor__main>.ck-editor__editable {
+    background-color: rgba(255, 255, 255, 0.5);
+    /* bg-white/50 */
+    min-height: 200px;
+    max-height: 600px;
+
+    /* Borders - usually handled by CKEditor but overriding for custom look */
+    border-bottom-left-radius: 0.75rem !important;
+    /* rounded-xl */
+    border-bottom-right-radius: 0.75rem !important;
+    border-color: #e2e8f0 !important;
+    /* border-slate-200 */
+    border-top: 0 !important;
+    /* Connect to toolbar */
+
+    transition: all 0.2s ease-in-out;
+    /* transition-all */
+}
+
+/* Toolbar styling */
+.ck.ck-toolbar {
+    background-color: #f8fafc !important;
+    /* slate-50 */
+    border-color: #e2e8f0 !important;
+    /* slate-200 */
+    border-top-left-radius: 0.75rem !important;
+    /* rounded-xl */
+    border-top-right-radius: 0.75rem !important;
+    border-bottom: 1px solid #e2e8f0 !important;
+}
+
+/* Hover state for the whole editor (simulating input hover) */
+.ck.ck-editor:hover .ck-toolbar {
+    border-color: #cbd5e1 !important;
+    /* slate-300 */
+}
+
+.ck.ck-editor:hover .ck-editor__editable {
+    border-color: #cbd5e1 !important;
+    /* slate-300 */
+}
+
+/* Focus state - Active Ring */
+.ck.ck-editor__main>.ck-editor__editable.ck-focused {
+    border-color: #38bdf8 !important;
+    /* border-sky-400 */
+    box-shadow: 0 0 0 4px rgba(14, 165, 233, 0.1) !important;
+    /* ring-4 ring-sky-500/10 */
+    outline: none !important;
+}
+
+/* Ensure the toolbar border also changes on focus to look unified */
+.ck.ck-editor__main>.ck-editor__editable.ck-focused+.ck-toolbar,
+/* If toolbar is after? No, usually before. */
+.ck.ck-editor:focus-within .ck-toolbar {
+    border-color: #38bdf8 !important;
+    border-bottom-color: #e2e8f0 !important;
+    /* Keep separator subtle or match? */
+}
+
+/* Fix separator color */
+.ck.ck-toolbar .ck-toolbar__separator {
+    background-color: #cbd5e1;
+}
+
+/* Typography matching the form */
+.ck.ck-editor__editable {
+    padding: 0 1rem !important;
+    /* px-4 */
+    font-size: 0.875rem !important;
+    /* text-sm usually, or match input */
+    line-height: 1.5 !important;
+    color: #334155 !important;
+    /* slate-700 */
+}
+
+/* Placeholder color */
+.ck.ck-editor__editable.ck-placeholder:before {
+    color: #94a3b8 !important;
+    /* slate-400 */
+}

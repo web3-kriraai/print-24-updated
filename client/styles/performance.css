@@ -72,3 +72,25 @@
         scroll-behavior: auto;
     }
 }
+
+/* Hide numeric input spinners - Exhaustive approach */
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button,
+input[type=number]::-webkit-inner-spin-button {
+    -webkit-appearance: none !important;
+    margin: 0 !important;
+}
+
+input[type=number] {
+    -moz-appearance: textfield !important;
+    appearance: none !important;
+}
+
+/* Specific fix for some Chrome/Edge versions that might still show them */
+input[type=number]::-webkit-contacts-auto-fill-button,
+input[type=number]::-webkit-credentials-auto-fill-button {
+    visibility: hidden !important;
+    display: none !important;
+    pointer-events: none !important;
+}

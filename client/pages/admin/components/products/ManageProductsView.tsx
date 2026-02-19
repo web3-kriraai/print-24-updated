@@ -20,10 +20,12 @@ import {
     ShoppingBag,
     Tag,
     Layers,
-    Copy
+    Copy,
+    ToggleLeft,
+    ToggleRight
 } from 'lucide-react';
 import { SearchableDropdown } from '../../../../components/SearchableDropdown';
-import { formatCurrency } from '../../../../utils/pricing';
+import { formatCurrency, formatCurrencyFull } from '../../../../utils/pricing';
 
 export interface Product {
     _id: string;
@@ -73,6 +75,8 @@ interface ManageProductsViewProps {
     subCategories: any[];
     typeFilter: string;
     setTypeFilter: (type: string) => void;
+    statusFilter: "All" | "Active" | "Inactive";
+    setStatusFilter: (status: "All" | "Active" | "Inactive") => void;
 }
 
 interface ProductDetailModalProps {
@@ -153,7 +157,7 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ isOpen, product
                                         <div className="space-y-3">
                                             <div className="flex justify-between">
                                                 <span className="text-sm text-gray-600">Price</span>
-                                                <span className="font-medium">{formatCurrency(product.basePrice)}</span>
+                                                <span className="font-medium">{formatCurrencyFull(product.basePrice)}</span>
                                             </div>
                                             {/* Removed Status and Stock display */}
                                         </div>
@@ -369,7 +373,7 @@ const ProductItem = React.memo(({
                         <div className="flex items-center justify-between mb-4">
                             <div className="flex items-center gap-2">
                                 <DollarSign size={14} className="text-gray-600" />
-                                <span className="font-semibold text-gray-900">{formatCurrency(product.basePrice)}</span>
+                                <span className="font-semibold text-gray-900">{formatCurrencyFull(product.basePrice)}</span>
                             </div>
                             <div className="flex items-center gap-3">
                                 {/* Removed Stock Display */}
@@ -409,6 +413,19 @@ const ProductItem = React.memo(({
                                         className="px-3 py-2 bg-teal-50 text-teal-700 rounded-md hover:bg-teal-100 transition-colors flex items-center justify-center gap-2 font-medium text-sm"
                                     >
                                         <Edit size={14} />
+                                    </button>
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onToggleStatus(product._id);
+                                        }}
+                                        className={`px-3 py-2 rounded-md transition-colors flex items-center justify-center gap-2 font-medium text-sm ${product.isActive
+                                            ? 'bg-green-50 text-green-700 hover:bg-green-100'
+                                            : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                                            }`}
+                                        title={product.isActive ? 'Deactivate Product' : 'Activate Product'}
+                                    >
+                                        {product.isActive ? <ToggleRight size={16} /> : <ToggleLeft size={16} />}
                                     </button>
                                     <button
                                         onClick={(e) => {
@@ -497,7 +514,7 @@ const ProductItem = React.memo(({
                         <div className="flex items-center gap-6">
                             <div className="text-right">
                                 <div className="text-base font-semibold text-gray-900">
-                                    {formatCurrency(product.basePrice)}
+                                    {formatCurrencyFull(product.basePrice)}
                                 </div>
                                 {/* Removed Stock Display */}
                             </div>
@@ -537,6 +554,19 @@ const ProductItem = React.memo(({
                                             title="Edit Product"
                                         >
                                             <Edit size={14} />
+                                        </button>
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onToggleStatus(product._id);
+                                            }}
+                                            className={`p-2 rounded-md transition-colors ${product.isActive
+                                                ? 'bg-green-50 text-green-600 hover:bg-green-100'
+                                                : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                                                }`}
+                                            title={product.isActive ? 'Deactivate Product' : 'Activate Product'}
+                                        >
+                                            {product.isActive ? <ToggleRight size={16} /> : <ToggleLeft size={16} />}
                                         </button>
                                         <button
                                             onClick={(e) => {
@@ -596,6 +626,8 @@ const ManageProductsView: React.FC<ManageProductsViewProps> = ({
     subCategories,
     typeFilter,
     setTypeFilter,
+    statusFilter,
+    setStatusFilter,
 }) => {
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
     const [hoveredProductId, setHoveredProductId] = useState<string | null>(null);
@@ -605,10 +637,10 @@ const ManageProductsView: React.FC<ManageProductsViewProps> = ({
 
     // Prepare dropdown options
     const categoryOptions = useMemo(() => {
-        const filteredCats = typeFilter === 'All' 
-            ? categories 
+        const filteredCats = typeFilter === 'All'
+            ? categories
             : categories.filter(cat => cat.type === typeFilter);
-            
+
         return [
             { value: '', label: 'All Categories' },
             ...filteredCats.map(cat => ({
@@ -733,19 +765,18 @@ const ManageProductsView: React.FC<ManageProductsViewProps> = ({
                                     </button>
                                 )}
                             </div>
-                            
+
                             {/* Show Deleted Toggle */}
                             <div className="mt-3">
                                 <button
-                                  onClick={() => setShowDeletedProducts(!showDeletedProducts)}
-                                  className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-colors w-full justify-center ${
-                                    showDeletedProducts
-                                      ? "bg-red-50 border-red-200 text-red-700 hover:bg-red-100"
-                                      : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"
-                                  }`}
+                                    onClick={() => setShowDeletedProducts(!showDeletedProducts)}
+                                    className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-colors w-full justify-center ${showDeletedProducts
+                                        ? "bg-red-50 border-red-200 text-red-700 hover:bg-red-100"
+                                        : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"
+                                        }`}
                                 >
-                                  <Trash2 className="w-4 h-4" />
-                                  {showDeletedProducts ? "Hide Trash" : "Show Trash"}
+                                    <Trash2 className="w-4 h-4" />
+                                    {showDeletedProducts ? "Hide Trash" : "Show Trash"}
                                 </button>
                             </div>
                         </div>
@@ -818,16 +849,31 @@ const ManageProductsView: React.FC<ManageProductsViewProps> = ({
                                 scrollbarColor="#14b8a6"
                             />
                         </div>
+
+                        {/* Status Filter */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-900 mb-2">Status</label>
+                            <select
+                                value={statusFilter}
+                                onChange={(e) => setStatusFilter(e.target.value as "All" | "Active" | "Inactive")}
+                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm"
+                            >
+                                <option value="All">All Statuses</option>
+                                <option value="Active">Active Only</option>
+                                <option value="Inactive">Inactive Only</option>
+                            </select>
+                        </div>
                     </div>
 
                     {/* Action Buttons */}
                     <div className="flex gap-3 mt-6 pt-6 border-t border-gray-200">
-                        {(productSearchQuery || selectedCategoryFilter || selectedSubCategoryFilter) && (
+                        {(productSearchQuery || selectedCategoryFilter || selectedSubCategoryFilter || statusFilter !== "All") && (
                             <button
                                 onClick={() => {
                                     setProductSearchQuery('');
                                     setSelectedCategoryFilter('');
                                     setSelectedSubCategoryFilter('');
+                                    setStatusFilter('All');
                                     fetchProducts();
                                 }}
                                 className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2 font-medium"

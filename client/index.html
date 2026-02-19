@@ -100,6 +100,21 @@
     }
 
     /* Note: .mini-scrollbar styles are now in /client/styles/performance.css */
+
+    /* Reinforced numeric input spinner hiding */
+    input::-webkit-outer-spin-button,
+    input::-webkit-inner-spin-button,
+    input[type=number]::-webkit-outer-spin-button,
+    input[type=number]::-webkit-inner-spin-button {
+      -webkit-appearance: none !important;
+      margin: 0 !important;
+      display: none !important;
+    }
+
+    input[type=number] {
+      -moz-appearance: textfield !important;
+      appearance: none !important;
+    }
   </style>
 </head>
 

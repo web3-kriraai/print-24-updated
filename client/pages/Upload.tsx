@@ -535,7 +535,7 @@ const Upload: React.FC = () => {
                   </label>
                   <input
                     type="number"
-                    step="0.1"
+                    step="0.000001"
                     value={designSpecs.width}
                     onChange={(e) =>
                       setDesignSpecs((prev) => ({
@@ -552,7 +552,7 @@ const Upload: React.FC = () => {
                   </label>
                   <input
                     type="number"
-                    step="0.1"
+                    step="0.000001"
                     value={designSpecs.height}
                     onChange={(e) =>
                       setDesignSpecs((prev) => ({
@@ -619,7 +619,7 @@ const Upload: React.FC = () => {
                       </label>
                       <input
                         type="number"
-                        step="1"
+                        step="0.000001"
                         value={designSpecs[key as keyof DesignSpecs]}
                         onChange={(e) =>
                           setDesignSpecs((prev) => ({

@@ -3,6 +3,16 @@ export const formatCurrency = (amount: number): string => {
   return `₹${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };
 
+// Format currency with full precision (up to 6 decimal places) for Admin
+export const formatCurrencyFull = (amount: number): string => {
+  return `₹${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 6 })}`;
+};
+
+// Format number with full precision (up to 6 decimal places) for Admin
+export const formatNumberFull = (amount: number): string => {
+  return amount.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 6 });
+};
+
 // Order breakdown calculation
 export interface OrderBreakdown {
   rawBaseTotal: number;

@@ -16,6 +16,42 @@ if (!rootElement) {
 }
 
 const root = ReactDOM.createRoot(rootElement);
+// Global handler to disable scroll on numeric fields
+const preventNumericScroll = (e: Event) => {
+  const target = e.target as HTMLElement;
+  if (target && target.tagName === 'INPUT' && (target as HTMLInputElement).type === 'number') {
+    // Prevent the scroll from changing the value.
+    // Use capture phase and preventDefault to be as aggressive as possible.
+    e.preventDefault();
+  }
+};
+
+// Global handler to prevent Arrow keys from changing value in numeric fields
+const preventNumericKeys = (e: KeyboardEvent) => {
+  const target = e.target as HTMLElement;
+  if (target && target.tagName === 'INPUT' && (target as HTMLInputElement).type === 'number') {
+    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+      e.preventDefault();
+    }
+  }
+};
+
+// Global handler to ensure 6 decimal places are allowed on any numeric input
+const ensureDecimalPrecision = (e: Event) => {
+  const target = e.target as HTMLInputElement;
+  if (target && target.tagName === 'INPUT' && target.type === 'number') {
+    // Force 6 decimal places to bypass any existing coarser step constraints
+    target.step = '0.000001';
+  }
+};
+
+// Attach listeners to window using capture: true to catch events before any component-level handlers
+window.addEventListener('wheel', preventNumericScroll, { passive: false, capture: true });
+window.addEventListener('mousewheel', preventNumericScroll as any, { passive: false, capture: true });
+window.addEventListener('DOMMouseScroll', preventNumericScroll as any, { passive: false, capture: true });
+window.addEventListener('keydown', preventNumericKeys, { capture: true });
+window.addEventListener('focusin', ensureDecimalPrecision, { capture: true });
+
 root.render(
   <React.StrictMode>
     <BrowserRouter>

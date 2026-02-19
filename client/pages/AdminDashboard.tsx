@@ -110,6 +110,8 @@ interface Product {
   image?: string;
   sortOrder?: number;
   showAttributePrices?: boolean;
+  isActive?: boolean;
+  isDeleted?: boolean;
 }
 
 interface User {
@@ -520,6 +522,7 @@ const AdminDashboard: React.FC = () => {
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>("");
   const [selectedSubCategoryFilter, setSelectedSubCategoryFilter] = useState<string>("");
   const [productSearchQuery, setProductSearchQuery] = useState<string>("");
+  const [statusFilter, setStatusFilter] = useState<"All" | "Active" | "Inactive">("All");
   const [subcategoryProducts, setSubcategoryProducts] = useState<Product[]>([]);
   const [loadingSubcategoryProducts, setLoadingSubcategoryProducts] = useState(false);
   const [loadingProducts, setLoadingProducts] = useState(false);
@@ -1282,17 +1285,17 @@ const AdminDashboard: React.FC = () => {
     // AdminDashboard passes:
     // selectedCategoryFilter={selectedCategoryFilter}
     // setSelectedCategoryFilter={setSelectedCategoryFilter}
-    
+
     // So 'selectedCategoryFilter' IS state in AdminDashboard. We should find it.
     if (activeTab === 'manage-products') {
-       // We need to pass the current category filter if it exists.
-       // Let's find where 'selectedCategoryFilter' is defined.
-       // It seems I missed checking for that state variable definition in my earlier read.
-       // I'll assume it exists based on the props being passed. 
-       // To be safe, I will just call fetchProducts() which defaults to all, or I need to find that state.
-       // Actually, looking at the grep/view outputs, I see `setSelectedCategoryFilter` being passed.
-       // So I should look for the state definition.
-       fetchProducts(selectedCategoryFilter); 
+      // We need to pass the current category filter if it exists.
+      // Let's find where 'selectedCategoryFilter' is defined.
+      // It seems I missed checking for that state variable definition in my earlier read.
+      // I'll assume it exists based on the props being passed. 
+      // To be safe, I will just call fetchProducts() which defaults to all, or I need to find that state.
+      // Actually, looking at the grep/view outputs, I see `setSelectedCategoryFilter` being passed.
+      // So I should look for the state definition.
+      fetchProducts(selectedCategoryFilter);
     }
   }, [showDeletedProducts]);
 
@@ -1300,11 +1303,11 @@ const AdminDashboard: React.FC = () => {
   const fetchProducts = async (categoryId?: string, forceFetch = false) => {
     try {
       setLoadingProducts(true);
-      let url = `${API_BASE_URL}/products`;
-      
+      let url = `${API_BASE_URL}/products?includeInactive=true`;
+
       // If categoryId is provided, fetch products for that category/subcategory
       if (categoryId) {
-        url = `${API_BASE_URL}/products/category/${categoryId}`;
+        url = `${API_BASE_URL}/products/category/${categoryId}?includeInactive=true`;
       }
 
       // Add query param for deleted products if needed
@@ -1367,7 +1370,7 @@ const AdminDashboard: React.FC = () => {
 
   // Filter products by search query and category/subcategory
   useEffect(() => {
-    const hasActiveFilter = selectedCategoryFilter || selectedSubCategoryFilter || productSearchQuery.trim();
+    const hasActiveFilter = selectedCategoryFilter || selectedSubCategoryFilter || productSearchQuery.trim() || statusFilter !== "All";
 
     // Show filtering loader if there's an active filter
     if (hasActiveFilter && products.length > 0) {
@@ -1375,6 +1378,15 @@ const AdminDashboard: React.FC = () => {
     }
 
     let filtered = products;
+
+    // Filter by status
+    if (statusFilter !== "All") {
+      filtered = filtered.filter((product) => {
+        if (statusFilter === "Active") return product.isActive !== false;
+        if (statusFilter === "Inactive") return product.isActive === false;
+        return true;
+      });
+    }
 
     // Filter by category
     if (selectedCategoryFilter) {
@@ -1415,10 +1427,10 @@ const AdminDashboard: React.FC = () => {
     if (productTypeFilter && productTypeFilter !== "All") {
       filtered = filtered.filter((product) => {
         // Find the category of the product
-        const categoryId = product.category && typeof product.category === 'object' 
-          ? product.category._id 
+        const categoryId = product.category && typeof product.category === 'object'
+          ? product.category._id
           : product.category;
-          
+
         const category = categories.find(c => c._id === categoryId);
         return category?.type === productTypeFilter;
       });
@@ -1432,7 +1444,7 @@ const AdminDashboard: React.FC = () => {
     }, 100);
 
     return () => clearTimeout(timer);
-  }, [products, selectedCategoryFilter, selectedSubCategoryFilter, productSearchQuery, productTypeFilter]);
+  }, [products, selectedCategoryFilter, selectedSubCategoryFilter, productSearchQuery, productTypeFilter, statusFilter]);
 
   const handleSubCategoryFilterChange = async (categoryId: string) => {
     setSelectedSubCategoryFilter(categoryId);
@@ -6704,6 +6716,8 @@ const AdminDashboard: React.FC = () => {
                 subCategories={subCategories}
                 typeFilter={productTypeFilter}
                 setTypeFilter={setProductTypeFilter}
+                statusFilter={statusFilter}
+                setStatusFilter={setStatusFilter}
               />
             )}
 

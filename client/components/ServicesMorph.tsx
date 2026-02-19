@@ -36,9 +36,9 @@ const ServicesMorph: React.FC<ServicesMorphProps> = ({ onServiceSelect, services
         if (selectedServiceId && navLinksRef.current) {
             const activeButton = navLinksRef.current.querySelector(`[data-target="${selectedServiceId}"]`) as HTMLElement;
             if (activeButton) {
-                // Scroll the button into view with smooth animation
+                // Scroll the button into view with instant animation
                 activeButton.scrollIntoView({
-                    behavior: 'smooth',
+                    behavior: 'auto',
                     block: 'nearest',
                     inline: 'center'
                 });
@@ -83,28 +83,54 @@ const ServicesMorph: React.FC<ServicesMorphProps> = ({ onServiceSelect, services
         return Icons.Printer; // Default
     };
 
-    // Track user interaction for page load scroll
+    // Track user interaction, scroll direction, and animation state
     const userInteractedRef = useRef(false);
+    const lastScrollTopRef = useRef(0);
+    const isAnimatingRef = useRef(false);
 
     useEffect(() => {
         const handleScroll = () => {
+            const currentScrollY = window.scrollY;
+            const direction = currentScrollY < lastScrollTopRef.current ? 'up' : 'down';
+            lastScrollTopRef.current = currentScrollY;
+
             userInteractedRef.current = true; // Mark as interacted on scroll
 
-            // Only trigger morph if sticky nav is enabled
-            if (!scrollSettings.stickyNavEnabled) return;
+            // Only trigger morph if sticky nav is enabled and not already animating
+            if (!scrollSettings.stickyNavEnabled || isAnimatingRef.current) return;
 
-            const triggerPoint = 200; // Fixed scroll amount to trigger animation
+            // Trigger points for morph animation
+            const morphThreshold = 300; // Base threshold
+            const shortScrollResetThreshold = 450; // Higher threshold for "short scroll up" sensitivity
 
-            if (window.scrollY > triggerPoint && !hasMorphed) {
+            if (currentScrollY > morphThreshold && !hasMorphed && direction === 'down') {
+                isAnimatingRef.current = true;
                 triggerMorph();
                 setHasMorphed(true);
-                // Auto-scroll to banner when morph triggers (if enabled)
+                setIsVisible(false);
                 if (scrollSettings.scrollToTopOnNavClick) {
-                    scrollToBanner();
+                    jumpToBanner();
                 }
-            } else if (window.scrollY < triggerPoint && hasMorphed) {
+                // Lock for slightly longer than CSS transition (1s)
+                setTimeout(() => { isAnimatingRef.current = false; }, 800);
+            }
+            else if (hasMorphed && (currentScrollY < morphThreshold - 50 || (direction === 'up' && currentScrollY < shortScrollResetThreshold))) {
+                isAnimatingRef.current = true;
+                // Important: Reset morph logic handles its own visibility/transition flow
                 resetMorph();
                 setHasMorphed(false);
+                // setIsVisible(true); // Moved inside resetMorph for better sync
+
+                // Auto-scroll to top on reverse morph if moving up
+                if (direction === 'up' || currentScrollY < 100) {
+                    window.scrollTo({
+                        top: 0,
+                        behavior: 'smooth'
+                    });
+                }
+
+                // Lock for slightly longer than reverse CSS transition
+                setTimeout(() => { isAnimatingRef.current = false; }, 800);
             }
         };
 
@@ -149,8 +175,11 @@ const ServicesMorph: React.FC<ServicesMorphProps> = ({ onServiceSelect, services
         console.log('[Auto-Scroll] Enabled, setting timer with delay:', scrollSettings.pageAutoScrollDelay || 2000);
 
         const timer = setTimeout(() => {
-            // Only auto-scroll if user hasn't scrolled manually yet and we are at the top
-            if (!userInteractedRef.current && window.scrollY < 50) {
+            // Check session storage to see if we're already scrolling to a banner
+            const hasSelectedService = !!sessionStorage.getItem("selectedServiceId");
+
+            // Only auto-scroll if user hasn't scrolled manually yet, we are at top, and NO service is pre-selected
+            if (!userInteractedRef.current && window.scrollY < 50 && !hasSelectedService) {
                 const scrollAmount = scrollSettings.pageAutoScrollAmount || 250;
                 console.log('[Auto-Scroll] Executing scroll to:', scrollAmount);
                 window.scrollTo({
@@ -158,7 +187,7 @@ const ServicesMorph: React.FC<ServicesMorphProps> = ({ onServiceSelect, services
                     behavior: 'smooth'
                 });
             } else {
-                console.log('[Auto-Scroll] Skipped - user already interacted or page not at top');
+                console.log('[Auto-Scroll] Skipped - user already interacted, page not at top, or service selected');
             }
         }, scrollSettings.pageAutoScrollDelay || 2000);
 
@@ -168,92 +197,172 @@ const ServicesMorph: React.FC<ServicesMorphProps> = ({ onServiceSelect, services
     const triggerMorph = () => {
         if (!stickyBarRef.current || !gridContainerRef.current) return;
 
-        // 1. Hide the main navbar with transition
-        const mainNav = document.querySelector('nav');
-        if (mainNav) {
-            (mainNav as HTMLElement).style.transition = 'opacity 0.3s ease, visibility 0.3s ease';
-            (mainNav as HTMLElement).style.opacity = '0';
-            (mainNav as HTMLElement).style.visibility = 'hidden';
-            (mainNav as HTMLElement).style.pointerEvents = 'none';
-        }
+        // 0. Cleanup
+        document.querySelectorAll('.morph-clone').forEach(el => el.remove());
 
-        // 2. Show the nav container (so we can calculate destinations)
-        stickyBarRef.current.style.visibility = 'visible';
+        const mainNav = document.querySelectorAll('nav');
+        mainNav.forEach(nav => {
+            (nav as HTMLElement).style.transition = 'opacity 0.4s ease';
+            (nav as HTMLElement).style.opacity = '0';
+            (nav as HTMLElement).style.visibility = 'hidden';
+            (nav as HTMLElement).style.pointerEvents = 'none';
+        });
 
-        // 3. Loop through each card to create a clone
-        const cards = gridContainerRef.current.querySelectorAll('.card');
+        // 2. Prepare grid for capture
+        const stickyBar = stickyBarRef.current;
+        const gridContainer = gridContainerRef.current;
+        stickyBar.style.visibility = 'visible';
 
+        // 3. Morph Cards -> Nav Links
+        const cards = gridContainer.querySelectorAll('.card');
         cards.forEach((card) => {
             const targetId = card.getAttribute('data-target');
-            const targetLink = stickyBarRef.current?.querySelector(`[data-target="${targetId}"]`);
+            const targetLink = stickyBar.querySelector(`[data-target="${targetId}"]`) as HTMLElement;
 
             if (targetLink) {
-                // A. Get Coordinates
                 const startRect = card.getBoundingClientRect();
                 const endRect = targetLink.getBoundingClientRect();
 
-                // B. Create Clone
                 const clone = document.createElement('div');
                 clone.classList.add('morph-clone');
 
-                // Match style of original card (Background color)
-                const computedStyle = window.getComputedStyle(card);
-                clone.style.backgroundColor = computedStyle.backgroundColor;
+                const startStyle = window.getComputedStyle(card);
+                const endStyle = window.getComputedStyle(targetLink);
 
-                // Set initial position (where the card is NOW)
+                clone.style.backgroundColor = startStyle.backgroundColor;
                 clone.style.top = startRect.top + 'px';
                 clone.style.left = startRect.left + 'px';
                 clone.style.width = startRect.width + 'px';
                 clone.style.height = startRect.height + 'px';
+                clone.style.borderRadius = '10px';
 
                 document.body.appendChild(clone);
 
-                // C. Hide Original Card
                 card.classList.add('invisible');
 
-                // D. Animate to New Position (Next Frame)
                 requestAnimationFrame(() => {
                     clone.style.top = endRect.top + 'px';
                     clone.style.left = endRect.left + 'px';
                     clone.style.width = endRect.width + 'px';
                     clone.style.height = endRect.height + 'px';
-                    clone.style.borderRadius = '0px'; // Square off corners for nav
+                    clone.style.borderRadius = '8px';
+                    clone.style.backgroundColor = endStyle.backgroundColor;
                 });
 
-                // E. Cleanup after animation ends
                 setTimeout(() => {
-                    clone.remove(); // Remove the flying box
-                }, 600); // Match CSS transition time
+                    if (clone.parentNode) clone.remove();
+                }, 700);
             }
         });
 
-        // 4. Show the Sticky Bar Text
-        stickyBarRef.current.classList.add('visible');
+        stickyBar.classList.add('visible');
     };
 
     const resetMorph = () => {
         if (!stickyBarRef.current || !gridContainerRef.current) return;
 
-        // Show the main navbar again
-        const mainNav = document.querySelector('nav');
-        if (mainNav) {
-            (mainNav as HTMLElement).style.opacity = '1';
-            (mainNav as HTMLElement).style.visibility = 'visible';
-            (mainNav as HTMLElement).style.pointerEvents = 'auto';
-        }
+        // 0. Cleanup any lingering clones
+        document.querySelectorAll('.morph-clone').forEach(el => el.remove());
 
-        // Hide sticky bar
-        stickyBarRef.current.classList.remove('visible');
-        stickyBarRef.current.style.visibility = 'hidden';
-
-        // Show original cards again
-        const cards = gridContainerRef.current.querySelectorAll('.card');
-        cards.forEach(card => {
-            card.classList.remove('invisible');
+        // 1. Show main nav with transition
+        const mainNav = document.querySelectorAll('nav');
+        mainNav.forEach(nav => {
+            (nav as HTMLElement).style.transition = 'opacity 0.6s ease, visibility 0.6s ease';
+            (nav as HTMLElement).style.opacity = '1';
+            (nav as HTMLElement).style.visibility = 'visible';
+            (nav as HTMLElement).style.pointerEvents = 'auto';
         });
 
-        // Remove any stuck clones
-        document.querySelectorAll('.morph-clone').forEach(el => el.remove());
+        const stickyBar = stickyBarRef.current;
+        const gridContainer = gridContainerRef.current;
+
+        // 2. Coordinate Stability: Strip transforms to get final rest positions 
+        // We do this while the grid is STILL invisible to avoid the blink
+        const originalTransition = gridContainer.style.transition;
+        const originalTransform = gridContainer.style.transform;
+
+        // Temporarily hide grid completely if it wasn't already
+        gridContainer.style.transition = 'none';
+        gridContainer.style.transform = 'translateY(0)';
+        void gridContainer.offsetHeight; // Force reflow
+
+        const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+        const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+
+        // 3. Morph Nav Links -> Cards
+        const cards = gridContainer.querySelectorAll('.card');
+
+        // Sync the grid visibility with the start of the morph animation
+        // This prevents the "blink" by ensuring the container is ready 
+        // but its children (the actual cards) are invisible and handled by clones
+        setIsVisible(true);
+
+        cards.forEach((card) => {
+            const targetId = card.getAttribute('data-target');
+            const navLink = stickyBar.querySelector(`[data-target="${targetId}"]`) as HTMLElement;
+
+            if (navLink) {
+                const startRect = navLink.getBoundingClientRect();
+                const endRect = card.getBoundingClientRect();
+
+                const clone = document.createElement('div');
+                clone.classList.add('morph-clone', 'absolute');
+
+                const startStyle = window.getComputedStyle(navLink);
+                const endStyle = window.getComputedStyle(card);
+
+                clone.style.backgroundColor = startStyle.backgroundColor;
+                clone.style.top = (startRect.top + scrollTop) + 'px';
+                clone.style.left = (startRect.left + scrollLeft) + 'px';
+                clone.style.width = startRect.width + 'px';
+                clone.style.height = startRect.height + 'px';
+                clone.style.borderRadius = '8px';
+                clone.style.zIndex = '10001';
+
+                document.body.appendChild(clone);
+
+                // Ensure card is ready but hidden
+                card.classList.add('invisible');
+
+                requestAnimationFrame(() => {
+                    clone.style.top = (endRect.top + scrollTop) + 'px';
+                    clone.style.left = (endRect.left + scrollLeft) + 'px';
+                    clone.style.width = endRect.width + 'px';
+                    clone.style.height = endRect.height + 'px';
+                    clone.style.borderRadius = '10px';
+                    clone.style.backgroundColor = endStyle.backgroundColor;
+                });
+
+                // Smoothly fade out clone and reveal card
+                setTimeout(() => {
+                    clone.classList.add('fading-out');
+                    // Sync card reveal with clone fade
+                    card.classList.remove('invisible');
+                    setTimeout(() => {
+                        if (clone.parentNode) clone.remove();
+                    }, 150);
+                }, 700); // Matched with 0.7s CSS transition duration
+            } else {
+                card.classList.remove('invisible');
+            }
+        });
+
+        // 4. Restore grid state and trigger its own entry
+        // We ensure it starts from the 'hidden' transform and opacity
+        // to trigger a synchronous transition with the clones
+        gridContainer.style.transform = 'translateY(20px)';
+        gridContainer.style.opacity = '0';
+        void gridContainer.offsetHeight; // Force reflow
+
+        gridContainer.style.transition = originalTransition;
+        gridContainer.style.transform = ''; // Let CSS (.visible) take over
+        gridContainer.style.opacity = '';
+
+        // 5. Hide Sticky Bar
+        stickyBar.classList.remove('visible');
+        setTimeout(() => {
+            if (stickyBar) stickyBar.style.visibility = 'hidden';
+        }, 700);
     };
 
     const scrollToBanner = () => {
@@ -280,6 +389,31 @@ const ServicesMorph: React.FC<ServicesMorphProps> = ({ onServiceSelect, services
                 });
             }
         }, 100);
+    };
+
+    // Separate function for instant jump to banner (no smooth scroll)
+    const jumpToBanner = () => {
+        // Wait for state update/DOM render
+        setTimeout(() => {
+            const banner = document.querySelector('.service-banner-container') ||
+                document.querySelector('.service-banner');
+
+            if (banner) {
+                const bannerRect = banner.getBoundingClientRect();
+                const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+                const bannerAbsoluteTop = bannerRect.top + scrollTop;
+
+                const stickyNav = stickyBarRef.current;
+                const stickyNavHeight = stickyNav ? stickyNav.offsetHeight : 60;
+
+                const targetScroll = bannerAbsoluteTop - stickyNavHeight;
+
+                window.scrollTo({
+                    top: targetScroll,
+                    behavior: 'auto' // Instant jump
+                });
+            }
+        }, 10); // Shorter delay for instant jump
     };
 
     return (
@@ -331,7 +465,7 @@ const ServicesMorph: React.FC<ServicesMorphProps> = ({ onServiceSelect, services
                                         e.preventDefault();
                                         if (onServiceSelect) {
                                             onServiceSelect(service._id);
-                                            scrollToBanner();
+                                            jumpToBanner();
                                         }
                                     }}
                                     onMouseEnter={(e) => {
@@ -374,7 +508,7 @@ const ServicesMorph: React.FC<ServicesMorphProps> = ({ onServiceSelect, services
                                 // Update the selected service first
                                 if (onServiceSelect) {
                                     onServiceSelect(service._id);
-                                    scrollToBanner();
+                                    jumpToBanner();
                                 }
                             }}
                         >

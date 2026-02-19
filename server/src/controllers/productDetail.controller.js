@@ -74,6 +74,7 @@ export const getProductDetail = async (req, res) => {
         path: "parentAttribute",
         select: "_id attributeName",
       })
+      .sort({ displayOrder: 1 })
       .lean();
 
     // Fetch active AttributeRules applicable to this product or its category

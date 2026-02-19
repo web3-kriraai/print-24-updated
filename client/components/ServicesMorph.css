@@ -48,7 +48,8 @@
     /* Initial hidden state */
     opacity: 0;
     transform: translateY(20px);
-    transition: opacity 0.8s ease-out, transform 0.8s ease-out;
+    /* Synchronized with morph easing and timing */
+    transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1), transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* Visible state after delay */
@@ -87,7 +88,16 @@
 
 /* Helper class to hide cards during animation */
 .card.invisible {
-    opacity: 0;
+    opacity: 0 !important;
+    transition: none !important;
+    visibility: hidden;
+}
+
+/* Helper class to hide nav links during animation */
+.sub-nav-link.invisible {
+    opacity: 0 !important;
+    transition: none !important;
+    visibility: hidden;
 }
 
 /* Helper class to remove cards after animation */
@@ -142,6 +152,7 @@
     line-height: 1.4;
     opacity: 0.9;
     margin: 0;
+    transition: opacity 0.3s ease;
 }
 
 /* 3. STICKY NAV (Target for Morph) */
@@ -164,7 +175,7 @@
     /* VISIBILITY CONTROL: Start Hidden */
     visibility: hidden;
     opacity: 0;
-    transition: opacity 0.3s, visibility 0.3s;
+    transition: opacity 0.7s, visibility 0.7s;
 }
 
 .sticky-sub-nav.visible {
@@ -186,7 +197,7 @@
     width: auto;
     opacity: 0;
     transform: translateX(-20px);
-    transition: all 0.5s ease-out;
+    transition: all 0.7s ease-out;
 }
 
 .sticky-sub-nav.visible .sticky-nav-logo {
@@ -282,11 +293,24 @@
 /* 4. THE MORPHING CLONES */
 .morph-clone {
     position: fixed;
-    z-index: 9999;
+    z-index: 10000;
+    /* Higher than sticky nav */
     border-radius: 10px;
     pointer-events: none;
     transform-origin: top left;
-    transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+    transition: all 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1), 0 8px 24px rgba(0, 0, 0, 0.15);
+    opacity: 1;
+}
+
+.morph-clone.absolute {
+    position: absolute;
+    transition: all 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.morph-clone.fading-out {
+    opacity: 0;
+    transition: opacity 0.2s ease-out !important;
 }
 
 /* Dummy spacer if needed, but we likely just want the content below to scroll normally */

@@ -110,6 +110,7 @@ export const createSubAttribute = async (req, res) => {
     const priceAdd = req.body.priceAdd;
     const isEnabled = req.body.isEnabled;
     const systemName = req.body.systemName;
+    const displayOrder = req.body.displayOrder;
 
     console.log('[CREATE] Received sub-attribute data:', {
       parentAttribute,
@@ -190,6 +191,7 @@ export const createSubAttribute = async (req, res) => {
       priceAdd: priceAdd !== undefined ? parseFloat(priceAdd) : 0,
       isEnabled: isEnabled !== undefined ? isEnabled : true,
       systemName,
+      displayOrder: displayOrder !== undefined ? parseInt(displayOrder) : 0,
     });
 
     // Update parent attribute's hasSubAttributes field
@@ -253,7 +255,7 @@ export const getAllSubAttributes = async (req, res) => {
         path: "parentAttribute",
         select: "_id attributeName",
       })
-      .sort({ parentAttribute: 1, parentValue: 1, label: 1 })
+      .sort({ displayOrder: 1, label: 1 })
       .lean();
 
     return res.json(subAttributes);
@@ -270,7 +272,7 @@ export const getAllSubAttributes = async (req, res) => {
 export const updateSubAttribute = async (req, res) => {
   try {
     const subAttributeId = req.params.id;
-    const { parentAttribute, parentValue, value, label, image, priceAdd, isEnabled, systemName } = req.body;
+    const { parentAttribute, parentValue, value, label, image, priceAdd, isEnabled, systemName, displayOrder } = req.body;
     console.log('[UPDATE] Updating sub-attribute:', { subAttributeId, systemName });
 
     // Get existing sub-attribute first to preserve image if no new one uploaded
@@ -361,6 +363,7 @@ export const updateSubAttribute = async (req, res) => {
         priceAdd: priceAdd !== undefined ? parseFloat(priceAdd) : 0,
         isEnabled: isEnabled !== undefined ? isEnabled : true,
         systemName,
+        displayOrder: displayOrder !== undefined ? parseInt(displayOrder) : existingSubAttribute.displayOrder,
       },
       { new: true }
     );
@@ -457,5 +460,38 @@ export const deleteSubAttribute = async (req, res) => {
       return res.status(400).json({ error: "Invalid sub-attribute ID format" });
     }
     return res.status(500).json({ error: err.message || "Failed to delete sub-attribute" });
+  }
+};
+/**
+ * PUT /admin/sub-attributes/reorder
+ * Reorder sub-attributes
+ */
+export const reorderSubAttributes = async (req, res) => {
+  try {
+    const { subAttributes } = req.body;
+
+    if (!subAttributes || !Array.isArray(subAttributes)) {
+      return res.status(400).json({ error: "Invalid sub-attributes data" });
+    }
+
+    // Use bulkWrite for efficient multiple updates
+    const bulkOps = subAttributes.map((item, index) => ({
+      updateOne: {
+        filter: { _id: item._id },
+        update: { $set: { displayOrder: index } },
+      },
+    }));
+
+    if (bulkOps.length > 0) {
+      await SubAttribute.bulkWrite(bulkOps);
+    }
+
+    return res.json({
+      success: true,
+      message: "Sub-attributes reordered successfully",
+    });
+  } catch (err) {
+    console.error("Error reordering sub-attributes:", err);
+    return res.status(500).json({ error: err.message || "Failed to reorder sub-attributes" });
   }
 };

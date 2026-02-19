@@ -103,6 +103,8 @@ import {
   updateAttributeType,
   deleteAttributeType,
   duplicateAttributeType,
+  checkAttributeUsage,
+  reorderAttributeValues,
 } from "../controllers/attributeTypeController.js";
 
 /* ATTRIBUTE RULE CONTROLLERS */
@@ -119,6 +121,7 @@ import {
   getAllSubAttributes,
   updateSubAttribute,
   deleteSubAttribute,
+  reorderSubAttributes,
 } from "../controllers/subAttribute.controller.js";
 
 /* ATTRIBUTE IMAGE MATRIX CONTROLLERS */
@@ -448,6 +451,7 @@ router.post("/attribute-types", authMiddleware, adminAuth, createAttributeType);
 
 router.get("/attribute-types", getAllAttributeTypes);
 router.get("/attribute-types/unused/list", getUnusedAttributeTypes);
+router.get("/attribute-types/:id/check-usage", authMiddleware, adminAuth, checkAttributeUsage);
 router.get("/attribute-types/:id", getSingleAttributeType);
 router.put(
   "/attribute-types/:id",
@@ -467,6 +471,12 @@ router.post(
   adminAuth,
   duplicateAttributeType
 );
+router.put(
+  "/attribute-types/:id/reorder-values",
+  authMiddleware,
+  adminAuth,
+  reorderAttributeValues
+);
 
 /* =====================================
    ATTRIBUTE RULE ROUTES (Admin)
@@ -483,6 +493,7 @@ router.delete("/admin/attribute-rules/:id", authMiddleware, adminAuth, deleteAtt
 
 router.post("/admin/sub-attributes", authMiddleware, adminAuth, upload.single("image"), createSubAttribute);
 router.get("/admin/sub-attributes", authMiddleware, adminAuth, getAllSubAttributes);
+router.put("/admin/sub-attributes/reorder", authMiddleware, adminAuth, reorderSubAttributes);
 router.put("/admin/sub-attributes/:id", authMiddleware, adminAuth, upload.single("image"), updateSubAttribute);
 router.delete("/admin/sub-attributes/:id", authMiddleware, adminAuth, deleteSubAttribute);
 

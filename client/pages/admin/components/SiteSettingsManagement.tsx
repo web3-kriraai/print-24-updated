@@ -170,7 +170,7 @@ const SiteSettingsManagement: React.FC = () => {
     const uploadLogo = async (file: File) => {
         try {
             setUploading(true);
-            
+
             const formData = new FormData();
             formData.append('logo', file);
 
@@ -227,15 +227,15 @@ const SiteSettingsManagement: React.FC = () => {
                         <ImageIcon className="w-5 h-5" />
                         Website Logo
                     </h2>
-                    
+
                     <div className="flex flex-col md:flex-row gap-8 items-start">
                         {/* Logo Preview */}
                         <div className="flex-shrink-0">
                             <div className="w-64 h-24 bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center overflow-hidden">
                                 {previewLogo ? (
-                                    <img 
-                                        src={previewLogo} 
-                                        alt="Logo Preview" 
+                                    <img
+                                        src={previewLogo}
+                                        alt="Logo Preview"
                                         className="max-w-full max-h-full object-contain p-2"
                                     />
                                 ) : (
@@ -257,7 +257,7 @@ const SiteSettingsManagement: React.FC = () => {
                                     <p className="text-sm text-gray-500 mb-3">
                                         Supported formats: PNG, JPG, SVG, WebP • Max size: 5MB
                                     </p>
-                                    
+
                                     <input
                                         ref={fileInputRef}
                                         type="file"
@@ -266,14 +266,13 @@ const SiteSettingsManagement: React.FC = () => {
                                         className="hidden"
                                         id="logo-upload"
                                     />
-                                    
+
                                     <label
                                         htmlFor="logo-upload"
-                                        className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg font-medium cursor-pointer transition-all ${
-                                            uploading 
-                                                ? 'bg-gray-200 text-gray-500 cursor-not-allowed' 
+                                        className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg font-medium cursor-pointer transition-all ${uploading
+                                                ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
                                                 : 'bg-purple-600 text-white hover:bg-purple-700'
-                                        }`}
+                                            }`}
                                     >
                                         {uploading ? (
                                             <>
@@ -328,7 +327,7 @@ const SiteSettingsManagement: React.FC = () => {
                     <h2 className="text-lg font-semibold text-gray-900 mb-4">
                         Branding
                     </h2>
-                    
+
                     <div className="space-y-4">
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -359,11 +358,10 @@ const SiteSettingsManagement: React.FC = () => {
                         <button
                             onClick={handleSave}
                             disabled={saving}
-                            className={`flex items-center gap-2 px-6 py-2 rounded-lg font-medium transition-all ${
-                                saving 
-                                    ? 'bg-gray-200 text-gray-500 cursor-not-allowed' 
+                            className={`flex items-center gap-2 px-6 py-2 rounded-lg font-medium transition-all ${saving
+                                    ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
                                     : 'bg-purple-600 text-white hover:bg-purple-700'
-                            }`}
+                                }`}
                         >
                             {saving ? (
                                 <>
@@ -389,8 +387,8 @@ const SiteSettingsManagement: React.FC = () => {
                     <p className="text-sm text-gray-500 mb-6">
                         Control how the homepage scrolls and behaves for visitors
                     </p>
-                    
-                    
+
+
                     <div className="space-y-6">
                         {/* Page Auto-Scroll on Load Toggle */}
                         <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
@@ -406,11 +404,10 @@ const SiteSettingsManagement: React.FC = () => {
                                         pageAutoScrollEnabled: !prev.scrollSettings?.pageAutoScrollEnabled
                                     }
                                 }))}
-                                className={`p-2 rounded-full transition-colors ${
-                                    settings.scrollSettings?.pageAutoScrollEnabled !== false
-                                        ? 'bg-purple-600 text-white' 
+                                className={`p-2 rounded-full transition-colors ${settings.scrollSettings?.pageAutoScrollEnabled !== false
+                                        ? 'bg-purple-600 text-white'
                                         : 'bg-gray-300 text-gray-600'
-                                }`}
+                                    }`}
                             >
                                 {settings.scrollSettings?.pageAutoScrollEnabled !== false ? (
                                     <ToggleRight className="w-6 h-6" />
@@ -439,7 +436,7 @@ const SiteSettingsManagement: React.FC = () => {
                                     }))}
                                     className="w-full px-3 py-2 border rounded-lg"
                                     min="0"
-                                    step="500"
+                                    step="0.000001"
                                 />
                             </div>
 
@@ -460,7 +457,7 @@ const SiteSettingsManagement: React.FC = () => {
                                     }))}
                                     className="w-full px-3 py-2 border rounded-lg"
                                     min="0"
-                                    step="50"
+                                    step="0.000001"
                                 />
                             </div>
                         </div>
@@ -479,11 +476,10 @@ const SiteSettingsManagement: React.FC = () => {
                                         smoothScrollEnabled: !prev.scrollSettings?.smoothScrollEnabled
                                     }
                                 }))}
-                                className={`p-2 rounded-full transition-colors ${
-                                    settings.scrollSettings?.smoothScrollEnabled 
-                                        ? 'bg-purple-600 text-white' 
+                                className={`p-2 rounded-full transition-colors ${settings.scrollSettings?.smoothScrollEnabled
+                                        ? 'bg-purple-600 text-white'
                                         : 'bg-gray-300 text-gray-600'
-                                }`}
+                                    }`}
                             >
                                 {settings.scrollSettings?.smoothScrollEnabled ? (
                                     <ToggleRight className="w-6 h-6" />
@@ -507,11 +503,10 @@ const SiteSettingsManagement: React.FC = () => {
                                         stickyNavEnabled: !prev.scrollSettings?.stickyNavEnabled
                                     }
                                 }))}
-                                className={`p-2 rounded-full transition-colors ${
-                                    settings.scrollSettings?.stickyNavEnabled 
-                                        ? 'bg-purple-600 text-white' 
+                                className={`p-2 rounded-full transition-colors ${settings.scrollSettings?.stickyNavEnabled
+                                        ? 'bg-purple-600 text-white'
                                         : 'bg-gray-300 text-gray-600'
-                                }`}
+                                    }`}
                             >
                                 {settings.scrollSettings?.stickyNavEnabled ? (
                                     <ToggleRight className="w-6 h-6" />
@@ -535,11 +530,10 @@ const SiteSettingsManagement: React.FC = () => {
                                         scrollToTopOnNavClick: !prev.scrollSettings?.scrollToTopOnNavClick
                                     }
                                 }))}
-                                className={`p-2 rounded-full transition-colors ${
-                                    settings.scrollSettings?.scrollToTopOnNavClick 
-                                        ? 'bg-purple-600 text-white' 
+                                className={`p-2 rounded-full transition-colors ${settings.scrollSettings?.scrollToTopOnNavClick
+                                        ? 'bg-purple-600 text-white'
                                         : 'bg-gray-300 text-gray-600'
-                                }`}
+                                    }`}
                             >
                                 {settings.scrollSettings?.scrollToTopOnNavClick ? (
                                     <ToggleRight className="w-6 h-6" />
@@ -578,11 +572,10 @@ const SiteSettingsManagement: React.FC = () => {
                                 }
                             }}
                             disabled={savingScroll}
-                            className={`flex items-center gap-2 px-6 py-2 rounded-lg font-medium transition-all ${
-                                savingScroll 
-                                    ? 'bg-gray-200 text-gray-500 cursor-not-allowed' 
+                            className={`flex items-center gap-2 px-6 py-2 rounded-lg font-medium transition-all ${savingScroll
+                                    ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
                                     : 'bg-green-600 text-white hover:bg-green-700'
-                            }`}
+                                }`}
                         >
                             {savingScroll ? (
                                 <>
@@ -608,7 +601,7 @@ const SiteSettingsManagement: React.FC = () => {
                     <p className="text-sm text-gray-500 mb-6">
                         Control font sizes and weights for all services (navbar and cards)
                     </p>
-                    
+
                     <div className="space-y-6">
                         {/* Navbar Name Font Controls */}
                         <div className="p-4 bg-gray-50 rounded-lg">
@@ -693,7 +686,7 @@ const SiteSettingsManagement: React.FC = () => {
                                                 cardIntroFontWeight: e.target.value
                                             }
                                         }))}
-                                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
                                     >
                                         <option value="300">Light (300)</option>
                                         <option value="400">Normal (400)</option>
@@ -831,11 +824,10 @@ const SiteSettingsManagement: React.FC = () => {
                                 }
                             }}
                             disabled={savingFonts}
-                            className={`flex items-center gap-2 px-6 py-2 rounded-lg font-medium transition-all ${
-                                savingFonts 
-                                    ? 'bg-gray-200 text-gray-500 cursor-not-allowed' 
+                            className={`flex items-center gap-2 px-6 py-2 rounded-lg font-medium transition-all ${savingFonts
+                                    ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
                                     : 'bg-blue-600 text-white hover:bg-blue-700'
-                            }`}
+                                }`}
                         >
                             {savingFonts ? (
                                 <>
@@ -861,7 +853,7 @@ const SiteSettingsManagement: React.FC = () => {
                     <p className="text-sm text-gray-500 mb-6">
                         Control the width and spacing of service navigation buttons
                     </p>
-                    
+
                     <div className="space-y-6">
                         {/* Navbar Item Width */}
                         <div className="p-4 bg-gray-50 rounded-lg">
@@ -936,11 +928,10 @@ const SiteSettingsManagement: React.FC = () => {
                                 }
                             }}
                             disabled={savingNavbar}
-                            className={`flex items-center gap-2 px-6 py-2 rounded-lg font-medium transition-all ${
-                                savingNavbar 
-                                    ? 'bg-gray-200 text-gray-500 cursor-not-allowed' 
+                            className={`flex items-center gap-2 px-6 py-2 rounded-lg font-medium transition-all ${savingNavbar
+                                    ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
                                     : 'bg-orange-600 text-white hover:bg-orange-700'
-                            }`}
+                                }`}
                         >
                             {savingNavbar ? (
                                 <>

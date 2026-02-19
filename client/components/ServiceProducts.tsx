@@ -246,7 +246,7 @@ const ServiceProducts: React.FC<ServiceProductsProps> = ({ service }) => {
                                                             >
                                                                 <Link
                                                                     to={itemLink}
-                                                                    state={{ fromHome: true }}
+                                                                    state={{ fromHome: true, serviceId: serviceData._id, serviceName: serviceData.name }}
                                                                     className="group flex flex-col items-center text-center"
                                                                 >
                                                                     <div className="relative mb-2 w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 lg:w-32 lg:h-32 xl:w-36 xl:h-36 rounded-full overflow-hidden shadow-md group-hover:shadow-xl transition-all duration-300 group-hover:scale-105 border-4 border-white ring-1 ring-gray-100">

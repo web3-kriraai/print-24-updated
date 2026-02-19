@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import CKEditor from "../../../../components/CKEditor";
 import { useClientOnly } from "../../../../hooks/useClientOnly";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import BackButton from "../../../../components/BackButton";
@@ -42,14 +43,19 @@ import {
     Briefcase,
     Filter,
     Globe,
+    GripVertical,
+    ChevronUp,
+    Layers,
+    AlertTriangle,
+    ShieldAlert,
 } from "lucide-react";
 import { Pagination } from "../../../../components/Pagination";
 import { motion, AnimatePresence } from "framer-motion";
 import { ReviewFilterDropdown } from "../../../../components/ReviewFilterDropdown";
 import { SearchableDropdown } from "../../../../components/SearchableDropdown";
-import RichTextEditor from "../../../../components/RichTextEditor";
+
 import CreateAttributeModal from "../attributes/CreateAttributeModal";
-import { formatCurrency, calculateOrderBreakdown, OrderForCalculation } from "../../../../utils/pricing";
+import { formatCurrency, formatNumberFull, calculateOrderBreakdown, OrderForCalculation } from "../../../../utils/pricing";
 import { API_BASE_URL_WITH_API as API_BASE_URL } from "../../../../lib/apiConfig";
 import { scrollToInvalidField } from "../../../../lib/validationUtils";
 import HierarchicalCategorySelector from "../categories/HierarchicalCategorySelector";
@@ -241,6 +247,181 @@ const AddProductForm: React.FC<AddProductFormProps> = ({
     // Retry counter to prevent infinite loading - track fetch attempts per category
     const [fetchAttempts, setFetchAttempts] = React.useState<Record<string, number>>({});
     const MAX_FETCH_ATTEMPTS = 3;
+
+    // Sub-attributes state
+    const [subAttributes, setSubAttributes] = useState<any[]>([]);
+
+    // Attribute usage popup state
+    const [usagePopup, setUsagePopup] = useState<{ show: boolean; attributeName: string; productCount: number; productNames: string[] }>({
+        show: false, attributeName: "", productCount: 0, productNames: []
+    });
+
+    // Fetch sub-attributes
+    const fetchSubAttributes = useCallback(async () => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/admin/sub-attributes?isEnabled=true`, {
+                headers: getAuthHeaders(),
+            });
+            if (response.ok) {
+                const data = await response.json();
+                // Sort by displayOrder
+                const sorted = (Array.isArray(data) ? data : []).sort((a: any, b: any) =>
+                    (a.displayOrder || 0) - (b.displayOrder || 0)
+                );
+                setSubAttributes(sorted);
+            }
+        } catch (error) {
+            console.error("Error fetching sub-attributes:", error);
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchSubAttributes();
+    }, [fetchSubAttributes]);
+
+    // Drag-and-drop state for configured attributes reordering
+    const [dragIndex, setDragIndex] = useState<number | null>(null);
+    const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+    // Expanded state for attribute options panel
+    const [expandedAttributes, setExpandedAttributes] = useState<Set<string>>(new Set());
+
+    // Drag-and-drop state for attribute options reordering
+    const [optionDragState, setOptionDragState] = useState<{ parentAttrId: string; dragIndex: number | null; dragOverIndex: number | null } | null>(null);
+    // Drag-and-drop state for sub-attributes reordering
+    const [subAttrDragState, setSubAttrDragState] = useState<{ parentAttrId: string; parentValue: string; dragIndex: number | null; dragOverIndex: number | null } | null>(null);
+
+    const toggleAttributeExpanded = useCallback((attributeTypeId: string) => {
+        setExpandedAttributes(prev => {
+            const next = new Set(prev);
+            if (next.has(attributeTypeId)) {
+                next.delete(attributeTypeId);
+            } else {
+                next.add(attributeTypeId);
+            }
+            return next;
+        });
+    }, []);
+
+    const handleDragStart = useCallback((index: number) => {
+        setDragIndex(index);
+    }, []);
+
+    const handleDragOver = useCallback((e: React.DragEvent, index: number) => {
+        e.preventDefault();
+        setDragOverIndex(index);
+    }, []);
+
+    const handleDrop = useCallback((e: React.DragEvent, dropIndex: number) => {
+        e.preventDefault();
+        if (dragIndex === null || dragIndex === dropIndex) {
+            setDragIndex(null);
+            setDragOverIndex(null);
+            return;
+        }
+        const reordered = [...selectedAttributeTypes];
+        const [moved] = reordered.splice(dragIndex, 1);
+        reordered.splice(dropIndex, 0, moved);
+        // Update displayOrder to match new positions
+        const withOrder = reordered.map((item, i) => ({ ...item, displayOrder: i }));
+        setSelectedAttributeTypes(withOrder);
+        setDragIndex(null);
+        setDragOverIndex(null);
+    }, [dragIndex, selectedAttributeTypes, setSelectedAttributeTypes]);
+
+    const handleDragEnd = useCallback(() => {
+        setDragIndex(null);
+        setDragOverIndex(null);
+    }, []);
+
+    // --- Attribute Options Drag-and-Drop Handlers ---
+    const handleOptionDragStart = useCallback((parentAttrId: string, idx: number) => {
+        setOptionDragState({ parentAttrId, dragIndex: idx, dragOverIndex: null });
+    }, []);
+
+    const handleOptionDragOver = useCallback((e: React.DragEvent, parentAttrId: string, idx: number) => {
+        e.preventDefault();
+        setOptionDragState(prev => prev && prev.parentAttrId === parentAttrId ? { ...prev, dragOverIndex: idx } : prev);
+    }, []);
+
+    const handleOptionDrop = useCallback(async (e: React.DragEvent, parentAttrId: string, dropIndex: number, options: any[]) => {
+        e.preventDefault();
+        if (!optionDragState || optionDragState.parentAttrId !== parentAttrId || optionDragState.dragIndex === null || optionDragState.dragIndex === dropIndex) {
+            setOptionDragState(null);
+            return;
+        }
+        const reordered = [...options];
+        const [moved] = reordered.splice(optionDragState.dragIndex, 1);
+        reordered.splice(dropIndex, 0, moved);
+        setOptionDragState(null);
+
+        // Persist to backend
+        try {
+            const orderedValues = reordered.map((o: any) => o.value || o.name || o.label);
+            await fetch(`${API_BASE_URL}/attribute-types/${parentAttrId}/reorder-values`, {
+                method: 'PUT',
+                headers: { ...getAuthHeaders(true) },
+                body: JSON.stringify({ orderedValues }),
+            });
+            // Refresh attribute types to reflect new order
+            fetchAttributeTypes(productForm.category, productForm.subcategory);
+        } catch (err) {
+            console.error('Error reordering attribute options:', err);
+        }
+    }, [optionDragState, fetchAttributeTypes, productForm.category, productForm.subcategory]);
+
+    const handleOptionDragEnd = useCallback(() => {
+        setOptionDragState(null);
+    }, []);
+
+    // --- Sub-Attribute Drag-and-Drop Handlers ---
+    const handleSubAttrDragStart = useCallback((parentAttrId: string, parentValue: string, idx: number) => {
+        setSubAttrDragState({ parentAttrId, parentValue, dragIndex: idx, dragOverIndex: null });
+    }, []);
+
+    const handleSubAttrDragOver = useCallback((e: React.DragEvent, parentAttrId: string, parentValue: string, idx: number) => {
+        e.preventDefault();
+        setSubAttrDragState(prev =>
+            prev && prev.parentAttrId === parentAttrId && prev.parentValue === parentValue
+                ? { ...prev, dragOverIndex: idx }
+                : prev
+        );
+    }, []);
+
+    const handleSubAttrDrop = useCallback(async (e: React.DragEvent, parentAttrId: string, parentValue: string, dropIndex: number, subs: any[]) => {
+        e.preventDefault();
+        if (!subAttrDragState || subAttrDragState.parentAttrId !== parentAttrId || subAttrDragState.parentValue !== parentValue || subAttrDragState.dragIndex === null || subAttrDragState.dragIndex === dropIndex) {
+            setSubAttrDragState(null);
+            return;
+        }
+        const reordered = [...subs];
+        const [moved] = reordered.splice(subAttrDragState.dragIndex, 1);
+        reordered.splice(dropIndex, 0, moved);
+        setSubAttrDragState(null);
+
+        // Update local state immediately for visual feedback
+        setSubAttributes(prev => {
+            const otherSubs = prev.filter((sa: any) => {
+                const parentId = typeof sa.parentAttribute === 'object' ? sa.parentAttribute._id : sa.parentAttribute;
+                return !(parentId === parentAttrId && (sa.parentValue === parentValue));
+            });
+            return [...otherSubs, ...reordered.map((s: any, i: number) => ({ ...s, displayOrder: i }))];
+        });
+
+        // Persist to backend
+        try {
+            await fetch(`${API_BASE_URL}/admin/sub-attributes/reorder`, {
+                method: 'PUT',
+                headers: { ...getAuthHeaders(true) },
+                body: JSON.stringify({ subAttributes: reordered.map((s: any) => ({ _id: s._id })) }),
+            });
+        } catch (err) {
+            console.error('Error reordering sub-attributes:', err);
+        }
+    }, [subAttrDragState]);
+
+    const handleSubAttrDragEnd = useCallback(() => {
+        setSubAttrDragState(null);
+    }, []);
 
     // Helper functions
     const getAuthHeaders = (includeContentType = false) => {
@@ -1173,7 +1354,7 @@ const AddProductForm: React.FC<AddProductFormProps> = ({
                                     </div>
                                 </div>
                             </label>
-                            <RichTextEditor
+                            <CKEditor
                                 value={productForm.description}
                                 onChange={(html) =>
                                     setProductForm({
@@ -1386,6 +1567,7 @@ const AddProductForm: React.FC<AddProductFormProps> = ({
                                         </label>
                                         <input
                                             type="number"
+                                            step="0.000001"
                                             value={productForm.filters.orderQuantity.min}
                                             onChange={(e) =>
                                                 setProductForm({
@@ -1408,6 +1590,7 @@ const AddProductForm: React.FC<AddProductFormProps> = ({
                                         </label>
                                         <input
                                             type="number"
+                                            step="0.000001"
                                             value={productForm.filters.orderQuantity.max}
                                             onChange={(e) =>
                                                 setProductForm({
@@ -1430,6 +1613,7 @@ const AddProductForm: React.FC<AddProductFormProps> = ({
                                         </label>
                                         <input
                                             type="number"
+                                            step="0.000001"
                                             value={productForm.filters.orderQuantity.multiples}
                                             onChange={(e) =>
                                                 setProductForm({
@@ -1635,7 +1819,7 @@ const AddProductForm: React.FC<AddProductFormProps> = ({
                                                                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">₹</span>
                                                                     <input
                                                                         type="number"
-                                                                        step="0.00001"
+                                                                        step="0.000001"
                                                                         value={itemPrice}
                                                                         onChange={(e) => handleUpdateFilterRow('deliverySpeed', index, 'priceAdd', e.target.value)}
                                                                         className="w-full pl-7 pr-3 py-2 bg-transparent border border-slate-200/60 rounded-lg text-sm focus:ring-4 focus:ring-sky-500/10 focus:border-sky-400 outline-none transition-all font-mono"
@@ -1724,7 +1908,7 @@ const AddProductForm: React.FC<AddProductFormProps> = ({
                                                                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">₹</span>
                                                                     <input
                                                                         type="number"
-                                                                        step="0.00001"
+                                                                        step="0.000001"
                                                                         value={itemPrice}
                                                                         onChange={(e) => handleUpdateFilterRow('textureType', index, 'priceAdd', e.target.value)}
                                                                         className="w-full pl-7 pr-3 py-2 bg-transparent border border-slate-200/60 rounded-lg text-sm focus:ring-4 focus:ring-sky-500/10 focus:border-sky-400 outline-none transition-all font-mono"
@@ -1879,7 +2063,7 @@ const AddProductForm: React.FC<AddProductFormProps> = ({
                                     id="product-basePrice"
                                     type="number"
                                     required
-                                    step="0.01"
+                                    step="0.000001"
                                     value={productForm.basePrice}
                                     onChange={(e) => {
                                         setProductForm({ ...productForm, basePrice: e.target.value });
@@ -2177,7 +2361,7 @@ const AddProductForm: React.FC<AddProductFormProps> = ({
                                             <div className="min-w-0">
                                                 <p className="text-xs font-bold text-slate-800 truncate">{prod.name}</p>
                                                 <p className="text-[10px] font-bold text-sky-600">
-                                                    ₹{prod.basePrice}
+                                                    ₹{formatNumberFull(prod.basePrice)}
                                                 </p>
                                             </div>
                                         </div>
@@ -2435,18 +2619,18 @@ const AddProductForm: React.FC<AddProductFormProps> = ({
                             Custom Instructions (Note for Customer) <span className="text-red-500">*</span>
                             <Info size={14} className="text-sky-500" />
                         </label>
-                        <textarea
-                            id="product-instructions"
-                            required
+                        <CKEditor
                             value={productForm.instructions}
-                            onChange={(e) => {
-                                setProductForm({ ...productForm, instructions: e.target.value });
-                                if (productFormErrors.instructions) {
+                            onChange={(html) => {
+                                setProductForm({
+                                    ...productForm,
+                                    instructions: html,
+                                    // Also update existing error if any
+                                });
+                                if (productFormErrors?.instructions) {
                                     setProductFormErrors({ ...productFormErrors, instructions: undefined });
                                 }
                             }}
-                            className={`w-full px-4 py-3 border rounded-xl focus:ring-4 focus:ring-sky-500/10 focus:border-sky-400 outline-none transition-all h-32 text-sm ${productFormErrors.instructions ? 'border-red-300 bg-red-50/50' : 'border-slate-200 bg-white'
-                                }`}
                             placeholder="Enter instructions for the customer regarding file uploads or design..."
                         />
                         {productFormErrors.instructions && (
@@ -2462,13 +2646,14 @@ const AddProductForm: React.FC<AddProductFormProps> = ({
                             Product Specialization
                             <Info size={14} className="text-sky-500" />
                         </label>
-                        <textarea
-                            id="product-specialization"
+                        <CKEditor
                             value={productForm.specialization}
-                            onChange={(e) => {
-                                setProductForm({ ...productForm, specialization: e.target.value });
+                            onChange={(html) => {
+                                setProductForm({
+                                    ...productForm,
+                                    specialization: html,
+                                });
                             }}
-                            className="w-full px-4 py-3 border rounded-xl focus:ring-4 focus:ring-sky-500/10 focus:border-sky-400 outline-none transition-all h-32 text-sm border-slate-200 bg-white"
                             placeholder="Enter product specialization, special features, or highlights..."
                         />
                     </div>
@@ -2571,11 +2756,33 @@ const AddProductForm: React.FC<AddProductFormProps> = ({
                                             <div className="flex items-center gap-2">
                                                 <button
                                                     type="button"
-                                                    onClick={async () => {
-                                                        // Open modal with attribute data for editing
+                                                    onClick={async (e) => {
+                                                        e.stopPropagation();
+                                                        // Check if attribute is used in any products before allowing edit
+                                                        try {
+                                                            const res = await fetch(`${API_BASE_URL}/attribute-types/${at._id}/check-usage`, {
+                                                                headers: getAuthHeaders(),
+                                                            });
+                                                            const data = await res.json();
+                                                            if (data.isInUse) {
+                                                                setUsagePopup({
+                                                                    show: true,
+                                                                    attributeName: at.attributeName || at.systemName,
+                                                                    productCount: data.productCount,
+                                                                    productNames: data.productNames || []
+                                                                });
+                                                                return;
+                                                            }
+                                                        } catch (err) {
+                                                            console.error("Error checking attribute usage:", err);
+                                                        }
+                                                        // Save scroll position to prevent autoscroll on state update
+                                                        const savedScrollY = window.scrollY;
                                                         setEditingAttributeTypeId(at._id);
                                                         await handleEditAttributeType(at._id);
                                                         setShowCreateAttributeModal(true);
+                                                        // Restore scroll position after state updates cause re-render
+                                                        requestAnimationFrame(() => window.scrollTo(0, savedScrollY));
                                                     }}
                                                     className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-sky-500 hover:bg-sky-50 rounded-lg transition-all"
                                                     title="Edit Attribute Type Definition"
@@ -2622,76 +2829,236 @@ const AddProductForm: React.FC<AddProductFormProps> = ({
                                 <p className="text-slate-400 text-xs font-medium italic">No attributes configured for this product.</p>
                             </div>
                         ) : (
-                            <div className="space-y-4">
+                            <div className="space-y-3">
                                 {selectedAttributeTypes.map((sa, index) => {
                                     // Find the full attribute definition for details
                                     const def = attributeTypes.find(at => at._id === sa.attributeTypeId);
+                                    const isExpanded = expandedAttributes.has(sa.attributeTypeId);
+                                    const isDragging = dragIndex === index;
+                                    const isDragOver = dragOverIndex === index;
+                                    // Collect options from the attribute definition
+                                    const options: any[] = def?.attributeOptionsTable?.length
+                                        ? def.attributeOptionsTable
+                                        : (def?.attributeValues?.length ? def.attributeValues : []);
+
                                     return (
-                                        <div key={sa.attributeTypeId} className="group flex items-center justify-between p-5 bg-white border border-slate-100 rounded-2xl shadow-sm hover:shadow-xl hover:border-sky-100 transition-all duration-300">
-                                            <div className="flex items-center gap-5">
-                                                <div className="w-12 h-12 bg-sky-50/80 rounded-2xl flex items-center justify-center text-sky-500 shadow-sm border border-sky-100/50 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
-                                                    <Sliders size={20} />
+                                        <div
+                                            key={sa.attributeTypeId}
+                                            draggable
+                                            onDragStart={() => handleDragStart(index)}
+                                            onDragOver={(e) => handleDragOver(e, index)}
+                                            onDrop={(e) => handleDrop(e, index)}
+                                            onDragEnd={handleDragEnd}
+                                            className={`group bg-white border rounded-2xl shadow-sm transition-all duration-200 ${isDragging
+                                                ? 'opacity-40 scale-[0.98] border-sky-300 shadow-sky-100'
+                                                : isDragOver
+                                                    ? 'border-sky-400 shadow-lg shadow-sky-100 scale-[1.01]'
+                                                    : 'border-slate-100 hover:shadow-xl hover:border-sky-100'
+                                                }`}
+                                        >
+                                            {/* Main row */}
+                                            <div className="flex items-center justify-between p-4 gap-3">
+                                                {/* Drag handle + icon + name */}
+                                                <div className="flex items-center gap-3 min-w-0">
+                                                    <div
+                                                        className="cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-500 transition-colors flex-shrink-0"
+                                                        title="Drag to reorder"
+                                                    >
+                                                        <GripVertical size={18} />
+                                                    </div>
+                                                    <div className="w-10 h-10 bg-sky-50/80 rounded-xl flex items-center justify-center text-sky-500 shadow-sm border border-sky-100/50 flex-shrink-0 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+                                                        <Sliders size={18} />
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <p className="text-sm font-bold text-slate-800 truncate">
+                                                            {def ? (def.systemName ? `${def.systemName} (${def.attributeName})` : def.attributeName) : (sa.name || 'Unknown')}
+                                                        </p>
+                                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                                            {def ? `${def.inputStyle} • ${def.isPriceEffect ? 'Impacts Price' : 'No Price Impact'}` : 'Definition not found'}
+                                                            {options.length > 0 && ` • ${options.length} option${options.length !== 1 ? 's' : ''}`}
+                                                        </p>
+                                                    </div>
                                                 </div>
-                                                <div>
-                                                    <p className="text-sm font-bold text-slate-800">
-                                                        {def ? (def.systemName ? `${def.systemName} (${def.attributeName})` : def.attributeName) : (sa.name || "Unknown")}
-                                                    </p>
-                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                                                        {def ? `${def.inputStyle} • ${def.isPriceEffect ? 'Impacts Price' : 'No Price Impact'}` : 'Definition not found'}
-                                                    </p>
+
+                                                {/* Controls */}
+                                                <div className="flex items-center gap-4 flex-shrink-0">
+                                                    {/* Required toggle */}
+                                                    <label className="flex items-center gap-2 cursor-pointer">
+                                                        <div className="relative">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={sa.isRequired}
+                                                                onChange={() => {
+                                                                    const updated = [...selectedAttributeTypes];
+                                                                    updated[index] = { ...updated[index], isRequired: !updated[index].isRequired };
+                                                                    setSelectedAttributeTypes(updated);
+                                                                }}
+                                                                className="sr-only"
+                                                            />
+                                                            <div className={`w-10 h-5 rounded-full transition-colors ${sa.isRequired ? 'bg-sky-500' : 'bg-slate-200'}`}>
+                                                                <div className={`absolute top-1 left-1 w-3 h-3 bg-white rounded-full transition-transform ${sa.isRequired ? 'translate-x-5' : 'translate-x-0'}`} />
+                                                            </div>
+                                                        </div>
+                                                        <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">Required</span>
+                                                    </label>
+
+                                                    {/* Show Price toggle */}
+                                                    <label className="flex items-center gap-2 cursor-pointer">
+                                                        <div className="relative">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={sa.showPrice !== false}
+                                                                onChange={() => {
+                                                                    const updated = [...selectedAttributeTypes];
+                                                                    updated[index] = { ...updated[index], showPrice: updated[index].showPrice === false ? true : false };
+                                                                    setSelectedAttributeTypes(updated);
+                                                                }}
+                                                                className="sr-only"
+                                                            />
+                                                            <div className={`w-10 h-5 rounded-full transition-colors ${sa.showPrice !== false ? 'bg-emerald-500' : 'bg-slate-200'}`}>
+                                                                <div className={`absolute top-1 left-1 w-3 h-3 bg-white rounded-full transition-transform ${sa.showPrice !== false ? 'translate-x-5' : 'translate-x-0'}`} />
+                                                            </div>
+                                                        </div>
+                                                        <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">Show Price</span>
+                                                    </label>
+
+                                                    {/* Expand options button */}
+                                                    {options.length > 0 && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => toggleAttributeExpanded(sa.attributeTypeId)}
+                                                            className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-sky-500 hover:bg-sky-50 rounded-lg transition-all"
+                                                            title={isExpanded ? 'Hide options' : 'Show options'}
+                                                        >
+                                                            {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                                                        </button>
+                                                    )}
+
+                                                    {/* Remove button */}
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            const updated = selectedAttributeTypes.filter((_, i) => i !== index);
+                                                            setSelectedAttributeTypes(updated);
+                                                        }}
+                                                        className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                                                    >
+                                                        <X size={18} />
+                                                    </button>
                                                 </div>
                                             </div>
 
-                                            <div className="flex items-center gap-6">
-                                                <label className="flex items-center gap-2 cursor-pointer group/check">
-                                                    <div className="relative">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={sa.isRequired}
-                                                            onChange={() => {
-                                                                const updated = [...selectedAttributeTypes];
-                                                                updated[index] = { ...updated[index], isRequired: !updated[index].isRequired };
-                                                                setSelectedAttributeTypes(updated);
-                                                            }}
-                                                            className="sr-only"
-                                                        />
-                                                        <div className={`w-10 h-5 rounded-full transition-colors ${sa.isRequired ? 'bg-sky-500' : 'bg-slate-200'}`}>
-                                                            <div className={`absolute top-1 left-1 w-3 h-3 bg-white rounded-full transition-transform ${sa.isRequired ? 'translate-x-5' : 'translate-x-0'}`} />
-                                                        </div>
-                                                    </div>
-                                                    <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">Required</span>
-                                                </label>
+                                            {/* Collapsible options panel */}
+                                            {isExpanded && options.length > 0 && (
+                                                <div className="border-t border-slate-100 px-4 pb-4 pt-3">
+                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Options / Values (Drag to Reorder)</p>
+                                                    <div className="space-y-2">
+                                                        {options.map((opt: any, optIdx: number) => {
+                                                            const optName = opt.value || opt.name || opt.label || opt.optionName || `Option ${optIdx + 1}`;
+                                                            const showsOnDetail = opt.isListingFilter !== false;
+                                                            // Calculate price using priceImpact if present, or fall back to priceAdd
+                                                            const priceImpact = opt.priceImpact ? parseFloat(opt.priceImpact) : (opt.priceAdd || opt.price || 0);
+                                                            const hasPrice = priceImpact > 0;
 
-                                                <label className="flex items-center gap-2 cursor-pointer group/check">
-                                                    <div className="relative">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={sa.showPrice !== false}
-                                                            onChange={() => {
-                                                                const updated = [...selectedAttributeTypes];
-                                                                updated[index] = { ...updated[index], showPrice: updated[index].showPrice === false ? true : false };
-                                                                setSelectedAttributeTypes(updated);
-                                                            }}
-                                                            className="sr-only"
-                                                        />
-                                                        <div className={`w-10 h-5 rounded-full transition-colors ${sa.showPrice !== false ? 'bg-emerald-500' : 'bg-slate-200'}`}>
-                                                            <div className={`absolute top-1 left-1 w-3 h-3 bg-white rounded-full transition-transform ${sa.showPrice !== false ? 'translate-x-5' : 'translate-x-0'}`} />
-                                                        </div>
-                                                    </div>
-                                                    <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">Show Price</span>
-                                                </label>
+                                                            // Find related sub-attributes for this option
+                                                            const relatedSubAttributes = subAttributes?.filter(sa =>
+                                                                sa.parentAttribute &&
+                                                                (typeof sa.parentAttribute === 'object' && 'parentAttribute' in sa ? sa.parentAttribute._id : sa.parentAttribute) === sa.attributeTypeId &&
+                                                                (sa.parentValue === opt.value || sa.parentValue === optName || sa.parentValue === opt.label)
+                                                            );
 
-                                                <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                        const updated = selectedAttributeTypes.filter((_, i) => i !== index);
-                                                        setSelectedAttributeTypes(updated);
-                                                    }}
-                                                    className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
-                                                >
-                                                    <X size={18} />
-                                                </button>
-                                            </div>
+                                                            const isDragging = optionDragState?.parentAttrId === sa.attributeTypeId && optionDragState?.dragIndex === optIdx;
+                                                            const isDragOver = optionDragState?.parentAttrId === sa.attributeTypeId && optionDragState?.dragOverIndex === optIdx;
+
+                                                            return (
+                                                                <div
+                                                                    key={optIdx}
+                                                                    draggable
+                                                                    onDragStart={() => handleOptionDragStart(sa.attributeTypeId, optIdx)}
+                                                                    onDragOver={(e) => handleOptionDragOver(e, sa.attributeTypeId, optIdx)}
+                                                                    onDrop={(e) => handleOptionDrop(e, sa.attributeTypeId, optIdx, options)}
+                                                                    onDragEnd={handleOptionDragEnd}
+                                                                    className={`flex flex-col gap-2 p-3 bg-slate-50 border rounded-lg transition-all ${isDragging ? 'opacity-50 border-dashed border-sky-400 bg-sky-50' :
+                                                                            isDragOver ? 'border-sky-500 ring-2 ring-sky-100 scale-[1.01]' : 'border-slate-200'
+                                                                        }`}
+                                                                >
+                                                                    <div className="flex items-center gap-2">
+                                                                        <div className="cursor-move text-slate-400 hover:text-slate-600">
+                                                                            <GripVertical size={14} />
+                                                                        </div>
+                                                                        <span className="font-semibold text-slate-700 text-sm">{optName}</span>
+                                                                        {showsOnDetail && (
+                                                                            <span className="px-1.5 py-0.5 bg-sky-100 text-sky-600 rounded text-[10px] font-bold uppercase tracking-wide">Shown</span>
+                                                                        )}
+                                                                        {hasPrice && (
+                                                                            <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-600 rounded text-[10px] font-bold uppercase tracking-wide">
+                                                                                +₹{formatNumberFull(priceImpact)}
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+
+                                                                    {/* Sub-attributes section */}
+                                                                    {relatedSubAttributes && relatedSubAttributes.length > 0 && (
+                                                                        <div className="mt-2 pl-3 border-l-2 border-slate-300 ml-5">
+                                                                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 flex items-center gap-1">
+                                                                                <Layers size={10} />
+                                                                                Triggered Sub-Attributes (Drag to Reorder)
+                                                                            </p>
+                                                                            <div className="space-y-1">
+                                                                                {relatedSubAttributes.map((subAttr: any, subIdx: number) => {
+                                                                                    const isSubDragging = subAttrDragState?.parentAttrId === sa.attributeTypeId &&
+                                                                                        subAttrDragState?.parentValue === (subAttr.parentValue || opt.value) &&
+                                                                                        subAttrDragState?.dragIndex === subIdx;
+
+                                                                                    const isSubDragOver = subAttrDragState?.parentAttrId === sa.attributeTypeId &&
+                                                                                        subAttrDragState?.parentValue === (subAttr.parentValue || opt.value) &&
+                                                                                        subAttrDragState?.dragOverIndex === subIdx;
+
+                                                                                    return (
+                                                                                        <div
+                                                                                            key={subAttr._id}
+                                                                                            draggable
+                                                                                            onDragStart={(e) => {
+                                                                                                e.stopPropagation();
+                                                                                                handleSubAttrDragStart(sa.attributeTypeId, subAttr.parentValue, subIdx);
+                                                                                            }}
+                                                                                            onDragOver={(e) => {
+                                                                                                e.stopPropagation();
+                                                                                                handleSubAttrDragOver(e, sa.attributeTypeId, subAttr.parentValue, subIdx);
+                                                                                            }}
+                                                                                            onDrop={(e) => {
+                                                                                                e.stopPropagation();
+                                                                                                handleSubAttrDrop(e, sa.attributeTypeId, subAttr.parentValue, subIdx, relatedSubAttributes);
+                                                                                            }}
+                                                                                            onDragEnd={handleSubAttrDragEnd}
+                                                                                            className={`flex items-center gap-2 text-xs text-slate-600 bg-white p-1.5 rounded border shadow-sm transition-all ${isSubDragging ? 'opacity-50 border-dashed border-sky-400' :
+                                                                                                    isSubDragOver ? 'border-sky-500 ring-1 ring-sky-100' : 'border-slate-100'
+                                                                                                }`}
+                                                                                        >
+                                                                                            <div className="cursor-move text-slate-300 hover:text-slate-500">
+                                                                                                <GripVertical size={12} />
+                                                                                            </div>
+                                                                                            <span className="font-medium text-slate-800">{subAttr.label}</span>
+                                                                                            {subAttr.priceAdd > 0 && (
+                                                                                                <span className="text-emerald-600 font-bold text-[10px]">+₹{formatNumberFull(subAttr.priceAdd)}</span>
+                                                                                            )}
+                                                                                            {subAttr.image && (
+                                                                                                <div className="w-4 h-4 rounded overflow-hidden border border-slate-200">
+                                                                                                    <img src={subAttr.image} alt="" className="w-full h-full object-cover" />
+                                                                                                </div>
+                                                                                            )}
+                                                                                        </div>
+                                                                                    );
+                                                                                })}
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     );
                                 })}
@@ -2755,6 +3122,78 @@ const AddProductForm: React.FC<AddProductFormProps> = ({
                     });
                 }}
             />
+
+            {/* Attribute In-Use Popup */}
+            {usagePopup.show && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fadeIn" onClick={() => setUsagePopup({ show: false, attributeName: "", productCount: 0, productNames: [] })}>
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden animate-slideUp" onClick={(e) => e.stopPropagation()}>
+                        {/* Header */}
+                        <div className="bg-gradient-to-r from-amber-500 to-orange-500 p-6 text-white">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2 bg-white/20 rounded-lg">
+                                        <ShieldAlert size={24} />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-xl font-bold">Attribute Protected</h3>
+                                        <p className="text-amber-100 text-sm">This attribute is currently in use</p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => setUsagePopup({ show: false, attributeName: "", productCount: 0, productNames: [] })}
+                                    className="p-1.5 bg-white/20 rounded-lg hover:bg-white/30 transition-colors"
+                                >
+                                    <X size={18} />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Body */}
+                        <div className="p-6 space-y-4">
+                            <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+                                <AlertTriangle size={20} className="text-amber-600 mt-0.5 flex-shrink-0" />
+                                <div>
+                                    <p className="text-sm font-semibold text-amber-800">
+                                        Cannot edit "{usagePopup.attributeName}"
+                                    </p>
+                                    <p className="text-sm text-amber-700 mt-1">
+                                        This attribute is assigned to <span className="font-bold">{usagePopup.productCount}</span> product{usagePopup.productCount !== 1 ? 's' : ''}. Remove it from all products before editing.
+                                    </p>
+                                </div>
+                            </div>
+
+                            {usagePopup.productNames.length > 0 && (
+                                <div>
+                                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Products using this attribute:</p>
+                                    <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                                        {usagePopup.productNames.map((name, i) => (
+                                            <div key={i} className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg">
+                                                <div className="w-1.5 h-1.5 bg-amber-500 rounded-full flex-shrink-0"></div>
+                                                <span className="text-sm text-gray-700 truncate">{name}</span>
+                                            </div>
+                                        ))}
+                                        {usagePopup.productCount > usagePopup.productNames.length && (
+                                            <p className="text-xs text-gray-500 pl-5 pt-1">
+                                                ...and {usagePopup.productCount - usagePopup.productNames.length} more
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Footer */}
+                        <div className="bg-gray-50 px-6 py-4 flex justify-end">
+                            <button
+                                onClick={() => setUsagePopup({ show: false, attributeName: "", productCount: 0, productNames: [] })}
+                                className="px-6 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl hover:from-amber-600 hover:to-orange-600 transition-all duration-300 font-medium"
+                            >
+                                Got it
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </>
     );
 };

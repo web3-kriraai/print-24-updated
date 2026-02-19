@@ -186,6 +186,7 @@ export const createAttributeType = async (req, res) => {
 export const getAllAttributeTypes = async (req, res) => {
   try {
     const { isCommonAttribute, categoryId, subCategoryId } = req.query;
+    const SubAttribute = (await import("../models/subAttributeSchema.js")).default; // Import SubAttribute model
 
     let query = {};
 
@@ -211,20 +212,50 @@ export const getAllAttributeTypes = async (req, res) => {
     const attributeTypes = await AttributeType.find(query)
       .sort({ displayOrder: 1, attributeName: 1 })
       .populate('applicableCategories', 'name')
-      .populate('applicableSubCategories', 'name');
+      .populate('applicableSubCategories', 'name')
+      .lean(); // Use lean() for better performance and easier modification
 
-    // Ensure effectDescription is always returned (convert undefined/null to empty string)
-    const attributeTypesWithEffectDescription = attributeTypes.map(attr => {
-      const attrObj = attr.toObject();
-      if (!attrObj.effectDescription) {
-        attrObj.effectDescription = "";
+    // Fetch and populate sub-attributes for each attribute type
+    const attributeTypesWithSubAttributes = await Promise.all(attributeTypes.map(async (attr) => {
+      // If the attribute has sub-attributes (we can check if it has attributeValues or just query SubAttribute)
+      // Query SubAttribute collection for this parentAttribute
+      const subAttributes = await SubAttribute.find({ parentAttribute: attr._id })
+        .sort({ displayOrder: 1 }) // Sort by displayOrder
+        .lean();
+
+      // If sub-attributes exist, map them to attributeValues format and OVERRIDE/MERGE
+      if (subAttributes && subAttributes.length > 0) {
+        // Map sub-attributes to match the structure expected by frontend (AttributeValue interface)
+        // AddProductForm expects: value, label, priceImpact/priceAdd
+        const mappedSubAttributes = subAttributes.map(sa => ({
+          value: sa.value,
+          label: sa.label,
+          priceAdd: sa.priceAdd, // Include priceAdd
+          image: sa.image,
+          isEnabled: sa.isEnabled,
+          displayOrder: sa.displayOrder,
+          systemName: sa.systemName,
+          // Add other necessary fields if needed, matching AttributeValue schema or what frontend uses
+          // The frontend AddProductForm checks: opt.value || opt.name || opt.label ...
+          // And: opt.priceImpact || opt.priceAdd ...
+        }));
+
+        // We override attributeValues with the dynamic sub-attributes
+        // This ensures the frontend sees the sub-attributes as options
+        attr.attributeValues = mappedSubAttributes;
       }
-      return attrObj;
-    });
+
+      // Ensure effectDescription is present
+      if (!attr.effectDescription) {
+        attr.effectDescription = "";
+      }
+
+      return attr;
+    }));
 
     return res.json({
       success: true,
-      data: attributeTypesWithEffectDescription,
+      data: attributeTypesWithSubAttributes,
     });
   } catch (err) {
     console.log("GET ATTRIBUTE TYPES ERROR ===>", err);
@@ -337,6 +368,33 @@ export const updateAttributeType = async (req, res) => {
     const attributeType = await AttributeType.findById(id);
     if (!attributeType) {
       return res.status(404).json({ error: "Attribute type not found" });
+    }
+
+    // Check if attribute type is being used in any products — block editing if so
+    const Product = (await import("../models/productModal.js")).default;
+    const mongoose = (await import("mongoose")).default;
+
+    if (mongoose.Types.ObjectId.isValid(id)) {
+      const attributeObjectId = new mongoose.Types.ObjectId(id);
+      const productsUsingAttribute = await Product.find({
+        "dynamicAttributes.attributeType": attributeObjectId
+      }).select("name _id").limit(10);
+
+      const totalProductsCount = await Product.countDocuments({
+        "dynamicAttributes.attributeType": attributeObjectId
+      });
+
+      if (totalProductsCount > 0) {
+        const productNames = productsUsingAttribute.slice(0, 5).map(p => p.name).join(", ");
+        const moreProducts = totalProductsCount > 5 ? ` and ${totalProductsCount - 5} more` : "";
+
+        return res.status(400).json({
+          error: `Cannot edit attribute type "${attributeType.attributeName}". It is being used in ${totalProductsCount} product(s): ${productNames}${moreProducts}. Please remove this attribute from all products before editing it.`,
+          isInUse: true,
+          productCount: totalProductsCount,
+          productNames: productsUsingAttribute.slice(0, 5).map(p => p.name)
+        });
+      }
     }
 
     // Parse attributeValues if it's a string
@@ -674,5 +732,93 @@ export const duplicateAttributeType = async (req, res) => {
   } catch (err) {
     console.log("DUPLICATE ATTRIBUTE TYPE ERROR ===>", err);
     return res.status(500).json({ error: err.message });
+  }
+};
+
+// Check if attribute type is being used in any products
+export const checkAttributeUsage = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const Product = (await import("../models/productModal.js")).default;
+    const mongoose = (await import("mongoose")).default;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ error: "Invalid attribute type ID" });
+    }
+
+    const attributeType = await AttributeType.findById(id);
+    if (!attributeType) {
+      return res.status(404).json({ error: "Attribute type not found" });
+    }
+
+    const attributeObjectId = new mongoose.Types.ObjectId(id);
+
+    const productsUsingAttribute = await Product.find({
+      "dynamicAttributes.attributeType": attributeObjectId
+    }).select("name _id").limit(10);
+
+    const totalProductsCount = await Product.countDocuments({
+      "dynamicAttributes.attributeType": attributeObjectId
+    });
+
+    return res.json({
+      success: true,
+      isInUse: totalProductsCount > 0,
+      productCount: totalProductsCount,
+      productNames: productsUsingAttribute.map(p => p.name),
+      attributeName: attributeType.attributeName
+    });
+  } catch (err) {
+    console.log("CHECK ATTRIBUTE USAGE ERROR ==>", err);
+    return res.status(500).json({ error: err.message });
+  }
+};
+
+// Reorder attribute values (options) within an attribute type
+// This is a lightweight endpoint that only reorders values without triggering "in use" checks
+export const reorderAttributeValues = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { orderedValues } = req.body;
+
+    if (!orderedValues || !Array.isArray(orderedValues)) {
+      return res.status(400).json({ error: "orderedValues must be an array of value strings" });
+    }
+
+    const attributeType = await AttributeType.findById(id);
+    if (!attributeType) {
+      return res.status(404).json({ error: "Attribute type not found" });
+    }
+
+    // Reorder attributeValues array to match the given order
+    const currentValues = attributeType.attributeValues || [];
+    const valueMap = new Map();
+    currentValues.forEach(v => {
+      const obj = v.toObject ? v.toObject() : v;
+      valueMap.set(obj.value, obj);
+    });
+
+    const reordered = [];
+    for (const val of orderedValues) {
+      if (valueMap.has(val)) {
+        reordered.push(valueMap.get(val));
+        valueMap.delete(val);
+      }
+    }
+    // Append any values not in ordered list at the end (safety)
+    for (const remaining of valueMap.values()) {
+      reordered.push(remaining);
+    }
+
+    attributeType.attributeValues = reordered;
+    await attributeType.save();
+
+    return res.json({
+      success: true,
+      message: "Attribute values reordered successfully",
+    });
+  } catch (err) {
+    console.error("REORDER ATTRIBUTE VALUES ERROR ==>", err);
+    return res.status(500).json({ error: err.message || "Failed to reorder attribute values" });
   }
 };

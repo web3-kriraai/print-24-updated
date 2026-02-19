@@ -16,6 +16,7 @@ import { getAuthHeaders } from '../../../../utils/auth';
 import { API_BASE_URL_WITH_API as API_BASE_URL } from '../../../../lib/apiConfig';
 import toast from 'react-hot-toast';
 import { SearchableDropdown } from '../../../../components/SearchableDropdown';
+import { formatCurrencyFull } from '../../../../utils/pricing';
 
 interface Product {
     _id: string;
@@ -427,7 +428,7 @@ const SortProductsView: React.FC<SortProductsViewProps> = ({ categories, subCate
                                                 <div className="lg:col-span-2 lg:order-4 flex items-center justify-between lg:justify-end border-t lg:border-t-0 pt-3 lg:pt-0 mt-2 lg:mt-0">
                                                     <span className="lg:hidden text-sm font-medium text-gray-500">Base Price</span>
                                                     <span className="font-semibold text-gray-900">
-                                                        ₹{product.basePrice.toLocaleString()}
+                                                        {formatCurrencyFull(product.basePrice)}
                                                     </span>
                                                 </div>
                                             </div>
