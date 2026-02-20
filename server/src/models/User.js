@@ -195,10 +195,16 @@ const userSchema = new mongoose.Schema(
        Purpose: Hourly rate for physical visits + cumulative earnings tracking
     ====================== */
     // hourlyRate: snapshotted into PhysicalDesignerBooking at booking time.
-    // Only admin should be able to update this field.
+    // Only admin should be able to update this field. (Wait, now designers can too? User requested it.)
     hourlyRate: {
       type: Number,
       default: 500, // Default ₹500/hr
+      min: 0
+    },
+    // Fixed charge for home visits - now configurable by designer
+    homeVisitCharge: {
+      type: Number,
+      default: 500, // Default ₹500
       min: 0
     },
     // Cumulative hours worked across all completed physical visits
@@ -218,6 +224,18 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false
     },
+    // Designer rating (0-5)
+    rating: {
+      type: Number,
+      default: 5,
+      min: 0,
+      max: 5
+    },
+    // Designer Terms and Conditions
+    termsAndConditions: {
+      type: String,
+      default: "Standard service terms apply."
+    }
   },
   { timestamps: true }
 

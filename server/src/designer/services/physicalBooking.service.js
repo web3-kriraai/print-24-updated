@@ -43,12 +43,17 @@ export async function bookVisit(customerId, body) {
         customerPhone,
         advancePaid = 0,
         baseAmount = 0,
-        productSnapshot
+        productSnapshot,
+        visitLocation = 'OFFICE' // Default to OFFICE
     } = body;
 
     // ── 1. Validate required fields ──────────────────────────────────────────
-    if (!orderId || !designerId || !visitDate || !timeSlot) {
-        throw Object.assign(new Error('orderId, designerId, visitDate, and timeSlot are required.'), { statusCode: 400 });
+    if (!orderId || !designerId || !visitDate) {
+        throw Object.assign(new Error('orderId, designerId, and visitDate are required.'), { statusCode: 400 });
+    }
+
+    if (visitLocation === 'OFFICE' && !timeSlot) {
+        throw Object.assign(new Error('Time slot is required for Office visits.'), { statusCode: 400 });
     }
 
     // ── 1b. Validate customerPhone ───────────────────────────────────────────
@@ -84,17 +89,36 @@ export async function bookVisit(customerId, body) {
     }
 
     // ── 4. Conflict Check (Race Condition Prevention) ────────────────────────
-    const normalizedDate = new Date(visitDate);
+    // Normalize date to midnight IST for consistent storage and comparison
+    const normalizedDate = new Date(new Date(visitDate).toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
     normalizedDate.setHours(0, 0, 0, 0);
 
-    const existing = await PhysicalDesignerBooking.findOne({
-        designerId,
-        visitDate: normalizedDate,
-        timeSlot,
-        visitStatus: { $in: ['Scheduled', 'Accepted', 'InProgress'] }
-    });
-    if (existing) {
-        throw Object.assign(new Error('This slot is already booked. Please select another slot.'), { statusCode: 409 });
+    // OFFICE: Check for slot conflict
+    if (visitLocation === 'OFFICE') {
+        const existing = await PhysicalDesignerBooking.findOne({
+            designerId,
+            visitDate: normalizedDate,
+            timeSlot,
+            visitStatus: { $in: ['Scheduled', 'Accepted', 'InProgress'] }
+        });
+        if (existing) {
+            throw Object.assign(new Error('This slot is already booked. Please select another slot.'), { statusCode: 409 });
+        }
+    }
+
+    // HOME: Check for daily capacity limit (Max 3)
+    if (visitLocation === 'HOME') {
+        const MAX_HOME_VISITS_PER_DAY = 3;
+        const visitCount = await PhysicalDesignerBooking.countDocuments({
+            designerId,
+            visitDate: normalizedDate,
+            visitLocation: 'HOME',
+            visitStatus: { $in: ['Scheduled', 'Accepted', 'InProgress'] }
+        });
+
+        if (visitCount >= MAX_HOME_VISITS_PER_DAY) {
+            throw Object.assign(new Error('Designer is fully booked for home visits on this date. Please choose another date.'), { statusCode: 409 });
+        }
     }
 
     // ── 5. Validate designer exists ───────────────────────────────────────────
@@ -106,8 +130,9 @@ export async function bookVisit(customerId, body) {
         throw Object.assign(new Error('The specified user is not a designer.'), { statusCode: 400 });
     }
 
-    // ── 6. Snapshot hourlyRate ───────────────────────────────────────────────
+    // ── 6. Snapshot hourlyRate & Calculate Home Charge ───────────────────────
     const snapshotHourlyRate = designer.hourlyRate || 500;
+    const homeVisitCharge = visitLocation === 'HOME' ? 500 : 0; // Fixed 500 charge for Home Visits
 
     // ── 7. Create booking ─────────────────────────────────────────────────────
     try {
@@ -117,7 +142,9 @@ export async function bookVisit(customerId, body) {
             orderId,
             productSnapshot: productSnapshot || {},
             visitDate: normalizedDate,
-            timeSlot,
+            timeSlot: visitLocation === 'OFFICE' ? timeSlot : undefined, // No slot for Home visit
+            visitLocation,
+            homeVisitCharge,
             visitAddress: visitAddress || '',
             visitNotes: visitNotes || '',
             customerPhone: sanitizedPhone,
@@ -282,9 +309,25 @@ export async function endVisit(bookingId, designerId) {
     const durationMs = visitEndTime - visitStartTime;
     const totalDurationMinutes = Math.ceil(durationMs / 60000);
 
-    // Total amount: time-based + any base/fixed charge
-    const timeBasedAmount = (totalDurationMinutes / 60) * booking.hourlyRate;
-    const totalAmount = Math.ceil(timeBasedAmount + booking.baseAmount);
+    // ── Fetch Current Designer Rates (Dynamic Rate Fix) ────────────────────────
+    // We fetch the latest rates from the User model to ensure any updates made
+    // after booking but before completion are reflected in the final bill.
+    const designer = await User.findById(designerId).select('hourlyRate homeVisitCharge');
+    if (designer) {
+        booking.hourlyRate = designer.hourlyRate || booking.hourlyRate;
+        booking.homeVisitCharge = (booking.visitLocation === 'HOME')
+            ? (designer.homeVisitCharge || booking.homeVisitCharge)
+            : 0;
+    }
+
+    // Total amount: (time-based) + (any base/fixed charge) + (home visit charge)
+    // "Always based on hour" means we round up to the nearest hour.
+    const hoursToCharge = Math.ceil(totalDurationMinutes / 60);
+    const timeBasedAmount = hoursToCharge * booking.hourlyRate;
+    const homeCharge = booking.homeVisitCharge || 0;
+
+    // Note: homeVisitCharge is a fixed one-time fee, NOT per hour.
+    const totalAmount = Math.ceil(timeBasedAmount + booking.baseAmount + homeCharge);
 
     // Remaining amount after advance payment
     const remainingAmount = Math.max(0, totalAmount - booking.advancePaid);
@@ -311,7 +354,8 @@ export async function endVisit(bookingId, designerId) {
             await booking.save({ session });
 
             // Update designer's cumulative earnings and hours
-            const hoursWorked = totalDurationMinutes / 60;
+            // Use rounded hours for consistency with "always based on hour" billing
+            const hoursWorked = Math.ceil(totalDurationMinutes / 60);
             await User.findByIdAndUpdate(
                 designerId,
                 {
@@ -375,7 +419,7 @@ export async function cancelVisit(bookingId, adminId, reason = '') {
  */
 export async function getCustomerBookings(customerId) {
     const bookings = await PhysicalDesignerBooking.find({ customerId })
-        .populate('designerId', 'name email hourlyRate')
+        .populate('designerId', 'name email hourlyRate address mobileNumber')
         .populate('orderId', 'orderNumber')
         .sort({ createdAt: -1 });
 
@@ -400,7 +444,7 @@ export async function getAllBookings(filters = {}) {
 
     const bookings = await PhysicalDesignerBooking.find(query)
         .populate('customerId', 'name email mobileNumber')
-        .populate('designerId', 'name email hourlyRate totalEarnings')
+        .populate('designerId', 'name email hourlyRate totalEarnings address mobileNumber')
         .populate('orderId', 'orderNumber')
         .sort({ createdAt: -1 });
 
@@ -435,14 +479,17 @@ export async function getAvailableDesigners(date) {
             role: 'designer',
             isOnline: true
         })
-            .select('name sessionSettings hourlyRate isOnline mobileNumber address')
+            .select('name sessionSettings hourlyRate homeVisitCharge isOnline mobileNumber address rating termsAndConditions')
             .lean(),
         OfficeConfig.findOne().lean()
     ]);
 
     const designers = rawDesigners.map(d => ({
         ...d,
-        hourlyRate: d.hourlyRate || d.sessionSettings?.basePrice || 500
+        hourlyRate: d.hourlyRate || d.sessionSettings?.basePrice || 500,
+        homeVisitCharge: d.homeVisitCharge ?? 500,
+        rating: d.rating ?? 5,
+        termsAndConditions: d.termsAndConditions || "Standard service terms apply."
     }));
 
     const officeInfo = officeConfig ? {
@@ -471,10 +518,10 @@ export async function getDesignerSlots(designerId, dateStr) {
         { time: "07:00-08:00", endHour: 20 }
     ];
 
-    // Normalize date to start of day for comparison
-    const startOfDay = new Date(dateStr);
+    // Normalize date to start/end of day IST for comparison
+    const startOfDay = new Date(new Date(dateStr).toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
     startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(dateStr);
+    const endOfDay = new Date(new Date(dateStr).toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
     endOfDay.setHours(23, 59, 59, 999);
 
     // Fetch existing bookings for this designer on this date

@@ -78,10 +78,23 @@ const physicalDesignerBookingSchema = new mongoose.Schema(
                 message: 'Invalid phone number format. Use 10 digits or international format (e.g. +91XXXXXXXXXX).'
             }
         },
-        timeSlot: {
+        visitLocation: {
             type: String,
+            enum: ['OFFICE', 'HOME'],
+            default: 'OFFICE',
             required: true,
             index: true
+        },
+        timeSlot: {
+            type: String,
+            required: function () {
+                return this.visitLocation === 'OFFICE';
+            },
+            index: true
+        },
+        homeVisitCharge: {
+            type: Number,
+            default: 0
         },
 
         // ─── VISIT STATUS LIFECYCLE ───────────────────────────────────────────

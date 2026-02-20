@@ -354,10 +354,10 @@ const ProductSpecsPanel: React.FC<{ order: Order }> = ({ order }) => {
   if (!order.product) {
     return (
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-        <div className="flex items-center gap-2 mb-6 border-b border-slate-100 pb-4">
+        {/* <div className="flex items-center gap-2 mb-6 border-b border-slate-100 pb-4">
           <Package className="w-5 h-5 text-brand-600" />
           <h3 className="text-lg font-bold text-slate-900">Product Configuration</h3>
-        </div>
+        </div> */}
         <p className="text-slate-600">Product information not available.</p>
       </div>
     );
@@ -387,241 +387,234 @@ const ProductSpecsPanel: React.FC<{ order: Order }> = ({ order }) => {
         </div>
       )}
 
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-        <div className="flex items-center gap-2 mb-6 border-b border-slate-100 pb-4">
-          <Package className="w-5 h-5 text-brand-600" />
-          <h3 className="text-lg font-bold text-slate-900">Product Configuration</h3>
-        </div>
-
-        {/* Basic Info Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
-          <div className="p-4 bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl border border-slate-200 shadow-sm">
-            <p className="text-xs text-slate-500 uppercase tracking-wide font-bold mb-2">Shape</p>
-            <p className="text-slate-900 font-semibold text-lg">{order.shape}</p>
+      {/* Product Configuration section commented out as per requirement */}
+      {/* <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+          <div className="flex items-center gap-2 mb-6 border-b border-slate-100 pb-4">
+            <Package className="w-5 h-5 text-brand-600" />
+            <h3 className="text-lg font-bold text-slate-900">Product Configuration</h3>
           </div>
-          <div className="p-4 bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl border border-slate-200 shadow-sm">
-            <p className="text-xs text-slate-500 uppercase tracking-wide font-bold mb-2">Finish</p>
-            <p className="text-slate-900 font-semibold text-lg">{order.finish}</p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
+            <div className="p-4 bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl border border-slate-200 shadow-sm">
+              <p className="text-xs text-slate-500 uppercase tracking-wide font-bold mb-2">Shape</p>
+              <p className="text-slate-900 font-semibold text-lg">{order.shape}</p>
+            </div>
+            <div className="p-4 bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl border border-slate-200 shadow-sm">
+              <p className="text-xs text-slate-500 uppercase tracking-wide font-bold mb-2">Finish</p>
+              <p className="text-slate-900 font-semibold text-lg">{order.finish}</p>
+            </div>
           </div>
-        </div>
 
-        {/* Selected Options */}
-        <div className="mb-8">
-          <h4 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-brand-600" />
-            Selected Options
-          </h4>
-          {order.selectedOptions && order.selectedOptions.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {order.selectedOptions.map((opt, idx) => {
-                const name = opt.optionName || opt.name || 'Option';
-                const priceAdd = opt.priceAdd || 0;
-
-                let description = opt.description;
-                if (!description && order.product?.options && opt.optionId) {
-                  const productOption = order.product.options.find(
-                    (o: any) => o._id === opt.optionId || o.name === name
-                  );
-                  description = productOption?.description;
-                }
-
-                return (
-                  <div
-                    key={idx}
-                    className="group relative bg-gradient-to-br from-white to-slate-50 rounded-xl border border-slate-200 hover:border-brand-300 hover:shadow-md transition-all duration-300 overflow-hidden"
-                  >
-                    <div className="p-4">
-                      <div className="flex items-start gap-4">
-                        {opt.image ? (
-                          <div className="relative flex-shrink-0">
-                            <img
-                              src={opt.image}
-                              alt={name}
-                              className="w-20 h-20 object-cover rounded-lg border-2 border-slate-200 group-hover:border-brand-400 transition-colors cursor-pointer shadow-sm"
-                              onClick={() => setExpandedImage({ src: opt.image!, alt: name })}
-                            />
-                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 rounded-lg transition-colors cursor-pointer" />
-                          </div>
-                        ) : (
-                          <div className="w-20 h-20 rounded-lg bg-gradient-to-br from-brand-100 to-brand-200 text-brand-700 flex items-center justify-center border-2 border-brand-200">
-                            <CheckCircle2 className="w-8 h-8" />
-                          </div>
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-bold text-slate-900 mb-1">{name}</p>
-                          {description && (
-                            <p className="text-xs text-slate-600 leading-relaxed mb-2">{description}</p>
-                          )}
-                          {priceAdd > 0 && (
-                            <div className="mt-2 pt-2 border-t border-slate-200">
-                              <span className="text-sm font-bold text-brand-600">
-                                +{formatCurrency(priceAdd)}
-                                {priceAdd < 10 && (
-                                  <span className="text-xs text-slate-500 font-normal ml-1">/unit</span>
-                                )}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="text-sm text-slate-500 italic p-4 bg-slate-50 rounded-lg border border-dashed border-slate-200 text-center">
-              No additional options configured.
-            </div>
-          )}
-        </div>
-
-        {/* Selected Dynamic Attributes */}
-        {order.selectedDynamicAttributes && order.selectedDynamicAttributes.length > 0 && (
-          <div className="pt-6 border-t border-slate-200">
+          <div className="mb-8">
             <h4 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2">
-              <Info className="w-4 h-4 text-brand-600" />
-              Selected Attributes
+              <CheckCircle2 className="w-4 h-4 text-brand-600" />
+              Selected Options
             </h4>
-            <div className="space-y-4">
-              {order.selectedDynamicAttributes.map((attr, idx) => {
-                // Find sub-attributes for this attribute
-                const subAttributesKey = `${attr.attributeTypeId}:${attr.attributeValue}`;
-                const subAttributes = productDetails?.subAttributes?.[subAttributesKey] || [];
+            {order.selectedOptions && order.selectedOptions.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {order.selectedOptions.map((opt, idx) => {
+                  const name = opt.optionName || opt.name || 'Option';
+                  const priceAdd = opt.priceAdd || 0;
 
-                return (
-                  <div key={idx} className="space-y-3">
-                    {/* Main Attribute */}
-                    <div className="group relative bg-gradient-to-br from-white to-slate-50 rounded-xl border border-slate-200 hover:border-brand-300 hover:shadow-md transition-all duration-300 overflow-hidden">
+                  let description = opt.description;
+                  if (!description && order.product?.options && opt.optionId) {
+                    const productOption = order.product.options.find(
+                      (o: any) => o._id === opt.optionId || o.name === name
+                    );
+                    description = productOption?.description;
+                  }
+
+                  return (
+                    <div
+                      key={idx}
+                      className="group relative bg-gradient-to-br from-white to-slate-50 rounded-xl border border-slate-200 hover:border-brand-300 hover:shadow-md transition-all duration-300 overflow-hidden"
+                    >
                       <div className="p-4">
                         <div className="flex items-start gap-4">
-                          {attr.image ? (
+                          {opt.image ? (
                             <div className="relative flex-shrink-0">
                               <img
-                                src={attr.image}
-                                alt={attr.attributeName}
+                                src={opt.image}
+                                alt={name}
                                 className="w-20 h-20 object-cover rounded-lg border-2 border-slate-200 group-hover:border-brand-400 transition-colors cursor-pointer shadow-sm"
-                                onClick={() => setExpandedImage({ src: attr.image!, alt: `${attr.attributeName} - ${attr.label}` })}
+                                onClick={() => setExpandedImage({ src: opt.image!, alt: name })}
                               />
                               <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 rounded-lg transition-colors cursor-pointer" />
                             </div>
                           ) : (
-                            <div className="w-20 h-20 rounded-lg bg-gradient-to-br from-slate-100 to-slate-200 text-slate-600 flex items-center justify-center border-2 border-slate-200">
-                              <Info className="w-8 h-8" />
+                            <div className="w-20 h-20 rounded-lg bg-gradient-to-br from-brand-100 to-brand-200 text-brand-700 flex items-center justify-center border-2 border-brand-200">
+                              <CheckCircle2 className="w-8 h-8" />
                             </div>
                           )}
                           <div className="flex-1 min-w-0">
-                            <p className="text-xs text-slate-500 uppercase tracking-wide font-bold mb-1">
-                              {attr.attributeName}
-                            </p>
-                            <p className="text-sm font-semibold text-slate-900 mb-1">{attr.label}</p>
-                            {attr.description && (
-                              <p className="text-xs text-slate-600 leading-relaxed mb-2">{attr.description}</p>
+                            <p className="text-sm font-bold text-slate-900 mb-1">{name}</p>
+                            {description && (
+                              <p className="text-xs text-slate-600 leading-relaxed mb-2">{description}</p>
                             )}
-                            {(attr.priceAdd > 0 || attr.priceMultiplier) && (
+                            {priceAdd > 0 && (
                               <div className="mt-2 pt-2 border-t border-slate-200">
-                                {attr.priceAdd > 0 ? (
-                                  <span className="text-sm font-bold text-brand-600">
-                                    +{formatCurrency(attr.priceAdd)}
+                                <span className="text-sm font-bold text-brand-600">
+                                  +{formatCurrency(priceAdd)}
+                                  {priceAdd < 10 && (
                                     <span className="text-xs text-slate-500 font-normal ml-1">/unit</span>
-                                  </span>
-                                ) : attr.priceMultiplier && attr.priceMultiplier !== 1 ? (
-                                  <span className="text-sm font-bold text-brand-600">
-                                    +{formatCurrency((order.product?.basePrice || 0) * (attr.priceMultiplier - 1))}
-                                    <span className="text-xs text-slate-500 font-normal ml-1">/unit</span>
-                                  </span>
-                                ) : null}
-                              </div>
-                            )}
-                            {/* Display uploaded images if any */}
-                            {attr.uploadedImages && attr.uploadedImages.length > 0 && (
-                              <div className="mt-3 pt-3 border-t border-slate-200">
-                                <p className="text-xs text-slate-500 uppercase tracking-wide font-bold mb-2">
-                                  Uploaded Images
-                                </p>
-                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                                  {attr.uploadedImages.map((img, imgIdx) => {
-                                    // Convert buffer to base64 data URL for display
-                                    let imageUrl = '';
-                                    if (img.data) {
-                                      if (typeof img.data === 'string') {
-                                        imageUrl = `data:${img.contentType || 'image/jpeg'};base64,${img.data}`;
-                                      } else if (Buffer.isBuffer(img.data)) {
-                                        imageUrl = `data:${img.contentType || 'image/jpeg'};base64,${img.data.toString('base64')}`;
-                                      }
-                                    }
-                                    return imageUrl ? (
-                                      <div key={imgIdx} className="relative group">
-                                        <img 
-                                          src={imageUrl} 
-                                          alt={img.filename || `Image ${imgIdx + 1}`}
-                                          className="w-full h-24 object-cover rounded-lg border border-slate-200 cursor-pointer hover:border-brand-400 transition-colors"
-                                          onClick={() => setExpandedImage({ src: imageUrl, alt: img.filename || `Image ${imgIdx + 1}` })}
-                                        />
-                                        <p className="text-xs text-slate-500 mt-1 truncate">{img.filename}</p>
-                                      </div>
-                                    ) : null;
-                                  })}
-                                </div>
+                                  )}
+                                </span>
                               </div>
                             )}
                           </div>
                         </div>
                       </div>
                     </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-sm text-slate-500 italic p-4 bg-slate-50 rounded-lg border border-dashed border-slate-200 text-center">
+                No additional options configured.
+              </div>
+            )}
+          </div>
 
-                    {/* Sub-Attributes */}
-                    {subAttributes.length > 0 && (
-                      <div className="ml-6 pl-4 border-l-2 border-brand-200 space-y-2">
-                        <p className="text-xs text-slate-500 uppercase tracking-wide font-bold mb-2">
-                          {attr.label} Options
-                        </p>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          {subAttributes.map((subAttr) => (
-                            <div
-                              key={subAttr._id}
-                              className="group relative bg-gradient-to-br from-brand-50/50 to-white rounded-lg border border-brand-100 hover:border-brand-300 hover:shadow-sm transition-all duration-200 overflow-hidden"
-                            >
-                              <div className="p-3">
-                                <div className="flex items-start gap-3">
-                                  {subAttr.image ? (
-                                    <div className="relative flex-shrink-0">
-                                      <img
-                                        src={subAttr.image}
-                                        alt={subAttr.label}
-                                        className="w-16 h-16 object-cover rounded-lg border-2 border-brand-200 group-hover:border-brand-400 transition-colors cursor-pointer shadow-sm"
-                                        onClick={() => setExpandedImage({ src: subAttr.image!, alt: `${attr.attributeName} - ${subAttr.label}` })}
-                                      />
-                                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 rounded-lg transition-colors cursor-pointer" />
-                                    </div>
-                                  ) : (
-                                    <div className="w-16 h-16 rounded-lg bg-gradient-to-br from-brand-100 to-brand-200 text-brand-600 flex items-center justify-center border-2 border-brand-200">
-                                      <Info className="w-6 h-6" />
-                                    </div>
-                                  )}
-                                  <div className="flex-1 min-w-0">
-                                    <p className="text-xs font-semibold text-slate-900 mb-1">{subAttr.label}</p>
-                                    {subAttr.priceAdd && subAttr.priceAdd > 0 && (
-                                      <p className="text-xs font-bold text-brand-600">
-                                        +{formatCurrency(subAttr.priceAdd)}
-                                        <span className="text-[10px] text-slate-500 font-normal ml-1">/piece</span>
-                                      </p>
+          {order.selectedDynamicAttributes && order.selectedDynamicAttributes.length > 0 && (
+            <div className="pt-6 border-t border-slate-200">
+              <h4 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2">
+                <Info className="w-4 h-4 text-brand-600" />
+                Selected Attributes
+              </h4>
+              <div className="space-y-4">
+                {order.selectedDynamicAttributes.map((attr, idx) => {
+                  const subAttributesKey = `${attr.attributeTypeId}:${attr.attributeValue}`;
+                  const subAttributes = productDetails?.subAttributes?.[subAttributesKey] || [];
+
+                  return (
+                    <div key={idx} className="space-y-3">
+                      <div className="group relative bg-gradient-to-br from-white to-slate-50 rounded-xl border border-slate-200 hover:border-brand-300 hover:shadow-md transition-all duration-300 overflow-hidden">
+                        <div className="p-4">
+                          <div className="flex items-start gap-4">
+                            {attr.image ? (
+                              <div className="relative flex-shrink-0">
+                                <img
+                                  src={attr.image}
+                                  alt={attr.attributeName}
+                                  className="w-20 h-20 object-cover rounded-lg border-2 border-slate-200 group-hover:border-brand-400 transition-colors cursor-pointer shadow-sm"
+                                  onClick={() => setExpandedImage({ src: attr.image!, alt: `${attr.attributeName} - ${attr.label}` })}
+                                />
+                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 rounded-lg transition-colors cursor-pointer" />
+                              </div>
+                            ) : (
+                              <div className="w-20 h-20 rounded-lg bg-gradient-to-br from-slate-100 to-slate-200 text-slate-600 flex items-center justify-center border-2 border-slate-200">
+                                <Info className="w-8 h-8" />
+                              </div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs text-slate-500 uppercase tracking-wide font-bold mb-1">
+                                {attr.attributeName}
+                              </p>
+                              <p className="text-sm font-semibold text-slate-900 mb-1">{attr.label}</p>
+                              {attr.description && (
+                                <p className="text-xs text-slate-600 leading-relaxed mb-2">{attr.description}</p>
+                              )}
+                              {(attr.priceAdd > 0 || attr.priceMultiplier) && (
+                                <div className="mt-2 pt-2 border-t border-slate-200">
+                                  {attr.priceAdd > 0 ? (
+                                    <span className="text-sm font-bold text-brand-600">
+                                      +{formatCurrency(attr.priceAdd)}
+                                      <span className="text-xs text-slate-500 font-normal ml-1">/unit</span>
+                                    </span>
+                                  ) : attr.priceMultiplier && attr.priceMultiplier !== 1 ? (
+                                    <span className="text-sm font-bold text-brand-600">
+                                      +{formatCurrency((order.product?.basePrice || 0) * (attr.priceMultiplier - 1))}
+                                      <span className="text-xs text-slate-500 font-normal ml-1">/unit</span>
+                                    </span>
+                                  ) : null}
+                                </div>
+                              )}
+                              {attr.uploadedImages && attr.uploadedImages.length > 0 && (
+                                <div className="mt-3 pt-3 border-t border-slate-200">
+                                  <p className="text-xs text-slate-500 uppercase tracking-wide font-bold mb-2">
+                                    Uploaded Images
+                                  </p>
+                                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                    {attr.uploadedImages.map((img, imgIdx) => {
+                                      let imageUrl = '';
+                                      if (img.data) {
+                                        if (typeof img.data === 'string') {
+                                          imageUrl = `data:${img.contentType || 'image/jpeg'};base64,${img.data}`;
+                                        } else if (Buffer.isBuffer(img.data)) {
+                                          imageUrl = `data:${img.contentType || 'image/jpeg'};base64,${img.data.toString('base64')}`;
+                                        }
+                                      }
+                                      return imageUrl ? (
+                                        <div key={imgIdx} className="relative group">
+                                          <img
+                                            src={imageUrl}
+                                            alt={img.filename || `Image ${imgIdx + 1}`}
+                                            className="w-full h-24 object-cover rounded-lg border border-slate-200 cursor-pointer hover:border-brand-400 transition-colors"
+                                            onClick={() => setExpandedImage({ src: imageUrl, alt: img.filename || `Image ${imgIdx + 1}` })}
+                                          />
+                                          <p className="text-xs text-slate-500 mt-1 truncate">{img.filename}</p>
+                                        </div>
+                                      ) : null;
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {subAttributes.length > 0 && (
+                        <div className="ml-6 pl-4 border-l-2 border-brand-200 space-y-2">
+                          <p className="text-xs text-slate-500 uppercase tracking-wide font-bold mb-2">
+                            {attr.label} Options
+                          </p>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            {subAttributes.map((subAttr) => (
+                              <div
+                                key={subAttr._id}
+                                className="group relative bg-gradient-to-br from-brand-50/50 to-white rounded-lg border border-brand-100 hover:border-brand-300 hover:shadow-sm transition-all duration-200 overflow-hidden"
+                              >
+                                <div className="p-3">
+                                  <div className="flex items-start gap-3">
+                                    {subAttr.image ? (
+                                      <div className="relative flex-shrink-0">
+                                        <img
+                                          src={subAttr.image}
+                                          alt={subAttr.label}
+                                          className="w-16 h-16 object-cover rounded-lg border-2 border-brand-200 group-hover:border-brand-400 transition-colors cursor-pointer shadow-sm"
+                                          onClick={() => setExpandedImage({ src: subAttr.image!, alt: `${attr.attributeName} - ${subAttr.label}` })}
+                                        />
+                                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 rounded-lg transition-colors cursor-pointer" />
+                                      </div>
+                                    ) : (
+                                      <div className="w-16 h-16 rounded-lg bg-gradient-to-br from-brand-100 to-brand-200 text-brand-600 flex items-center justify-center border-2 border-brand-200">
+                                        <Info className="w-6 h-6" />
+                                      </div>
                                     )}
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-xs font-semibold text-slate-900 mb-1">{subAttr.label}</p>
+                                      {subAttr.priceAdd && subAttr.priceAdd > 0 && (
+                                        <p className="text-xs font-bold text-brand-600">
+                                          +{formatCurrency(subAttr.priceAdd)}
+                                          <span className="text-[10px] text-slate-500 font-normal ml-1">/piece</span>
+                                        </p>
+                                      )}
+                                    </div>
                                   </div>
                                 </div>
                               </div>
-                            </div>
-                          ))}
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div> */}
     </>
   );
 };
@@ -842,93 +835,95 @@ const FileUploadPanel: React.FC<{ order: Order }> = ({ order }) => {
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 h-full">
-      <div className="flex justify-between items-start mb-4">
-        <h3 className="text-lg font-bold text-slate-900">Design Files (CMYK Format)</h3>
-        <span className="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded-md">
-          Max {order.product?.maxFileSizeMB || 10}MB
-        </span>
-      </div>
+    // <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 h-full">
+    //   <div className="flex justify-between items-start mb-4">
+    //     <h3 className="text-lg font-bold text-slate-900">Design Files (CMYK Format)</h3>
+    //     <span className="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded-md">
+    //       Max {order.product?.maxFileSizeMB || 10}MB
+    //     </span>
+    //   </div>
 
-      {files.length > 0 ? (
-        <div className="space-y-4 mb-6">
-          {files.map((file, idx) => (
-            <div
-              key={idx}
-              className="border border-slate-200 rounded-lg p-4 bg-slate-50 group hover:border-brand-300 transition-colors"
-            >
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-white rounded flex items-center justify-center text-slate-400 border border-slate-200">
-                    <FileCheck className="w-5 h-5" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-slate-900 truncate">{file.fileName}</p>
-                    <p className="text-xs text-slate-500 flex items-center gap-2">
-                      <span className="uppercase bg-slate-200 px-1.5 py-0.5 rounded text-[10px] font-medium">{file.type}</span>
-                      <span>CMYK JPEG</span>
-                      {file.sizeMb > 0 && ` • ${file.sizeMb} MB`}
-                      {` • ${new Date(file.uploadedAt).toLocaleDateString()}`}
-                    </p>
-                  </div>
-                </div>
-                {file.data && (
-                  <a
-                    href={file.data}
-                    download={file.fileName}
-                    className="text-slate-400 hover:text-brand-600 p-2 rounded-lg hover:bg-white transition-colors"
-                    title="Download image"
-                  >
-                    <Download className="w-4 h-4" />
-                  </a>
-                )}
-              </div>
-              {file.data && (
-                <div className="mt-3 border border-slate-200 rounded-lg overflow-hidden bg-white">
-                  <img
-                    src={file.data}
-                    alt={`${file.type} design preview`}
-                    className="w-full h-auto max-h-64 object-contain"
-                    onError={(e) => {
-                      e.currentTarget.style.display = 'none';
-                    }}
-                  />
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      ) : !order.finalPdfUrl ? (
-        <div className="bg-amber-50 text-amber-800 p-3 rounded-lg text-sm mb-4 flex gap-2">
-          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-          <p>No design files uploaded yet.</p>
-        </div>
-      ) : null}
+    //   {files.length > 0 ? (
+    //     <div className="space-y-4 mb-6">
+    //       {files.map((file, idx) => (
+    //         <div
+    //           key={idx}
+    //           className="border border-slate-200 rounded-lg p-4 bg-slate-50 group hover:border-brand-300 transition-colors"
+    //         >
+    //           <div className="flex items-center justify-between mb-3">
+    //             <div className="flex items-center gap-3">
+    //               <div className="w-10 h-10 bg-white rounded flex items-center justify-center text-slate-400 border border-slate-200">
+    //                 <FileCheck className="w-5 h-5" />
+    //               </div>
+    //               <div className="flex-1 min-w-0">
+    //                 <p className="text-sm font-medium text-slate-900 truncate">{file.fileName}</p>
+    //                 <p className="text-xs text-slate-500 flex items-center gap-2">
+    //                   <span className="uppercase bg-slate-200 px-1.5 py-0.5 rounded text-[10px] font-medium">{file.type}</span>
+    //                   <span>CMYK JPEG</span>
+    //                   {file.sizeMb > 0 && ` • ${file.sizeMb} MB`}
+    //                   {` • ${new Date(file.uploadedAt).toLocaleDateString()}`}
+    //                 </p>
+    //               </div>
+    //             </div>
+    //             {file.data && (
+    //               <a
+    //                 href={file.data}
+    //                 download={file.fileName}
+    //                 className="text-slate-400 hover:text-brand-600 p-2 rounded-lg hover:bg-white transition-colors"
+    //                 title="Download image"
+    //               >
+    //                 <Download className="w-4 h-4" />
+    //               </a>
+    //             )}
+    //           </div>
+    //           {file.data && (
+    //             <div className="mt-3 border border-slate-200 rounded-lg overflow-hidden bg-white">
+    //               <img
+    //                 src={file.data}
+    //                 alt={`${file.type} design preview`}
+    //                 className="w-full h-auto max-h-64 object-contain"
+    //                 onError={(e) => {
+    //                   e.currentTarget.style.display = 'none';
+    //                 }}
+    //               />
+    //             </div>
+    //           )}
+    //         </div>
+    //       ))}
+    //     </div>
+    //   ) : !order.finalPdfUrl ? (
+    //     <div className="bg-amber-50 text-amber-800 p-3 rounded-lg text-sm mb-4 flex gap-2">
+    //       <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+    //       <p>No design files uploaded yet.</p>
+    //     </div>
+    //   ) : null}
 
-      {order.finalPdfUrl && (
-        <div className="mt-4">
-          <h4 className="text-sm font-bold text-green-700 mb-3 flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4" />
-            Final Design Ready
-          </h4>
-          <div className="border-2 border-green-200 bg-green-50 rounded-xl p-4 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-white rounded-lg flex items-center justify-center text-green-600 border border-green-200 shadow-sm">
-                <FileCheck className="w-6 h-6" />
-              </div>
-              <div>
-                <p className="text-sm font-bold text-slate-900">Production Ready File</p>
-                <p className="text-xs text-slate-500">Provided by Professional Designer</p>
-              </div>
-            </div>
-            <button onClick={handleDownloadFinal} className="bg-green-600 hover:bg-green-700">
-              <Download className="w-4 h-4 mr-2" />
-              Download PDF
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
+    //   {order.finalPdfUrl && (
+    //     <div className="mt-4">
+    //       <h4 className="text-sm font-bold text-green-700 mb-3 flex items-center gap-2">
+    //         <CheckCircle2 className="w-4 h-4" />
+    //         Final Design Ready
+    //       </h4>
+    //       <div className="border-2 border-green-200 bg-green-50 rounded-xl p-4 flex items-center justify-between">
+    //         <div className="flex items-center gap-3">
+    //           <div className="w-12 h-12 bg-white rounded-lg flex items-center justify-center text-green-600 border border-green-200 shadow-sm">
+    //             <FileCheck className="w-6 h-6" />
+    //           </div>
+    //           <div>
+    //             <p className="text-sm font-bold text-slate-900">Production Ready File</p>
+    //             <p className="text-xs text-slate-500">Provided by Professional Designer</p>
+    //           </div>
+    //         </div>
+    //         <button onClick={handleDownloadFinal} className="bg-green-600 hover:bg-green-700">
+    //           <Download className="w-4 h-4 mr-2" />
+    //           Download PDF
+    //         </button>
+    //       </div>
+    //     </div>
+    //   )}
+    // </div>
+    <>
+    </>
   );
 };
 

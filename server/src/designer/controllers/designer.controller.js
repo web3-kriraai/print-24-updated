@@ -21,7 +21,10 @@ export const getSessionSettings = async (req, res) => {
                 extensionPrice: 300
             },
             mobileNumber: designer.mobileNumber || '',
-            address: designer.address || ''
+            address: designer.address || '',
+            hourlyRate: designer.hourlyRate || 500,
+            homeVisitCharge: designer.homeVisitCharge || 500,
+            termsAndConditions: designer.termsAndConditions || 'Standard service terms apply.'
         });
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -97,7 +100,7 @@ export const updateSessionSettings = async (req, res) => {
 export const getPublicDesigners = async (req, res) => {
     try {
         const designers = await User.find({ role: "designer" })
-            .select("name sessionSettings mobileNumber address")
+            .select("name sessionSettings mobileNumber address hourlyRate homeVisitCharge rating termsAndConditions")
             .lean();
 
         // Ensure default settings if not explicitly set
@@ -126,7 +129,7 @@ export const getPublicDesigners = async (req, res) => {
  */
 export const updateDesignerProfile = async (req, res) => {
     try {
-        const { mobileNumber, address } = req.body;
+        const { mobileNumber, address, hourlyRate, homeVisitCharge } = req.body;
 
         const designer = await User.findById(req.user.id);
         if (!designer) {
@@ -135,6 +138,9 @@ export const updateDesignerProfile = async (req, res) => {
 
         if (mobileNumber !== undefined) designer.mobileNumber = mobileNumber.trim();
         if (address !== undefined) designer.address = address.trim();
+        if (hourlyRate !== undefined) designer.hourlyRate = Number(hourlyRate);
+        if (homeVisitCharge !== undefined) designer.homeVisitCharge = Number(homeVisitCharge);
+        if (req.body.termsAndConditions !== undefined) designer.termsAndConditions = req.body.termsAndConditions.trim();
 
         await designer.save();
 
@@ -143,7 +149,10 @@ export const updateDesignerProfile = async (req, res) => {
             message: "Profile updated successfully",
             profile: {
                 mobileNumber: designer.mobileNumber,
-                address: designer.address
+                address: designer.address,
+                hourlyRate: designer.hourlyRate,
+                homeVisitCharge: designer.homeVisitCharge,
+                termsAndConditions: designer.termsAndConditions
             }
         });
     } catch (error) {

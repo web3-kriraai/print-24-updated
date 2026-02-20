@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useParams, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowRight, Check, Truck, Upload as UploadIcon, FileImage, CreditCard, X, Info, Lock, AlertCircle, MapPin, Zap, Square, Circle, FileText, UploadCloud, Image as ImageIcon, AlertTriangle, Video, Palette } from 'lucide-react';
+import { ArrowRight, Check, Truck, Upload as UploadIcon, FileImage, CreditCard, X, Info, Lock, AlertCircle, MapPin, Zap, Square, Circle, FileText, UploadCloud, Image as ImageIcon, AlertTriangle, Video, Palette, Smartphone, Star } from 'lucide-react';
 import { Select, SelectOption } from '@/components/ui/select';
 import { ProductImageSkeleton, AttributeCardSkeleton, Skeleton } from '@/components/ui/Skeleton';
 import { LazyImage, CloudinaryLazyImage } from '@/components/ui/LazyImage';
@@ -150,7 +150,8 @@ interface PhysicalBookingPayload {
   orderId: string;
   designerId: string;
   visitDate: string;
-  timeSlot: string;
+  timeSlot?: string;
+  visitLocation?: 'OFFICE' | 'HOME';
   visitAddress: string;
   customerPhone: string;
   advancePaid: number;
@@ -161,9 +162,13 @@ interface Designer {
   _id: string;
   name: string;
   hourlyRate: number;
+  homeVisitCharge: number;
+  rating?: number;
+  termsAndConditions?: string;
   sessionSettings?: {
     basePrice: number;
   };
+  basePrice?: number;
 }
 
 const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedProductId }) => {
@@ -297,6 +302,12 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
   const [selectedSlot, setSelectedSlot] = useState<string>('');
   const [availableSlots, setAvailableSlots] = useState<TimeSlot[]>([]);
   const [isLoadingSlots, setIsLoadingSlots] = useState(false);
+  const selectedSlotRef = useRef(selectedSlot);
+
+  // Sync ref with state
+  useEffect(() => {
+    selectedSlotRef.current = selectedSlot;
+  }, [selectedSlot]);
 
   // Real-time Slot Updates
   useEffect(() => {
@@ -321,7 +332,8 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
           ));
 
           // Clear selection if it was just booked by someone else
-          if (selectedSlot === data.timeSlot) {
+          // Use ref to get the LATEST selectedSlot without re-attaching listener
+          if (selectedSlotRef.current === data.timeSlot) {
             setSelectedSlot('');
             toast.error("The slot you selected was just booked by someone else.");
           }
@@ -334,7 +346,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
         offSessionEvent('slotBooked', handleSlotBooked);
       };
     }
-  }, [selectedDesigner?._id, selectedDate, selectedSlot]);
+  }, [selectedDesigner?._id, selectedDate]);
 
   // RADIO attribute modal state
   const [radioModalOpen, setRadioModalOpen] = useState(false);
@@ -4163,7 +4175,8 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
             orderId,
             designerId: selectedDesigner?._id || designerId!,
             visitDate: selectedDate,
-            timeSlot: selectedSlot,
+            timeSlot: visitType === 'Home' ? undefined : selectedSlot,
+            visitLocation: visitType === 'Home' ? 'HOME' : 'OFFICE',
             visitAddress: physicalVisitAddress,
             customerPhone: customerPhone.replace(/[\s\-]/g, ''),
             advancePaid: 0,
@@ -7783,13 +7796,20 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
               onClick={(e) => e.stopPropagation()}
             >
               <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-white z-10">
-                <div>
-                  <h3 className="text-xl font-bold text-gray-900">
-                    {bookingStep === 1 && "Choose Visit Type"}
-                    {bookingStep === 2 && "Select Date & Location"}
-                    {bookingStep === 3 && "Pick Your Designer & Time"}
-                  </h3>
-                  <p className="text-sm text-gray-500">
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 mb-1">
+                    <h3 className="text-xl font-bold text-gray-900">
+                      {bookingStep === 1 && "Choose Visit Type"}
+                      {bookingStep === 2 && "Select Date & Location"}
+                      {bookingStep === 3 && "Pick Your Designer & Time"}
+                    </h3>
+                    <div className="flex gap-1">
+                      {[1, 2, 3].map(step => (
+                        <div key={step} className={`w-6 h-1 rounded-full transition-all ${bookingStep >= step ? 'bg-blue-600' : 'bg-gray-200'}`} />
+                      ))}
+                    </div>
+                  </div>
+                  <p className="text-sm text-gray-500 font-medium">
                     {bookingStep === 1 && "Select how you would like to consult"}
                     {bookingStep === 2 && "When and where should the consultation happen?"}
                     {bookingStep === 3 && "Select from our expert designers available on your date"}
@@ -7980,7 +8000,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                       <div className="space-y-6">
                         {/* Designer List */}
                         <div className="space-y-3">
-                          <label className="text-xs font-bold text-gray-400 uppercase tracking-widest px-1">Select Designer</label>
+                          <label className="text-xs font-bold  uppercase tracking-widest px-1">Select Designer</label>
                           <div className="grid grid-cols-1 gap-3">
                             {designers.map((designer) => (
                               <button
@@ -7990,24 +8010,58 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                   setSelectedSlot('');
                                   fetchSlots(designer._id, selectedDate);
                                 }}
-                                className={`p-4 rounded-2xl border-2 transition-all text-left flex items-center gap-4 ${selectedDesigner?._id === designer._id ? 'border-blue-600 bg-blue-50' : 'border-gray-50 hover:border-gray-200 hover:bg-white'}`}
+                                className={`group p-4 rounded-2xl border-2 transition-all text-left flex items-start gap-4 relative overflow-hidden ${selectedDesigner?._id === designer._id ? 'border-blue-600 bg-blue-50/50 shadow-lg shadow-blue-100' : 'border-gray-50 hover:border-gray-200 hover:bg-white hover:shadow-md'}`}
                               >
-                                <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xl shrink-0 uppercase">
+                                <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center font-black text-xl shrink-0 shadow-inner group-hover:scale-105 transition-transform duration-300 uppercase">
                                   {designer.name.charAt(0)}
                                 </div>
-                                <div className="flex-1">
-                                  <div className="font-bold text-gray-900">{designer.name}</div>
-                                  <div className="text-xs text-blue-600 font-bold">₹{designer.hourlyRate || 500} / hr</div>
-                                  {designer.address ? (
-                                    <div className="text-xs text-gray-500 mt-1">📍 {designer.address}</div>
-                                  ) : null}
-                                  {designer.mobileNumber ? (
-                                    <div className="text-xs text-gray-500">📞 {designer.mobileNumber}</div>
-                                  ) : null}
+                                <div className="flex-1 space-y-1.5">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                      <div className="font-black text-gray-900 text-lg leading-tight">{designer.name}</div>
+                                      <div className="flex items-center gap-0.5 bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded-md border border-amber-100">
+                                        <Star size={10} className="fill-amber-600" />
+                                        <span className="text-[10px] font-black">{designer.rating || 5}</span>
+                                      </div>
+                                    </div>
+                                    <div className="bg-blue-100 text-blue-700 text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">Expert</div>
+                                  </div>
+
+                                  <div className="flex items-center gap-1.5 text-blue-600">
+                                    <span className="text-sm font-black">₹{designer.hourlyRate || 500}</span>
+                                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">/ per hour</span>
+                                  </div>
+
+                                  <div className="space-y-1">
+                                    {designer.address && (
+                                      <div className="flex items-start gap-1.5 text-[11px] text-gray-500 leading-tight">
+                                        <MapPin size={12} className="mt-0.5 text-blue-400 shrink-0" />
+                                        <span className="font-medium">{designer.address}</span>
+                                      </div>
+                                    )}
+                                    {designer.mobileNumber && (
+                                      <div className="flex items-center gap-1.5 text-[11px] text-gray-500">
+                                        <Smartphone size={12} className="text-blue-400 shrink-0" />
+                                        <span className="font-medium">{designer.mobileNumber}</span>
+                                      </div>
+                                    )}
+                                    {designer.termsAndConditions && (
+                                      <div className="pt-1.5 mt-1.5 border-t border-gray-100/50">
+                                        <div className="text-[10px] text-gray-400 font-bold uppercase tracking-tight flex items-center gap-1 mb-0.5">
+                                          <FileText size={10} /> Terms & Conditions
+                                        </div>
+                                        <p className="text-[10px] text-gray-500 leading-tight italic">
+                                          "{designer.termsAndConditions}"
+                                        </p>
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
                                 {selectedDesigner?._id === designer._id && (
-                                  <div className="w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center">
-                                    <Check size={14} />
+                                  <div className="absolute top-0 right-0 p-2">
+                                    <div className="w-6 h-6 rounded-bl-xl bg-blue-600 text-white flex items-center justify-center absolute top-0 right-0 shadow-sm animate-in fade-in zoom-in duration-300">
+                                      <Check size={14} strokeWidth={3} />
+                                    </div>
                                   </div>
                                 )}
                               </button>
@@ -8015,14 +8069,14 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                           </div>
                         </div>
 
-                        {/* Slot Selection */}
-                        {selectedDesigner && (
+                        {/* Slot Selection (Only for Office Visit) */}
+                        {selectedDesigner && visitType === 'Office' && (
                           <motion.div
                             initial={{ height: 0, opacity: 0 }}
                             animate={{ height: 'auto', opacity: 1 }}
                             className="space-y-3 pt-4 border-t border-gray-100"
                           >
-                            <label className="text-xs font-bold text-gray-400 uppercase tracking-widest px-1">Select Time Slot</label>
+                            <label className="text-xs font-bold uppercase tracking-widest px-1">Select Time Slot</label>
                             {isLoadingSlots ? (
                               <div className="p-8 flex justify-center"><div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div></div>
                             ) : availableSlots.length === 0 ? (
@@ -8037,25 +8091,61 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                   } else if (slot.isPast) {
                                     btnClass = 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed';
                                   } else if (selectedSlot === slot.time) {
-                                    btnClass = 'bg-green-600 border-green-600 text-white shadow-md';
+                                    btnClass = 'border-blue-600/20 shadow-lg';
                                   } else {
-                                    btnClass = 'border-green-100 text-green-700 bg-green-50/30 hover:border-green-500 hover:bg-green-50';
+                                    btnClass = 'border-blue-100 text-blue-700 bg-blue-50/30 hover:border-blue-500 hover:bg-blue-50';
                                   }
                                   return (
                                     <button
                                       key={slot.time}
                                       disabled={isDisabled}
                                       onClick={() => setSelectedSlot(slot.time)}
-                                      className={`py-2 px-1 rounded-lg border text-[10px] sm:text-xs font-bold transition-all ${btnClass}`}
+                                      className={`group relative py-3 px-1 rounded-xl border-2 text-[10px] sm:text-xs font-black transition-all overflow-hidden ${btnClass}`}
                                     >
-                                      {slot.time}
-                                      {slot.isBooked && <span className="block text-[8px] uppercase tracking-tighter mt-0.5">Booked</span>}
-                                      {slot.isPast && !slot.isBooked && <span className="block text-[8px] uppercase tracking-tighter mt-0.5">Past</span>}
+                                      <span className={`relative z-10 ${selectedSlot === slot.time ? 'text-white' : ''}`}>{slot.time}</span>
+                                      {slot.isBooked && (
+                                        <span className="relative z-10 block text-[8px] uppercase tracking-tighter mt-0.5 opacity-80 font-bold">Booked</span>
+                                      )}
+                                      {slot.isPast && !slot.isBooked && (
+                                        <span className="relative z-10 block text-[8px] uppercase tracking-tighter mt-0.5 opacity-80 font-bold">Past</span>
+                                      )}
+                                      {selectedSlot === slot.time && !isDisabled && (
+                                        <motion.div
+                                          layoutId="activeSlot"
+                                          className="absolute inset-0 bg-blue-600 z-0"
+                                          transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                                        />
+                                      )}
                                     </button>
                                   );
                                 })}
                               </div>
                             )}
+                          </motion.div>
+                        )}
+
+                        {/* Home Visit Message */}
+                        {selectedDesigner && visitType === 'Home' && (
+                          <motion.div
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-2"
+                          >
+                            <div className="flex items-start gap-3">
+                              <div className="p-2 bg-amber-100 rounded-lg text-amber-600">
+                                <Truck size={20} />
+                              </div>
+                              <div>
+                                <h4 className="font-bold text-gray-900 text-sm">Home Visit Selected</h4>
+                                <p className="text-xs text-gray-600 mt-1 leading-relaxed">
+                                  The designer will visit your provided address between <span className="font-bold text-gray-900">10:00 AM - 6:00 PM</span> on {new Date(selectedDate).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}.
+                                </p>
+                                <div className="mt-3 flex items-center gap-2 text-xs font-bold text-amber-700 bg-amber-100/50 px-3 py-2 rounded-lg">
+                                  <span className="text-lg">₹{selectedDesigner?.homeVisitCharge || 500}</span>
+                                  <span>Home Visit Charge will be added to your final bill.</span>
+                                </div>
+                              </div>
+                            </div>
                           </motion.div>
                         )}
 
@@ -8067,7 +8157,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                             Back
                           </button>
                           <button
-                            disabled={!selectedDesigner || !selectedSlot || isSubmittingDesignerOrder}
+                            disabled={!selectedDesigner || (visitType === 'Office' && !selectedSlot) || isSubmittingDesignerOrder}
                             onClick={() => createDesignerOrder('physical')}
                             className="flex-[2] py-4 bg-blue-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-blue-700 shadow-lg transition-all disabled:opacity-50"
                           >

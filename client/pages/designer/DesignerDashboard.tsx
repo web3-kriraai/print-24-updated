@@ -1,29 +1,39 @@
 import React, { useState, useEffect } from 'react';
 import {
-    ArrowLeft,
     Clock,
-    Phone,
+    ChevronRight,
+    MoreVertical,
+    Calendar,
     User,
-    FileText,
-    Image as ImageIcon,
+    Phone,
+    MapPin,
+    DollarSign,
+    CheckCircle2,
+    ArrowRight,
+    Save,
+    LayoutDashboard,
+    Package,
     Star,
     TrendingUp,
-    MapPin,
-    Calendar,
+    Plus,
+    MessageCircle,
+    Home,
+    ArrowLeft,
+    FileText,
+    Image as ImageIcon,
     Navigation,
     X,
     Mail,
     AlertCircle,
-    DollarSign,
     CheckCircle,
     Briefcase,
-    Activity,
-    Save
+    Activity
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import toast, { Toaster } from 'react-hot-toast';
+import toast from 'react-hot-toast';
 import { getAuthHeaders, API_BASE_URL_WITH_API as API_BASE_URL } from '../../lib/apiConfig';
 import { useAuth } from '../../context/AuthContext';
+import { joinRoom, onSessionEvent, offSessionEvent } from '../../lib/socketClient';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Simple UI Components
@@ -133,7 +143,7 @@ const defaultVisualStats = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function DesignerDashboard() {
-    const { user } = useAuth();
+    const { user, updateUser } = useAuth();
     const navigate = useNavigate();
 
     // Shared state
@@ -162,7 +172,7 @@ export default function DesignerDashboard() {
     const [selectedBookingForDetails, setSelectedBookingForDetails] = useState<any | null>(null);
 
     // Profile form state (for physical sidebar)
-    const [profileForm, setProfileForm] = useState({ mobileNumber: '', address: '' });
+    const [profileForm, setProfileForm] = useState({ mobileNumber: '', address: '', hourlyRate: 500, homeVisitCharge: 500, termsAndConditions: '' });
     const [isSavingProfile, setIsSavingProfile] = useState(false);
 
     // ── Data Fetchers ─────────────────────────────────────────────────────────
@@ -207,7 +217,10 @@ export default function DesignerDashboard() {
                 // Pre-fill profile form from DB values returned by API
                 setProfileForm({
                     mobileNumber: data.mobileNumber || '',
-                    address: data.address || ''
+                    address: data.address || '',
+                    hourlyRate: data.hourlyRate || 500,
+                    homeVisitCharge: data.homeVisitCharge || 500,
+                    termsAndConditions: data.termsAndConditions || ''
                 });
             }
         } catch (err) {
@@ -229,6 +242,10 @@ export default function DesignerDashboard() {
             });
 
             if (response.ok) {
+                const data = await response.json();
+                if (user) {
+                    updateUser({ ...user, ...data.profile });
+                }
                 toast.success('Profile updated successfully!');
             } else {
                 const err = await response.json();
@@ -277,6 +294,43 @@ export default function DesignerDashboard() {
     };
 
     // ── Initial load ──────────────────────────────────────────────────────────
+
+    useEffect(() => {
+        if (user?._id || user?.id) {
+            const userId = user?._id || user?.id;
+            joinRoom(`user_${userId}`);
+
+            const handleNewBooking = (data: any) => {
+                console.log('[Socket] New physical booking assignment:', data);
+                toast.success(data.message);
+                if (activeTab === 'physical') {
+                    fetchPhysicalBookings();
+                    fetchPhysicalStats();
+                }
+            };
+
+            const handleUpdate = (data: any) => {
+                console.log('[Socket] Physical visit update received:', data);
+                if (data.status === 'Cancelled') {
+                    toast.error(data.message);
+                } else {
+                    toast.success(data.message);
+                }
+                if (activeTab === 'physical') {
+                    fetchPhysicalBookings();
+                    fetchPhysicalStats();
+                }
+            };
+
+            onSessionEvent('new_physical_booking', handleNewBooking);
+            onSessionEvent('physical_visit_update', handleUpdate);
+
+            return () => {
+                offSessionEvent('new_physical_booking', handleNewBooking);
+                offSessionEvent('physical_visit_update', handleUpdate);
+            };
+        }
+    }, [user, activeTab]);
 
     useEffect(() => {
         fetchOrders();
@@ -419,7 +473,7 @@ export default function DesignerDashboard() {
 
     return (
         <div className="min-h-screen bg-gray-50 pb-12">
-            <Toaster position="top-right" />
+
 
             {/* Header */}
             <header className="bg-white border-b border-gray-200 sticky top-0 z-30">
@@ -709,7 +763,12 @@ export default function DesignerDashboard() {
                                                                 </p>
                                                             </div>
                                                         </div>
-                                                        <Badge>{booking.visitStatus}</Badge>
+                                                        <div className="flex gap-2">
+                                                            <Badge variant="outline" className={booking.visitLocation === 'HOME' ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-blue-50 text-blue-700 border-blue-200"}>
+                                                                {booking.visitLocation === 'HOME' ? 'Home Visit' : 'Office Visit'}
+                                                            </Badge>
+                                                            <Badge>{booking.visitStatus}</Badge>
+                                                        </div>
                                                     </div>
 
                                                     <div className="grid grid-cols-2 gap-4 mb-4 text-xs text-gray-600">
@@ -741,6 +800,15 @@ export default function DesignerDashboard() {
                                                             </p>
                                                             <p>{booking.timeSlot || '—'}</p>
                                                         </div>
+                                                        {booking.visitLocation === 'HOME' && (
+                                                            <div className="space-y-1">
+                                                                <p className="flex items-center gap-1 font-medium text-gray-900">
+                                                                    <DollarSign className="w-3 h-3 text-gray-400" />
+                                                                    Home Charge
+                                                                </p>
+                                                                <p className="font-semibold text-amber-600">₹{booking.homeVisitCharge || 500}</p>
+                                                            </div>
+                                                        )}
                                                     </div>
 
                                                     <div className="flex gap-2">
@@ -898,6 +966,45 @@ export default function DesignerDashboard() {
                                                 />
                                             </div>
 
+                                            <div className="space-y-1">
+                                                <label className="text-xs font-medium text-gray-500 uppercase flex items-center gap-1">
+                                                    <DollarSign className="w-3 h-3" /> Hourly Rate (₹)
+                                                </label>
+                                                <input
+                                                    type="number"
+                                                    placeholder="e.g. 500"
+                                                    value={profileForm.hourlyRate}
+                                                    onChange={(e) => setProfileForm({ ...profileForm, hourlyRate: Number(e.target.value) })}
+                                                    className="w-full h-9 px-3 rounded-md border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                                />
+                                            </div>
+
+                                            <div className="space-y-1">
+                                                <label className="text-xs font-medium text-gray-500 uppercase flex items-center gap-1">
+                                                    <DollarSign className="w-3 h-3" /> Home Visit Extra Charge (₹)
+                                                </label>
+                                                <input
+                                                    type="number"
+                                                    placeholder="e.g. 500"
+                                                    value={profileForm.homeVisitCharge}
+                                                    onChange={(e) => setProfileForm({ ...profileForm, homeVisitCharge: Number(e.target.value) })}
+                                                    className="w-full h-9 px-3 rounded-md border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                                />
+                                            </div>
+
+                                            <div className="space-y-1">
+                                                <label className="text-xs font-medium text-gray-500 uppercase flex items-center gap-1">
+                                                    <FileText className="w-3 h-3" /> Visit Terms & Conditions
+                                                </label>
+                                                <textarea
+                                                    rows={3}
+                                                    placeholder="Standard service terms apply."
+                                                    value={profileForm.termsAndConditions}
+                                                    onChange={(e) => setProfileForm({ ...profileForm, termsAndConditions: e.target.value })}
+                                                    className="w-full px-3 py-2 rounded-md border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+                                                />
+                                            </div>
+
                                             <Button
                                                 type="submit"
                                                 className="w-full h-9 text-sm"
@@ -920,13 +1027,21 @@ export default function DesignerDashboard() {
                                         <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
                                             <div className="space-y-0.5">
                                                 <p className="text-xs font-medium text-gray-500 uppercase">Hourly Rate</p>
-                                                <p className="text-xl font-bold text-gray-900">₹{(user as any)?.hourlyRate || 500}/hr</p>
+                                                <p className="text-xl font-bold text-gray-900">₹{profileForm.hourlyRate || (user as any)?.hourlyRate || 500}/hr</p>
                                             </div>
                                             <DollarSign className="w-8 h-8 text-green-500" />
                                         </div>
-                                        <p className="text-[11px] text-gray-400 text-center">Hourly rate is configured by admin</p>
 
                                         <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
+                                            <div className="space-y-0.5">
+                                                <p className="text-xs font-medium text-gray-500 uppercase">Home Visit Charge</p>
+                                                <p className="text-xl font-bold text-gray-900">₹{profileForm.homeVisitCharge || (user as any)?.homeVisitCharge || 500}</p>
+                                            </div>
+                                            <Home className="w-8 h-8 text-blue-500" />
+                                        </div>
+                                        <p className="text-[11px] text-gray-400 text-center">Update your rates in the profile section above</p>
+
+                                        {/* <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
                                             <div className="space-y-0.5">
                                                 <p className="text-xs font-medium text-gray-500 uppercase">Total Hours Worked</p>
                                                 <p className="text-xl font-bold text-gray-900">
@@ -934,7 +1049,7 @@ export default function DesignerDashboard() {
                                                 </p>
                                             </div>
                                             <Clock className="w-8 h-8 text-indigo-500" />
-                                        </div>
+                                        </div> */}
                                     </CardContent>
                                 </Card>
 
@@ -960,7 +1075,7 @@ export default function DesignerDashboard() {
                         )}
 
                         {/* Shared: Quick Actions */}
-                        <Card>
+                        {/* <Card>
                             <CardHeader>
                                 <CardTitle className="text-lg">Quick Actions</CardTitle>
                             </CardHeader>
@@ -978,10 +1093,10 @@ export default function DesignerDashboard() {
                                     View Ratings & Feedback
                                 </Button>
                             </CardContent>
-                        </Card>
+                        </Card> */}
 
                         {/* Shared: Pro Tip */}
-                        <Card className="bg-gradient-to-br from-indigo-50 to-purple-50 border-indigo-200">
+                        {/* <Card className="bg-gradient-to-br from-indigo-50 to-purple-50 border-indigo-200">
                             <CardHeader>
                                 <CardTitle className="text-lg">💡 Pro Tip</CardTitle>
                             </CardHeader>
@@ -992,220 +1107,222 @@ export default function DesignerDashboard() {
                                         : 'Complete visits on time to maintain a high rating. Clients appreciate punctuality and clear communication about arrival times.'}
                                 </p>
                             </CardContent>
-                        </Card>
+                        </Card> */}
                     </div>
                 </div>
             </div>
 
             {/* ── Booking Details Modal ─────────────────────────────────────────── */}
-            {selectedBookingForDetails && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-                    <div
-                        className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col"
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-white z-10">
-                            <div>
-                                <h3 className="text-xl font-bold text-gray-900">Booking Details</h3>
-                                <p className="text-sm text-gray-500">View complete information for this visit</p>
-                            </div>
-                            <button
-                                onClick={() => setSelectedBookingForDetails(null)}
-                                className="p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-400 hover:text-gray-600"
-                            >
-                                <X size={24} />
-                            </button>
-                        </div>
-
-                        <div className="p-6 overflow-y-auto flex-1 space-y-8">
-                            {/* Status Section */}
-                            <div className="flex items-center justify-between bg-gray-50 p-4 rounded-xl border border-gray-100">
-                                <div className="space-y-1">
-                                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Current Status</p>
-                                    <Badge className="text-sm px-3 py-1">{selectedBookingForDetails.visitStatus}</Badge>
+            {
+                selectedBookingForDetails && (
+                    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+                        <div
+                            className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-white z-10">
+                                <div>
+                                    <h3 className="text-xl font-bold text-gray-900">Booking Details</h3>
+                                    <p className="text-sm text-gray-500">View complete information for this visit</p>
                                 </div>
-                                <div className="text-right space-y-1">
-                                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Order ID</p>
-                                    <p className="font-bold text-gray-900">#{selectedBookingForDetails.orderId?.orderNumber}</p>
-                                </div>
-                            </div>
-
-                            {/* Customer Info */}
-                            <div className="space-y-3">
-                                <h4 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-                                    <User size={16} className="text-blue-500" /> Customer Information
-                                </h4>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
-                                    <div className="space-y-0.5">
-                                        <p className="text-xs text-gray-400">Name</p>
-                                        <p className="font-medium text-gray-900">{selectedBookingForDetails.customerId?.name || "N/A"}</p>
-                                    </div>
-                                    <div className="space-y-0.5">
-                                        <p className="text-xs text-gray-400">Mobile</p>
-                                        <p className="font-medium text-gray-900 flex items-center gap-1">
-                                            <Phone size={12} className="text-gray-400" />
-                                            {selectedBookingForDetails.customerPhone || selectedBookingForDetails.customerId?.mobileNumber || "N/A"}
-                                        </p>
-                                    </div>
-                                    <div className="space-y-0.5 md:col-span-2">
-                                        <p className="text-xs text-gray-400">Email</p>
-                                        <p className="font-medium text-gray-900 flex items-center gap-1">
-                                            <Mail size={12} className="text-gray-400" />
-                                            {selectedBookingForDetails.customerId?.email || "N/A"}
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Product Info */}
-                            <div className="space-y-3">
-                                <h4 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-                                    <ImageIcon size={16} className="text-purple-500" /> Project Details
-                                </h4>
-                                <div className="bg-white border border-gray-100 rounded-xl overflow-hidden shadow-sm">
-                                    <div className="bg-gray-50 px-4 py-2 border-b border-gray-100">
-                                        <p className="font-bold text-gray-900">{selectedBookingForDetails.productSnapshot?.productName || "Custom Project"}</p>
-                                    </div>
-                                    <div className="p-4 grid grid-cols-2 gap-y-4 gap-x-8">
-                                        <div className="space-y-0.5">
-                                            <p className="text-xs text-gray-400">Quantity</p>
-                                            <p className="text-sm font-medium">{selectedBookingForDetails.productSnapshot?.quantity || 0}</p>
-                                        </div>
-                                        <div className="space-y-0.5">
-                                            <p className="text-xs text-gray-400">Printing Type</p>
-                                            <p className="text-sm font-medium">{selectedBookingForDetails.productSnapshot?.printingType || "N/A"}</p>
-                                        </div>
-                                        {selectedBookingForDetails.productSnapshot?.foilType && (
-                                            <div className="space-y-0.5">
-                                                <p className="text-xs text-gray-400">Foil Type</p>
-                                                <p className="text-sm font-medium">{selectedBookingForDetails.productSnapshot.foilType}</p>
-                                            </div>
-                                        )}
-                                        {selectedBookingForDetails.productSnapshot?.spotUV && (
-                                            <div className="space-y-0.5">
-                                                <p className="text-xs text-gray-400">Spot UV</p>
-                                                <p className="text-sm font-medium">Yes</p>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Visit Details */}
-                            <div className="space-y-3">
-                                <h4 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-                                    <Calendar size={16} className="text-amber-500" /> Visit Information
-                                </h4>
-                                <div className="space-y-4 bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
-                                    <div className="flex gap-4">
-                                        <div className="p-2 bg-amber-50 text-amber-600 rounded-lg h-10 w-10 flex items-center justify-center shrink-0">
-                                            <Calendar size={20} />
-                                        </div>
-                                        <div className="space-y-0.5">
-                                            <p className="text-xs text-gray-400">Scheduled For</p>
-                                            <p className="font-medium text-gray-900">{new Date(selectedBookingForDetails.visitDate).toLocaleString()}</p>
-                                        </div>
-                                    </div>
-                                    <div className="flex gap-4">
-                                        <div className="p-2 bg-blue-50 text-blue-600 rounded-lg h-10 w-10 flex items-center justify-center shrink-0">
-                                            <MapPin size={20} />
-                                        </div>
-                                        <div className="space-y-0.5">
-                                            <p className="text-xs text-gray-400">Location / Address</p>
-                                            <p className="font-medium text-gray-900">{selectedBookingForDetails.visitAddress || "N/A"}</p>
-                                        </div>
-                                    </div>
-                                    <div className="flex gap-4">
-                                        <div className="p-2 bg-green-50 text-green-600 rounded-lg h-10 w-10 flex items-center justify-center shrink-0">
-                                            <Phone size={20} />
-                                        </div>
-                                        <div className="space-y-0.5">
-                                            <p className="text-xs text-gray-400">Customer Phone</p>
-                                            <p className="font-medium text-gray-900">{selectedBookingForDetails.customerPhone || selectedBookingForDetails.customerId?.mobileNumber || "N/A"}</p>
-                                        </div>
-                                    </div>
-                                    <div className="flex gap-4">
-                                        <div className="p-2 bg-purple-50 text-purple-600 rounded-lg h-10 w-10 flex items-center justify-center shrink-0">
-                                            <Clock size={20} />
-                                        </div>
-                                        <div className="space-y-0.5">
-                                            <p className="text-xs text-gray-400">Time Slot</p>
-                                            <p className="font-medium text-gray-900">{selectedBookingForDetails.timeSlot || "N/A"}</p>
-                                        </div>
-                                    </div>
-                                    {selectedBookingForDetails.productSnapshot?.specialInstructions && (
-                                        <div className="flex gap-4 pt-2 border-t border-gray-50">
-                                            <div className="p-2 bg-purple-50 text-purple-600 rounded-lg h-10 w-10 flex items-center justify-center shrink-0">
-                                                <FileText size={20} />
-                                            </div>
-                                            <div className="space-y-0.5">
-                                                <p className="text-xs text-gray-400">Special Instructions</p>
-                                                <p className="text-sm text-gray-700 leading-relaxed">{selectedBookingForDetails.productSnapshot.specialInstructions}</p>
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* Billing & Time */}
-                            {(selectedBookingForDetails.visitStartTime || selectedBookingForDetails.visitStatus === 'Completed') && (
-                                <div className="space-y-3 pb-4">
-                                    <h4 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-                                        <Clock size={16} className="text-green-500" /> Timing & Billing
-                                    </h4>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 space-y-3">
-                                            <div className="space-y-0.5">
-                                                <p className="text-[10px] font-bold text-gray-400 uppercase">Start Time</p>
-                                                <p className="text-xs font-medium">
-                                                    {selectedBookingForDetails.visitStartTime ? new Date(selectedBookingForDetails.visitStartTime).toLocaleTimeString() : '--:--'}
-                                                </p>
-                                            </div>
-                                            <div className="space-y-0.5">
-                                                <p className="text-[10px] font-bold text-gray-400 uppercase">End Time</p>
-                                                <p className="text-xs font-medium">
-                                                    {selectedBookingForDetails.visitEndTime ? new Date(selectedBookingForDetails.visitEndTime).toLocaleTimeString() : '--:--'}
-                                                </p>
-                                            </div>
-                                        </div>
-                                        <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100 space-y-3">
-                                            <div className="space-y-0.5">
-                                                <p className="text-[10px] font-bold text-blue-400 uppercase">Duration</p>
-                                                <p className="text-sm font-bold text-blue-900">{selectedBookingForDetails.totalDurationMinutes || 0} mins</p>
-                                            </div>
-                                            <div className="space-y-0.5">
-                                                <p className="text-[10px] font-bold text-blue-400 uppercase">Total Amount</p>
-                                                <p className="text-sm font-bold text-blue-900">₹{selectedBookingForDetails.totalAmount || 0}</p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-
-                        <div className="p-6 border-t border-gray-100 bg-gray-50 flex gap-4">
-                            <Button
-                                className="flex-1"
-                                variant="secondary"
-                                onClick={() => setSelectedBookingForDetails(null)}
-                            >
-                                Close View
-                            </Button>
-                            {selectedBookingForDetails.visitStatus === 'Accepted' && (
-                                <Button
-                                    className="flex-[2] bg-blue-600 hover:bg-blue-700"
-                                    onClick={() => {
-                                        handlePhysicalVisitAction(selectedBookingForDetails._id, 'start');
-                                        setSelectedBookingForDetails(null);
-                                    }}
+                                <button
+                                    onClick={() => setSelectedBookingForDetails(null)}
+                                    className="p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-400 hover:text-gray-600"
                                 >
-                                    Start Visit Now
+                                    <X size={24} />
+                                </button>
+                            </div>
+
+                            <div className="p-6 overflow-y-auto flex-1 space-y-8">
+                                {/* Status Section */}
+                                <div className="flex items-center justify-between bg-gray-50 p-4 rounded-xl border border-gray-100">
+                                    <div className="space-y-1">
+                                        <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Current Status</p>
+                                        <Badge className="text-sm px-3 py-1">{selectedBookingForDetails.visitStatus}</Badge>
+                                    </div>
+                                    <div className="text-right space-y-1">
+                                        <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Order ID</p>
+                                        <p className="font-bold text-gray-900">#{selectedBookingForDetails.orderId?.orderNumber}</p>
+                                    </div>
+                                </div>
+
+                                {/* Customer Info */}
+                                <div className="space-y-3">
+                                    <h4 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                                        <User size={16} className="text-blue-500" /> Customer Information
+                                    </h4>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
+                                        <div className="space-y-0.5">
+                                            <p className="text-xs text-gray-400">Name</p>
+                                            <p className="font-medium text-gray-900">{selectedBookingForDetails.customerId?.name || "N/A"}</p>
+                                        </div>
+                                        <div className="space-y-0.5">
+                                            <p className="text-xs text-gray-400">Mobile</p>
+                                            <p className="font-medium text-gray-900 flex items-center gap-1">
+                                                <Phone size={12} className="text-gray-400" />
+                                                {selectedBookingForDetails.customerPhone || selectedBookingForDetails.customerId?.mobileNumber || "N/A"}
+                                            </p>
+                                        </div>
+                                        <div className="space-y-0.5 md:col-span-2">
+                                            <p className="text-xs text-gray-400">Email</p>
+                                            <p className="font-medium text-gray-900 flex items-center gap-1">
+                                                <Mail size={12} className="text-gray-400" />
+                                                {selectedBookingForDetails.customerId?.email || "N/A"}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Product Info */}
+                                <div className="space-y-3">
+                                    <h4 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                                        <ImageIcon size={16} className="text-purple-500" /> Project Details
+                                    </h4>
+                                    <div className="bg-white border border-gray-100 rounded-xl overflow-hidden shadow-sm">
+                                        <div className="bg-gray-50 px-4 py-2 border-b border-gray-100">
+                                            <p className="font-bold text-gray-900">{selectedBookingForDetails.productSnapshot?.productName || "Custom Project"}</p>
+                                        </div>
+                                        <div className="p-4 grid grid-cols-2 gap-y-4 gap-x-8">
+                                            <div className="space-y-0.5">
+                                                <p className="text-xs text-gray-400">Quantity</p>
+                                                <p className="text-sm font-medium">{selectedBookingForDetails.productSnapshot?.quantity || 0}</p>
+                                            </div>
+                                            <div className="space-y-0.5">
+                                                <p className="text-xs text-gray-400">Printing Type</p>
+                                                <p className="text-sm font-medium">{selectedBookingForDetails.productSnapshot?.printingType || "N/A"}</p>
+                                            </div>
+                                            {selectedBookingForDetails.productSnapshot?.foilType && (
+                                                <div className="space-y-0.5">
+                                                    <p className="text-xs text-gray-400">Foil Type</p>
+                                                    <p className="text-sm font-medium">{selectedBookingForDetails.productSnapshot.foilType}</p>
+                                                </div>
+                                            )}
+                                            {selectedBookingForDetails.productSnapshot?.spotUV && (
+                                                <div className="space-y-0.5">
+                                                    <p className="text-xs text-gray-400">Spot UV</p>
+                                                    <p className="text-sm font-medium">Yes</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Visit Details */}
+                                <div className="space-y-3">
+                                    <h4 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                                        <Calendar size={16} className="text-amber-500" /> Visit Information
+                                    </h4>
+                                    <div className="space-y-4 bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
+                                        <div className="flex gap-4">
+                                            <div className="p-2 bg-amber-50 text-amber-600 rounded-lg h-10 w-10 flex items-center justify-center shrink-0">
+                                                <Calendar size={20} />
+                                            </div>
+                                            <div className="space-y-0.5">
+                                                <p className="text-xs text-gray-400">Scheduled For</p>
+                                                <p className="font-medium text-gray-900">{new Date(selectedBookingForDetails.visitDate).toLocaleString()}</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex gap-4">
+                                            <div className="p-2 bg-blue-50 text-blue-600 rounded-lg h-10 w-10 flex items-center justify-center shrink-0">
+                                                <MapPin size={20} />
+                                            </div>
+                                            <div className="space-y-0.5">
+                                                <p className="text-xs text-gray-400">Location / Address</p>
+                                                <p className="font-medium text-gray-900">{selectedBookingForDetails.visitAddress || "N/A"}</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex gap-4">
+                                            <div className="p-2 bg-green-50 text-green-600 rounded-lg h-10 w-10 flex items-center justify-center shrink-0">
+                                                <Phone size={20} />
+                                            </div>
+                                            <div className="space-y-0.5">
+                                                <p className="text-xs text-gray-400">Customer Phone</p>
+                                                <p className="font-medium text-gray-900">{selectedBookingForDetails.customerPhone || selectedBookingForDetails.customerId?.mobileNumber || "N/A"}</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex gap-4">
+                                            <div className="p-2 bg-purple-50 text-purple-600 rounded-lg h-10 w-10 flex items-center justify-center shrink-0">
+                                                <Clock size={20} />
+                                            </div>
+                                            <div className="space-y-0.5">
+                                                <p className="text-xs text-gray-400">Time Slot</p>
+                                                <p className="font-medium text-gray-900">{selectedBookingForDetails.timeSlot || "N/A"}</p>
+                                            </div>
+                                        </div>
+                                        {selectedBookingForDetails.productSnapshot?.specialInstructions && (
+                                            <div className="flex gap-4 pt-2 border-t border-gray-50">
+                                                <div className="p-2 bg-purple-50 text-purple-600 rounded-lg h-10 w-10 flex items-center justify-center shrink-0">
+                                                    <FileText size={20} />
+                                                </div>
+                                                <div className="space-y-0.5">
+                                                    <p className="text-xs text-gray-400">Special Instructions</p>
+                                                    <p className="text-sm text-gray-700 leading-relaxed">{selectedBookingForDetails.productSnapshot.specialInstructions}</p>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Billing & Time */}
+                                {(selectedBookingForDetails.visitStartTime || selectedBookingForDetails.visitStatus === 'Completed') && (
+                                    <div className="space-y-3 pb-4">
+                                        <h4 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                                            <Clock size={16} className="text-green-500" /> Timing & Billing
+                                        </h4>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 space-y-3">
+                                                <div className="space-y-0.5">
+                                                    <p className="text-[10px] font-bold text-gray-400 uppercase">Start Time</p>
+                                                    <p className="text-xs font-medium">
+                                                        {selectedBookingForDetails.visitStartTime ? new Date(selectedBookingForDetails.visitStartTime).toLocaleTimeString() : '--:--'}
+                                                    </p>
+                                                </div>
+                                                <div className="space-y-0.5">
+                                                    <p className="text-[10px] font-bold text-gray-400 uppercase">End Time</p>
+                                                    <p className="text-xs font-medium">
+                                                        {selectedBookingForDetails.visitEndTime ? new Date(selectedBookingForDetails.visitEndTime).toLocaleTimeString() : '--:--'}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100 space-y-3">
+                                                <div className="space-y-0.5">
+                                                    <p className="text-[10px] font-bold text-blue-400 uppercase">Duration</p>
+                                                    <p className="text-sm font-bold text-blue-900">{selectedBookingForDetails.totalDurationMinutes || 0} mins</p>
+                                                </div>
+                                                <div className="space-y-0.5">
+                                                    <p className="text-[10px] font-bold text-blue-400 uppercase">Total Amount</p>
+                                                    <p className="text-sm font-bold text-blue-900">₹{selectedBookingForDetails.totalAmount || 0}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="p-6 border-t border-gray-100 bg-gray-50 flex gap-4">
+                                <Button
+                                    className="flex-1"
+                                    variant="secondary"
+                                    onClick={() => setSelectedBookingForDetails(null)}
+                                >
+                                    Close View
                                 </Button>
-                            )}
+                                {selectedBookingForDetails.visitStatus === 'Accepted' && (
+                                    <Button
+                                        className="flex-[2] bg-blue-600 hover:bg-blue-700"
+                                        onClick={() => {
+                                            handlePhysicalVisitAction(selectedBookingForDetails._id, 'start');
+                                            setSelectedBookingForDetails(null);
+                                        }}
+                                    >
+                                        Start Visit Now
+                                    </Button>
+                                )}
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
-        </div>
+                )
+            }
+        </div >
     );
 }

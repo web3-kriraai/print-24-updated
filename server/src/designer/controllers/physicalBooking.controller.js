@@ -56,7 +56,7 @@ export const bookVisitHandler = async (req, res) => {
             const { designerId, visitDate, timeSlot } = booking;
             const { socketId } = req.body;
 
-            // Format date to YYYY-MM-DD for room name
+            // Format date to YYYY-MM-DD for room name (IST consistent)
             const dateStr = new Date(visitDate).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
             const roomName = `slots-${designerId}-${dateStr}`;
 
@@ -66,9 +66,16 @@ export const bookVisitHandler = async (req, res) => {
                 timeSlot,
                 socketId
             });
-            console.log(`[Socket] Emitted slotBooked for ${roomName}: ${timeSlot} (socketId: ${socketId || 'none'})`);
+
+            // Notify designated designer specifically
+            io.to(`user_${designerId}`).emit('new_physical_booking', {
+                bookingId: booking._id,
+                message: 'You have a new physical designer visit assignment.'
+            });
+
+            console.log(`[Socket] Emitted slotBooked for ${roomName} and notify designer user_${designerId}`);
         } catch (socketErr) {
-            console.error('[Socket] Failed to emit slotBooked:', socketErr.message);
+            console.error('[Socket] Failed to emit socket events:', socketErr.message);
         }
 
         return res.status(201).json({
@@ -177,6 +184,18 @@ export const acceptVisitHandler = async (req, res) => {
         const designerId = req.user._id;
         const booking = await acceptVisit(id, designerId);
 
+        // Notify Customer
+        try {
+            const io = getIO();
+            io.to(`user_${booking.customerId}`).emit('physical_visit_update', {
+                bookingId: booking._id,
+                status: 'Accepted',
+                message: 'Your designer has accepted the visit request.'
+            });
+        } catch (err) {
+            console.error('[Socket] Update emit failed:', err.message);
+        }
+
         return res.status(200).json({
             success: true,
             message: 'Visit accepted successfully.',
@@ -200,6 +219,18 @@ export const startVisitHandler = async (req, res) => {
         const { id } = req.params;
         const designerId = req.user._id;
         const booking = await startVisit(id, designerId);
+
+        // Notify Customer
+        try {
+            const io = getIO();
+            io.to(`user_${booking.customerId}`).emit('physical_visit_update', {
+                bookingId: booking._id,
+                status: 'InProgress',
+                message: 'Your designer has started the visit.'
+            });
+        } catch (err) {
+            console.error('[Socket] Update emit failed:', err.message);
+        }
 
         return res.status(200).json({
             success: true,
@@ -225,6 +256,18 @@ export const endVisitHandler = async (req, res) => {
         const { id } = req.params;
         const designerId = req.user._id;
         const booking = await endVisit(id, designerId);
+
+        // Notify Customer
+        try {
+            const io = getIO();
+            io.to(`user_${booking.customerId}`).emit('physical_visit_update', {
+                bookingId: booking._id,
+                status: 'Completed',
+                message: 'Visit completed! Billing details are now available.'
+            });
+        } catch (err) {
+            console.error('[Socket] Update emit failed:', err.message);
+        }
 
         return res.status(200).json({
             success: true,
@@ -359,6 +402,23 @@ export const cancelVisitHandler = async (req, res) => {
         const { reason } = req.body;
 
         const booking = await cancelVisit(id, adminId, reason);
+
+        // Notify Customer and Designer
+        try {
+            const io = getIO();
+            const recipients = [`user_${booking.customerId}`];
+            if (booking.designerId) recipients.push(`user_${booking.designerId}`);
+
+            recipients.forEach(room => {
+                io.to(room).emit('physical_visit_update', {
+                    bookingId: booking._id,
+                    status: 'Cancelled',
+                    message: `Booking cancelled by admin: ${reason || 'No reason provided'}`
+                });
+            });
+        } catch (err) {
+            console.error('[Socket] Update emit failed:', err.message);
+        }
 
         return res.status(200).json({
             success: true,
