@@ -3382,8 +3382,8 @@ const AdminDashboard: React.FC = () => {
       });
 
       if (attributeType) {
-        // Auto-scroll to top when edit button is clicked
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        // Auto-scroll removed to preserve context
+        // window.scrollTo({ top: 0, behavior: 'smooth' });
         // Convert attributeValues back to attributeOptionsTable
         const attributeOptionsTable = ((attributeType.attributeValues || [])
           .filter((av: any) => (av.label || av.value) && av.value !== "fixed-quantity")
@@ -4697,81 +4697,64 @@ const AdminDashboard: React.FC = () => {
         setSelectedAttributeTypes([]);
       }
 
-      // Fetch attribute types filtered by product's category/subcategory
+      // --- PARALLEL LOADING START ---
+      // We process critical dependencies (categories, attributes) in parallel
+      // and defer the heavy "category products" list to the background.
+
+      const promises: Promise<any>[] = [];
+
+      // 1. Fetch subcategories/children
+      if (categoryId) {
+        promises.push(fetchCategoryChildren(categoryId));
+      }
+
+      // 2. Fetch attribute types
       const productCategoryId = categoryId || null;
       // Use the deepest subcategory level (nested if exists, otherwise parent)
       const finalSubcategoryId = nestedSubcategoryId || parentSubcategoryId;
       const productSubCategoryId = finalSubcategoryId || null;
-      await fetchAttributeTypes(productCategoryId, productSubCategoryId);
+      promises.push(fetchAttributeTypes(productCategoryId, productSubCategoryId));
 
-      // Build category path for hierarchical selection
-      // If subcategory exists, build the path from root category to subcategory
-      // Note: finalSubcategoryId is the deepest subcategory level based on nestedSubcategory logic
-
-      // Wait for categories to be loaded, then build path
+      // 3. Build category path (can be done immediately, but we simulate delay in original code - removing timeout)
+      // We can set this immediately without waiting for children if we trust our IDs
       if (categoryId) {
-        // First, fetch children for the root category
-        await fetchCategoryChildren(categoryId);
-
-        // If subcategory exists and is valid, build path to it
-        if (finalSubcategoryId && finalSubcategoryId.trim() !== "" && finalSubcategoryId !== categoryId && finalSubcategoryId !== "null") {
-          // Wait a bit for children to load, then build path
-          setTimeout(() => {
-            // Manually construct the path based on the IDs we found
-            // This is much more reliable than buildCategoryPath because we know the hierarchy directly from the product object
-            const newPath: string[] = [];
-            if (categoryId) newPath.push(categoryId);
-
-            // Add parent subcategory if it exists
-            if (parentSubcategoryId) {
-              newPath.push(parentSubcategoryId);
-
-              // Add nested subcategory only if parent also exists
-              if (nestedSubcategoryId) {
-                newPath.push(nestedSubcategoryId);
-              }
-            } else if (nestedSubcategoryId) {
-              // Should not happen technically (nested implies parent), but as fallback
-              newPath.push(nestedSubcategoryId);
-            }
-
-            console.log("Setting selectedCategoryPath manually:", newPath);
-            setSelectedCategoryPath(newPath);
-
-            // Fetch children for all categories in the path
-            newPath.forEach(catId => {
-              if (catId !== categoryId) { // Already fetched root
-                fetchCategoryChildren(catId);
-              }
-            });
-          }, 100);
-        } else {
-          // Only root category selected
-          setSelectedCategoryPath([categoryId]);
-        }
+        const newPath: string[] = [];
+        newPath.push(categoryId);
+        if (parentSubcategoryId) newPath.push(parentSubcategoryId);
+        if (nestedSubcategoryId) newPath.push(nestedSubcategoryId);
+        setSelectedCategoryPath(newPath);
       } else {
         setSelectedCategoryPath([]);
       }
 
-      // Fetch products for the selected category/subcategory
+
+      // Wait for CRITICAL dependencies only
+      await Promise.all(promises);
+
+      // --- BACKGROUND LOADING ---
+      // Fetch products for the selected category/subcategory WITHOUT blocking the UI
+      // This allows the form to open immediately while the list populates
       const finalCategoryId = finalSubcategoryId || categoryId;
       if (finalCategoryId) {
-        try {
-          setLoadingCategoryProducts(true);
-          const productsResponse = await fetch(`${API_BASE_URL}/products/category/${finalCategoryId}`, {
-            headers: getAuthHeaders(),
-          });
+        // Run as independent async operation
+        (async () => {
+          try {
+            setLoadingCategoryProducts(true);
+            const productsResponse = await fetch(`${API_BASE_URL}/products/category/${finalCategoryId}`, {
+              headers: getAuthHeaders(),
+            });
 
-          if (productsResponse.ok) {
-            const productsData = await productsResponse.json();
-            setCategoryProducts(productsData || []);
+            if (productsResponse.ok) {
+              const productsData = await productsResponse.json();
+              setCategoryProducts(productsData || []);
+            }
+          } catch (err) {
+            console.error("Error fetching category products:", err);
+            setCategoryProducts([]);
+          } finally {
+            setLoadingCategoryProducts(false);
           }
-        } catch (err) {
-          console.error("Error fetching category products:", err);
-          setCategoryProducts([]);
-        } finally {
-          setLoadingCategoryProducts(false);
-        }
+        })();
       }
 
       setEditingProductId(productId);
@@ -4979,7 +4962,9 @@ const AdminDashboard: React.FC = () => {
       }
 
       setSuccess("Product moved to trash successfully");
-      fetchProducts(); // Refresh list
+      // Update local state instead of re-fetching
+      setProducts(prev => prev.filter(p => p._id !== id));
+      setFilteredProducts(prev => prev.filter(p => p._id !== id));
     } catch (err) {
       console.error("Error deleting product:", err);
       setError(err instanceof Error ? err.message : "Failed to delete product");
@@ -4998,7 +4983,15 @@ const AdminDashboard: React.FC = () => {
       }
 
       setSuccess("Product status updated successfully");
-      fetchProducts(); // Refresh list to show updated status
+
+      // Update local state directly
+      const updatedProduct = await response.json();
+      const newData = updatedProduct.data;
+
+      if (newData) {
+        setProducts(prev => prev.map(p => p._id === id ? { ...p, isActive: newData.isActive } : p));
+        setFilteredProducts(prev => prev.map(p => p._id === id ? { ...p, isActive: newData.isActive } : p));
+      }
     } catch (err) {
       console.error("Error toggling product status:", err);
       setError(err instanceof Error ? err.message : "Failed to toggle product status");
@@ -6094,46 +6087,68 @@ const AdminDashboard: React.FC = () => {
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
         activeTab={activeTab}
-        onTabChange={(tab) => {
+        onTabChange={(tab: string) => {
+          // IMMEDIATE UI UPDATE: Set active tab first for instant feedback
+          setActiveTab(tab);
+
           updateUrl(tab);
           setError(null);
           setSuccess(null);
-          // Clear edit state when switching tabs
-          if (tab !== "products" && tab !== "categories") {
-            handleCancelEdit();
+
+          // CRITICAL: Always reset edit states when navigating via sidebar
+          // This ensures that clicking "Manage Products" while editing exits edit mode
+          if (tab === "manage-products" || tab === "products" || tab === "categories") {
+            setEditingProductId(null);
+            setEditingCategoryId(null);
+            setEditingSubCategoryId(null);
+            setEditingAttributeTypeId(null);
+            // Also clear sub-states if needed
+            setIsSubCategoryMode(false);
+            setIsNestedSubcategoryMode(false);
           }
+
           // Fetch data when switching to management tabs
-          if (tab === "manage-products") {
-            setSelectedSubCategoryFilter("");
-            fetchProducts();
-          } else if (tab === "sort-products") {
-            fetchCategories();
-            fetchSubCategories();
-            fetchProducts();
-          } else if (tab === "manage-categories") {
-            fetchCategories();
-            fetchSubCategories();
+          // We wrap in setTimeout to allow the UI to switch tabs first (non-blocking)
+          setTimeout(() => {
+            if (tab === "manage-products") {
+              setSelectedSubCategoryFilter("");
+              // Start: Client-side caching
+              // Only fetch if we don't have products or if the list is empty
+              // This prevents the loader from showing every time we switch tabs
+              if (products.length === 0) {
+                fetchProducts();
+              }
+            } else if (tab === "sort-products") {
+              fetchCategories();
+              fetchSubCategories();
+              if (products.length === 0) {
+                fetchProducts();
+              }
+            } else if (tab === "manage-categories") {
+              fetchCategories();
+              fetchSubCategories();
 
-          } else if (tab === "print-partner-requests") {
-            fetchPrintPartnerRequests();
-          } else if (tab === "orders") {
-            fetchOrders();
-          } else if (tab === "attribute-types") {
-            fetchAttributeTypes();
-          } else if (tab === "attribute-rules") {
-            fetchAttributeTypes();
-            fetchCategories();
-            fetchProducts();
-          } else if (tab === "products") {
-            fetchAttributeTypes();
-            fetchProducts();
+            } else if (tab === "print-partner-requests") {
+              fetchPrintPartnerRequests();
+            } else if (tab === "orders") {
+              fetchOrders();
+            } else if (tab === "attribute-types") {
+              fetchAttributeTypes();
+            } else if (tab === "attribute-rules") {
+              fetchAttributeTypes();
+              fetchCategories();
+              fetchProducts();
+            } else if (tab === "products") {
+              fetchAttributeTypes();
+              fetchProducts();
 
 
-          } else if (tab === "sub-attributes") {
-            fetchAttributeTypes();
-          } else if (tab === "uploads") {
-            fetchUploads();
-          }
+            } else if (tab === "sub-attributes") {
+              fetchAttributeTypes();
+            } else if (tab === "uploads") {
+              fetchUploads();
+            }
+          }, 0);
         }} />
 
       {/* Main Content Area - Adjusted for Sidebar */}

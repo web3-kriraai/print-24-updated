@@ -453,81 +453,63 @@ export const restoreProduct = async (req, res) => {
   }
 };
 
-// GET all products
+// GET all products - Optimized for Admin List View
 export const getAllProducts = async (req, res) => {
   try {
     // Check for query parameter to include deleted products (for admin view)
     const showDeleted = req.query.includeDeleted === 'true';
     const deletedOnly = req.query.deletedOnly === 'true';
-
-    // Base query logic:
-    // 1. deletedOnly=true -> Show ONLY deleted products
-    // 2. includeDeleted=true -> Show ALL products (deleted + active)
-    // 3. Default -> Show ONLY active (non-deleted) products
-    // 4. includeInactive -> If true, show inactive products (for admin)
-
-    // Default query: Not deleted AND Active
-    let query = { isDeleted: { $ne: true }, isActive: true };
     const includeInactive = req.query.includeInactive === 'true';
+
+    // Base query logic
+    let query = { isDeleted: { $ne: true }, isActive: true };
 
     if (deletedOnly) {
       query = { isDeleted: true };
     } else if (showDeleted) {
-      // Show all (deleted and non-deleted), ignore active status
-      query = {};
+      query = {}; // Show all
     } else if (includeInactive) {
-      // Show all non-deleted (active and inactive)
-      query = { isDeleted: { $ne: true } };
+      query = { isDeleted: { $ne: true } }; // Show all non-deleted
     }
 
+    // Select only necessary fields for the list view
+    // Exclude heavy fields like detailed descriptions, arrays, etc.
     const list = await Product.find(query)
+      .select('name slug basePrice category subcategory image isActive isDeleted createdAt updatedAt sortOrder stock sku salesCount')
       .populate({
         path: "category",
-        select: "_id name description image type parent slug",
-        populate: {
-          path: "parent",
-          select: "_id name type",
-          options: { recursive: true }
-        }
+        select: "_id name type"
       })
       .populate({
         path: "subcategory",
-        select: "_id name description image slug category parent",
+        select: "_id name category parent",
         populate: [
           {
             path: "category",
             model: "Category",
-            select: "_id name description type image"
+            select: "_id name type"
           },
           {
             path: "parent",
             model: "SubCategory",
-            select: "_id name description image slug category"
+            select: "_id name category"
           }
         ]
       })
-      .populate({
-        path: "dynamicAttributes.attributeType",
-        model: "AttributeType"
-      })
       .sort({ sortOrder: 1, createdAt: -1 });
 
-    console.log(`Fetched ${list.length} product(s) total`);
+    console.log(`Fetched ${list.length} product(s) total (Optimized)`);
 
-    // Restructure each product's subcategory hierarchy
-    const restructuredList = await Promise.all(list.map(async (item) => {
+    // Restructure each product's subcategory hierarchy synchronously
+    // No more await inside map!
+    const restructuredList = list.map((item) => {
       let response = item.toObject();
 
       if (item.subcategory) {
-        // If subcategory has a parent, it's a nested subcategory
+        // If subcategory has a parent (already populated), it's a nested subcategory
         if (item.subcategory.parent) {
-          // Fetch the parent subcategory to get full details
-          const parentSubcategory = await SubCategory.findById(item.subcategory.parent)
-            .populate({
-              path: "category",
-              model: "Category",
-              select: "_id name description type image"
-            });
+          // Parent subcategory is already populated due to nested populate above
+          const parentSubcategory = item.subcategory.parent;
 
           // Set response.subcategory = parent subcategory
           // Set response.nestedSubcategory = current subcategory
@@ -545,7 +527,7 @@ export const getAllProducts = async (req, res) => {
       }
 
       return response;
-    }));
+    });
 
     res.json(restructuredList);
   } catch (err) {

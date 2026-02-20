@@ -370,32 +370,7 @@ export const updateAttributeType = async (req, res) => {
       return res.status(404).json({ error: "Attribute type not found" });
     }
 
-    // Check if attribute type is being used in any products — block editing if so
-    const Product = (await import("../models/productModal.js")).default;
-    const mongoose = (await import("mongoose")).default;
-
-    if (mongoose.Types.ObjectId.isValid(id)) {
-      const attributeObjectId = new mongoose.Types.ObjectId(id);
-      const productsUsingAttribute = await Product.find({
-        "dynamicAttributes.attributeType": attributeObjectId
-      }).select("name _id").limit(10);
-
-      const totalProductsCount = await Product.countDocuments({
-        "dynamicAttributes.attributeType": attributeObjectId
-      });
-
-      if (totalProductsCount > 0) {
-        const productNames = productsUsingAttribute.slice(0, 5).map(p => p.name).join(", ");
-        const moreProducts = totalProductsCount > 5 ? ` and ${totalProductsCount - 5} more` : "";
-
-        return res.status(400).json({
-          error: `Cannot edit attribute type "${attributeType.attributeName}". It is being used in ${totalProductsCount} product(s): ${productNames}${moreProducts}. Please remove this attribute from all products before editing it.`,
-          isInUse: true,
-          productCount: totalProductsCount,
-          productNames: productsUsingAttribute.slice(0, 5).map(p => p.name)
-        });
-      }
-    }
+    // Validation for product usage removed per user request
 
     // Parse attributeValues if it's a string
     let parsedAttributeValues = attributeType.attributeValues;

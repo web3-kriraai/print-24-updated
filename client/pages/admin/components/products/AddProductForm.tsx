@@ -2726,97 +2726,76 @@ const AddProductForm: React.FC<AddProductFormProps> = ({
                             />
                         </div>
 
-                        {loadingAttributeTypes ? (
-                            <div className="text-center py-10">
-                                <Loader className="animate-spin text-sky-500 mx-auto mb-2" size={24} />
-                                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Loading attributes...</p>
-                            </div>
-                        ) : (
-                            <div className="border border-slate-100 rounded-xl max-h-64 overflow-y-auto p-2 bg-slate-50/50 backdrop-blur-sm shadow-inner custom-scrollbar mt-4">
-                                {attributeTypes
-                                    .filter(at => {
-                                        const searchLower = (attributeTypeSearch || "").toLowerCase();
-                                        const name = (at.attributeName || "").toLowerCase();
-                                        const systemName = (at.systemName || "").toLowerCase();
-                                        return (
-                                            !selectedAttributeTypes.some(sa => sa.attributeTypeId === at._id) &&
-                                            (name.includes(searchLower) || systemName.includes(searchLower))
-                                        );
-                                    })
-                                    .map(at => (
-                                        <div key={at._id} className="flex items-center justify-between p-3 hover:bg-white rounded-xl transition-all border border-transparent hover:border-slate-200 hover:shadow-sm group/item mb-1">
-                                            <div className="min-w-0">
-                                                <p className="text-xs font-bold text-slate-800 truncate">
-                                                    {at.systemName ? `${at.systemName} ${at.attributeName ? `(${at.attributeName})` : ''}` : at.attributeName}
-                                                </p>
-                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
-                                                    {at.inputStyle} • {at.attributeValues?.length || 0} options
-                                                </p>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <button
-                                                    type="button"
-                                                    onClick={async (e) => {
-                                                        e.stopPropagation();
-                                                        // Check if attribute is used in any products before allowing edit
-                                                        try {
-                                                            const res = await fetch(`${API_BASE_URL}/attribute-types/${at._id}/check-usage`, {
-                                                                headers: getAuthHeaders(),
-                                                            });
-                                                            const data = await res.json();
-                                                            if (data.isInUse) {
-                                                                setUsagePopup({
-                                                                    show: true,
-                                                                    attributeName: at.attributeName || at.systemName,
-                                                                    productCount: data.productCount,
-                                                                    productNames: data.productNames || []
-                                                                });
-                                                                return;
-                                                            }
-                                                        } catch (err) {
-                                                            console.error("Error checking attribute usage:", err);
-                                                        }
-                                                        // Save scroll position to prevent autoscroll on state update
-                                                        const savedScrollY = window.scrollY;
-                                                        setEditingAttributeTypeId(at._id);
-                                                        await handleEditAttributeType(at._id);
-                                                        setShowCreateAttributeModal(true);
-                                                        // Restore scroll position after state updates cause re-render
-                                                        requestAnimationFrame(() => window.scrollTo(0, savedScrollY));
-                                                    }}
-                                                    className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-sky-500 hover:bg-sky-50 rounded-lg transition-all"
-                                                    title="Edit Attribute Type Definition"
-                                                >
-                                                    <Edit size={14} />
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                        setSelectedAttributeTypes([
-                                                            ...selectedAttributeTypes,
-                                                            {
-                                                                attributeTypeId: at._id,
-                                                                name: at.systemName ? `${at.systemName}${at.attributeName ? ` (${at.attributeName})` : ''}` : at.attributeName, // Local display only
-                                                                isEnabled: true,
-                                                                isRequired: at.isRequired || false,
-                                                                displayOrder: selectedAttributeTypes.length,
-                                                            }
-                                                        ]);
-                                                    }}
-                                                    className="px-3 py-1.5 text-[10px] font-bold bg-white text-sky-600 border border-sky-100 rounded-lg hover:bg-sky-500 hover:text-white transition-all uppercase tracking-widest shadow-sm shadow-sky-50"
-                                                >
-                                                    Add
-                                                </button>
-                                            </div>
+                        <div className="relative border border-slate-100 rounded-xl max-h-64 overflow-y-auto p-2 bg-slate-50/50 backdrop-blur-sm shadow-inner custom-scrollbar mt-4">
+                            {loadingAttributeTypes && (
+                                <div className="absolute inset-0 z-10 bg-white/80 backdrop-blur-sm flex flex-col items-center justify-center rounded-xl">
+                                    <Loader className="animate-spin text-sky-500 mb-2" size={24} />
+                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Loading...</p>
+                                </div>
+                            )}
+                            {attributeTypes
+                                .filter(at => {
+                                    const searchLower = (attributeTypeSearch || "").toLowerCase();
+                                    const name = (at.attributeName || "").toLowerCase();
+                                    const systemName = (at.systemName || "").toLowerCase();
+                                    return (
+                                        !selectedAttributeTypes.some(sa => sa.attributeTypeId === at._id) &&
+                                        (name.includes(searchLower) || systemName.includes(searchLower))
+                                    );
+                                })
+                                .map(at => (
+                                    <div key={at._id} className="flex items-center justify-between p-3 hover:bg-white rounded-xl transition-all border border-transparent hover:border-slate-200 hover:shadow-sm group/item mb-1">
+                                        <div className="min-w-0">
+                                            <p className="text-xs font-bold text-slate-800 truncate">
+                                                {at.systemName ? `${at.systemName} ${at.attributeName ? `(${at.attributeName})` : ''}` : at.attributeName}
+                                            </p>
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
+                                                {at.inputStyle} • {at.attributeValues?.length || 0} options
+                                            </p>
                                         </div>
-                                    ))}
-                                {attributeTypes.length === 0 && (
-                                    <div className="p-4 text-center">
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest italic">No attributes found.</p>
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={async (e) => {
+                                                    e.stopPropagation();
+                                                    // Set editing state and open modal
+                                                    setEditingAttributeTypeId(at._id);
+                                                    await handleEditAttributeType(at._id);
+                                                    setShowCreateAttributeModal(true);
+                                                }}
+                                                className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-sky-500 hover:bg-sky-50 rounded-lg transition-all"
+                                                title="Edit Attribute Type Definition"
+                                            >
+                                                <Edit size={14} />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setSelectedAttributeTypes([
+                                                        ...selectedAttributeTypes,
+                                                        {
+                                                            attributeTypeId: at._id,
+                                                            name: at.systemName ? `${at.systemName}${at.attributeName ? ` (${at.attributeName})` : ''}` : at.attributeName, // Local display only
+                                                            isEnabled: true,
+                                                            isRequired: at.isRequired || false,
+                                                            displayOrder: selectedAttributeTypes.length,
+                                                        }
+                                                    ]);
+                                                }}
+                                                className="px-3 py-1.5 text-[10px] font-bold bg-white text-sky-600 border border-sky-100 rounded-lg hover:bg-sky-500 hover:text-white transition-all uppercase tracking-widest shadow-sm shadow-sky-50"
+                                            >
+                                                Add
+                                            </button>
+                                        </div>
                                     </div>
-                                )}
-                            </div>
-                        )}
+                                ))}
+                            {attributeTypes.length === 0 && (
+                                <div className="p-4 text-center">
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest italic">No attributes found.</p>
+                                </div>
+                            )}
+                        </div>
+
                     </div>
 
                     {/* Selected Attributes List */}
@@ -2922,6 +2901,22 @@ const AddProductForm: React.FC<AddProductFormProps> = ({
                                                         <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">Show Price</span>
                                                     </label>
 
+                                                    {/* Edit Attribute Type Button */}
+                                                    <button
+                                                        type="button"
+                                                        onClick={async (e) => {
+                                                            e.stopPropagation();
+                                                            // Set editing state and open modal
+                                                            setEditingAttributeTypeId(sa.attributeTypeId);
+                                                            await handleEditAttributeType(sa.attributeTypeId);
+                                                            setShowCreateAttributeModal(true);
+                                                        }}
+                                                        className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-sky-500 hover:bg-sky-50 rounded-lg transition-all"
+                                                        title="Edit Attribute Type Definition"
+                                                    >
+                                                        <Edit size={16} />
+                                                    </button>
+
                                                     {/* Expand options button */}
                                                     {options.length > 0 && (
                                                         <button
@@ -2979,7 +2974,7 @@ const AddProductForm: React.FC<AddProductFormProps> = ({
                                                                     onDrop={(e) => handleOptionDrop(e, sa.attributeTypeId, optIdx, options)}
                                                                     onDragEnd={handleOptionDragEnd}
                                                                     className={`flex flex-col gap-2 p-3 bg-slate-50 border rounded-lg transition-all ${isDragging ? 'opacity-50 border-dashed border-sky-400 bg-sky-50' :
-                                                                            isDragOver ? 'border-sky-500 ring-2 ring-sky-100 scale-[1.01]' : 'border-slate-200'
+                                                                        isDragOver ? 'border-sky-500 ring-2 ring-sky-100 scale-[1.01]' : 'border-slate-200'
                                                                         }`}
                                                                 >
                                                                     <div className="flex items-center gap-2">
@@ -3032,7 +3027,7 @@ const AddProductForm: React.FC<AddProductFormProps> = ({
                                                                                             }}
                                                                                             onDragEnd={handleSubAttrDragEnd}
                                                                                             className={`flex items-center gap-2 text-xs text-slate-600 bg-white p-1.5 rounded border shadow-sm transition-all ${isSubDragging ? 'opacity-50 border-dashed border-sky-400' :
-                                                                                                    isSubDragOver ? 'border-sky-500 ring-1 ring-sky-100' : 'border-slate-100'
+                                                                                                isSubDragOver ? 'border-sky-500 ring-1 ring-sky-100' : 'border-slate-100'
                                                                                                 }`}
                                                                                         >
                                                                                             <div className="cursor-move text-slate-300 hover:text-slate-500">
@@ -3096,7 +3091,6 @@ const AddProductForm: React.FC<AddProductFormProps> = ({
                 onClose={() => {
                     setShowCreateAttributeModal(false);
                     setEditingAttributeTypeId(null);
-                    handleCancelEdit();
                 }}
                 attributeTypeForm={attributeTypeForm}
                 setAttributeTypeForm={setAttributeTypeForm}

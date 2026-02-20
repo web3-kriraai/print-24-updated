@@ -262,15 +262,17 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ isOpen, product
                                 >
                                     Close
                                 </button>
-                                <button
-                                    onClick={() => {
-                                        // Handle edit action
-                                        onClose();
-                                    }}
-                                    className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors font-medium text-sm md:text-base"
-                                >
-                                    Edit Product
-                                </button>
+                                {product.isActive && (
+                                    <button
+                                        onClick={() => {
+                                            // Handle edit action
+                                            onClose();
+                                        }}
+                                        className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors font-medium text-sm md:text-base"
+                                    >
+                                        Edit Product
+                                    </button>
+                                )}
                             </div>
                         </div>
                     </motion.div>
@@ -381,14 +383,14 @@ const ProductItem = React.memo(({
                         </div>
 
                         {/* Action Buttons */}
-                        <div className="flex gap-2">
+                        <div className="flex gap-1 justify-between">
                             {product.isDeleted ? (
                                 <button
                                     onClick={(e) => {
                                         e.stopPropagation();
                                         onRestore(product._id);
                                     }}
-                                    className="flex-1 px-3 py-2 bg-green-50 text-green-700 rounded-md hover:bg-green-100 transition-colors flex items-center justify-center gap-2 font-medium text-sm"
+                                    className="flex-1 px-2 py-2 bg-green-50 text-green-700 rounded-md hover:bg-green-100 transition-colors flex items-center justify-center gap-1 font-medium text-xs flex-shrink-0"
                                 >
                                     <RefreshCw size={14} />
                                     Restore
@@ -400,26 +402,28 @@ const ProductItem = React.memo(({
                                             e.stopPropagation();
                                             onView(product._id);
                                         }}
-                                        className="flex-1 px-3 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors flex items-center justify-center gap-2 font-medium text-sm"
+                                        className="px-2 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors flex items-center justify-center gap-1 font-medium text-xs flex-shrink-0"
                                     >
                                         <Eye size={14} />
                                         View
                                     </button>
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            onEdit(product._id);
-                                        }}
-                                        className="px-3 py-2 bg-teal-50 text-teal-700 rounded-md hover:bg-teal-100 transition-colors flex items-center justify-center gap-2 font-medium text-sm"
-                                    >
-                                        <Edit size={14} />
-                                    </button>
+                                    {product.isActive && (
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onEdit(product._id);
+                                            }}
+                                            className="px-2 py-2 bg-teal-50 text-teal-700 rounded-md hover:bg-teal-100 transition-colors flex items-center justify-center gap-1 font-medium text-xs flex-shrink-0"
+                                        >
+                                            <Edit size={14} />
+                                        </button>
+                                    )}
                                     <button
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             onToggleStatus(product._id);
                                         }}
-                                        className={`px-3 py-2 rounded-md transition-colors flex items-center justify-center gap-2 font-medium text-sm ${product.isActive
+                                        className={`px-2 py-2 rounded-md transition-colors flex items-center justify-center gap-1 font-medium text-xs flex-shrink-0 ${product.isActive
                                             ? 'bg-green-50 text-green-700 hover:bg-green-100'
                                             : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
                                             }`}
@@ -432,7 +436,7 @@ const ProductItem = React.memo(({
                                             e.stopPropagation();
                                             onDuplicate(product._id);
                                         }}
-                                        className="px-3 py-2 bg-blue-50 text-blue-700 rounded-md hover:bg-blue-100 transition-colors flex items-center justify-center gap-2 font-medium text-sm"
+                                        className="px-2 py-2 bg-blue-50 text-blue-700 rounded-md hover:bg-blue-100 transition-colors flex items-center justify-center gap-1 font-medium text-xs flex-shrink-0"
                                         title="Duplicate Product"
                                     >
                                         <Copy size={14} />
@@ -443,7 +447,7 @@ const ProductItem = React.memo(({
                                             e.stopPropagation();
                                             onDelete(product._id);
                                         }}
-                                        className="px-3 py-2 bg-red-50 text-red-700 rounded-md hover:bg-red-100 transition-colors flex items-center justify-center gap-2 font-medium text-sm"
+                                        className="px-2 py-2 bg-red-50 text-red-700 rounded-md hover:bg-red-100 transition-colors flex items-center justify-center gap-1 font-medium text-xs flex-shrink-0"
                                     >
                                         <Trash2 size={14} />
                                     </button>
@@ -545,16 +549,18 @@ const ProductItem = React.memo(({
                                         >
                                             <Eye size={14} />
                                         </button>
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                onEdit(product._id);
-                                            }}
-                                            className="p-2 bg-emerald-50 text-emerald-600 rounded-md hover:bg-emerald-100 transition-colors"
-                                            title="Edit Product"
-                                        >
-                                            <Edit size={14} />
-                                        </button>
+                                        {product.isActive && (
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    onEdit(product._id);
+                                                }}
+                                                className="p-2 bg-emerald-50 text-emerald-600 rounded-md hover:bg-emerald-100 transition-colors"
+                                                title="Edit Product"
+                                            >
+                                                <Edit size={14} />
+                                            </button>
+                                        )}
                                         <button
                                             onClick={(e) => {
                                                 e.stopPropagation();
@@ -926,7 +932,7 @@ const ManageProductsView: React.FC<ManageProductsViewProps> = ({
                         )}
                     </div>
                 ) : viewMode === 'grid' ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 p-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-6 p-2">
                         <AnimatePresence mode="popLayout">
                             {filteredProducts.map((product) => (
                                 <ProductItem
