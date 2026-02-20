@@ -15,6 +15,8 @@ import { getAdminReport } from '../services/physicalReport.service.js';
 import { getIO } from '../config/socket.js';
 import OfficeConfig from '../models/OfficeConfig.js';
 
+import { formatISTDate } from '../../utils/dateUtils.js';
+
 /**
  * physicalBooking.controller.js
  * 
@@ -57,7 +59,7 @@ export const bookVisitHandler = async (req, res) => {
             const { socketId } = req.body;
 
             // Format date to YYYY-MM-DD for room name (IST consistent)
-            const dateStr = new Date(visitDate).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+            const dateStr = formatISTDate(visitDate);
             const roomName = `slots-${designerId}-${dateStr}`;
 
             io.to(roomName).emit('slotBooked', {

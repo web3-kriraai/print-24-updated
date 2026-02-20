@@ -4,6 +4,7 @@ import { User } from '../../models/User.js';
 import Order from '../../models/Order.js';
 import OfficeConfig from '../models/OfficeConfig.js';
 import { isWithinOfficeHours } from './office.service.js';
+import { normalizeToISTDate, getISTTime, formatISTDate } from '../../utils/dateUtils.js';
 
 /**
  * physicalBooking.service.js
@@ -90,15 +91,15 @@ export async function bookVisit(customerId, body) {
 
     // ── 4. Conflict Check (Race Condition Prevention) ────────────────────────
     // Normalize date to midnight IST for consistent storage and comparison
-    const normalizedDate = new Date(new Date(visitDate).toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
-    normalizedDate.setHours(0, 0, 0, 0);
+    const normalizedDate = normalizeToISTDate(visitDate);
+    const normalizedTimeSlot = timeSlot ? timeSlot.trim() : undefined;
 
     // OFFICE: Check for slot conflict
     if (visitLocation === 'OFFICE') {
         const existing = await PhysicalDesignerBooking.findOne({
             designerId,
             visitDate: normalizedDate,
-            timeSlot,
+            timeSlot: normalizedTimeSlot,
             visitStatus: { $in: ['Scheduled', 'Accepted', 'InProgress'] }
         });
         if (existing) {
@@ -142,7 +143,7 @@ export async function bookVisit(customerId, body) {
             orderId,
             productSnapshot: productSnapshot || {},
             visitDate: normalizedDate,
-            timeSlot: visitLocation === 'OFFICE' ? timeSlot : undefined, // No slot for Home visit
+            timeSlot: visitLocation === 'OFFICE' ? normalizedTimeSlot : undefined, // No slot for Home visit
             visitLocation,
             homeVisitCharge,
             visitAddress: visitAddress || '',
@@ -519,10 +520,12 @@ export async function getDesignerSlots(designerId, dateStr) {
     ];
 
     // Normalize date to start/end of day IST for comparison
-    const startOfDay = new Date(new Date(dateStr).toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(new Date(dateStr).toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
-    endOfDay.setHours(23, 59, 59, 999);
+    // Use arithmetic to avoid timezone-dependent setHours()
+    const startOfDay = normalizeToISTDate(dateStr);
+    const endOfDay = new Date(startOfDay.getTime() + (24 * 60 * 60 * 1000) - 1);
+
+    console.log(`[PhysicalBookingService] Fetching slots for designer=${designerId} date=${dateStr}`);
+    console.log(`[PhysicalBookingService] startOfDay=${startOfDay.toISOString()} endOfDay=${endOfDay.toISOString()}`);
 
     // Fetch existing bookings for this designer on this date
     // Only Scheduled, Accepted, InProgress block slots
@@ -531,17 +534,25 @@ export async function getDesignerSlots(designerId, dateStr) {
         designerId,
         visitDate: { $gte: startOfDay, $lte: endOfDay },
         visitStatus: { $in: ['Scheduled', 'Accepted', 'InProgress'] }
-    }).select('timeSlot');
+    }).select('timeSlot visitDate visitStatus');
 
-    const bookedSlots = existingBookings.map(b => b.timeSlot);
+    const bookedSlots = existingBookings.map(b => b.timeSlot?.trim());
+    console.log(`[PhysicalBookingService] Found ${bookedSlots.length} booked slots:`, bookedSlots);
+    if (existingBookings.length > 0) {
+        existingBookings.forEach(b => {
+            console.log(`[PhysicalBookingService]   -> slot="${b.timeSlot}" visitDate=${b.visitDate?.toISOString()} status=${b.visitStatus}`);
+        });
+    }
 
     // Check if the requested date is today (IST)
-    const now = new Date();
-    const todayStr = now.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }); // YYYY-MM-DD
+    const todayStr = formatISTDate(new Date());
     const isToday = dateStr === todayStr;
+    // Use getUTCHours on IST-shifted time (since getISTTime adds offset, UTC methods give IST values)
     const currentHour = isToday
-        ? new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' })).getHours()
+        ? getISTTime().getUTCHours()
         : -1;
+
+    console.log(`[PhysicalBookingService] isToday=${isToday} currentISTHour=${currentHour} todayStr=${todayStr}`);
 
     // Return full array with isBooked and isPast flags
     return allSlots.map(({ time, endHour }) => ({

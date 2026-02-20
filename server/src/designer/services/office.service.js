@@ -1,4 +1,5 @@
 import OfficeConfig from '../models/OfficeConfig.js';
+import { getISTTime, formatISTDate } from '../../utils/dateUtils.js';
 
 /**
  * Centrailzed service for Office Hours logic.
@@ -34,7 +35,7 @@ export async function isWithinOfficeHours(date = new Date()) {
         const startHour = 9;
         const endHour = 20;
         // Get Time in Kolkata
-        const kolkataTime = new Date(date.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+        const kolkataTime = getISTTime(date);
         const currentHour = kolkataTime.getHours();
         const dayOfWeek = kolkataTime.getDay(); // 0 (Sun) to 6 (Sat)
 
@@ -49,10 +50,7 @@ export async function isWithinOfficeHours(date = new Date()) {
         }
 
         // Format date as YYYY-MM-DD for holidays
-        const year = kolkataTime.getFullYear();
-        const month = String(kolkataTime.getMonth() + 1).padStart(2, '0');
-        const day = String(kolkataTime.getDate()).padStart(2, '0');
-        const dateStr = `${year}-${month}-${day}`;
+        const dateStr = formatISTDate(kolkataTime);
 
         // ── 2. Check Holidays ──────────────────────────────────────────────────
         if (config?.holidays && config.holidays.includes(dateStr)) {
