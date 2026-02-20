@@ -65,9 +65,56 @@ const OrderSchema = new mongoose.Schema(
       type: Number,
       required: true,
     },
+    /* =====================
+       🔒 PRICE SNAPSHOT (IMMUTABLE)
+    ====================== */
+    priceSnapshot: {
+      type: {
+        basePrice: { type: Number, default: 0 },
+        unitPrice: { type: Number, default: 0 },
+        quantity: { type: Number, default: 1 },
+
+        appliedModifiers: [
+          {
+            pricingKey: String,
+            modifierType: {
+              type: String,
+              enum: ["PERCENT_INC", "PERCENT_DEC", "FLAT_INC", "FLAT_DEC", "FIXED"],
+            },
+            value: Number,
+            source: {
+              type: String,
+              enum: ["GLOBAL", "ZONE", "SEGMENT", "PRODUCT", "ATTRIBUTE", "PROMO_CODE", "ZONE_BOOK", "SEGMENT_BOOK", "COMBINATION", "USER", "CATEGORY", "MODIFIER"],
+            },
+            modifierId: {
+              type: mongoose.Schema.Types.ObjectId,
+              ref: "PriceModifier",
+            },
+            beforeAmount: Number,
+            afterAmount: Number,
+            reason: String,
+            appliesOn: {
+              type: String,
+              enum: ["UNIT", "SUBTOTAL"],
+            },
+          },
+        ],
+
+        subtotal: { type: Number, default: 0 },
+        gstPercentage: { type: Number, default: 0 },
+        gstAmount: { type: Number, default: 0 },
+        totalPayable: { type: Number, default: 0 },
+
+        currency: { type: String, default: "INR" },
+        calculatedAt: { type: Date, default: Date.now },
+      },
+      required: false, // Optional for backward compatibility with old orders
+      immutable: true,
+    },
+
     status: {
       type: String,
-      enum: ["request", "production_ready", "approved", "processing", "completed", "cancelled", "rejected"],
+      enum: ["request", "confirmed", "production_ready", "approved", "processing", "completed", "cancelled", "rejected"],
       default: "request",
     },
     // Track which department is currently working on this order

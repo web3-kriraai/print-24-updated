@@ -17,12 +17,24 @@ import {
   Box as BoxIcon,
   MapPin,
   Info,
+  ChevronRight,
+  Calendar,
+  Hash,
+  Tag,
+  FileText,
+  Shield,
+  Truck as TruckIcon,
+  Check,
+  X,
+  Sparkles,
+  AlertCircle,
+  Plus,
 } from 'lucide-react';
 import { formatCurrency, calculateOrderBreakdown, OrderForCalculation } from '../utils/pricing';
 import { API_BASE_URL_WITH_API as API_BASE_URL } from '../lib/apiConfig';
 import BackButton from '../components/BackButton';
 
-// Types
+// Types (keep your existing types)
 interface TimelineEvent {
   stage: string;
   status: 'completed' | 'in_progress' | 'pending';
@@ -83,13 +95,13 @@ interface Order {
     description?: string;
     image?: string;
     uploadedImages?: Array<{
-      data: Buffer | string;
+      data: any | string;
       contentType: string;
       filename: string;
     }>;
   }>;
   totalPrice: number;
-  status: 'request' | 'processing' | 'completed' | 'cancelled' | 'rejected';
+  status: 'request' | 'confirmed' | 'production_ready' | 'processing' | 'completed' | 'cancelled' | 'rejected';
   deliveryDate: string | null;
   deliveredAt?: string | null;
   createdAt: string;
@@ -111,8 +123,41 @@ interface Order {
     };
   };
   advancePaid?: number;
-  paymentStatus?: 'pending' | 'partial' | 'completed';
+  paymentStatus?: 'PENDING' | 'PARTIAL' | 'COMPLETED' | 'FAILED' | 'REFUNDED' | 'PARTIALLY_REFUNDED';
+
   paymentGatewayInvoiceId?: string | null;
+  childOrders?: any[]; // For bulk parents
+
+  // Modern pricing structure
+  priceSnapshot?: {
+    basePrice: number;
+    unitPrice: number;
+    quantity: number;
+    appliedModifiers?: Array<{
+      modifierType: string;
+      value: number;
+      source: string;
+      beforeAmount: number;
+      afterAmount: number;
+      reason: string;
+    }>;
+    subtotal: number;
+    gstPercentage: number;
+    gstAmount: number;
+    totalPayable: number;
+    currency: string;
+    calculatedAt: string;
+  };
+
+  // Enhanced payment details
+  payment_details?: {
+    transaction_id?: string;
+    gateway_used?: 'RAZORPAY' | 'STRIPE' | 'PHONEPE' | 'PAYU' | 'CASHFREE';
+    payment_method?: 'UPI' | 'CARD' | 'NETBANKING' | 'WALLET' | 'QR' | 'BANK_TRANSFER' | 'EMI' | 'COD' | 'CREDIT';
+    captured_at?: string;
+    amount_paid?: number;
+  };
+
   shippingAddress?: {
     street: string;
     city: string;
@@ -138,9 +183,66 @@ interface Order {
     action: string;
     timestamp: string;
   }>;
+  isBulkParent?: boolean;
+  distinctDesigns?: number;
 }
 
-// Subcomponents
+// Status Badge Component
+const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
+  const statusConfig: Record<string, { color: string; bg: string; icon?: React.ReactNode }> = {
+    request: {
+      color: 'text-yellow-800',
+      bg: 'bg-yellow-100',
+      icon: <Clock className="w-3 h-3" />
+    },
+    confirmed: {
+      color: 'text-green-800',
+      bg: 'bg-green-100',
+      icon: <CheckCircle2 className="w-3 h-3" />
+    },
+    approved: {
+      color: 'text-green-800',
+      bg: 'bg-green-100',
+      icon: <CheckCircle2 className="w-3 h-3" />
+    },
+    production_ready: {
+      color: 'text-indigo-800',
+      bg: 'bg-indigo-100',
+      icon: <Package className="w-3 h-3" />
+    },
+    processing: {
+      color: 'text-blue-800',
+      bg: 'bg-blue-100',
+      icon: <Package className="w-3 h-3" />
+    },
+    completed: {
+      color: 'text-green-800',
+      bg: 'bg-green-100',
+      icon: <CheckCircle2 className="w-3 h-3" />
+    },
+    cancelled: {
+      color: 'text-red-800',
+      bg: 'bg-red-100',
+      icon: <X className="w-3 h-3" />
+    },
+    rejected: {
+      color: 'text-red-800',
+      bg: 'bg-red-100',
+      icon: <X className="w-3 h-3" />
+    },
+  };
+
+  const config = statusConfig[status] || { color: 'text-gray-800', bg: 'bg-gray-100' };
+
+  return (
+    <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold ${config.color} ${config.bg} uppercase tracking-wide`}>
+      {config.icon}
+      {status.replace(/_/g, ' ')}
+    </span>
+  );
+};
+
+// Enhanced TimelineStep Component
 const TimelineStep: React.FC<{
   event: TimelineEvent;
   isLast: boolean;
@@ -148,96 +250,49 @@ const TimelineStep: React.FC<{
 }> = ({ event, isLast, isActive }) => {
   const isCompleted = event.status === 'completed';
   const isPending = event.status === 'pending';
-  const [showTooltip, setShowTooltip] = useState(false);
-
-  const formatDateTime = (dateString?: string) => {
-    if (!dateString) return 'N/A';
-    return new Date(dateString).toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true,
-    });
-  };
-
-  const hasTimestamps = event.startedAt || event.completedAt || event.timestamp;
 
   return (
     <div className={`flex-1 relative ${isLast ? '' : 'mb-8 md:mb-0'}`}>
       {!isLast && (
         <div
-          className={`absolute left-3.5 top-8 w-0.5 h-[calc(100%-2rem)] md:w-[calc(100%-2rem)] md:h-0.5 md:left-8 md:top-3.5 ${isCompleted ? 'bg-green-500' : 'bg-slate-200'
+          className={`absolute left-3.5 top-8 w-0.5 h-[calc(100%-2rem)] md:w-[calc(100%-2rem)] md:h-0.5 md:left-8 md:top-3.5 ${isCompleted ? 'bg-green-400' : 'bg-gray-200'
             }`}
         />
       )}
-      <div className="flex md:flex-col items-center gap-4 md:gap-2">
+      <div className="flex md:flex-col items-center gap-4 md:gap-3">
         <div
-          className={`relative z-10 w-7 h-7 rounded-full flex items-center justify-center border-2 transition-all duration-300 cursor-pointer ${isCompleted
-            ? 'bg-green-500 border-green-500 text-white'
+          className={`relative z-10 w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all duration-300 ${isCompleted
+            ? 'bg-green-500 border-green-500 text-white shadow-lg shadow-green-200'
             : isActive
-              ? 'bg-white border-orange-500 text-orange-500 shadow-[0_0_0_4px_rgba(249,115,22,0.2)]'
-              : 'bg-white border-slate-300 text-slate-300'
+              ? 'bg-white border-blue-500 text-blue-500 shadow-lg shadow-blue-200 animate-pulse'
+              : 'bg-white border-gray-300 text-gray-300'
             }`}
-          onMouseEnter={() => hasTimestamps && setShowTooltip(true)}
-          onMouseLeave={() => setShowTooltip(false)}
         >
           {isCompleted ? (
             <CheckCircle2 className="w-4 h-4" />
           ) : isActive ? (
-            <div className="w-2.5 h-2.5 bg-orange-500 rounded-full animate-pulse" />
+            <div className="w-3 h-3 bg-blue-500 rounded-full" />
           ) : (
             <Circle className="w-4 h-4" />
-          )}
-
-          {/* Hover Tooltip */}
-          {showTooltip && hasTimestamps && (
-            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-slate-900 text-white text-xs rounded-lg shadow-lg z-50 whitespace-nowrap">
-              <div className="flex flex-col gap-1">
-                {event.startedAt && (
-                  <div>
-                    <span className="font-semibold">Started:</span>{' '}
-                    <span>{formatDateTime(event.startedAt)}</span>
-                  </div>
-                )}
-                {event.completedAt && (
-                  <div>
-                    <span className="font-semibold">Completed:</span>{' '}
-                    <span>{formatDateTime(event.completedAt)}</span>
-                  </div>
-                )}
-                {!event.startedAt && !event.completedAt && event.timestamp && (
-                  <div>
-                    <span className="font-semibold">Date:</span>{' '}
-                    <span>{formatDateTime(event.timestamp)}</span>
-                  </div>
-                )}
-                {isActive && !event.completedAt && (
-                  <div className="text-orange-300 mt-1">In Progress</div>
-                )}
-              </div>
-              {/* Tooltip arrow */}
-              <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
-                <div className="border-4 border-transparent border-t-slate-900"></div>
-              </div>
-            </div>
           )}
         </div>
         <div className="md:text-center">
           <p
-            className={`text-sm font-semibold ${isActive ? 'text-orange-600' : isCompleted ? 'text-slate-900' : 'text-slate-400'
+            className={`text-sm font-semibold ${isActive ? 'text-blue-600' : isCompleted ? 'text-gray-900' : 'text-gray-400'
               }`}
           >
             {event.stage}
           </p>
           {event.timestamp && (
-            <p className="text-xs text-slate-500 mt-0.5">
-              {new Date(event.timestamp).toLocaleDateString()}
+            <p className="text-xs text-gray-500 mt-1">
+              {new Date(event.timestamp).toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+              })}
             </p>
           )}
           {isActive && (
-            <span className="inline-block mt-1 text-[10px] uppercase tracking-wider font-bold text-orange-600 animate-pulse">
+            <span className="inline-block mt-1 text-[10px] uppercase tracking-wider font-bold text-blue-600">
               In Progress
             </span>
           )}
@@ -247,550 +302,365 @@ const TimelineStep: React.FC<{
   );
 };
 
-const DepartmentChip: React.FC<{ status: DepartmentStatus }> = ({ status }) => {
-  const getIcon = (name: string) => {
-    if (name.includes('Prepress')) return <FileCheck className="w-3 h-3" />;
-    if (name.includes('Print')) return <Printer className="w-3 h-3" />;
-    if (name.includes('Cut')) return <Scissors className="w-3 h-3" />;
-    if (name.includes('Plate')) return <Layers className="w-3 h-3" />;
-    return <BoxIcon className="w-3 h-3" />;
-  };
-
-  const isCompleted = status.status === 'completed';
-  const isInProgress = status.status === 'in_progress';
-
-  return (
-    <div
-      className={`shrink-0 flex items-center gap-2 px-3 py-2 rounded-lg border transition-all duration-300 ${isCompleted
-        ? 'bg-green-50 border-green-200'
-        : isInProgress
-          ? 'bg-white border-orange-400 shadow-sm ring-1 ring-orange-100'
-          : 'bg-slate-50 border-slate-200 opacity-60'
-        }`}
-    >
-      <div
-        className={`p-1.5 rounded-full ${isCompleted
-          ? 'bg-green-100 text-green-700'
-          : isInProgress
-            ? 'bg-orange-100 text-orange-700'
-            : 'bg-slate-200 text-slate-500'
-          }`}
-      >
-        {getIcon(status.departmentName)}
-      </div>
-      <div>
-        <div className="flex items-center gap-2">
-          <p
-            className={`text-xs font-semibold ${isCompleted ? 'text-green-900' : isInProgress ? 'text-orange-900' : 'text-slate-500'
-              }`}
-          >
-            {status.departmentName}
-          </p>
-          {isInProgress && <div className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse" />}
-        </div>
-        <p className="text-[10px] text-slate-500">
-          {status.completedAt
-            ? new Date(status.completedAt).toLocaleTimeString([], {
-              hour: '2-digit',
-              minute: '2-digit',
-            })
-            : status.startedAt
-              ? 'Started ' +
-              new Date(status.startedAt).toLocaleTimeString([], {
-                hour: '2-digit',
-                minute: '2-digit',
-              })
-              : 'Pending'}
-        </p>
-      </div>
-    </div>
-  );
-};
-
+// Enhanced ProductSpecsPanel with better layout
 const ProductSpecsPanel: React.FC<{ order: Order }> = ({ order }) => {
-  const [expandedImage, setExpandedImage] = useState<{ src: string; alt: string } | null>(null);
-  const [productDetails, setProductDetails] = useState<{
-    subAttributes: Record<string, Array<{ _id: string; value: string; label: string; image?: string; priceAdd: number; parentValue: string }>>;
-  } | null>(null);
-  const [loadingDetails, setLoadingDetails] = useState(false);
-
-  // Fetch product details to get sub-attributes
-  useEffect(() => {
-    const fetchProductDetails = async () => {
-      if (!order?.product?._id) return;
-
-      setLoadingDetails(true);
-      try {
-        const token = localStorage.getItem('token');
-        const response = await fetch(`${API_BASE_URL}/products/${order.product._id}/detail`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          setProductDetails({
-            subAttributes: data.subAttributes || {},
-          });
-        }
-      } catch (err) {
-        console.error('Error fetching product details:', err);
-      } finally {
-        setLoadingDetails(false);
-      }
-    };
-
-    fetchProductDetails();
-  }, [order?.product?._id]);
-
-  // Safety check for product
   if (!order.product) {
     return (
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-        <div className="flex items-center gap-2 mb-6 border-b border-slate-100 pb-4">
-          <Package className="w-5 h-5 text-brand-600" />
-          <h3 className="text-lg font-bold text-slate-900">Product Configuration</h3>
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div className="flex items-center gap-2 mb-6">
+          <Package className="w-5 h-5 text-blue-600" />
+          <h3 className="text-lg font-bold text-gray-900">Product Configuration</h3>
         </div>
-        <p className="text-slate-600">Product information not available.</p>
+        <p className="text-gray-600">Product information not available.</p>
       </div>
     );
   }
 
   return (
-    <>
-      {/* Image Modal */}
-      {expandedImage && (
-        <div
-          className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"
-          onClick={() => setExpandedImage(null)}
-        >
-          <div className="relative max-w-4xl max-h-[90vh] w-full">
-            <button
-              onClick={() => setExpandedImage(null)}
-              className="absolute -top-10 right-0 text-white hover:text-slate-300 transition-colors"
-            >
-              <span className="text-2xl font-bold">×</span>
-            </button>
-            <img
-              src={expandedImage.src}
-              alt={expandedImage.alt}
-              className="w-full h-full object-contain rounded-lg"
-            />
+    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      <div className="border-b border-gray-200 px-6 py-4 bg-gradient-to-r from-gray-50 to-white">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-blue-100 rounded-lg">
+            <Package className="w-5 h-5 text-blue-600" />
+          </div>
+          <div>
+            <h3 className="text-lg font-bold text-gray-900">Product Details</h3>
+            <p className="text-sm text-gray-600">Configuration and specifications</p>
           </div>
         </div>
-      )}
+      </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-        <div className="flex items-center gap-2 mb-6 border-b border-slate-100 pb-4">
-          <Package className="w-5 h-5 text-brand-600" />
-          <h3 className="text-lg font-bold text-slate-900">Product Configuration</h3>
-        </div>
-
+      <div className="p-6">
         {/* Basic Info Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
-          <div className="p-4 bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl border border-slate-200 shadow-sm">
-            <p className="text-xs text-slate-500 uppercase tracking-wide font-bold mb-2">Shape</p>
-            <p className="text-slate-900 font-semibold text-lg">{order.shape}</p>
+        <div className={`grid grid-cols-1 ${order.isBulkParent ? 'sm:grid-cols-4' : 'sm:grid-cols-3'} gap-4 mb-8`}>
+          <div className="bg-gradient-to-br from-blue-50 to-white rounded-xl border border-blue-100 p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Tag className="w-4 h-4 text-blue-600" />
+              <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold">Product</p>
+            </div>
+            <p className="text-gray-900 font-bold text-lg">{order.product.name}</p>
           </div>
-          <div className="p-4 bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl border border-slate-200 shadow-sm">
-            <p className="text-xs text-slate-500 uppercase tracking-wide font-bold mb-2">Finish</p>
-            <p className="text-slate-900 font-semibold text-lg">{order.finish}</p>
+
+          {order.isBulkParent && (
+            <div className="bg-gradient-to-br from-indigo-50 to-white rounded-xl border border-indigo-100 p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Plus className="w-4 h-4 text-indigo-600" />
+                <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold">Designs</p>
+              </div>
+              <p className="text-gray-900 font-bold text-lg">{order.distinctDesigns || 0}</p>
+            </div>
+          )}
+
+          <div className="bg-gradient-to-br from-green-50 to-white rounded-xl border border-green-100 p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <FileText className="w-4 h-4 text-green-600" />
+              <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold">Shape</p>
+            </div>
+            <p className="text-gray-900 font-bold text-lg">{order.shape}</p>
+          </div>
+
+          <div className="bg-gradient-to-br from-purple-50 to-white rounded-xl border border-purple-100 p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Layers className="w-4 h-4 text-purple-600" />
+              <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold">Finish</p>
+            </div>
+            <p className="text-gray-900 font-bold text-lg">{order.finish}</p>
           </div>
         </div>
 
-        {/* Selected Options */}
+        {/* Attributes Section */}
         <div className="mb-8">
-          <h4 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-brand-600" />
-            Selected Options
+          <h4 className="text-base font-bold text-gray-900 mb-4 flex items-center gap-2">
+            <Info className="w-4 h-4 text-blue-600" />
+            Selected Attributes
           </h4>
+
+          {order.selectedDynamicAttributes && order.selectedDynamicAttributes.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {order.selectedDynamicAttributes.map((attr, idx) => (
+                <div
+                  key={idx}
+                  className="group relative bg-gradient-to-br from-gray-50 to-white rounded-xl border border-gray-200 hover:border-blue-300 hover:shadow-md transition-all duration-300 p-4"
+                >
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="text-xs text-gray-500 uppercase tracking-wide font-bold mb-1">
+                        {attr.attributeName}
+                      </p>
+                      <p className="text-sm font-semibold text-gray-900 mb-1">{attr.label}</p>
+                      {attr.description && (
+                        <p className="text-xs text-gray-600 leading-relaxed">{attr.description}</p>
+                      )}
+                    </div>
+                    {(attr.priceAdd > 0 || attr.priceMultiplier) && (
+                      <div className="text-right">
+                        <span className="text-sm font-bold text-blue-600">
+                          +{formatCurrency(attr.priceAdd)}
+                          <span className="text-xs text-gray-500 font-normal ml-1">/unit</span>
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center p-6 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
+              <Info className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+              <p className="text-gray-500">No attributes configured</p>
+            </div>
+          )}
+        </div>
+
+        {/* Options Section */}
+        <div>
+          <h4 className="text-base font-bold text-gray-900 mb-4 flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-green-600" />
+            Additional Options
+          </h4>
+
           {order.selectedOptions && order.selectedOptions.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {order.selectedOptions.map((opt, idx) => {
                 const name = opt.optionName || opt.name || 'Option';
-                const priceAdd = opt.priceAdd || 0;
-
-                let description = opt.description;
-                if (!description && order.product?.options && opt.optionId) {
-                  const productOption = order.product.options.find(
-                    (o: any) => o._id === opt.optionId || o.name === name
-                  );
-                  description = productOption?.description;
-                }
-
                 return (
                   <div
                     key={idx}
-                    className="group relative bg-gradient-to-br from-white to-slate-50 rounded-xl border border-slate-200 hover:border-brand-300 hover:shadow-md transition-all duration-300 overflow-hidden"
+                    className="group relative bg-white rounded-xl border border-gray-200 hover:border-green-300 hover:shadow-md transition-all duration-300 p-4"
                   >
-                    <div className="p-4">
-                      <div className="flex items-start gap-4">
-                        {opt.image ? (
-                          <div className="relative flex-shrink-0">
-                            <img
-                              src={opt.image}
-                              alt={name}
-                              className="w-20 h-20 object-cover rounded-lg border-2 border-slate-200 group-hover:border-brand-400 transition-colors cursor-pointer shadow-sm"
-                              onClick={() => setExpandedImage({ src: opt.image!, alt: name })}
-                            />
-                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 rounded-lg transition-colors cursor-pointer" />
-                          </div>
-                        ) : (
-                          <div className="w-20 h-20 rounded-lg bg-gradient-to-br from-brand-100 to-brand-200 text-brand-700 flex items-center justify-center border-2 border-brand-200">
-                            <CheckCircle2 className="w-8 h-8" />
-                          </div>
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-bold text-slate-900 mb-1">{name}</p>
-                          {description && (
-                            <p className="text-xs text-slate-600 leading-relaxed mb-2">{description}</p>
-                          )}
-                          {priceAdd > 0 && (
-                            <div className="mt-2 pt-2 border-t border-slate-200">
-                              <span className="text-sm font-bold text-brand-600">
-                                +{formatCurrency(priceAdd)}
-                                {priceAdd < 10 && (
-                                  <span className="text-xs text-slate-500 font-normal ml-1">/unit</span>
-                                )}
-                              </span>
-                            </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-green-100 text-green-600 flex items-center justify-center">
+                          <Check className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-gray-900">{name}</p>
+                          {opt.description && (
+                            <p className="text-xs text-gray-600">{opt.description}</p>
                           )}
                         </div>
                       </div>
+                      {opt.priceAdd > 0 && (
+                        <span className="text-sm font-bold text-green-600">
+                          +{formatCurrency(opt.priceAdd)}
+                        </span>
+                      )}
                     </div>
                   </div>
                 );
               })}
             </div>
           ) : (
-            <div className="text-sm text-slate-500 italic p-4 bg-slate-50 rounded-lg border border-dashed border-slate-200 text-center">
-              No additional options configured.
+            <div className="text-sm text-gray-500 italic p-4 bg-gray-50 rounded-lg border border-dashed border-gray-200 text-center">
+              No additional options configured
             </div>
           )}
-        </div>
-
-        {/* Selected Dynamic Attributes */}
-        {order.selectedDynamicAttributes && order.selectedDynamicAttributes.length > 0 && (
-          <div className="pt-6 border-t border-slate-200">
-            <h4 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2">
-              <Info className="w-4 h-4 text-brand-600" />
-              Selected Attributes
-            </h4>
-            <div className="space-y-4">
-              {order.selectedDynamicAttributes.map((attr, idx) => {
-                // Find sub-attributes for this attribute
-                const subAttributesKey = `${attr.attributeTypeId}:${attr.attributeValue}`;
-                const subAttributes = productDetails?.subAttributes?.[subAttributesKey] || [];
-
-                return (
-                  <div key={idx} className="space-y-3">
-                    {/* Main Attribute */}
-                    <div className="group relative bg-gradient-to-br from-white to-slate-50 rounded-xl border border-slate-200 hover:border-brand-300 hover:shadow-md transition-all duration-300 overflow-hidden">
-                      <div className="p-4">
-                        <div className="flex items-start gap-4">
-                          {attr.image ? (
-                            <div className="relative flex-shrink-0">
-                              <img
-                                src={attr.image}
-                                alt={attr.attributeName}
-                                className="w-20 h-20 object-cover rounded-lg border-2 border-slate-200 group-hover:border-brand-400 transition-colors cursor-pointer shadow-sm"
-                                onClick={() => setExpandedImage({ src: attr.image!, alt: `${attr.attributeName} - ${attr.label}` })}
-                              />
-                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 rounded-lg transition-colors cursor-pointer" />
-                            </div>
-                          ) : (
-                            <div className="w-20 h-20 rounded-lg bg-gradient-to-br from-slate-100 to-slate-200 text-slate-600 flex items-center justify-center border-2 border-slate-200">
-                              <Info className="w-8 h-8" />
-                            </div>
-                          )}
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs text-slate-500 uppercase tracking-wide font-bold mb-1">
-                              {attr.attributeName}
-                            </p>
-                            <p className="text-sm font-semibold text-slate-900 mb-1">{attr.label}</p>
-                            {attr.description && (
-                              <p className="text-xs text-slate-600 leading-relaxed mb-2">{attr.description}</p>
-                            )}
-                            {(attr.priceAdd > 0 || attr.priceMultiplier) && (
-                              <div className="mt-2 pt-2 border-t border-slate-200">
-                                {attr.priceAdd > 0 ? (
-                                  <span className="text-sm font-bold text-brand-600">
-                                    +{formatCurrency(attr.priceAdd)}
-                                    <span className="text-xs text-slate-500 font-normal ml-1">/unit</span>
-                                  </span>
-                                ) : attr.priceMultiplier && attr.priceMultiplier !== 1 ? (
-                                  <span className="text-sm font-bold text-brand-600">
-                                    +{formatCurrency((order.product?.basePrice || 0) * (attr.priceMultiplier - 1))}
-                                    <span className="text-xs text-slate-500 font-normal ml-1">/unit</span>
-                                  </span>
-                                ) : null}
-                              </div>
-                            )}
-                            {/* Display uploaded images if any */}
-                            {attr.uploadedImages && attr.uploadedImages.length > 0 && (
-                              <div className="mt-3 pt-3 border-t border-slate-200">
-                                <p className="text-xs text-slate-500 uppercase tracking-wide font-bold mb-2">
-                                  Uploaded Images
-                                </p>
-                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                                  {attr.uploadedImages.map((img, imgIdx) => {
-                                    // Convert buffer to base64 data URL for display
-                                    let imageUrl = '';
-                                    if (img.data) {
-                                      if (typeof img.data === 'string') {
-                                        imageUrl = `data:${img.contentType || 'image/jpeg'};base64,${img.data}`;
-                                      } else if (Buffer.isBuffer(img.data)) {
-                                        imageUrl = `data:${img.contentType || 'image/jpeg'};base64,${img.data.toString('base64')}`;
-                                      }
-                                    }
-                                    return imageUrl ? (
-                                      <div key={imgIdx} className="relative group">
-                                        <img 
-                                          src={imageUrl} 
-                                          alt={img.filename || `Image ${imgIdx + 1}`}
-                                          className="w-full h-24 object-cover rounded-lg border border-slate-200 cursor-pointer hover:border-brand-400 transition-colors"
-                                          onClick={() => setExpandedImage({ src: imageUrl, alt: img.filename || `Image ${imgIdx + 1}` })}
-                                        />
-                                        <p className="text-xs text-slate-500 mt-1 truncate">{img.filename}</p>
-                                      </div>
-                                    ) : null;
-                                  })}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Sub-Attributes */}
-                    {subAttributes.length > 0 && (
-                      <div className="ml-6 pl-4 border-l-2 border-brand-200 space-y-2">
-                        <p className="text-xs text-slate-500 uppercase tracking-wide font-bold mb-2">
-                          {attr.label} Options
-                        </p>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          {subAttributes.map((subAttr) => (
-                            <div
-                              key={subAttr._id}
-                              className="group relative bg-gradient-to-br from-brand-50/50 to-white rounded-lg border border-brand-100 hover:border-brand-300 hover:shadow-sm transition-all duration-200 overflow-hidden"
-                            >
-                              <div className="p-3">
-                                <div className="flex items-start gap-3">
-                                  {subAttr.image ? (
-                                    <div className="relative flex-shrink-0">
-                                      <img
-                                        src={subAttr.image}
-                                        alt={subAttr.label}
-                                        className="w-16 h-16 object-cover rounded-lg border-2 border-brand-200 group-hover:border-brand-400 transition-colors cursor-pointer shadow-sm"
-                                        onClick={() => setExpandedImage({ src: subAttr.image!, alt: `${attr.attributeName} - ${subAttr.label}` })}
-                                      />
-                                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 rounded-lg transition-colors cursor-pointer" />
-                                    </div>
-                                  ) : (
-                                    <div className="w-16 h-16 rounded-lg bg-gradient-to-br from-brand-100 to-brand-200 text-brand-600 flex items-center justify-center border-2 border-brand-200">
-                                      <Info className="w-6 h-6" />
-                                    </div>
-                                  )}
-                                  <div className="flex-1 min-w-0">
-                                    <p className="text-xs font-semibold text-slate-900 mb-1">{subAttr.label}</p>
-                                    {subAttr.priceAdd && subAttr.priceAdd > 0 && (
-                                      <p className="text-xs font-bold text-brand-600">
-                                        +{formatCurrency(subAttr.priceAdd)}
-                                        <span className="text-[10px] text-slate-500 font-normal ml-1">/piece</span>
-                                      </p>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-      </div>
-    </>
-  );
-};
-
-const PriceBreakdownPanel: React.FC<{ order: Order }> = ({ order }) => {
-  // Safety check for product
-  if (!order.product) {
-    return (
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-        <h3 className="text-lg font-bold text-slate-900 mb-4">Price Breakdown</h3>
-        <p className="text-slate-600">Product information not available.</p>
-      </div>
-    );
-  }
-
-  const orderForCalc: OrderForCalculation = {
-    quantity: order.quantity,
-    product: {
-      basePrice: order.product?.basePrice || 0,
-      gstPercentage: order.product?.gstPercentage || 18,
-      options: order.product?.options || [],
-      filters: order.product?.filters || {},
-      quantityDiscounts: (order.product as any)?.quantityDiscounts || [],
-    },
-    finish: order.finish,
-    shape: order.shape,
-    selectedOptions: (order.selectedOptions || []).map((opt) => ({
-      name: opt.optionName || opt.name,
-      optionName: opt.optionName || opt.name,
-      priceAdd: opt.priceAdd || 0,
-    })),
-    selectedDynamicAttributes: order.selectedDynamicAttributes?.map((attr) => ({
-      attributeName: attr.attributeName,
-      label: attr.label,
-      priceMultiplier: attr.priceMultiplier,
-      priceAdd: attr.priceAdd,
-    })),
-  };
-
-  const calculations = calculateOrderBreakdown(orderForCalc) as any;
-
-  // Get additional design charge from product
-  const additionalDesignCharge = (order.product as any)?.additionalDesignCharge || 0;
-
-  // New calculation order:
-  // 1. Base Price = quantity * price
-  // 2. Add options/attributes/charges
-  // 3. Subtotal before discount
-  // 4. Apply discount to subtotal
-  // 5. Add design charge
-  // 6. Subtotal including design charge (after discount)
-  // 7. Add GST (on discounted subtotal + design charge)
-  // 8. Final total
-
-  const subtotalBeforeDiscount = calculations.subtotalBeforeGst || calculations.rawBaseTotal + calculations.optionBreakdowns.reduce((sum: number, opt: any) => sum + opt.cost, 0);
-  const subtotalAfterDiscount = calculations.subtotalAfterDiscount || calculations.subtotal || subtotalBeforeDiscount;
-  const discountAmount = calculations.discountAmount || (subtotalBeforeDiscount - subtotalAfterDiscount);
-  const subtotalWithDesignCharge = subtotalAfterDiscount + additionalDesignCharge;
-  // GST is calculated on discounted subtotal + design charge
-  const gstAmount = (subtotalWithDesignCharge * (order.product?.gstPercentage || 18)) / 100;
-  const finalTotal = subtotalWithDesignCharge + gstAmount;
-
-  // Use stored totalPrice as source of truth
-  const storedTotal = order.totalPrice;
-  const categoryName =
-    order.product?.subcategory && typeof order.product.subcategory === 'object'
-      ? order.product.subcategory.name
-      : order.product?.subcategory || 'N/A';
-
-  return (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-      <h3 className="text-lg font-bold text-slate-900 mb-4">Price Breakdown</h3>
-      <div className="space-y-3 text-sm">
-        {/* Step 1: Base Price = quantity * price */}
-        <div className="flex justify-between items-center pb-2 border-b border-slate-100">
-          <div className="text-slate-600">
-            <span>
-              Base Price ({order.quantity.toLocaleString()} ×{' '}
-              {formatCurrency(order.product?.basePrice || 0)})
-            </span>
-          </div>
-          <span className="font-medium text-slate-900">{formatCurrency(calculations.rawBaseTotal)}</span>
-        </div>
-
-        {/* Step 2: Options, Attributes, and Charges */}
-        {calculations.optionBreakdowns.map((opt: any, idx: number) => (
-          <div key={idx} className="flex justify-between items-center text-slate-600">
-            <span>
-              {opt.name} {opt.isPerUnit ? `(${order.quantity} × ${formatCurrency(opt.priceAdd)})` : ''}
-            </span>
-            <span>+{formatCurrency(opt.cost)}</span>
-          </div>
-        ))}
-
-        {/* Step 3: Subtotal (before discount) */}
-        <div className="flex justify-between items-center pt-2 font-medium text-slate-900 border-t border-slate-100">
-          <span>Subtotal (Before Discount)</span>
-          <span>{formatCurrency(subtotalBeforeDiscount)}</span>
-        </div>
-
-        {/* Step 4: Discount (applied to subtotal before GST) */}
-        {calculations.discountPercentage > 0 && discountAmount > 0 && (
-          <div className="flex justify-between items-center text-green-600 bg-green-50 p-2 rounded-md">
-            <div>
-              <span className="font-semibold">
-                Bulk Discount ({calculations.discountPercentage}%)
-              </span>
-              <p className="text-xs opacity-80">Applied for {order.quantity} units</p>
-            </div>
-            <span className="font-bold">-{formatCurrency(discountAmount)}</span>
-          </div>
-        )}
-
-        {/* Step 5: Subtotal (after discount) */}
-        <div className="flex justify-between items-center pt-2 font-medium text-slate-900 border-t border-slate-100">
-          <span>Subtotal (After Discount)</span>
-          <span>{formatCurrency(subtotalAfterDiscount)}</span>
-        </div>
-
-        {/* Step 6: Additional Design Charge */}
-        {additionalDesignCharge > 0 && (
-          <div className="flex justify-between items-center text-slate-600">
-            <span>Additional Design Charge</span>
-            <span>+{formatCurrency(additionalDesignCharge)}</span>
-          </div>
-        )}
-
-        {/* Step 7: Subtotal (including design charge) */}
-        {additionalDesignCharge > 0 && (
-          <div className="flex justify-between items-center pt-2 font-medium text-slate-900 border-t border-slate-100">
-            <span>Subtotal (Including Design Charge)</span>
-            <span>{formatCurrency(subtotalWithDesignCharge)}</span>
-          </div>
-        )}
-
-        {/* Step 8: GST (calculated on discounted subtotal + design charge) */}
-        <div className="flex justify-between items-center text-slate-500 text-xs">
-          <span>GST ({order.product?.gstPercentage || 18}%)</span>
-          <span>+{formatCurrency(gstAmount)}</span>
-        </div>
-
-        {/* Advance Paid / Balance Due (before Total Amount) */}
-        {(order.advancePaid !== undefined && order.advancePaid > 0) && (
-          <div className="mt-2 pt-2 border-t border-slate-100">
-            <div className="flex justify-between items-center mb-2">
-              <span className="text-slate-500">Advance Paid</span>
-              <span className="font-medium text-green-600">
-                {formatCurrency(order.advancePaid || 0)}
-              </span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-slate-500">Balance Due</span>
-              <span
-                className={`font-bold ${order.totalPrice - (order.advancePaid || 0) > 0
-                  ? 'text-red-600'
-                  : 'text-slate-400'
-                  }`}
-              >
-                {formatCurrency(order.totalPrice - (order.advancePaid || 0))}
-              </span>
-            </div>
-          </div>
-        )}
-
-        {/* Step 9: Final Total - Displayed at the end */}
-        <div className="flex justify-between items-center pt-3 mt-2 border-t-2 border-slate-300">
-          <span className="text-lg font-bold text-slate-900">Total Amount</span>
-          <span className="text-xl font-bold text-brand-600">{formatCurrency(storedTotal)}</span>
         </div>
       </div>
     </div>
   );
 };
 
+// Enhanced PriceBreakdownPanel with better visual hierarchy
+const PriceBreakdownPanel: React.FC<{ order: Order }> = ({ order }) => {
+  if (!order.product) {
+    return (
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <h3 className="text-lg font-bold text-gray-900 mb-4">Price Breakdown</h3>
+        <p className="text-gray-600">Product information not available.</p>
+      </div>
+    );
+  }
+
+  // Use priceSnapshot if available (modern schema), otherwise calculate (legacy)
+  const usePriceSnapshot = Boolean(order.priceSnapshot);
+
+  let basePrice: number, quantity: number, subtotal: number, gstPercentage: number, gstAmount: number, finalTotal: number;
+  let appliedModifiers: any[] = [];
+
+  if (usePriceSnapshot && order.priceSnapshot) {
+    // Modern pricing structure - use snapshot
+    basePrice = order.priceSnapshot.unitPrice;
+    quantity = order.priceSnapshot.quantity;
+    subtotal = order.priceSnapshot.subtotal;
+    gstPercentage = order.priceSnapshot.gstPercentage;
+    gstAmount = order.priceSnapshot.gstAmount;
+    finalTotal = order.priceSnapshot.totalPayable;
+    appliedModifiers = order.priceSnapshot.appliedModifiers || [];
+  } else {
+    // Legacy calculation for old orders
+    const orderForCalc: OrderForCalculation = {
+      quantity: order.quantity,
+      product: {
+        basePrice: order.product?.basePrice || 0,
+        gstPercentage: order.product?.gstPercentage || 18,
+        options: order.product?.options || [],
+        filters: order.product?.filters || {},
+        quantityDiscounts: (order.product as any)?.quantityDiscounts || [],
+      },
+      finish: order.finish,
+      shape: order.shape,
+      selectedOptions: (order.selectedOptions || []).map((opt) => ({
+        name: opt.optionName || opt.name,
+        optionName: opt.optionName || opt.name,
+        priceAdd: opt.priceAdd || 0,
+      })),
+      selectedDynamicAttributes: order.selectedDynamicAttributes?.map((attr) => ({
+        attributeName: attr.attributeName,
+        label: attr.label,
+        priceMultiplier: attr.priceMultiplier,
+        priceAdd: attr.priceAdd,
+      })),
+    };
+
+    const calculations = calculateOrderBreakdown(orderForCalc) as any;
+    const additionalDesignCharge = (order.product as any)?.additionalDesignCharge || 0;
+
+    const subtotalBeforeDiscount = calculations.subtotalBeforeGst || calculations.rawBaseTotal + calculations.optionBreakdowns.reduce((sum: number, opt: any) => sum + opt.cost, 0);
+    const subtotalAfterDiscount = calculations.subtotalAfterDiscount || calculations.subtotal || subtotalBeforeDiscount;
+    const subtotalWithDesignCharge = subtotalAfterDiscount + additionalDesignCharge;
+
+    basePrice = order.product?.basePrice || 0;
+    quantity = order.quantity;
+    subtotal = subtotalWithDesignCharge;
+    gstPercentage = order.product?.gstPercentage || 18;
+    gstAmount = (subtotalWithDesignCharge * gstPercentage) / 100;
+    finalTotal = subtotalWithDesignCharge + gstAmount;
+  }
+
+  return (
+    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      <div className="border-b border-gray-200 px-6 py-4 bg-gradient-to-r from-gray-50 to-white">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-green-100 rounded-lg">
+            <Tag className="w-5 h-5 text-green-600" />
+          </div>
+          <div>
+            <h3 className="text-lg font-bold text-gray-900">Price Breakdown</h3>
+            <p className="text-sm text-gray-600">
+              {usePriceSnapshot ? 'Dynamic pricing applied' : 'Detailed cost calculation'}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="p-6">
+        {/* Quantity & Base Price */}
+        <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-100">
+          <div className="flex justify-between items-center mb-2">
+            <div>
+              <p className="text-sm text-gray-600">Quantity</p>
+              <p className="text-2xl font-bold text-gray-900">{quantity.toLocaleString()} units</p>
+            </div>
+            <div className="text-right">
+              <p className="text-sm text-gray-600">Unit Price</p>
+              <p className="text-xl font-bold text-blue-600">{formatCurrency(basePrice)}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Applied Modifiers (if using priceSnapshot) */}
+        {appliedModifiers.length > 0 && (
+          <div className="mb-4 p-3 bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg border border-purple-200">
+            <p className="text-xs font-semibold text-purple-900 mb-2 flex items-center gap-1">
+              <Sparkles className="w-3 h-3" />
+              Applied Price Adjustments
+            </p>
+            {appliedModifiers.map((mod: any, idx: number) => (
+              <div key={idx} className="flex justify-between items-center text-xs py-1.5 px-2 bg-white/50 rounded mb-1">
+                <span className="text-purple-700 font-medium">{mod.source}</span>
+                <span className="text-purple-900 font-bold">
+                  {mod.modifierType === 'FIXED' ? formatCurrency(mod.value) : `${mod.value}%`}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Price Breakdown */}
+        <div className="space-y-3 mb-6">
+          <div className="flex justify-between items-center py-2">
+            <span className="text-gray-600">Subtotal</span>
+            <span className="font-semibold text-gray-900">{formatCurrency(subtotal)}</span>
+          </div>
+
+          <div className="flex justify-between items-center py-3 border-t border-gray-200">
+            <span className="text-gray-600">GST ({gstPercentage}%)</span>
+            <span className="text-purple-600 font-semibold">+{formatCurrency(gstAmount)}</span>
+          </div>
+        </div>
+
+        {/* Total */}
+        <div className="bg-gray-50 rounded-xl p-5 border border-gray-200">
+          <div className="flex justify-between items-center">
+            <div>
+              <p className="text-sm text-gray-600">Total Amount</p>
+              <p className="text-lg font-bold text-gray-900">Includes all taxes</p>
+            </div>
+            <p className="text-2xl font-bold text-blue-600">
+              {formatCurrency(finalTotal)}
+            </p>
+          </div>
+        </div>
+
+        {/* Amount Paid */}
+        {(order.paymentStatus === 'COMPLETED' || (order.payment_details?.amount_paid && order.payment_details.amount_paid > 0) || (order.advancePaid && order.advancePaid > 0)) && (
+          <div className="mt-4 p-4 bg-emerald-50 rounded-xl border border-emerald-100 shadow-sm">
+            <div className="flex justify-between items-center">
+              <div>
+                <p className="text-sm font-bold text-emerald-800">Amount Paid</p>
+                <p className="text-xs text-emerald-600 mt-0.5">
+                  Full payment received
+                </p>
+              </div>
+              <p className="text-xl font-bold text-emerald-700">
+                {formatCurrency(order.payment_details?.amount_paid || order.advancePaid || finalTotal)}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Payment Status Badge */}
+        {order.paymentStatus === 'PENDING' && (
+          <div className="mt-4 p-3 bg-gradient-to-r from-orange-50 to-yellow-50 rounded-lg border border-orange-100">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-orange-600" />
+              <p className="text-sm font-medium text-orange-700">Payment Required</p>
+            </div>
+          </div>
+        )}
+
+        {order.paymentStatus === 'COMPLETED' && order.payment_details && (
+          <div className="mt-4 p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg border border-green-200">
+            <div className="flex items-center gap-2 mb-2">
+              <CheckCircle2 className="w-5 h-5 text-green-600" />
+              <p className="text-sm font-bold text-green-700">Payment Completed</p>
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-xs text-green-700">
+              {order.payment_details.gateway_used && (
+                <div>
+                  <span className="font-medium">Gateway:</span> {order.payment_details.gateway_used}
+                </div>
+              )}
+              {order.payment_details.payment_method && (
+                <div>
+                  <span className="font-medium">Method:</span> {order.payment_details.payment_method}
+                </div>
+              )}
+              {order.payment_details.captured_at && (
+                <div className="col-span-2">
+                  <span className="font-medium">Paid on:</span> {new Date(order.payment_details.captured_at).toLocaleString()}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// Enhanced FileUploadPanel
 const FileUploadPanel: React.FC<{ order: Order }> = ({ order }) => {
   const files: Array<{ type: string; fileName: string; uploadedAt: string; sizeMb: number; data?: string }> = [];
 
@@ -799,7 +669,7 @@ const FileUploadPanel: React.FC<{ order: Order }> = ({ order }) => {
       type: 'front',
       fileName: order.uploadedDesign.frontImage.filename || 'front-design.png',
       uploadedAt: order.createdAt,
-      sizeMb: 0, // Size not available in current structure
+      sizeMb: 0,
       data: order.uploadedDesign.frontImage.data,
     });
   }
@@ -815,133 +685,316 @@ const FileUploadPanel: React.FC<{ order: Order }> = ({ order }) => {
   }
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 h-full">
-      <div className="flex justify-between items-start mb-4">
-        <h3 className="text-lg font-bold text-slate-900">Design Files (CMYK Format)</h3>
-        <span className="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded-md">
-          Max {order.product?.maxFileSizeMB || 10}MB
-        </span>
+    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      <div className="border-b border-gray-200 px-6 py-4 bg-gradient-to-r from-gray-50 to-white">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-purple-100 rounded-lg">
+            <FileCheck className="w-5 h-5 text-purple-600" />
+          </div>
+          <div className="flex-1">
+            <h3 className="text-lg font-bold text-gray-900">Design Files</h3>
+            <p className="text-sm text-gray-600">CMYK format required</p>
+          </div>
+          <span className="text-xs bg-gray-100 text-gray-600 px-3 py-1 rounded-full font-medium">
+            Max {order.product?.maxFileSizeMB || 10}MB
+          </span>
+        </div>
       </div>
 
-      {files.length > 0 ? (
-        <div className="space-y-4 mb-6">
-          {files.map((file, idx) => (
-            <div
-              key={idx}
-              className="border border-slate-200 rounded-lg p-4 bg-slate-50 group hover:border-brand-300 transition-colors"
-            >
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-white rounded flex items-center justify-center text-slate-400 border border-slate-200">
-                    <FileCheck className="w-5 h-5" />
+      <div className="p-6">
+        {files.length > 0 ? (
+          <div className="space-y-4">
+            {files.map((file, idx) => (
+              <div
+                key={idx}
+                className="border border-gray-200 rounded-lg p-4 bg-gradient-to-r from-gray-50 to-white hover:border-purple-300 transition-colors group"
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 bg-white rounded-lg flex items-center justify-center text-purple-600 border border-gray-200 group-hover:border-purple-300 transition-colors">
+                      <FileText className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">{file.fileName}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="inline-flex items-center gap-1 text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
+                          <span className="w-1.5 h-1.5 bg-purple-500 rounded-full"></span>
+                          {file.type.toUpperCase()}
+                        </span>
+                        <span className="text-xs text-gray-500">CMYK</span>
+                        <span className="text-xs text-gray-500">
+                          {new Date(file.uploadedAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-slate-900 truncate">{file.fileName}</p>
-                    <p className="text-xs text-slate-500 flex items-center gap-2">
-                      <span className="uppercase bg-slate-200 px-1.5 py-0.5 rounded text-[10px] font-medium">{file.type}</span>
-                      <span>CMYK JPEG</span>
-                      {file.sizeMb > 0 && ` • ${file.sizeMb} MB`}
-                      {` • ${new Date(file.uploadedAt).toLocaleDateString()}`}
-                    </p>
-                  </div>
+                  {file.data && (
+                    <a
+                      href={file.data}
+                      download={file.fileName}
+                      className="p-2 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+                      title="Download"
+                    >
+                      <Download className="w-4 h-4" />
+                    </a>
+                  )}
                 </div>
                 {file.data && (
-                  <a
-                    href={file.data}
-                    download={file.fileName}
-                    className="text-slate-400 hover:text-brand-600 p-2 rounded-lg hover:bg-white transition-colors"
-                    title="Download image"
-                  >
-                    <Download className="w-4 h-4" />
-                  </a>
+                  <div className="mt-3 border border-gray-200 rounded-lg overflow-hidden bg-white">
+                    <img
+                      src={file.data}
+                      alt={`${file.type} design`}
+                      className="w-full h-40 object-contain"
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none';
+                      }}
+                    />
+                  </div>
                 )}
               </div>
-              {file.data && (
-                <div className="mt-3 border border-slate-200 rounded-lg overflow-hidden bg-white">
-                  <img
-                    src={file.data}
-                    alt={`${file.type} design preview`}
-                    className="w-full h-auto max-h-64 object-contain"
-                    onError={(e) => {
-                      e.currentTarget.style.display = 'none';
-                    }}
-                  />
-                </div>
-              )}
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-8">
+            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <FileCheck className="w-8 h-8 text-gray-400" />
             </div>
-          ))}
-        </div>
-      ) : (
-        <div className="bg-amber-50 text-amber-800 p-3 rounded-lg text-sm mb-4 flex gap-2">
-          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-          <p>No files uploaded yet.</p>
-        </div>
+            <p className="text-gray-500 mb-2">No design files uploaded</p>
+            <p className="text-sm text-gray-400">Upload your CMYK design files to proceed</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// Enhanced DepartmentChip
+const DepartmentChip: React.FC<{ status: DepartmentStatus }> = ({ status }) => {
+  const isCompleted = status.status === 'completed';
+  const isInProgress = status.status === 'in_progress';
+
+  const getIcon = (name: string) => {
+    if (name.includes('Prepress')) return <FileCheck className="w-4 h-4" />;
+    if (name.includes('Print')) return <Printer className="w-4 h-4" />;
+    if (name.includes('Cut')) return <Scissors className="w-4 h-4" />;
+    if (name.includes('Plate')) return <Layers className="w-4 h-4" />;
+    return <BoxIcon className="w-4 h-4" />;
+  };
+
+  return (
+    <div
+      className={`flex items-center gap-3 px-4 py-3 rounded-xl border transition-all duration-300 ${isCompleted
+        ? 'bg-gradient-to-r from-green-50 to-white border-green-200'
+        : isInProgress
+          ? 'bg-gradient-to-r from-blue-50 to-white border-blue-300 shadow-sm'
+          : 'bg-gray-50 border-gray-200'
+        }`}
+    >
+      <div
+        className={`p-2 rounded-lg ${isCompleted
+          ? 'bg-green-100 text-green-600'
+          : isInProgress
+            ? 'bg-blue-100 text-blue-600 animate-pulse'
+            : 'bg-gray-100 text-gray-400'
+          }`}
+      >
+        {getIcon(status.departmentName)}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p
+          className={`text-sm font-semibold truncate ${isCompleted ? 'text-green-800' : isInProgress ? 'text-blue-800' : 'text-gray-500'
+            }`}
+        >
+          {status.departmentName}
+        </p>
+        <p className="text-xs text-gray-500 mt-0.5">
+          {status.completedAt
+            ? `Completed at ${new Date(status.completedAt).toLocaleTimeString([], {
+              hour: '2-digit',
+              minute: '2-digit',
+            })}`
+            : status.startedAt
+              ? `Started at ${new Date(status.startedAt).toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit',
+              })}`
+              : 'Pending'}
+        </p>
+      </div>
+      {isInProgress && (
+        <div className="w-2 h-2 rounded-full bg-blue-500 animate-ping"></div>
       )}
     </div>
   );
 };
 
-// Main OrderDetails Component
+// Main OrderDetails Component with Enhanced Layout
 const OrderDetails: React.FC = () => {
   const { orderId } = useParams<{ orderId: string }>();
   const navigate = useNavigate();
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [paymentLoading, setPaymentLoading] = useState(false);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [paymentSuccess, setPaymentSuccess] = useState(false);
 
-  useEffect(() => {
-    const fetchOrderDetails = async () => {
-      if (!orderId) {
-        setError('Order ID is required');
-        setLoading(false);
+  const fetchOrderDetails = async () => {
+    if (!orderId) return;
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) { navigate('/login'); return; }
+      const response = await fetch(`${API_BASE_URL}/orders/${orderId}`, {
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      });
+      if (!response.ok) throw new Error('Failed to fetch order details');
+      const data = await response.json();
+      const parentId = typeof data.parentOrderId === 'object' ? data.parentOrderId?._id : data.parentOrderId;
+      if (data.isBulkParent && parentId && data._id !== parentId) {
+        navigate(`/order/${parentId}`, { replace: true });
         return;
       }
+      setOrder(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load order details');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-      try {
-        const token = localStorage.getItem('token');
-        if (!token) {
-          navigate('/login');
-          return;
-        }
-
-        const response = await fetch(`${API_BASE_URL}/orders/${orderId}`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        });
-
-        if (!response.ok) {
-          throw new Error('Failed to fetch order details');
-        }
-
-        const data = await response.json();
-        setOrder(data);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load order details');
-      } finally {
-        setLoading(false);
-      }
-    };
-
+  useEffect(() => {
     fetchOrderDetails();
   }, [orderId, navigate]);
 
+  // Handle redirect back from PayU full-page redirect with ?payment=success
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('payment') === 'success') {
+      setPaymentSuccess(true);
+      // Remove query params from URL without reload
+      window.history.replaceState({}, '', window.location.pathname);
+      // Refresh order data to reflect new status
+      fetchOrderDetails();
+    }
+  }, []);
 
-  // Transform backend data to match expected format
+  // ── Pay Now handler ──────────────────────────────────────────────
+  const handlePayNow = async () => {
+    if (!order) return;
+    setPaymentLoading(true);
+    setPaymentError(null);
+
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) { navigate('/login'); return; }
+
+      const amount = order.priceSnapshot?.totalPayable || order.totalPrice;
+
+      // Step 1: Initialize payment
+      const initRes = await fetch(`${API_BASE_URL}/payment/initialize`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId: order._id,
+          amount,
+          currency: 'INR',
+          returnUrl: `${window.location.origin}/order/${order._id}?payment=success`,
+          cancelUrl: `${window.location.origin}/order/${order._id}?payment=failed`,
+        }),
+      });
+
+      const initData = await initRes.json();
+      if (!initRes.ok || !initData.success) {
+        throw new Error(initData.error || 'Failed to initialize payment');
+      }
+
+      // initializePayment returns: { success, gateway, transaction_id, checkout_data, checkout_url, redirect_required }
+      const { gateway, checkout_data, checkout_url, redirect_required, transaction_id } = initData;
+
+      if (redirect_required || (gateway === 'PAYU' && checkout_url)) {
+        // PayU or other redirect gateways: full-page form POST
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = checkout_url;
+        Object.entries(checkout_data || {}).forEach(([k, v]) => {
+          const input = document.createElement('input');
+          input.type = 'hidden';
+          input.name = k;
+          input.value = String(v);
+          form.appendChild(input);
+        });
+        document.body.appendChild(form);
+        form.submit();
+        return; // page will navigate away
+      }
+
+      if (gateway === 'RAZORPAY' && checkout_data?.order_id) {
+        // Razorpay: open popup
+        const Razorpay = (window as any).Razorpay;
+        if (!Razorpay) throw new Error('Razorpay SDK not loaded');
+        const rzp = new Razorpay({
+          key: checkout_data.key,
+          amount: checkout_data.amount,
+          currency: checkout_data.currency,
+          order_id: checkout_data.order_id,
+          name: 'Print24',
+          description: `Order #${order.orderNumber}`,
+          handler: async (response: any) => {
+            try {
+              const verifyRes = await fetch(`${API_BASE_URL}/payment/verify`, {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  transactionId: transaction_id,
+                  gateway: 'RAZORPAY',
+                  razorpay_payment_id: response.razorpay_payment_id,
+                  razorpay_order_id: response.razorpay_order_id,
+                  razorpay_signature: response.razorpay_signature,
+                }),
+              });
+              const verifyData = await verifyRes.json();
+              if (verifyData.success) {
+                setPaymentSuccess(true);
+                await fetchOrderDetails(); // refresh order status
+              } else {
+                setPaymentError('Payment verification failed. Please contact support.');
+              }
+            } catch {
+              setPaymentError('Payment verification failed. Please contact support.');
+            } finally {
+              setPaymentLoading(false);
+            }
+          },
+          modal: { ondismiss: () => setPaymentLoading(false) },
+        });
+        rzp.open();
+        return;
+      }
+
+      // Stripe or other: open hosted checkout URL
+      if (checkout_url) {
+        window.location.href = checkout_url;
+        return;
+      }
+
+      throw new Error('Gateway configuration not supported for retry payment');
+    } catch (err: any) {
+      setPaymentError(err.message || 'Payment failed. Please try again.');
+      setPaymentLoading(false);
+    }
+  };
+
   const getProductionTimeline = (): TimelineEvent[] => {
     if (!order) return [];
 
-    // Helper to get first department start time
     const getFirstDepartmentStart = () => {
       const firstDept = order.departmentStatuses?.find((ds) => {
         const status = typeof ds === 'object' ? ds.status : null;
         return status === 'in_progress' || status === 'completed';
       });
-      return typeof firstDept === 'object' ? firstDept.startedAt : undefined;
+      return (typeof firstDept === 'object' ? firstDept.startedAt : undefined) ?? undefined;
     };
 
-    // Helper to get last department completion time
     const getLastDepartmentComplete = () => {
       const completedDepts = order.departmentStatuses?.filter((ds) => {
         const status = typeof ds === 'object' ? ds.status : null;
@@ -957,7 +1010,7 @@ const OrderDetails: React.FC = () => {
         return new Date(dsObj.completedAt) > new Date(latestObj.completedAt) ? ds : latest;
       });
 
-      return typeof lastCompleted === 'object' ? lastCompleted.completedAt : undefined;
+      return (typeof lastCompleted === 'object' ? lastCompleted.completedAt : undefined) ?? undefined;
     };
 
     const stages: TimelineEvent[] = [
@@ -1070,7 +1123,6 @@ const OrderDetails: React.FC = () => {
         };
       })
       .sort((a, b) => {
-        // Sort by sequence if available
         const deptA = order.departmentStatuses?.find(
           (ds) => {
             const dept = typeof ds.department === 'object' ? ds.department : null;
@@ -1091,10 +1143,14 @@ const OrderDetails: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-600 mx-auto mb-4"></div>
-          <p className="text-slate-600">Loading order details...</p>
+          <div className="relative">
+            <div className="w-16 h-16 border-4 border-blue-100 rounded-full"></div>
+            <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin absolute top-0 left-0"></div>
+          </div>
+          <p className="mt-4 text-gray-600 font-medium">Loading order details...</p>
+          <p className="text-sm text-gray-400">Please wait a moment</p>
         </div>
       </div>
     );
@@ -1102,33 +1158,34 @@ const OrderDetails: React.FC = () => {
 
   if (error || !order) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="text-center">
-          <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-          <p className="text-slate-900 font-semibold mb-2">Error loading order</p>
-          <p className="text-slate-600 mb-4">{error || 'Order not found'}</p>
+      <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white flex items-center justify-center">
+        <div className="text-center max-w-md p-8">
+          <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <AlertTriangle className="w-10 h-10 text-red-500" />
+          </div>
+          <h3 className="text-xl font-bold text-gray-900 mb-2">Order Not Found</h3>
+          <p className="text-gray-600 mb-6">{error || 'The order you are looking for does not exist.'}</p>
           <button
             onClick={() => navigate('/profile')}
-            className="px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition-colors"
+            className="px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors shadow-lg"
           >
-            Back to Profile
+            Back to Orders
           </button>
         </div>
       </div>
     );
   }
 
-  // Safety check for product
   if (!order.product) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="text-center">
+      <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white flex items-center justify-center">
+        <div className="text-center max-w-md p-8">
           <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-          <p className="text-slate-900 font-semibold mb-2">Product information missing</p>
-          <p className="text-slate-600 mb-4">This order is missing product details. Please contact support.</p>
+          <h3 className="text-xl font-bold text-gray-900 mb-2">Product Information Missing</h3>
+          <p className="text-gray-600 mb-6">This order is missing product details. Please contact support.</p>
           <button
             onClick={() => navigate('/profile')}
-            className="px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition-colors"
+            className="px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors"
           >
             Back to Profile
           </button>
@@ -1137,198 +1194,618 @@ const OrderDetails: React.FC = () => {
     );
   }
 
-  const isPaymentPending = order.paymentStatus !== 'completed';
+  const isPaymentPending = order.paymentStatus !== 'COMPLETED';
   const productionTimeline = getProductionTimeline();
   const departmentStatuses = getDepartmentStatuses();
-  const categoryName =
+  const categoryName: string =
     typeof order.product.subcategory === 'object' && order.product.subcategory !== null
-      ? order.product.subcategory.name
-      : order.product.subcategory || 'N/A';
+      ? order.product.subcategory.name || 'N/A'
+      : (typeof order.product.subcategory === 'string' ? order.product.subcategory : 'N/A');
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-6">
-          <BackButton fallbackPath="/profile" label="Back to Orders" />
-        </div>
+        {/* Order Summary Card */}
+        <div className="bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden mb-8">
+          <div className="p-6 md:p-8">
+            <div className="flex flex-col md:flex-row justify-between gap-6 md:items-start">
+              <div className="flex-1">
+                <div className="flex flex-wrap items-center gap-4 mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-3 bg-blue-100 rounded-xl">
+                      <Hash className="w-6 h-6 text-blue-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Order Number</p>
+                      <h2 className="text-2xl font-bold text-gray-900">{order.orderNumber}</h2>
+                    </div>
+                  </div>
+                  <StatusBadge status={order.status} />
+                </div>
 
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 mb-6">
-          <div className="flex flex-col md:flex-row justify-between gap-6">
-            <div className="flex items-start gap-5">
-              {/* Subcategory Image on Left */}
-              {(() => {
-                const subcategory = order.product?.subcategory;
-                const subcategoryImage =
-                  typeof subcategory === 'object' ? subcategory?.image : null;
-                return subcategoryImage ? (
-                  <img
-                    src={subcategoryImage}
-                    alt="Subcategory"
-                    className="hidden md:block w-24 h-24 object-cover rounded-lg shadow-sm border border-slate-100"
-                  />
-                ) : order.product?.image ? (
-                  <img
-                    src={order.product.image}
-                    alt={order.product.name}
-                    className="hidden md:block w-24 h-24 object-cover rounded-lg shadow-sm border border-slate-100"
-                  />
-                ) : null;
-              })()}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+                  <div className="flex items-center gap-3">
+                    <Calendar className="w-5 h-5 text-gray-400" />
+                    <div>
+                      <p className="text-sm text-gray-500">Order Date</p>
+                      <p className="font-medium text-gray-900">
+                        {new Date(order.createdAt).toLocaleDateString('en-US', {
+                          weekday: 'long',
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric',
+                        })}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Package className="w-5 h-5 text-gray-400" />
+                    <div>
+                      <p className="text-sm text-gray-500">Quantity</p>
+                      <p className="font-bold text-gray-900 text-lg">{order.quantity.toLocaleString()} units</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Clock className="w-5 h-5 text-gray-400" />
+                    <div>
+                      <p className="text-sm text-gray-500">Delivery</p>
+                      <p className="font-medium text-gray-900">
+                        {order.deliveryDate
+                          ? new Date(order.deliveryDate).toLocaleDateString()
+                          : 'Not scheduled'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
 
-              <div>
-                <div className="flex flex-wrap items-center gap-3 mb-2">
-                  <h1 className="text-2xl font-bold text-slate-900">{order.orderNumber}</h1>
-                  <span
-                    className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${order.status === 'completed'
-                      ? 'bg-green-100 text-green-700'
-                      : order.status === 'processing'
-                        ? 'bg-orange-100 text-orange-700'
-                        : 'bg-slate-100 text-slate-600'
-                      }`}
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-gradient-to-br from-blue-100 to-white rounded-xl border border-blue-200 flex items-center justify-center">
+                    <Package className="w-6 h-6 text-blue-600" />
+                  </div>
+                  <div>
+                    <p className="font-bold text-gray-900 text-lg">{order.product.name}</p>
+                    <p className="text-gray-600">{categoryName}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-3">
+                {order.paymentStatus === 'COMPLETED' && (
+                  <button
+                    onClick={() => {
+                      // Generate invoice download
+                      window.open(`${API_BASE_URL}/orders/${order._id}/invoice`, '_blank');
+                    }}
+                    className="flex items-center justify-center gap-2 px-5 py-2.5 bg-white border border-gray-300 hover:border-blue-500 text-gray-700 hover:text-blue-600 rounded-lg font-medium transition-colors"
                   >
-                    {order.status.replace('_', ' ')}
-                  </span>
-                </div>
+                    <Download className="w-4 h-4" />
+                    Download Invoice
+                  </button>
+                )}
+                {/* 🔧 Complaint Management System - Register Complaint Button */}
+                <button
+                  onClick={async () => {
+                    try {
+                      const token = localStorage.getItem('token');
+                      if (!token) {
+                        alert('Please login to register a complaint');
+                        return;
+                      }
+                      const response = await fetch(
+                        `${API_BASE_URL}/complaints/check-eligibility/${order._id}`,
+                        { headers: { 'Authorization': `Bearer ${token}` } }
+                      );
+                      const data = await response.json();
 
-                <div className="text-xs font-semibold uppercase tracking-wide text-brand-600 mb-1">
-                  {(() => {
-                    const subcategory = order.product?.subcategory;
-                    if (subcategory && typeof subcategory === 'object' && subcategory?.category && typeof subcategory.category === 'object') {
-                      return `${subcategory.category.name} • ${String(subcategory.name || '')}`;
-                    } else if (subcategory && typeof subcategory === 'object') {
-                      return String(subcategory.name || 'N/A');
+                      console.log('📋 Eligibility check response:', data);
+
+                      if (data.existingComplaint) {
+                        // ✅ Validate complaint ID before navigation
+                        const complaintId = data.existingComplaint._id || data.existingComplaint.id;
+
+                        if (!complaintId) {
+                          console.error('❌ Existing complaint found but ID is missing:', data.existingComplaint);
+                          alert('Error: Complaint ID not found. Please contact support.');
+                          return;
+                        }
+
+                        console.log('✅ Navigating to existing complaint:', complaintId);
+
+                        // Show informative message
+                        alert(
+                          '⚠️ Complaint Already Exists\n\n' +
+                          'A complaint has already been registered for this order.\n\n' +
+                          'You cannot create a new complaint for the same order.\n\n' +
+                          'You will be redirected to view and continue the existing complaint.'
+                        );
+
+                        navigate(`/complaints/${complaintId}`);
+                      } else if (data.canRegister) {
+                        console.log('✅ Can register new complaint for order:', order._id);
+                        navigate(`/complaints/register/${order._id}`);
+                      } else {
+                        console.log('⚠️ Cannot register complaint:', data.message);
+                        alert(data.message || 'Cannot register complaint at this time');
+                      }
+                    } catch (error) {
+                      console.error('Complaint check error:', error);
+                      alert('Error checking complaint eligibility');
                     }
-                    return String(categoryName || 'N/A');
-                  })()}
-                </div>
-                <p className="text-slate-600 font-medium">{order.product?.name || 'Product'}</p>
-
-                <div className="flex items-center gap-4 mt-2 text-sm text-slate-500">
-                  <span className="flex items-center gap-1">
-                    <Clock className="w-4 h-4" /> Est. Delivery:{' '}
-                    {order.deliveryDate
-                      ? new Date(order.deliveryDate).toLocaleDateString()
-                      : 'Not set'}
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <Package className="w-4 h-4" /> {order.quantity.toLocaleString()} units
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex gap-3 md:self-start">
-              {order.paymentGatewayInvoiceId && (
-                <button className="flex items-center gap-2 px-4 py-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg text-sm font-medium text-slate-700 transition-colors">
-                  <Download className="w-4 h-4" /> Invoice
+                  }}
+                  className="flex items-center justify-center gap-2 px-5 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-medium transition-colors shadow-lg"
+                >
+                  <AlertCircle className="w-4 h-4" />
+                  Register Complaint
                 </button>
-              )}
-              <button className="flex items-center gap-2 px-4 py-2 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg text-sm font-medium text-slate-700 transition-colors">
-                <HelpCircle className="w-4 h-4" /> Support
-              </button>
+              </div>
             </div>
           </div>
         </div>
 
-        {isPaymentPending ? (
-          <div className="bg-orange-50 border border-orange-200 rounded-2xl p-8 text-center mb-8">
-            <div className="w-16 h-16 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center mx-auto mb-4">
-              <CreditCard className="w-8 h-8" />
-            </div>
-            <h2 className="text-xl font-bold text-slate-900 mb-2">Payment Required</h2>
-            <p className="text-slate-600 max-w-md mx-auto mb-6">
-              Your order has been created but production will not start until payment is confirmed.
-            </p>
-            <button className="bg-brand-600 hover:bg-brand-700 border-brown-200 border px-8 py-3 rounded-xl font-semibold shadow-lg shadow-brand-500/20 transition-all">
-              Pay {formatCurrency(order.totalPrice)} Now
-            </button>
-          </div>
-        ) : (
-          <>
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 mb-6 overflow-hidden">
-              <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-8">
-                Order Status
-              </h3>
-              <div className="flex flex-col md:flex-row justify-between relative">
-                {productionTimeline.map((event, idx) => (
-                  <TimelineStep
-                    key={idx}
-                    event={event}
-                    isLast={idx === productionTimeline.length - 1}
-                    isActive={event.status === 'in_progress'}
-                  />
-                ))}
-              </div>
-
-              {departmentStatuses.length > 0 && (
-                <div className="mt-10 pt-8 border-t border-slate-100">
-                  <div className="flex items-center justify-between mb-4">
-                    <h4 className="text-sm font-semibold text-slate-900">Production Sequence</h4>
-                    <span className="text-xs text-slate-500">Live Updates</span>
+        {/* Enhanced Payment Status Section */}
+        {isPaymentPending && (
+          <div className="mb-8">
+            <div className="bg-gradient-to-br from-orange-50 via-amber-50 to-orange-50 border-2 border-orange-300 rounded-2xl shadow-2xl overflow-hidden">
+              {/* Header with gradient */}
+              <div className="bg-gradient-to-r from-orange-500 to-amber-500 px-6 py-5">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                  <div className="flex items-center gap-4">
+                    <div className="w-14 h-14 bg-white/30 rounded-full flex items-center justify-center animate-pulse">
+                      <CreditCard className="w-7 h-7 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="text-2xl font-bold text-white">Payment Required</h3>
+                      <p className="text-orange-100 text-sm">Complete payment to start production</p>
+                    </div>
                   </div>
-                  <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide">
-                    {departmentStatuses.map((dept, idx) => (
-                      <React.Fragment key={idx}>
-                        <DepartmentChip status={dept} />
-                        {idx < departmentStatuses.length - 1 && (
-                          <div className="w-8 h-0.5 bg-slate-200 shrink-0 self-center" />
-                        )}
-                      </React.Fragment>
-                    ))}
+                  <div className="bg-white/20 backdrop-blur-sm rounded-xl px-6 py-3 border border-white/30">
+                    <p className="text-xs text-orange-100 font-medium uppercase tracking-wide">Amount Due</p>
+                    <p className="text-3xl font-bold text-white mt-1">
+                      {formatCurrency(
+                        order.priceSnapshot?.totalPayable || order.totalPrice - (order.advancePaid || 0)
+                      )}
+                    </p>
                   </div>
                 </div>
-              )}
+              </div>
+
+              {/* Body with price breakdown preview */}
+              <div className="p-6 md:p-8">
+                <div className="grid md:grid-cols-5 gap-6 items-center">
+                  {/* Left: Warning and Price Details */}
+                  <div className="md:col-span-3 space-y-4">
+                    <div className="flex items-start gap-3 p-4 bg-white/60 rounded-lg border border-orange-100">
+                      <AlertTriangle className="w-5 h-5 text-orange-500 mt-0.5 flex-shrink-0" />
+                      <p className="text-gray-700 text-sm">
+                        Your order has been created but <span className="font-bold">production will not start</span> until payment is confirmed.
+                      </p>
+                    </div>
+
+                    {/* Inline Price Breakdown */}
+                    <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
+                      <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                        <Tag className="w-4 h-4" />
+                        Price Breakdown
+                      </h4>
+                      <div className="space-y-2.5">
+                        <div className="flex justify-between items-center text-sm">
+                          <span className="text-gray-600">Subtotal:</span>
+                          <span className="font-semibold text-gray-900">
+                            {formatCurrency(
+                              order.priceSnapshot?.subtotal ||
+                              (order.totalPrice / 1.18) // Rough estimate if no snapshot
+                            )}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center text-sm">
+                          <span className="text-gray-600">
+                            GST ({order.priceSnapshot?.gstPercentage || 18}%):
+                          </span>
+                          <span className="font-semibold text-purple-600">
+                            +{formatCurrency(
+                              order.priceSnapshot?.gstAmount ||
+                              (order.totalPrice - (order.totalPrice / 1.18))
+                            )}
+                          </span>
+                        </div>
+                        <div className="border-t border-gray-200 pt-2.5">
+                          <div className="flex justify-between items-center">
+                            <span className="text-base font-bold text-gray-900">Total Amount:</span>
+                            <span className="text-xl font-bold text-blue-600">
+                              {formatCurrency(order.priceSnapshot?.totalPayable || order.totalPrice)}
+                            </span>
+                          </div>
+                        </div>
+                        {order.advancePaid && order.advancePaid > 0 && (
+                          <>
+                            <div className="flex justify-between items-center text-sm pt-2 border-t border-dashed">
+                              <span className="text-gray-500">Advance Paid:</span>
+                              <span className="text-green-600 font-semibold">-{formatCurrency(order.advancePaid)}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className="font-bold text-gray-700">Balance Due:</span>
+                              <span className="text-lg font-bold text-orange-600">
+                                {formatCurrency((order.priceSnapshot?.totalPayable || order.totalPrice) - order.advancePaid)}
+                              </span>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right: Pay Now CTA */}
+                  <div className="md:col-span-2 flex flex-col items-center justify-center text-center space-y-4">
+                    {paymentSuccess && (
+                      <div className="w-full mb-2 p-3 bg-green-100 border border-green-300 rounded-lg text-green-800 text-sm font-medium flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                        Payment successful! Your order is now <strong>confirmed</strong>.
+                      </div>
+                    )}
+                    {paymentError && (
+                      <div className="w-full mb-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                        {paymentError}
+                      </div>
+                    )}
+                    <button
+                      onClick={handlePayNow}
+                      disabled={paymentLoading}
+                      className="group relative w-full bg-gradient-to-r from-green-500 via-emerald-500 to-green-600 hover:from-green-600 hover:via-emerald-600 hover:to-green-700 disabled:opacity-60 disabled:cursor-not-allowed text-white px-8 py-5 rounded-xl font-bold text-lg shadow-2xl shadow-green-500/40 transition-all duration-300 transform hover:scale-105 hover:shadow-green-500/60 overflow-hidden"
+                    >
+                      <span className="relative z-10 flex items-center justify-center gap-3">
+                        {paymentLoading ? (
+                          <><div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Processing...</>
+                        ) : (
+                          <><CreditCard className="w-6 h-6" /> Pay Now</>
+                        )}
+                      </span>
+                      {/* Animated shimmer effect */}
+                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent transform -skew-x-12 group-hover:translate-x-full transition-transform duration-1000"></div>
+                    </button>
+
+                    <div className="flex flex-col items center text-xs text-gray-600 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Shield className="w-4 h-4 text-green-500" />
+                        <span>Secure payment • SSL encrypted</span>
+                      </div>
+                      <div className="flex items-center gap-1 text-gray-500">
+                        <Check className="w-3 h-3" />
+                        <span>Multiple payment options available</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
-          </>
+          </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-6">
-            <ProductSpecsPanel order={order} />
-            <FileUploadPanel order={order} />
+        {/* Production Timeline */}
+        {!isPaymentPending && (
+          <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6 mb-8">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">Production Status</h3>
+                <p className="text-sm text-gray-600">Track your order progress</p>
+              </div>
+              <div className="text-right">
+                <p className="text-sm text-gray-500">Last Updated</p>
+                <p className="font-medium text-gray-900">
+                  {new Date(order.updatedAt || order.createdAt).toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </p>
+              </div>
+            </div>
 
-            {order.shippingAddress && (
-              <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-                <div className="flex items-center gap-3 mb-4">
-                  <MapPin className="w-5 h-5 text-brand-600" />
-                  <h3 className="text-lg font-bold text-slate-900">Delivery Location</h3>
+            {/* Timeline */}
+            <div className="mb-8">
+              <div className="relative">
+                <div className="flex flex-col md:flex-row justify-between items-start">
+                  {productionTimeline.map((event, idx) => (
+                    <TimelineStep
+                      key={idx}
+                      event={event}
+                      isLast={idx === productionTimeline.length - 1}
+                      isActive={event.status === 'in_progress'}
+                    />
+                  ))}
                 </div>
-                <div className="pl-8">
-                  <p className="text-slate-900 font-medium">{order.shippingAddress.street}</p>
-                  <p className="text-slate-600">
-                    {order.shippingAddress.city}, {order.shippingAddress.state}{' '}
-                    {order.shippingAddress.zipCode}
-                  </p>
-                  <p className="text-slate-600">{order.shippingAddress.country}</p>
+              </div>
+            </div>
+
+            {/* Department Status */}
+            {departmentStatuses.length > 0 && (
+              <div className="border-t border-gray-200 pt-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="text-sm font-semibold text-gray-900">Production Departments</h4>
+                  <span className="text-xs text-blue-600 font-medium">Live Tracking</span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {departmentStatuses.map((dept, idx) => (
+                    <DepartmentChip key={idx} status={dept} />
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Main Content Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Left Column */}
+          <div className="lg:col-span-2 space-y-8">
+            <ProductSpecsPanel order={order} />
+
+            {/* Child Orders Section - For Parent Bulk Orders */}
+            {order.childOrders && order.childOrders.length > 0 && (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                <div className="border-b border-gray-200 px-6 py-4 bg-gradient-to-r from-blue-50 to-white">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-blue-100 rounded-lg">
+                      <Package className="w-5 h-5 text-blue-600" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold text-gray-900">Child Orders</h3>
+                      <p className="text-sm text-gray-600">
+                        {order.childOrders.length} order{order.childOrders.length !== 1 ? 's' : ''} in this bulk order
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Order #
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Product
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Quantity
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Price
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Status
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Payment
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {order.childOrders.map((child: any, idx: number) => (
+                        <tr key={child._id || idx} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <a
+                              href={`/order/${child._id}`}
+                              className="text-sm font-medium text-blue-600 hover:text-blue-800"
+                            >
+                              {child.orderNumber}
+                            </a>
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-900">
+                            {typeof child.product === 'object' ? child.product?.name : 'Product'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {child.quantity?.toLocaleString() || 0} units
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            {formatCurrency(
+                              child.payment_details?.amount_paid ||
+                              child.priceSnapshot?.totalPayable ||
+                              child.totalPrice ||
+                              0
+                            )}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`px-2 py-1 text-xs font-semibold rounded-full ${child.status === 'completed' ? 'bg-green-100 text-green-800' :
+                              child.status === 'processing' ? 'bg-blue-100 text-blue-800' :
+                                child.status === 'request' ? 'bg-yellow-100 text-yellow-800' :
+                                  'bg-gray-100 text-gray-800'
+                              }`}>
+                              {child.status}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`px-2 py-1 text-xs font-semibold rounded-full ${child.paymentStatus === 'COMPLETED' ? 'bg-green-100 text-green-800' :
+                              child.paymentStatus === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
+                                'bg-gray-100 text-gray-800'
+                              }`}>
+                              {child.paymentStatus}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot className="bg-gray-50">
+                      <tr>
+                        <td colSpan={2} className="px-6 py-4 text-sm font-bold text-gray-900">
+                          Total
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">
+                          {order.childOrders.reduce((sum: number, child: any) => sum + (child.quantity || 0), 0).toLocaleString()} units
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">
+                          {formatCurrency(order.payment_details?.amount_paid || order.priceSnapshot?.totalPayable || order.totalPrice || 0)}
+                        </td>
+                        <td colSpan={2}></td>
+                      </tr>
+                    </tfoot>
+                  </table>
                 </div>
               </div>
             )}
 
-            {order.status === 'completed' && (order.courierPartner || order.trackingId) && (
-              <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-                <div className="flex items-center gap-3 mb-4">
-                  <Truck className="w-5 h-5 text-brand-600" />
-                  <h3 className="text-lg font-bold text-slate-900">Tracking Information</h3>
+            {order.uploadedDesign && (
+              <FileUploadPanel order={order} />
+            )}
+
+            {/* Delivery Information */}
+            {order.shippingAddress && (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                <div className="border-b border-gray-200 px-6 py-4 bg-gradient-to-r from-gray-50 to-white">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-indigo-100 rounded-lg">
+                      <MapPin className="w-5 h-5 text-indigo-600" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold text-gray-900">Delivery Address</h3>
+                      <p className="text-sm text-gray-600">Shipment destination</p>
+                    </div>
+                  </div>
                 </div>
-                <div className="bg-slate-50 p-4 rounded-lg">
-                  <p className="text-sm text-slate-600">
-                    Tracking Number:{' '}
-                    <span className="font-mono text-slate-900">
-                      {order.trackingId || 'TRK-99887766'}
-                    </span>
-                  </p>
-                  {order.courierPartner && (
-                    <p className="text-sm text-slate-600 mt-1">
-                      Courier: <span className="font-medium">{order.courierPartner}</span>
-                    </p>
-                  )}
+                <div className="p-6">
+                  <div className="space-y-3">
+                    <div className="flex items-start gap-3">
+                      <div className="w-8 h-8 bg-indigo-50 rounded-lg flex items-center justify-center">
+                        <TruckIcon className="w-4 h-4 text-indigo-500" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-gray-900">{order.shippingAddress.street}</p>
+                        <p className="text-gray-600">
+                          {order.shippingAddress.city}, {order.shippingAddress.state} {order.shippingAddress.zipCode}
+                        </p>
+                        <p className="text-gray-600">{order.shippingAddress.country}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Tracking Information */}
+            {order.status === 'completed' && (order.courierPartner || order.trackingId) && (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                <div className="border-b border-gray-200 px-6 py-4 bg-gradient-to-r from-gray-50 to-white">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-green-100 rounded-lg">
+                      <Truck className="w-5 h-5 text-green-600" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold text-gray-900">Tracking Information</h3>
+                      <p className="text-sm text-gray-600">Delivery updates</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="p-6">
+                  <div className="bg-gradient-to-r from-green-50 to-white p-4 rounded-lg border border-green-100">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-sm text-gray-600 mb-1">Tracking Number</p>
+                        <p className="font-mono text-lg font-bold text-gray-900 bg-white px-3 py-2 rounded border border-gray-200">
+                          {order.trackingId || 'TRK-99887766'}
+                        </p>
+                      </div>
+                      {order.courierPartner && (
+                        <div>
+                          <p className="text-sm text-gray-600 mb-1">Courier Partner</p>
+                          <p className="text-lg font-semibold text-gray-900">{order.courierPartner}</p>
+                        </div>
+                      )}
+                    </div>
+                    {order.deliveredAt && (
+                      <div className="mt-4 pt-4 border-t border-green-100">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle2 className="w-5 h-5 text-green-500" />
+                          <p className="text-green-700 font-medium">
+                            Delivered on {new Date(order.deliveredAt).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
           </div>
 
-          <div className="space-y-6">
+          {/* Right Column */}
+          <div className="space-y-8">
             <PriceBreakdownPanel order={order} />
+
+            {/* Quick Actions Card */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+              <div className="border-b border-gray-200 px-6 py-4 bg-gradient-to-r from-gray-50 to-white">
+                <h3 className="text-lg font-bold text-gray-900">Quick Actions</h3>
+              </div>
+              <div className="p-4 space-y-3">
+                <button
+                  onClick={() => {
+                    if (order.paymentStatus === 'COMPLETED') {
+                      window.open(`${API_BASE_URL}/orders/${order._id}/invoice`, '_blank');
+                    }
+                  }}
+                  className={`w-full flex items-center justify-between p-3 rounded-lg border border-gray-200 transition-colors ${order.paymentStatus === 'COMPLETED'
+                    ? 'bg-gray-50 hover:bg-gray-100 cursor-pointer'
+                    : 'bg-gray-100 cursor-not-allowed opacity-50'
+                    }`}
+                  disabled={order.paymentStatus !== 'COMPLETED'}
+                >
+                  <span className="font-medium text-gray-700">Download Invoice</span>
+                  <Download className="w-4 h-4 text-gray-400" />
+                </button>
+                <button className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 transition-colors">
+                  <span className="font-medium text-gray-700">Contact Support</span>
+                  <HelpCircle className="w-4 h-4 text-gray-400" />
+                </button>
+                <button className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 transition-colors">
+                  <span className="font-medium text-gray-700">Track Order</span>
+                  <Truck className="w-4 h-4 text-gray-400" />
+                </button>
+                {/* View Child Orders Button for Bulk Parents */}
+                {order.childOrders && order.childOrders.length > 0 && (
+                  <button
+                    onClick={() => navigate(`/my-orders?parent=${order._id}`)}
+                    className="w-full flex items-center justify-between p-3 bg-indigo-50 hover:bg-indigo-100 rounded-lg border border-indigo-200 transition-colors mt-2"
+                  >
+                    <span className="font-medium text-indigo-700">View Child Orders</span>
+                    <Layers className="w-4 h-4 text-indigo-500" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Order Summary Card */}
+            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border border-blue-200 p-5">
+              <h4 className="font-bold text-gray-900 mb-4">Order Summary</h4>
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-600">Order Number</span>
+                  <span className="font-mono font-semibold text-gray-900">{order.orderNumber}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-600">Order Date</span>
+                  <span className="font-medium text-gray-900">
+                    {new Date(order.createdAt).toLocaleDateString()}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-600">Status</span>
+                  <StatusBadge status={order.status} />
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-600">Payment</span>
+                  <span className={`font-medium ${order.paymentStatus === 'COMPLETED' ? 'text-green-600' : 'text-orange-600'}`}>
+                    {order.paymentStatus === 'COMPLETED' ? 'Paid' : 'Pending'}
+                  </span>
+                </div>
+                {(order.paymentStatus === 'COMPLETED' || (order.payment_details?.amount_paid && order.payment_details.amount_paid > 0) || (order.advancePaid && order.advancePaid > 0)) && (
+                  <div className="flex justify-between items-center pt-2 border-t border-blue-200/50">
+                    <span className="text-gray-600 font-medium">Amount Paid</span>
+                    <span className="font-bold text-green-700">
+                      {formatCurrency(order.payment_details?.amount_paid || order.advancePaid || order.priceSnapshot?.totalPayable || order.totalPrice)}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </div>

@@ -4,6 +4,10 @@ import { authMiddleware } from "../middlewares/authMiddleware.js";
 import { optionalAuthMiddleware } from "../middlewares/optionalAuthMiddleware.js";
 import upload, { uploadZip } from "../middlewares/upload.js";
 
+// Payment Routes
+import paymentRoutes from "./payment.routes.js";
+import paymentGatewayRoutes from "./admin/payment-gateways.routes.js";
+
 /* CATEGORY CONTROLLERS */
 import {
   createCategory,
@@ -199,8 +203,21 @@ import segmentApplicationRoutes from "./segmentApplicationRoutes.js";
 import formBuilderRoutes from "./formBuilderRoutes.js";
 import otpRoutes from "./otpRoutes.js";
 
-/* PRICING ROUTES */
+/* PRICING & PMS ROUTES */
 import pricingRoutes from "./pricingRoutes.js";
+import pricingAdminRoutes from "./admin/pricingAdminRoutes.js";
+import currencyRoutes from "./currencyRoutes.js";
+import geolocationRoutes from "./geolocationRoutes.js";
+import userContextRoutes from "./userContextRoutes.js";
+
+/* MODIFIER ROUTES */
+import modifierRoutes from "./modifierRoutes.js";
+
+/* BULK ORDER ROUTES */
+import bulkOrderRoutes from "./bulkOrderRoutes.js";
+
+/* COMPLAINT ROUTES */
+import complaintRoutes from "./complaintRoutes.js";
 
 const router = express.Router();
 
@@ -626,7 +643,36 @@ router.use("/admin/forms", formBuilderRoutes);
 // OTP routes (public)
 router.use("/otp", otpRoutes);
 
-// Pricing routes (admin only)
-router.use("/admin/pricing", authMiddleware, adminAuth, pricingRoutes);
+/* =====================================
+   PMS ROUTES (Pricing & Modifiers)
+===================================== */
+
+// Admin pricing routes: /api/admin/price-books, /api/admin/pricing/geo-zones, etc.
+router.use("/admin", pricingAdminRoutes);
+
+// Public pricing API
+router.use("/pricing", pricingRoutes);
+router.use("/currency", currencyRoutes);
+router.use("/geolocation", geolocationRoutes);
+router.use("/user", userContextRoutes);
+
+// Modifier routes (alternative endpoint structure)
+// Note: pricingAdminRoutes includes /price-modifiers, but modifierRoutes provides /admin/modifiers
+router.use("/admin/modifiers", authMiddleware, adminAuth, modifierRoutes);
+
+// Payment routes
+
+router.use("/payment", paymentRoutes);
+router.use("/admin/payment-gateways", authMiddleware, adminAuth, paymentGatewayRoutes);
+
+/* =====================================
+   BULK ORDER ROUTES
+===================================== */
+router.use("/bulk-orders", bulkOrderRoutes);
+
+/* =====================================
+   COMPLAINT ROUTES
+===================================== */
+router.use("/complaints", complaintRoutes);
 
 export default router;

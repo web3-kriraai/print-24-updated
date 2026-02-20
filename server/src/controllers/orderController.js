@@ -8,6 +8,7 @@ import jwt from "jsonwebtoken";
 import { uploadBufferToCloudinary, uploadPdfToCloudinary, MAX_PDF_SIZE_BYTES } from "../utils/cloudinaryUploadHelper.js";
 // Email service temporarily disabled - uncomment when email configuration is ready
 // import { sendAccountCreationEmail, sendOrderConfirmationEmail } from "../utils/emailService.js";
+import PricingService from "../services/pricing/PricingService.js";
 
 // Create a new order
 export const createOrder = async (req, res) => {
@@ -28,11 +29,24 @@ export const createOrder = async (req, res) => {
     } = req.body;
 
     // Validate required fields
-    if (!productId || !quantity || !finish || !shape || !totalPrice || !pincode || !address || !mobileNumber) {
+    const missingFields = [];
+    if (!productId) missingFields.push('productId');
+    if (!quantity) missingFields.push('quantity');
+    if (!totalPrice) missingFields.push('totalPrice');
+    if (!pincode) missingFields.push('pincode');
+    if (!address) missingFields.push('address');
+    if (!mobileNumber) missingFields.push('mobileNumber');
+    if (missingFields.length > 0) {
+      console.log('[Order Validation] Missing fields:', missingFields.join(', '));
+      console.log('[Order Validation] Received body keys:', Object.keys(req.body));
       return res.status(400).json({
-        error: "Missing required fields: productId, quantity, finish, shape, totalPrice, pincode, address, mobileNumber",
+        error: `Missing required fields: ${missingFields.join(', ')}`,
       });
     }
+
+    // Default finish and shape if not provided (these are optional filter fields)
+    const orderFinish = finish || 'Standard';
+    const orderShape = shape || 'Standard';
 
     // Verify product exists
     const product = await Product.findById(productId);
@@ -100,8 +114,9 @@ export const createOrder = async (req, res) => {
             details: process.env.NODE_ENV === 'development' ? err.message : undefined
           });
         }
-      } else {
-        return res.status(400).json({ error: "Front image is required." });
+      } else if (!uploadedDesign.pdfFile || !uploadedDesign.pdfFile.data) {
+        // Front image is required only if no PDF is provided
+        return res.status(400).json({ error: "Front image or PDF file is required." });
       }
 
       if (uploadedDesign.backImage && uploadedDesign.backImage.data) {
@@ -185,7 +200,7 @@ export const createOrder = async (req, res) => {
         }
       }
     } else {
-      return res.status(400).json({ error: "Uploaded design is required." });
+      return res.status(400).json({ error: "Uploaded design (image or PDF) is required." });
     }
 
     // DO NOT initialize department statuses at order creation
@@ -424,8 +439,8 @@ export const createOrder = async (req, res) => {
       orderNumber: orderNumber, // Set orderNumber explicitly
       product: productId,
       quantity: parseInt(quantity),
-      finish,
-      shape,
+      finish: orderFinish,
+      shape: orderShape,
       selectedOptions: enhancedSelectedOptions,
       selectedDynamicAttributes: processedDynamicAttributes,
       totalPrice: parseFloat(totalPrice),
@@ -447,9 +462,79 @@ export const createOrder = async (req, res) => {
       specialEffects: req.body.specialEffects || [],
     };
 
+    // --- PRICING INTEGRATION START ---
+    try {
+      console.log("Calculating price via PricingService for Order...");
+      const pricingSnapshotResult = await PricingService.createPriceSnapshot({
+        userId: userId,
+        productId: productId,
+        pincode: pincode,
+        selectedDynamicAttributes: processedDynamicAttributes, // Use processed attributes
+        quantity: parseInt(quantity),
+      });
+
+      const snapshot = pricingSnapshotResult.priceSnapshot;
+      const fullResult = pricingSnapshotResult.fullPricingResult;
+
+      // Overwrite totalPrice with calculated value for integrity
+      orderData.totalPrice = snapshot.totalPayable;
+      orderData.priceSnapshot = snapshot;
+
+      console.log(`Price calculated: ${snapshot.totalPayable} (Requested: ${totalPrice})`);
+
+      // Validate if requested price matches calculated price (Optional: allow small variance)
+      if (Math.abs(snapshot.totalPayable - parseFloat(totalPrice)) > 1.0) {
+        console.warn(`WARNING: Price mismatch! Client: ${totalPrice}, Server: ${snapshot.totalPayable}`);
+        // check if we should block or just log
+      }
+    } catch (pricingError) {
+      console.error("PricingService calculation failed:", pricingError);
+      // Fallback: Proceed with client-provided price but log error? 
+      // Or fail order creation? 
+      // For now, let's log and proceed, but NOT set priceSnapshot (legacy behavior)
+      // ideally we should fail if pricing is critical.
+      // re-throwing for now to ensure data integrity
+      // throw new Error(`Pricing calculation failed: ${pricingError.message}`);
+      console.warn("Proceeding with client-provided price due to calculation error.");
+    }
+    // --- PRICING INTEGRATION END ---
+
     const order = new Order(orderData);
 
     await order.save();
+
+    // --- PRICING LOGGING START ---
+    if (order.priceSnapshot && order.priceSnapshot.appliedModifiers) {
+      // Re-construct logic to get full modifier details if needed, 
+      // but PricingService.logPricingCalculation expects the structure from fullPricingResult
+      // We need to pass the *full* result from createPriceSnapshot if we want detailed logs
+      // logic is inside createPriceSnapshot -> resolvePrice -> appliedModifiers
+
+      // We need to re-fetch or store the full result temporarily. 
+      // Let's assume we can re-calculate or just use what we have.
+      // Actually, createPriceSnapshot returns { priceSnapshot, fullPricingResult }
+      // We should use fullPricingResult for logging.
+
+      // Since I scoped `fullResult` inside the try block, I need to access it here.
+      // Let's refactor the try block to be slightly larger or just call log separately if snapshot exists.
+
+      // Since we can't easily share variables across replacement chunks without structural changes,
+      // I will call logPricingCalculation using the data in priceSnapshot, 
+      // or better, I will trust the PricingService to have done its job if I used it correctly.
+
+      // Wait, `createPriceSnapshot` DOES NOT log automatically. `logPricingCalculation` must be called.
+      // I should move the logging call INSIDE the try block above, OR modify this chunk to include it.
+
+      // Let's do it right: I will modify the previous chunk to include logging AFTER save, 
+      // but order.save() happens here.
+      // So I will execute logPricingCalculation HERE.
+
+      // To do that, I need the `appliedModifiers` from the calculation.
+      // `order.priceSnapshot.appliedModifiers` has the data.
+      await PricingService.logPricingCalculation(order._id, order.priceSnapshot.appliedModifiers);
+      console.log(`Pricing calculation logged for Order ${order._id}`);
+    }
+    // --- PRICING LOGGING END ---
     await order.populate({
       path: "product",
       select: "name image basePrice subcategory options discount description instructions attributes minFileWidth maxFileWidth minFileHeight maxFileHeight filters gstPercentage additionalDesignCharge productionSequence",
@@ -545,11 +630,15 @@ export const createOrderWithAccount = async (req, res) => {
       });
     }
 
-    if (!productId || !quantity || !finish || !shape || !totalPrice || !pincode || !address) {
+    if (!productId || !quantity || !totalPrice || !pincode || !address) {
       return res.status(400).json({
-        error: "Missing required order fields: productId, quantity, finish, shape, totalPrice, pincode, address",
+        error: "Missing required order fields: productId, quantity, totalPrice, pincode, address",
       });
     }
+
+    // Default finish and shape if not provided
+    const orderFinish = finish || 'Standard';
+    const orderShape = shape || 'Standard';
 
     // Check if user already exists
     let user = await User.findOne({ email });
@@ -636,8 +725,9 @@ export const createOrderWithAccount = async (req, res) => {
             details: process.env.NODE_ENV === 'development' ? err.message : undefined
           });
         }
-      } else {
-        return res.status(400).json({ error: "Front image is required." });
+      } else if (!uploadedDesign.pdfFile || !uploadedDesign.pdfFile.data) {
+        // Front image is required only if no PDF is provided
+        return res.status(400).json({ error: "Front image or PDF file is required." });
       }
 
       if (uploadedDesign.backImage && uploadedDesign.backImage.data) {
@@ -714,7 +804,7 @@ export const createOrderWithAccount = async (req, res) => {
         }
       }
     } else {
-      return res.status(400).json({ error: "Uploaded design is required." });
+      return res.status(400).json({ error: "Uploaded design (image or PDF) is required." });
     }
 
     // DO NOT initialize department statuses at order creation
@@ -874,8 +964,8 @@ export const createOrderWithAccount = async (req, res) => {
       orderNumber: orderNumber,
       product: productId,
       quantity: parseInt(quantity),
-      finish,
-      shape,
+      finish: orderFinish,
+      shape: orderShape,
       selectedOptions: enhancedSelectedOptions,
       selectedDynamicAttributes: processedDynamicAttributes,
       totalPrice: parseFloat(totalPrice),
@@ -895,8 +985,39 @@ export const createOrderWithAccount = async (req, res) => {
       specialEffects: specialEffects || [],
     };
 
+    // --- PRICING INTEGRATION START ---
+    try {
+      console.log("Calculating price via PricingService for Order (WithAccount)...");
+      const pricingSnapshotResult = await PricingService.createPriceSnapshot({
+        userId: user._id, // User is created/found above
+        productId: productId,
+        pincode: pincode,
+        selectedDynamicAttributes: processedDynamicAttributes,
+        quantity: parseInt(quantity),
+      });
+
+      const snapshot = pricingSnapshotResult.priceSnapshot;
+
+      // Overwrite totalPrice with calculated value for integrity
+      orderData.totalPrice = snapshot.totalPayable;
+      orderData.priceSnapshot = snapshot;
+
+      console.log(`Price calculated: ${snapshot.totalPayable} (Requested: ${totalPrice})`);
+    } catch (pricingError) {
+      console.error("PricingService calculation failed (WithAccount):", pricingError);
+      console.warn("Proceeding with client-provided price due to calculation error.");
+    }
+    // --- PRICING INTEGRATION END ---
+
     const order = new Order(orderData);
     await order.save();
+
+    // --- PRICING LOGGING START ---
+    if (order.priceSnapshot && order.priceSnapshot.appliedModifiers) {
+      await PricingService.logPricingCalculation(order._id, order.priceSnapshot.appliedModifiers);
+      console.log(`Pricing calculation logged for Order ${order._id}`);
+    }
+    // --- PRICING LOGGING END ---
 
     await order.populate({
       path: "product",

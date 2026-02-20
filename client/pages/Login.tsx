@@ -474,11 +474,16 @@ const Login: React.FC = () => {
       // Success
       await login(data.token, data.user);
 
-      // Redirect based on role
+      // Redirect based on role, or to the redirect URL if provided
+      const searchParams = new URLSearchParams(location.search);
+      const redirectUrl = searchParams.get('redirect');
+
       if (data.user.role === "admin") {
         navigate("/admin/dashboard");
       } else if (data.user.role === "emp") {
         navigate("/employee/dashboard");
+      } else if (redirectUrl) {
+        navigate(redirectUrl);
       } else {
         navigate("/");
       }

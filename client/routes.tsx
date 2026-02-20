@@ -22,6 +22,10 @@ import AdminDashboard from './pages/AdminDashboard';
 import ServiceAdmin from './pages/ServiceAdmin';
 import AboutAdmin from './pages/AboutAdmin';
 import NotFound from './pages/NotFound';
+import PaymentTestPage from './pages/PaymentTestPage';
+import RegisterComplaint from './pages/RegisterComplaint';
+import ComplaintDetails from './pages/ComplaintDetails';
+import AdminComplaintManagement from './pages/admin/AdminComplaintManagement';
 
 // Shared routes configuration for both SSR and client
 export const routes = [
@@ -65,6 +69,13 @@ export const routes = [
       { path: 'admin/about', element: <AboutAdmin />, errorElement: <ErrorBoundary /> },
       { path: 'employee/dashboard', element: <EmployeeDashboard />, errorElement: <ErrorBoundary /> },
       { path: 'department-portal', element: <DepartmentPortal />, errorElement: <ErrorBoundary /> },
+      { path: 'admin/test-payment', element: <PaymentTestPage />, errorElement: <ErrorBoundary /> },
+
+      // Complaint Routes
+      { path: 'complaints/register/:orderId', element: <RegisterComplaint />, errorElement: <ErrorBoundary /> },
+      { path: 'complaints/:id', element: <ComplaintDetails />, errorElement: <ErrorBoundary /> },
+      { path: 'admin/complaints', element: <AdminComplaintManagement />, errorElement: <ErrorBoundary /> },
+
       { path: 'reviews', element: <Reviews />, errorElement: <ErrorBoundary /> },
       // 404 catch-all route - must be last
       { path: '*', element: <NotFound /> },

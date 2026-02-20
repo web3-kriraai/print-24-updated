@@ -1,0 +1,874 @@
+{
+  "states": [
+    {
+      "name": "ANDHRA PRADESH",
+      "code": "AP",
+      "level": "STATE",
+      "pincodeRanges": [
+        {
+          "start": 503145,
+          "end": 506003
+        },
+        {
+          "start": 509132,
+          "end": 509324
+        },
+        {
+          "start": 515001,
+          "end": 518674
+        },
+        {
+          "start": 520001,
+          "end": 524421
+        },
+        {
+          "start": 530001,
+          "end": 535594
+        }
+      ],
+      "currency": "INR",
+      "districtCount": 26
+    },
+    {
+      "name": "ARUNACHAL PRADESH",
+      "code": "AR",
+      "level": "STATE",
+      "pincodeRanges": [
+        {
+          "start": 790001,
+          "end": 792131
+        }
+      ],
+      "currency": "INR",
+      "districtCount": 25
+    },
+    {
+      "name": "ASSAM",
+      "code": "AS",
+      "level": "STATE",
+      "pincodeRanges": [
+        {
+          "start": 781001,
+          "end": 788931
+        }
+      ],
+      "currency": "INR",
+      "districtCount": 34
+    },
+    {
+      "name": "BIHAR",
+      "code": "BR",
+      "level": "STATE",
+      "pincodeRanges": [
+        {
+          "start": 800001,
+          "end": 800035
+        },
+        {
+          "start": 801102,
+          "end": 803307
+        },
+        {
+          "start": 804401,
+          "end": 805141
+        },
+        {
+          "start": 811101,
+          "end": 812007
+        },
+        {
+          "start": 813101,
+          "end": 814131
+        },
+        {
+          "start": 821015,
+          "end": 821312
+        },
+        {
+          "start": 823001,
+          "end": 824304
+        },
+        {
+          "start": 841101,
+          "end": 842006
+        },
+        {
+          "start": 843101,
+          "end": 846010
+        },
+        {
+          "start": 847101,
+          "end": 848506
+        },
+        {
+          "start": 851101,
+          "end": 855117
+        }
+      ],
+      "currency": "INR",
+      "districtCount": 38
+    },
+    {
+      "name": "CHHATTISGARH",
+      "code": "CG",
+      "level": "STATE",
+      "pincodeRanges": [
+        {
+          "start": 334002,
+          "end": 334002
+        },
+        {
+          "start": 490001,
+          "end": 497778
+        }
+      ],
+      "currency": "INR",
+      "districtCount": 28
+    },
+    {
+      "name": "GOA",
+      "code": "GA",
+      "level": "STATE",
+      "pincodeRanges": [
+        {
+          "start": 403001,
+          "end": 403806
+        }
+      ],
+      "currency": "INR",
+      "districtCount": 2
+    },
+    {
+      "name": "GUJARAT",
+      "code": "GJ",
+      "level": "STATE",
+      "pincodeRanges": [
+        {
+          "start": 360001,
+          "end": 365730
+        },
+        {
+          "start": 370001,
+          "end": 370675
+        },
+        {
+          "start": 380001,
+          "end": 380063
+        },
+        {
+          "start": 382006,
+          "end": 385581
+        },
+        {
+          "start": 387001,
+          "end": 390025
+        },
+        {
+          "start": 391101,
+          "end": 396590
+        }
+      ],
+      "currency": "INR",
+      "districtCount": 33
+    },
+    {
+      "name": "HARYANA",
+      "code": "HR",
+      "level": "STATE",
+      "pincodeRanges": [
+        {
+          "start": 121001,
+          "end": 127312
+        },
+        {
+          "start": 131001,
+          "end": 136156
+        }
+      ],
+      "currency": "INR",
+      "districtCount": 22
+    },
+    {
+      "name": "HIMACHAL PRADESH",
+      "code": "HP",
+      "level": "STATE",
+      "pincodeRanges": [
+        {
+          "start": 171001,
+          "end": 177601
+        }
+      ],
+      "currency": "INR",
+      "districtCount": 12
+    },
+    {
+      "name": "JHARKHAND",
+      "code": "JH",
+      "level": "STATE",
+      "pincodeRanges": [
+        {
+          "start": 813206,
+          "end": 816129
+        },
+        {
+          "start": 818142,
+          "end": 818142
+        },
+        {
+          "start": 822101,
+          "end": 822134
+        },
+        {
+          "start": 825101,
+          "end": 829301
+        },
+        {
+          "start": 831001,
+          "end": 831021
+        },
+        {
+          "start": 832101,
+          "end": 834014
+        },
+        {
+          "start": 835101,
+          "end": 835325
+        }
+      ],
+      "currency": "INR",
+      "districtCount": 24
+    },
+    {
+      "name": "KARNATAKA",
+      "code": "KA",
+      "level": "STATE",
+      "pincodeRanges": [
+        {
+          "start": 560001,
+          "end": 563163
+        },
+        {
+          "start": 570001,
+          "end": 570034
+        },
+        {
+          "start": 571101,
+          "end": 575030
+        },
+        {
+          "start": 576101,
+          "end": 577601
+        },
+        {
+          "start": 580001,
+          "end": 587331
+        },
+        {
+          "start": 590001,
+          "end": 590020
+        },
+        {
+          "start": 591101,
+          "end": 591346
+        }
+      ],
+      "currency": "INR",
+      "districtCount": 31
+    },
+    {
+      "name": "KERALA",
+      "code": "KL",
+      "level": "STATE",
+      "pincodeRanges": [
+        {
+          "start": 612906,
+          "end": 612906
+        },
+        {
+          "start": 670001,
+          "end": 671552
+        },
+        {
+          "start": 673001,
+          "end": 673661
+        },
+        {
+          "start": 676101,
+          "end": 676562
+        },
+        {
+          "start": 678001,
+          "end": 680751
+        },
+        {
+          "start": 682001,
+          "end": 683594
+        },
+        {
+          "start": 685501,
+          "end": 686693
+        },
+        {
+          "start": 688001,
+          "end": 691602
+        },
+        {
+          "start": 695001,
+          "end": 695615
+        }
+      ],
+      "currency": "INR",
+      "districtCount": 14
+    },
+    {
+      "name": "MADHYA PRADESH",
+      "code": "MP",
+      "level": "STATE",
+      "pincodeRanges": [
+        {
+          "start": 450001,
+          "end": 458990
+        },
+        {
+          "start": 460001,
+          "end": 466665
+        },
+        {
+          "start": 470001,
+          "end": 477660
+        },
+        {
+          "start": 480001,
+          "end": 488448
+        }
+      ],
+      "currency": "INR",
+      "districtCount": 52
+    },
+    {
+      "name": "MAHARASHTRA",
+      "code": "MH",
+      "level": "STATE",
+      "pincodeRanges": [
+        {
+          "start": 400001,
+          "end": 402404
+        },
+        {
+          "start": 410101,
+          "end": 411081
+        },
+        {
+          "start": 412101,
+          "end": 416813
+        },
+        {
+          "start": 421002,
+          "end": 425524
+        },
+        {
+          "start": 431001,
+          "end": 431811
+        },
+        {
+          "start": 440001,
+          "end": 445402
+        }
+      ],
+      "currency": "INR",
+      "districtCount": 36
+    },
+    {
+      "name": "MANIPUR",
+      "code": "MN",
+      "level": "STATE",
+      "pincodeRanges": [
+        {
+          "start": 795001,
+          "end": 795159
+        }
+      ],
+      "currency": "INR",
+      "districtCount": 16
+    },
+    {
+      "name": "MEGHALAYA",
+      "code": "ML",
+      "level": "STATE",
+      "pincodeRanges": [
+        {
+          "start": 781029,
+          "end": 781131
+        },
+        {
+          "start": 782410,
+          "end": 782410
+        },
+        {
+          "start": 793001,
+          "end": 794115
+        }
+      ],
+      "currency": "INR",
+      "districtCount": 11
+    },
+    {
+      "name": "MIZORAM",
+      "code": "MZ",
+      "level": "STATE",
+      "pincodeRanges": [
+        {
+          "start": 791701,
+          "end": 791701
+        },
+        {
+          "start": 796001,
+          "end": 796901
+        }
+      ],
+      "currency": "INR",
+      "districtCount": 11
+    },
+    {
+      "name": "NAGALAND",
+      "code": "NL",
+      "level": "STATE",
+      "pincodeRanges": [
+        {
+          "start": 797001,
+          "end": 797121
+        },
+        {
+          "start": 798601,
+          "end": 798628
+        }
+      ],
+      "currency": "INR",
+      "districtCount": 12
+    },
+    {
+      "name": "ODISHA",
+      "code": "OR",
+      "level": "STATE",
+      "pincodeRanges": [
+        {
+          "start": 751001,
+          "end": 770076
+        }
+      ],
+      "currency": "INR",
+      "districtCount": 30
+    },
+    {
+      "name": "PUNJAB",
+      "code": "PB",
+      "level": "STATE",
+      "pincodeRanges": [
+        {
+          "start": 140001,
+          "end": 148109
+        },
+        {
+          "start": 151001,
+          "end": 152132
+        },
+        {
+          "start": 160055,
+          "end": 160104
+        }
+      ],
+      "currency": "INR",
+      "districtCount": 23
+    },
+    {
+      "name": "RAJASTHAN",
+      "code": "RJ",
+      "level": "STATE",
+      "pincodeRanges": [
+        {
+          "start": 301001,
+          "end": 307803
+        },
+        {
+          "start": 311001,
+          "end": 314804
+        },
+        {
+          "start": 321001,
+          "end": 328041
+        },
+        {
+          "start": 331001,
+          "end": 335901
+        },
+        {
+          "start": 341001,
+          "end": 345034
+        },
+        {
+          "start": 384316,
+          "end": 384316
+        }
+      ],
+      "currency": "INR",
+      "districtCount": 33
+    },
+    {
+      "name": "SIKKIM",
+      "code": "SK",
+      "level": "STATE",
+      "pincodeRanges": [
+        {
+          "start": 737101,
+          "end": 737139
+        }
+      ],
+      "currency": "INR",
+      "districtCount": 6
+    },
+    {
+      "name": "TAMIL NADU",
+      "code": "TN",
+      "level": "STATE",
+      "pincodeRanges": [
+        {
+          "start": 600001,
+          "end": 614906
+        },
+        {
+          "start": 620001,
+          "end": 632604
+        },
+        {
+          "start": 635001,
+          "end": 639207
+        },
+        {
+          "start": 641001,
+          "end": 643270
+        }
+      ],
+      "currency": "INR",
+      "districtCount": 38
+    },
+    {
+      "name": "TELANGANA",
+      "code": "TG",
+      "level": "STATE",
+      "pincodeRanges": [
+        {
+          "start": 305402,
+          "end": 305402
+        },
+        {
+          "start": 311601,
+          "end": 311601
+        },
+        {
+          "start": 332028,
+          "end": 333022
+        },
+        {
+          "start": 335513,
+          "end": 335526
+        },
+        {
+          "start": 343027,
+          "end": 343027
+        },
+        {
+          "start": 500001,
+          "end": 509412
+        },
+        {
+          "start": 531149,
+          "end": 531149
+        },
+        {
+          "start": 756048,
+          "end": 756048
+        },
+        {
+          "start": 799001,
+          "end": 799001
+        }
+      ],
+      "currency": "INR",
+      "districtCount": 33
+    },
+    {
+      "name": "TRIPURA",
+      "code": "TR",
+      "level": "STATE",
+      "pincodeRanges": [
+        {
+          "start": 799002,
+          "end": 799290
+        }
+      ],
+      "currency": "INR",
+      "districtCount": 8
+    },
+    {
+      "name": "UTTAR PRADESH",
+      "code": "UP",
+      "level": "STATE",
+      "pincodeRanges": [
+        {
+          "start": 110025,
+          "end": 110025
+        },
+        {
+          "start": 201001,
+          "end": 208028
+        },
+        {
+          "start": 209101,
+          "end": 211023
+        },
+        {
+          "start": 212104,
+          "end": 212665
+        },
+        {
+          "start": 221001,
+          "end": 233311
+        },
+        {
+          "start": 241001,
+          "end": 245304
+        },
+        {
+          "start": 246701,
+          "end": 247778
+        },
+        {
+          "start": 250001,
+          "end": 251327
+        },
+        {
+          "start": 261001,
+          "end": 262908
+        },
+        {
+          "start": 271001,
+          "end": 277506
+        },
+        {
+          "start": 281001,
+          "end": 282010
+        },
+        {
+          "start": 283101,
+          "end": 285223
+        },
+        {
+          "start": 802131,
+          "end": 802131
+        },
+        {
+          "start": 900056,
+          "end": 900056
+        }
+      ],
+      "currency": "INR",
+      "districtCount": 75
+    },
+    {
+      "name": "UTTARAKHAND",
+      "code": "UK",
+      "level": "STATE",
+      "pincodeRanges": [
+        {
+          "start": 244712,
+          "end": 244924
+        },
+        {
+          "start": 246001,
+          "end": 246495
+        },
+        {
+          "start": 247656,
+          "end": 249412
+        },
+        {
+          "start": 262308,
+          "end": 263680
+        }
+      ],
+      "currency": "INR",
+      "districtCount": 13
+    },
+    {
+      "name": "WEST BENGAL",
+      "code": "WB",
+      "level": "STATE",
+      "pincodeRanges": [
+        {
+          "start": 700001,
+          "end": 700163
+        },
+        {
+          "start": 711101,
+          "end": 713520
+        },
+        {
+          "start": 721101,
+          "end": 723215
+        },
+        {
+          "start": 731101,
+          "end": 736208
+        },
+        {
+          "start": 741101,
+          "end": 743711
+        },
+        {
+          "start": 900099,
+          "end": 900099
+        }
+      ],
+      "currency": "INR",
+      "districtCount": 23
+    }
+  ],
+  "unionTerritories": [
+    {
+      "name": "ANDAMAN AND NICOBAR ISLANDS",
+      "code": "AN",
+      "level": "UT",
+      "pincodeRanges": [
+        {
+          "start": 744101,
+          "end": 744304
+        }
+      ],
+      "currency": "INR",
+      "districtCount": 3
+    },
+    {
+      "name": "CHANDIGARH",
+      "code": "CH",
+      "level": "UT",
+      "pincodeRanges": [
+        {
+          "start": 160001,
+          "end": 160102
+        }
+      ],
+      "currency": "INR",
+      "districtCount": 1
+    },
+    {
+      "name": "DELHI",
+      "code": "DL",
+      "level": "UT",
+      "pincodeRanges": [
+        {
+          "start": 110001,
+          "end": 110195
+        }
+      ],
+      "currency": "INR",
+      "districtCount": 11
+    },
+    {
+      "name": "JAMMU AND KASHMIR",
+      "code": "JK",
+      "level": "UT",
+      "pincodeRanges": [
+        {
+          "start": 180001,
+          "end": 182320
+        },
+        {
+          "start": 184101,
+          "end": 185234
+        },
+        {
+          "start": 190001,
+          "end": 190099
+        },
+        {
+          "start": 191101,
+          "end": 193505
+        }
+      ],
+      "currency": "INR",
+      "districtCount": 20
+    },
+    {
+      "name": "LADAKH",
+      "code": "LA",
+      "level": "UT",
+      "pincodeRanges": [
+        {
+          "start": 194101,
+          "end": 194401
+        }
+      ],
+      "currency": "INR",
+      "districtCount": 2
+    },
+    {
+      "name": "LAKSHADWEEP",
+      "code": "LD",
+      "level": "UT",
+      "pincodeRanges": [
+        {
+          "start": 682551,
+          "end": 682559
+        }
+      ],
+      "currency": "INR",
+      "districtCount": 1
+    },
+    {
+      "name": "PUDUCHERRY",
+      "code": "PY",
+      "level": "UT",
+      "pincodeRanges": [
+        {
+          "start": 533464,
+          "end": 533464
+        },
+        {
+          "start": 605001,
+          "end": 605502
+        },
+        {
+          "start": 607402,
+          "end": 607403
+        },
+        {
+          "start": 609601,
+          "end": 609609
+        },
+        {
+          "start": 673310,
+          "end": 673310
+        }
+      ],
+      "currency": "INR",
+      "districtCount": 4
+    },
+    {
+      "name": "THE DADRA AND NAGAR HAVELI AND DAMAN AND DIU",
+      "code": "DH",
+      "level": "UT",
+      "pincodeRanges": [
+        {
+          "start": 362520,
+          "end": 362570
+        },
+        {
+          "start": 396193,
+          "end": 396240
+        }
+      ],
+      "currency": "INR",
+      "districtCount": 3
+    }
+  ]
+}

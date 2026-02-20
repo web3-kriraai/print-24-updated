@@ -33,6 +33,23 @@ const zipFileFilter = (req, file, cb) => {
   }
 };
 
+// Separate upload instance for PDF files (Bulk Order)
+const pdfFileFilter = (req, file, cb) => {
+  if (file.mimetype === "application/pdf") {
+    cb(null, true);
+  } else {
+    cb(new Error("Only PDF files are allowed!"), false);
+  }
+};
+
+export const uploadPDF = multer({
+  storage: storage,
+  fileFilter: pdfFileFilter,
+  limits: {
+    fileSize: 100 * 1024 * 1024 // 100MB for PDF files
+  }
+});
+
 export const uploadZip = multer({
   storage: storage,
   fileFilter: zipFileFilter,

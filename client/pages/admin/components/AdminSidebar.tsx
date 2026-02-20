@@ -17,6 +17,8 @@ import {
     Star,
     Layers,
     X,
+    DollarSign,
+    AlertCircle,
 } from 'lucide-react';
 import { useLogo } from '../../../hooks/useSiteSettings';
 
@@ -82,6 +84,28 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ activeTab, onTabChange, isO
                 { id: 'user-segments', label: 'Manage Segments' },
                 { id: 'segment-applications', label: 'Applications' },
                 { id: 'form-builder', label: 'Form Builder' },
+            ],
+        },
+        {
+            id: 'pricing',
+            label: 'Pricing',
+            icon: <DollarSign size={20} />,
+            subItems: [
+                { id: 'price-books', label: 'Price Books' },
+                { id: 'price-modifiers', label: 'Price Modifiers' },
+                { id: 'geo-zones', label: 'Geo Zones' },
+                { id: 'product-availability', label: 'Product Availability' },
+                { id: 'smart-view', label: 'Smart View Matrix' },
+                { id: 'payment-gateways', label: 'Payment Gateways' },
+                { id: 'pricing-audit', label: 'Audit Log' },
+            ],
+        },
+        {
+            id: 'complaints',
+            label: 'Complaints',
+            icon: <AlertCircle size={20} />, // Make sure AlertCircle is imported
+            subItems: [
+                { id: 'complaints', label: 'Manage Complaints' },
             ],
         },
         {

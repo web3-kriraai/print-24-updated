@@ -5,9 +5,11 @@ import { ArrowRight, Check, Truck, Upload as UploadIcon, FileImage, CreditCard, 
 import { Select, SelectOption } from '@/components/ui/select';
 import { ProductImageSkeleton, AttributeCardSkeleton, Skeleton } from '@/components/ui/Skeleton';
 import { LazyImage, CloudinaryLazyImage } from '@/components/ui/LazyImage';
+import ProductPriceBox from '@/components/ProductPriceBox';
 import { API_BASE_URL_WITH_API as API_BASE_URL } from '../lib/apiConfig';
 import { applyAttributeRules, type AttributeRule, type Attribute } from '../utils/attributeRuleEngine';
 import * as pdfjsLib from 'pdfjs-dist';
+import PaymentConfirmationModal from '../components/PaymentConfirmationModal';
 
 // Configure PDF.js worker - use local file for reliability
 pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
@@ -234,8 +236,11 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
     isRequired?: boolean;
   }>>([]);
   const [price, setPrice] = useState(0);
-  const [subtotal, setSubtotal] = useState(0);
+  const [backendSubtotal, setBackendSubtotal] = useState(0);
+  const [gstPercentage, setGstPercentage] = useState(18);
   const [gstAmount, setGstAmount] = useState(0);
+  // Ref to hold the latest dynamicAttributesCharges without stale closure issues
+  const dynamicAttributesChargesRef = useRef<Array<{ name: string; label: string; charge: number; perUnitCharge?: number; isSubAttribute?: boolean }>>([]);
   const [additionalDesignCharge, setAdditionalDesignCharge] = useState(0);
   const [appliedDiscount, setAppliedDiscount] = useState<number | null>(null);
   // Track individual charges for order summary
@@ -243,7 +248,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
   const [deliverySpeedCharge, setDeliverySpeedCharge] = useState(0);
   const [textureTypeCharge, setTextureTypeCharge] = useState(0);
   const [productOptionsCharge, setProductOptionsCharge] = useState(0);
-  const [dynamicAttributesCharges, setDynamicAttributesCharges] = useState<Array<{ name: string; label: string; charge: number }>>([]);
+  const [dynamicAttributesCharges, setDynamicAttributesCharges] = useState<Array<{ name: string; label: string; charge: number; perUnitCharge?: number; isSubAttribute?: boolean }>>([]);
   const [baseSubtotalBeforeDiscount, setBaseSubtotalBeforeDiscount] = useState(0);
   const [perUnitPriceExcludingGst, setPerUnitPriceExcludingGst] = useState(0); // Store per unit price excluding GST
   const [isImageModalOpen, setIsImageModalOpen] = useState(false);
@@ -253,6 +258,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [isPricingLoading, setIsPricingLoading] = useState(true); // Start with true
 
   // RADIO attribute modal state
   const [radioModalOpen, setRadioModalOpen] = useState(false);
@@ -533,6 +539,30 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
       }
     }
   }, [selectedProduct, isInitialized, pdpAttributes, pdpRules, selectedDynamicAttributes, quantity]);
+
+  // Keep ref in sync with latest dynamicAttributesCharges for use in onPriceChange callback
+  useEffect(() => {
+    dynamicAttributesChargesRef.current = dynamicAttributesCharges;
+  }, [dynamicAttributesCharges]);
+
+  // useEffect to recalculate price when dynamicAttributesCharges change (without a new API response)
+  useEffect(() => {
+    if (backendSubtotal === 0) return; // Wait for API response first
+    const totalAttrCharges = dynamicAttributesCharges.reduce((sum, c) => sum + (c.charge || 0), 0);
+    const finalSubtotal = backendSubtotal + totalAttrCharges;
+    const finalGst = Math.round((finalSubtotal * gstPercentage / 100 + Number.EPSILON) * 100) / 100;
+    setPrice(finalSubtotal);
+    setGstAmount(finalGst);
+  }, [backendSubtotal, gstPercentage, dynamicAttributesCharges]);
+
+  // Set isPricingLoading to true when dependencies change to show skeleton immediately
+  // useEffect(() => {
+  //   if (productId && isInitialized) {
+  //     setIsPricingLoading(true);
+  //     setPrice(0);
+  //     setGstAmount(0);
+  //   }
+  // }, [productId, quantity, JSON.stringify(selectedDynamicAttributes)]);
 
   // Validate and adjust quantity when constraints change
   useEffect(() => {
@@ -1804,7 +1834,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
       let printingOptionImpact = 0;
       let deliverySpeedImpact = 0;
       let textureTypeImpact = 0;
-      const dynamicAttributesChargesList: Array<{ name: string; label: string; charge: number }> = [];
+      const dynamicAttributesChargesList: Array<{ name: string; label: string; charge: number; perUnitCharge?: number; isSubAttribute?: boolean }> = [];
 
       // Check if filter prices are enabled
       const filterPricesEnabled = selectedProduct.filters?.filterPricesEnabled || false;
@@ -1922,6 +1952,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
       }
       setProductOptionsCharge(productOptionsImpact);
 
+      // Apply dynamic attribute multipliers and track impact with visibility rules
       // Apply dynamic attribute multipliers and track impact
       // First, evaluate attribute rules to determine which attributes are currently visible
       const ruleVisibilityMap: Record<string, boolean> = {};
@@ -1938,99 +1969,125 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
       }
 
       if (selectedProduct.dynamicAttributes && Array.isArray(selectedProduct.dynamicAttributes)) {
-        selectedProduct.dynamicAttributes.forEach((attr) => {
-          if (attr.isEnabled) {
-            const attrType = typeof attr.attributeType === 'object' ? attr.attributeType : null;
-            // Skip attributes that are hidden by attribute rules
-            if (attrType && Object.keys(ruleVisibilityMap).length > 0 && ruleVisibilityMap[attrType._id.toString()] === false) {
-              return;
-            }
-            if (attrType) {
-              const selectedValue = selectedDynamicAttributes[attrType._id];
-              if (selectedValue !== undefined && selectedValue !== null && selectedValue !== "") {
-                const attributeValues = attr.customValues && attr.customValues.length > 0
-                  ? attr.customValues
-                  : attrType.attributeValues || [];
+        // Step 1: Determine visibility using the rule engine
+        const ruleResult = applyAttributeRules({
+          attributes: pdpAttributes,
+          rules: pdpRules,
+          selectedValues: selectedDynamicAttributes as Record<string, any>,
+          quantity: quantity,
+        });
 
-                // Handle checkbox (multiple values) - apply all price impacts
-                if (Array.isArray(selectedValue)) {
-                  const selectedLabels: string[] = [];
-                  let totalCharge = 0;
-                  selectedValue.forEach((val) => {
-                    const attrValue = attributeValues.find((av: any) => av.value === val);
-                    if (attrValue) {
-                      // Check if description contains priceImpact (new format with option usage)
-                      let priceAdd = 0;
-                      if (attrValue.description) {
-                        const priceImpactMatch = attrValue.description.match(/Price Impact: ₹([\d.]+)/);
-                        if (priceImpactMatch) {
-                          priceAdd = parseFloat(priceImpactMatch[1]) || 0;
-                        }
-                      }
+        const visibleAttrIds = new Set(ruleResult.attributes.filter(a => a.isVisible).map(a => a._id));
 
-                      // Use priceAdd if available (from option usage), otherwise fall back to priceMultiplier
-                      if (priceAdd > 0) {
-                        totalCharge += priceAdd * quantity;
-                        if (attrValue.label) selectedLabels.push(attrValue.label);
-                      } else if (attrValue.priceMultiplier && attrValue.priceMultiplier !== 1) {
-                        // Fallback to old priceMultiplier logic
-                        const oldPrice = basePrice;
-                        basePrice = basePrice * attrValue.priceMultiplier;
-                        const charge = (basePrice - oldPrice) * quantity;
-                        totalCharge += charge;
-                        if (attrValue.label) selectedLabels.push(attrValue.label);
-                      }
-                    }
-                  });
-                  if (totalCharge !== 0) {
-                    dynamicAttributesChargesList.push({
-                      name: attrType.attributeName,
-                      label: selectedLabels.join(", ") || "Selected",
-                      charge: totalCharge
-                    });
+        ruleResult.attributes.forEach((evaluatedAttr) => {
+          if (!evaluatedAttr.isVisible) return;
+
+          const attrId = evaluatedAttr._id;
+          const originalAttr = selectedProduct.dynamicAttributes!.find(a =>
+            (a.attributeType && typeof a.attributeType === 'object' && a.attributeType._id === attrId) ||
+            a.attributeType === attrId
+          );
+
+          if (!originalAttr || !originalAttr.isEnabled) return;
+
+          const attrName = evaluatedAttr.attributeName;
+          const selectedValue = selectedDynamicAttributes[attrId];
+
+          if (selectedValue !== undefined && selectedValue !== null && selectedValue !== "" && selectedValue !== "not-required") {
+            const attributeValues = originalAttr.customValues && originalAttr.customValues.length > 0
+              ? originalAttr.customValues
+              : (originalAttr.attributeType as any)?.attributeValues || [];
+
+            // Helper to process a single value entry
+            const processValuePrice = (val: any) => {
+              const attrValue = attributeValues.find((av: any) => av.value === val);
+              if (!attrValue) return { label: String(val), charge: 0, perUnit: 0 };
+
+              let priceAdd = 0;
+              let perUnit = 0;
+
+              // Check direct priceAdd field
+              if (attrValue.priceAdd && attrValue.priceAdd > 0) {
+                perUnit = attrValue.priceAdd / 1000;
+              } else if (attrValue.description) {
+                // Fallback to regex for legacy data
+                const priceImpactMatch = attrValue.description.match(/Price Impact: \D?([\d,.]+)/);
+                if (priceImpactMatch) {
+                  perUnit = parseFloat(priceImpactMatch[1].replace(/,/g, '')) || 0;
+                }
+              }
+
+              if (perUnit > 0) {
+                priceAdd = perUnit * quantity;
+              } else if (attrValue.priceMultiplier && attrValue.priceMultiplier !== 1) {
+                const oldPrice = basePrice;
+                basePrice *= attrValue.priceMultiplier;
+                priceAdd = (basePrice - oldPrice) * quantity;
+                perUnit = (basePrice - oldPrice);
+              }
+
+              return { label: attrValue.label || String(val), charge: priceAdd, perUnit };
+            };
+
+            if (Array.isArray(selectedValue)) {
+              let totalAttrCharge = 0;
+              let totalPerUnit = 0;
+              const labels: string[] = [];
+              selectedValue.forEach(v => {
+                const res = processValuePrice(v);
+                totalAttrCharge += res.charge;
+                totalPerUnit += res.perUnit;
+                labels.push(res.label);
+              });
+              if (totalAttrCharge !== 0) {
+                dynamicAttributesChargesList.push({
+                  name: attrName,
+                  label: labels.join(", "),
+                  charge: totalAttrCharge,
+                  perUnitCharge: totalPerUnit
+                });
+              }
+            } else {
+              const res = processValuePrice(selectedValue);
+              if (res.charge !== 0) {
+                dynamicAttributesChargesList.push({
+                  name: attrName,
+                  label: res.label,
+                  charge: res.charge,
+                  perUnitCharge: res.perUnit
+                });
+              }
+
+              // Check for sub-attributes of this selection
+              const subAttrKey = `${attrId}__${selectedValue}`;
+              const subAttrVal = selectedDynamicAttributes[subAttrKey];
+              if (subAttrVal && subAttrVal !== "not-required") {
+                const subAttributesKey = `${attrId}:${selectedValue}`;
+                const subAttrs = pdpSubAttributes[subAttributesKey] || [];
+                const matchedSubAttr = subAttrs.find((sa: any) => sa.value === subAttrVal);
+
+                if (matchedSubAttr) {
+                  let subPerUnit = 0;
+                  if (matchedSubAttr.priceAdd) {
+                    subPerUnit = matchedSubAttr.priceAdd / 1000;
                   }
-                } else {
-                  // Handle single value attributes
-                  const attrValue = attributeValues.find((av: any) => av.value === selectedValue);
-                  if (attrValue) {
-                    // Check if description contains priceImpact (new format with option usage)
-                    let priceAdd = 0;
-                    if (attrValue.description) {
-                      const priceImpactMatch = attrValue.description.match(/Price Impact: ₹([\d.]+)/);
-                      if (priceImpactMatch) {
-                        priceAdd = parseFloat(priceImpactMatch[1]) || 0;
-                      }
-                    }
 
-                    // Use priceAdd if available (from option usage), otherwise fall back to priceMultiplier
-                    if (priceAdd > 0) {
-                      const charge = priceAdd * quantity;
-                      if (charge !== 0) {
-                        dynamicAttributesChargesList.push({
-                          name: attrType.attributeName,
-                          label: attrValue.label || String(selectedValue || ''),
-                          charge: charge
-                        });
-                      }
-                    } else if (attrValue.priceMultiplier && attrValue.priceMultiplier !== 1) {
-                      // Fallback to old priceMultiplier logic
-                      const oldPrice = basePrice;
-                      basePrice = basePrice * attrValue.priceMultiplier;
-                      const charge = (basePrice - oldPrice) * quantity;
-                      if (charge !== 0) {
-                        dynamicAttributesChargesList.push({
-                          name: attrType.attributeName,
-                          label: attrValue.label || String(selectedValue || ''),
-                          charge: charge
-                        });
-                      }
-                    }
+                  if (subPerUnit !== 0) {
+                    const subCharge = subPerUnit * quantity;
+                    dynamicAttributesChargesList.push({
+                      name: `${res.label} Option`,
+                      label: matchedSubAttr.label || String(subAttrVal),
+                      charge: subCharge,
+                      perUnitCharge: subPerUnit,
+                      isSubAttribute: true
+                    });
                   }
                 }
               }
             }
           }
         });
+        
       }
 
       // Calculate base subtotal before discount
@@ -2070,7 +2127,6 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
       // Add attribute charges to subtotal (these are not discounted)
       const subtotalWithCharges = calculatedSubtotal + totalAttributeCharges;
 
-      setSubtotal(subtotalWithCharges);
       setAppliedDiscount(currentDiscount);
 
       // Store individual charges for order summary
@@ -2086,12 +2142,12 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
       // Calculate GST on (subtotal + design charge)
       const gstPercent = selectedProduct.gstPercentage || 0;
       const calculatedGst = (subtotalWithCharges + designCharge) * (gstPercent / 100);
-      setGstAmount(calculatedGst);
+      // setGstAmount(calculatedGst);
 
       // Store price excluding GST (for product page display)
       // GST will only be added at checkout
       const priceExcludingGst = subtotalWithCharges + designCharge;
-      setPrice(priceExcludingGst);
+      // setPrice(priceExcludingGst);
 
       // Calculate and store per unit price excluding GST (base price + all per-unit charges, after discount)
       const perUnitExcludingGst = quantity > 0 ? priceExcludingGst / quantity : basePrice;
@@ -2650,10 +2706,16 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
       // Calculate required pages
       const required = calculateRequiredPageCount();
+      console.log('📄 PDF Upload Debug:', {
+        requiredCount: required,
+        extractedNumPages: numPages,
+        fileName: file.name
+      });
       setRequiredPageCount(required);
 
-      // Validate page count
-      if (numPages !== required) {
+      // Validate page count (only when required pages > 0)
+      if (required > 0 && numPages !== required) {
+        console.error('❌ PDF Validation Failed:', { required, actual: numPages });
         setPdfValidationError(
           `Invalid page count. Your design file has ${numPages} page${numPages !== 1 ? 's' : ''}, but ${required} page${required !== 1 ? 's are' : ' is'} required.`
         );
@@ -3113,13 +3175,11 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
   const firstErrorField = useRef<HTMLElement | null>(null);
 
   const handlePlaceOrder = async () => {
-    // Check if user is logged in
+    // Check if user is logged in — redirect to login if not
     const token = localStorage.getItem("token");
     if (!token) {
-      setValidationError("Please login to place an order. Redirecting to login page...");
-      setTimeout(() => {
-        navigate("/login");
-      }, 2000);
+      const currentUrl = window.location.pathname + window.location.search;
+      navigate(`/login?redirect=${encodeURIComponent(currentUrl)}`);
       return;
     }
 
@@ -3134,48 +3194,82 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
         firstErrorField.current = document.querySelector('[data-product-select]') as HTMLElement;
       }
     }
-    if (!frontDesignFile) {
-      validationErrors.push('Please upload a reference image');
+    // Accept either a PDF/CDR design file OR a reference image upload
+    const hasDesignFile = !!frontDesignFile || !!pdfFile;
+    if (!hasDesignFile) {
+      validationErrors.push('Please upload a design file (PDF/CDR) or a reference image');
       if (!firstErrorField.current) {
         const fileInput = document.querySelector('input[type="file"][accept*="image"]') as HTMLElement;
         if (fileInput) {
           firstErrorField.current = fileInput;
         } else {
-          // Find the upload section
           const uploadSection = document.querySelector('[data-upload-section]') as HTMLElement;
           if (uploadSection) firstErrorField.current = uploadSection;
         }
       }
     }
-    if (!selectedPrintingOption) {
+    // Only validate printing option if product has multiple options to choose from (single option is auto-selected)
+    const hasManyPrintingOptions = selectedProduct?.filters?.printingOption && selectedProduct.filters.printingOption.length > 1;
+    if (hasManyPrintingOptions && !selectedPrintingOption) {
       validationErrors.push('Please select a printing option');
       if (!firstErrorField.current) {
         const printingOptionField = document.querySelector('[data-field="printingOption"]') as HTMLElement;
         if (printingOptionField) {
           firstErrorField.current = printingOptionField;
         } else {
-          // Find the printing option section
           const section = document.querySelector('[data-section="printingOption"]') as HTMLElement;
           if (section) firstErrorField.current = section;
         }
       }
     }
-    if (!selectedDeliverySpeed) {
+    // Only validate delivery speed if product has multiple options to choose from (single option is auto-selected)
+    const hasManyDeliverySpeeds = selectedProduct?.filters?.deliverySpeed && selectedProduct.filters.deliverySpeed.length > 1;
+    if (hasManyDeliverySpeeds && !selectedDeliverySpeed) {
       validationErrors.push('Please select a delivery speed');
       if (!firstErrorField.current) {
         const deliverySpeedField = document.querySelector('[data-field="deliverySpeed"]') as HTMLElement;
         if (deliverySpeedField) {
           firstErrorField.current = deliverySpeedField;
         } else {
-          // Find the delivery speed section
           const section = document.querySelector('[data-section="deliverySpeed"]') as HTMLElement;
           if (section) firstErrorField.current = section;
         }
       }
     }
 
-    // Validate required dynamic attributes
-    if (selectedProduct?.dynamicAttributes) {
+    // Validate required dynamic attributes — respecting attribute rules (only visible required ones)
+    if (isInitialized && pdpAttributes.length > 0) {
+      // Use the rule engine to determine which attributes are currently visible
+      const ruleResult = applyAttributeRules({
+        attributes: pdpAttributes,
+        rules: pdpRules,
+        selectedValues: { ...selectedDynamicAttributes } as Record<string, string | number | boolean | File | any[] | null>,
+        quantity: quantity,
+      });
+
+      const visibleRequiredAttrs = ruleResult.attributes.filter(
+        (attr) => attr.isVisible && attr.isRequired
+      );
+
+      for (const attr of visibleRequiredAttrs) {
+        const attrId = attr._id;
+        const value = selectedDynamicAttributes[attrId];
+        if (!value || (Array.isArray(value) && value.length === 0)) {
+          const attrName = (attr.attributeType && typeof attr.attributeType === 'object')
+            ? (attr.attributeType as any).attributeName
+            : (attr as any).attributeName || attrId;
+          validationErrors.push(`${attrName} is required`);
+          if (!firstErrorField.current) {
+            const wrapper = document.querySelector(`[data-attribute="${attrId}"]`) as HTMLElement;
+            if (wrapper) {
+              const input = wrapper.querySelector('input, select, button') as HTMLElement;
+              firstErrorField.current = input || wrapper;
+            }
+          }
+        }
+      }
+    } else if (selectedProduct?.dynamicAttributes) {
+      // Fallback: no rule engine — check all required+enabled attributes
       selectedProduct.dynamicAttributes.forEach((attr) => {
         if (attr.isRequired && attr.isEnabled) {
           const attrType = typeof attr.attributeType === 'object' ? attr.attributeType : null;
@@ -3184,13 +3278,11 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
             if (!value || (Array.isArray(value) && value.length === 0)) {
               validationErrors.push(`${attrType.attributeName} is required`);
               if (!firstErrorField.current) {
-                // Find the input element within the data-attribute wrapper
                 const wrapper = document.querySelector(`[data-attribute="${attrType._id}"]`) as HTMLElement;
                 if (wrapper) {
                   const input = wrapper.querySelector('input, select, button') as HTMLElement;
                   firstErrorField.current = input || wrapper;
                 } else {
-                  // Try to find by attribute name
                   const section = document.querySelector(`[data-attribute-name="${attrType.attributeName}"]`) as HTMLElement;
                   if (section) firstErrorField.current = section;
                 }
@@ -3208,7 +3300,6 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                 : attributeValues.find((av: any) => av.value === value);
 
               if (selectedOption && selectedOption.description) {
-                // Parse numberOfImagesRequired from description
                 const imagesRequiredMatch = selectedOption.description.match(/Images Required: (\d+)/);
                 const numberOfImagesRequired = imagesRequiredMatch ? parseInt(imagesRequiredMatch[1]) : 0;
 
@@ -3235,6 +3326,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
         }
       });
     }
+
 
     if (validationErrors.length > 0) {
       // Set validation error message with clear formatting
@@ -3305,118 +3397,128 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
 
   // Process payment and create order
-  const handlePaymentAndOrder = async () => {
-    // Validate product and design first
+  const handlePaymentAndOrder = async (paymentData?: { customerName: string; customerEmail: string; pincode: string; address: string; mobileNumber: string }) => {
+    // Use paymentData directly if provided (avoids React async setState race condition)
+    const pName = paymentData?.customerName || customerName;
+    const pEmail = paymentData?.customerEmail || customerEmail;
+    const pPincode = paymentData?.pincode || pincode;
+    const pAddress = paymentData?.address || address;
+    const pMobile = paymentData?.mobileNumber || mobileNumber;
+    // Validate product and design first — throw so PaymentConfirmationModal can catch & display
     if (!selectedProduct) {
-      setPaymentError("Please select a product.");
-      return;
+      throw new Error("Please select a product.");
     }
-    if (!frontDesignFile || !frontDesignPreview) {
-      setPaymentError("Please upload a reference image.");
-      return;
+    // Accept either a PDF/CDR design file OR a reference image upload
+    if (!frontDesignFile && !pdfFile) {
+      throw new Error("Please upload a design file (PDF/CDR) or a reference image.");
     }
-    if (!selectedPrintingOption) {
-      setPaymentError("Please select a printing option.");
-      return;
+    // Only validate if product has multiple printing options (single option is auto-selected)
+    if (selectedProduct.filters?.printingOption && selectedProduct.filters.printingOption.length > 1 && !selectedPrintingOption) {
+      throw new Error("Please select a printing option.");
     }
-    if (!selectedDeliverySpeed) {
-      setPaymentError("Please select a delivery speed.");
-      return;
+    // Only validate if product has multiple delivery speeds (single option is auto-selected)
+    if (selectedProduct.filters?.deliverySpeed && selectedProduct.filters.deliverySpeed.length > 1 && !selectedDeliverySpeed) {
+      throw new Error("Please select a delivery speed.");
     }
     if (!quantity || quantity <= 0) {
-      setPaymentError("Please enter a valid quantity (must be greater than 0).");
-      return;
+      throw new Error("Please enter a valid quantity (must be greater than 0).");
     }
     const finalTotalPrice = price + gstAmount;
     if (!finalTotalPrice || finalTotalPrice <= 0) {
-      setPaymentError("Invalid order total. Please refresh and try again.");
-      return;
+      throw new Error("Invalid order total. Please refresh and try again.");
     }
 
-    // Validate required dynamic attributes
-    if (selectedProduct?.dynamicAttributes) {
+    // Validate required dynamic attributes — respecting attribute rules (only visible required ones)
+    if (isInitialized && pdpAttributes.length > 0) {
+      const ruleResult = applyAttributeRules({
+        attributes: pdpAttributes,
+        rules: pdpRules,
+        selectedValues: { ...selectedDynamicAttributes } as Record<string, string | number | boolean | File | any[] | null>,
+        quantity: quantity,
+      });
+      const visibleRequiredAttrs = ruleResult.attributes.filter((a) => a.isVisible && a.isRequired);
+      for (const attr of visibleRequiredAttrs) {
+        const attrId = attr._id;
+        const value = selectedDynamicAttributes[attrId];
+        if (!value || (Array.isArray(value) && value.length === 0)) {
+          const attrName = (attr.attributeType && typeof attr.attributeType === 'object')
+            ? (attr.attributeType as any).attributeName
+            : (attr as any).attributeName || attrId;
+          throw new Error(`${attrName} is required.`);
+        }
+      }
+    } else if (selectedProduct?.dynamicAttributes) {
       for (const attr of selectedProduct.dynamicAttributes) {
         if (attr.isRequired && attr.isEnabled) {
           const attrType = typeof attr.attributeType === 'object' ? attr.attributeType : null;
           if (attrType) {
             const value = selectedDynamicAttributes[attrType._id];
             if (!value || (Array.isArray(value) && value.length === 0)) {
-              setPaymentError(`${attrType.attributeName} is required.`);
-              return;
+              throw new Error(`${attrType.attributeName} is required.`);
             }
           }
         }
       }
     }
 
+
     // Validate delivery information
-    if (!customerName || customerName.trim().length === 0) {
-      setPaymentError("Please enter your full name.");
-      return;
+    if (!pName || pName.trim().length === 0) {
+      throw new Error("Please enter your full name.");
     }
-    if (!customerEmail || customerEmail.trim().length === 0) {
-      setPaymentError("Please enter your email address.");
-      return;
+    if (!pEmail || pEmail.trim().length === 0) {
+      throw new Error("Please enter your email address.");
     }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail)) {
-      setPaymentError("Please enter a valid email address.");
-      return;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(pEmail)) {
+      throw new Error("Please enter a valid email address.");
     }
-    if (!pincode || pincode.trim().length === 0) {
-      setPaymentError("Please enter your pincode.");
-      return;
+    if (!pPincode || pPincode.trim().length === 0) {
+      throw new Error("Please enter your pincode.");
     }
-    if (pincode.length !== 6 || !/^\d+$/.test(pincode)) {
-      setPaymentError("Please enter a valid 6-digit pincode.");
-      return;
+    if (pPincode.length !== 6 || !/^\d+$/.test(pPincode)) {
+      throw new Error("Please enter a valid 6-digit pincode.");
     }
-    if (!address || address.trim().length === 0) {
-      setPaymentError("Please enter your complete address.");
-      return;
+    if (!pAddress || pAddress.trim().length === 0) {
+      throw new Error("Please enter your complete address.");
     }
-    if (!mobileNumber || mobileNumber.trim().length === 0) {
-      setPaymentError("Please enter your mobile number.");
-      return;
+    if (!pMobile || pMobile.trim().length === 0) {
+      throw new Error("Please enter your mobile number.");
     }
-    if (mobileNumber.length < 10 || !/^\d+$/.test(mobileNumber)) {
-      setPaymentError("Please enter a valid 10-digit mobile number.");
-      return;
+    if (pMobile.length < 10 || !/^\d+$/.test(pMobile)) {
+      throw new Error("Please enter a valid 10-digit mobile number.");
     }
 
     setIsProcessingPayment(true);
     setPaymentError(null);
 
     try {
-      // Payment is not required - skip payment processing
-      // Minimal delay for better UX (reduced from 2000ms to 300ms)
-      await new Promise((resolve) => setTimeout(resolve, 300));
 
       // Step 2: Prepare order data
       const uploadedDesign: any = {};
 
-      // Validate and prepare front image (required)
-      if (!frontDesignPreview || !frontDesignFile) {
-        throw new Error("Front design image is required.");
-      }
+      // Prepare front image (required only when no PDF is uploaded)
+      if (frontDesignPreview && frontDesignFile) {
+        try {
+          // Handle base64 data - remove data:image/... prefix if present
+          let frontImageData = frontDesignPreview;
+          if (frontImageData.includes(',')) {
+            frontImageData = frontImageData.split(',')[1];
+          }
 
-      try {
-        // Handle base64 data - remove data:image/... prefix if present
-        let frontImageData = frontDesignPreview;
-        if (frontImageData.includes(',')) {
-          frontImageData = frontImageData.split(',')[1];
+          if (frontImageData && frontImageData.trim().length > 0) {
+            uploadedDesign.frontImage = {
+              data: frontImageData,
+              contentType: frontDesignFile.type || "image/png",
+              filename: frontDesignFile.name || "front-design.png",
+            };
+          }
+        } catch (err) {
+          // Front image is optional when PDF is provided
+          console.error('Failed to prepare front design image:', err);
         }
-
-        if (!frontImageData || frontImageData.trim().length === 0) {
-          throw new Error("Invalid front image data. Please upload the image again.");
-        }
-
-        uploadedDesign.frontImage = {
-          data: frontImageData,
-          contentType: frontDesignFile.type || "image/png",
-          filename: frontDesignFile.name || "front-design.png",
-        };
-      } catch (err) {
-        throw new Error(err instanceof Error ? err.message : "Failed to prepare front design image. Please try uploading again.");
+      } else if (!pdfFile) {
+        // No design file at all - this should have been caught by validation
+        throw new Error("Please upload a design file (PDF/CDR) or a reference image.");
       }
 
       // Prepare back image (optional)
@@ -3497,6 +3599,8 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
       }> = [];
 
       for (const key of Object.keys(selectedDynamicAttributes)) {
+        // Skip _images keys - these are File arrays for uploaded images, not attribute selections
+        if (key.endsWith('_images')) continue;
         const value = selectedDynamicAttributes[key];
         if (value !== null && value !== undefined && value !== "") {
           // Check if this is a sub-attribute key (format: attrId__parentValue)
@@ -3712,18 +3816,28 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
       }
 
       // Step 3: Create order with payment status
+      console.log('[DEBUG Order Data]', {
+        productId: selectedProduct._id,
+        quantity,
+        finish: selectedPrintingOption,
+        shape: selectedDeliverySpeed,
+        totalPrice: price + gstAmount,
+        pincode: pPincode,
+        address: pAddress,
+        mobileNumber: pMobile,
+      });
       const orderData = {
         productId: selectedProduct._id,
         quantity: quantity,
-        finish: selectedPrintingOption,
-        shape: selectedDeliverySpeed,
+        finish: selectedPrintingOption || 'Standard',
+        shape: selectedDeliverySpeed || 'Standard',
         selectedOptions: selectedOptions,
         selectedDynamicAttributes: selectedDynamicAttributesArray, // Send complete attribute information
         totalPrice: price + gstAmount, // Store total including GST for order
         // Delivery information collected at checkout
-        pincode: pincode.trim(),
-        address: address.trim(),
-        mobileNumber: mobileNumber.trim(),
+        pincode: pPincode.trim(),
+        address: pAddress.trim(),
+        mobileNumber: pMobile.trim(),
         uploadedDesign: uploadedDesign,
         notes: orderNotes || "",
         // Payment information - payment not required
@@ -3745,9 +3859,9 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
         // User is not authenticated - use the create-with-account endpoint
         const orderDataWithAccount = {
           ...orderData,
-          name: customerName.trim(),
-          email: customerEmail.trim(),
-          mobileNumber: mobileNumber.trim(),
+          name: pName.trim(),
+          email: pEmail.trim(),
+          mobileNumber: pMobile.trim(),
         };
 
         response = await fetch(`${API_BASE_URL}/orders/create-with-account`, {
@@ -3779,9 +3893,9 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
             // This shouldn't happen with the new endpoint, but if it does, try the create-with-account endpoint
             const orderDataWithAccount = {
               ...orderData,
-              name: customerName.trim(),
-              email: customerEmail.trim(),
-              mobileNumber: mobileNumber.trim(),
+              name: pName.trim(),
+              email: pEmail.trim(),
+              mobileNumber: pMobile.trim(),
             };
 
             const retryResponse = await fetch(`${API_BASE_URL}/orders/create-with-account`, {
@@ -3816,7 +3930,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
               if (order._id || order.order?._id) {
                 navigate(`/order/${order._id || order.order._id}`);
               } else {
-                navigate("/profile");
+                navigate("/my-orders");
               }
               return;
             }
@@ -3848,28 +3962,23 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
         }
       }
 
-      // Step 4: Close payment modal and redirect to order details
-      setShowPaymentModal(false);
-      setIsProcessingPayment(false);
-
-      // Show success message
+      // If new user, show temp password alert
       if (responseData.isNewUser && responseData.tempPassword) {
-        // Email service temporarily disabled - show password in alert instead
-        alert(`Account created successfully!\n\nYour temporary password: ${responseData.tempPassword}\n\nPlease save this password. You can change it after logging in.\n\nOrder placed successfully! Order Number: ${order.orderNumber || order.order?.orderNumber || "N/A"}`);
-      } else {
-        alert(`Order placed successfully! Order Number: ${order.orderNumber || order.order?.orderNumber || "N/A"}`);
+        alert(`Account created successfully!\n\nYour temporary password: ${responseData.tempPassword}\n\nPlease save this password. You can change it after logging in.`);
       }
 
-      // Redirect to order details page
-      if (order._id || order.order?._id) {
-        navigate(`/order/${order._id || order.order._id}`);
-      } else {
-        // Fallback to profile page
-        navigate("/profile");
-      }
-    } catch (err) {
-      setPaymentError(err instanceof Error ? err.message : "Failed to process payment and create order. Please try again.");
       setIsProcessingPayment(false);
+
+      // Return order data so the modal can proceed to payment step
+      const orderId = order._id || order.order?._id;
+      const orderNumber = order.orderNumber || order.order?.orderNumber || null;
+      const totalAmount = price + gstAmount;
+
+      return { orderId, totalAmount, orderNumber };
+    } catch (err) {
+      setPaymentError(err instanceof Error ? err.message : "Failed to create order. Please try again.");
+      setIsProcessingPayment(false);
+      throw err; // Re-throw so the modal can display the error
     }
   };
 
@@ -4535,109 +4644,137 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                     </div>
                   </motion.div>
 
-                  {/* Compact Order Summary - shown when a product is selected or loading */}
+                  {/* Enhanced Order Summary - Now on the Left Side */}
                   {(loading || pdpLoading || selectedProduct) && (
-                    <div className="bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-gray-100 p-4 sm:p-5 md:p-6">
-                      {loading || pdpLoading ? (
-                        <div className="space-y-4">
-                          <Skeleton variant="text" className="w-32 h-6 mb-4" />
-                          <div className="space-y-3">
-                            <div className="flex justify-between"><Skeleton variant="text" className="w-20 h-4" /><Skeleton variant="text" className="w-24 h-4" /></div>
-                            <div className="flex justify-between"><Skeleton variant="text" className="w-20 h-4" /><Skeleton variant="text" className="w-16 h-4" /></div>
-                            <div className="flex justify-between"><Skeleton variant="text" className="w-20 h-4" /><Skeleton variant="text" className="w-20 h-4" /></div>
-                            <div className="border-t pt-3 flex justify-between"><Skeleton variant="text" className="w-24 h-5" /><Skeleton variant="text" className="w-24 h-5" /></div>
-                          </div>
-                        </div>
-                      ) : (
-                        <>
-                          <div className="flex items-center justify-between mb-3">
-                            <h2 className="text-sm sm:text-base font-semibold text-gray-900">
-                              Order Summary
-                            </h2>
-                            <span className="text-xs text-white0">
-                              Live estimate
-                            </span>
-                          </div>
+                    <div className="mt-4">
+                      <ProductPriceBox
+                        productId={selectedProduct?._id}
+                        productName={selectedProduct?.name}
+                        selectedDynamicAttributes={(() => {
+                          // Compute visible attribute IDs based on attribute rules
+                          let visibleAttrIds: Set<string> | null = null;
+                          let evaluatedAttributes: any[] = [];
+                          if (isInitialized && pdpAttributes.length > 0) {
+                            const ruleResult = applyAttributeRules({
+                              attributes: pdpAttributes,
+                              rules: pdpRules,
+                              selectedValues: { ...selectedDynamicAttributes } as Record<string, string | number | boolean | File | any[] | null>,
+                              quantity: quantity,
+                            });
+                            evaluatedAttributes = ruleResult.attributes
+                              .filter(a => a.isVisible)
+                              .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+                            visibleAttrIds = new Set(evaluatedAttributes.map(a => a._id));
+                          }
 
-                          <div className="space-y-2 text-xs sm:text-sm text-gray-800">
-                            <div className="flex justify-between">
-                              <span className="text-gray-600">Product</span>
-                              <span className="font-medium text-right line-clamp-1 ml-2">
-                                {selectedProduct.name}
-                              </span>
-                            </div>
+                          const result: any[] = [];
+                          const basePrice = selectedProduct?.basePrice || 0;
 
-                            <div className="flex justify-between">
-                              <span className="text-gray-600">Quantity</span>
-                              <span className="font-medium">
-                                {(quantity || 0).toLocaleString()}
-                              </span>
-                            </div>
+                          // Process attributes in display order (matching PDP)
+                          const orderedAttrIds = evaluatedAttributes.length > 0
+                            ? evaluatedAttributes.map(a => a._id)
+                            : Object.keys(selectedDynamicAttributes).filter(k => !k.includes('__'));
 
-                            <div className="flex justify-between">
-                              <span className="text-gray-600">Base price</span>
-                              <span className="font-medium">
-                                ₹{(baseSubtotalBeforeDiscount || 0).toFixed(2)}
-                              </span>
-                            </div>
+                          orderedAttrIds.forEach((attrId, idx) => {
+                            const value = selectedDynamicAttributes[attrId];
+                            if (value === null || value === undefined || value === "") return;
+                            if (visibleAttrIds && !visibleAttrIds.has(attrId)) return;
 
-                            {dynamicAttributesCharges.length > 0 && (
-                              <>
-                                {dynamicAttributesCharges.map((attrCharge, idx) => (
-                                  <div key={idx} className="flex justify-between">
-                                    <span className="text-gray-600 text-[11px]">
-                                      {attrCharge.name}: {attrCharge.label}
-                                    </span>
-                                    <span className="font-medium text-[11px]">
-                                      ₹{attrCharge.charge.toFixed(2)}
-                                    </span>
-                                  </div>
-                                ))}
-                              </>
-                            )}
+                            const attr = (pdpAttributes.find(a => a._id === attrId) ||
+                              selectedProduct?.dynamicAttributes?.find((a: any) => (a.attributeType?._id === attrId || a.attributeType === attrId))) as any;
 
-                            {additionalDesignCharge > 0 && (
-                              <div className="flex justify-between">
-                                <span className="text-gray-600">Design charge</span>
-                                <span className="font-medium">
-                                  ₹{additionalDesignCharge.toFixed(2)}
-                                </span>
-                              </div>
-                            )}
+                            const attrName = (attr?.attributeType && typeof attr.attributeType === 'object')
+                              ? attr.attributeType.attributeName
+                              : (attr?.attributeName || attrId);
 
-                            {gstAmount > 0 && (
-                              <div className="flex justify-between">
-                                <span className="text-gray-600">
-                                  GST ({selectedProduct.gstPercentage || 18}%)
-                                </span>
-                                <span className="font-medium">
-                                  ₹{gstAmount.toFixed(2)}
-                                </span>
-                              </div>
-                            )}
+                            // Resolve label
+                            let label = value;
+                            let priceImpact = 0;
+                            if (attr) {
+                              const attributeValues = (attr as any).attributeValues ||
+                                (attr.customValues?.length > 0 ? attr.customValues : attr.attributeType?.attributeValues) || [];
 
-                            {appliedDiscount !== null && appliedDiscount > 0 && (
-                              <div className="flex justify-between text-green-700">
-                                <span>Discount</span>
-                                <span>-{appliedDiscount.toFixed(1)}%</span>
-                              </div>
-                            )}
+                              if (Array.isArray(value)) {
+                                label = value.map(val => attributeValues.find((av: any) => av.value === val)?.label || val).join(', ');
+                              } else {
+                                const matchedValue = attributeValues.find((av: any) => av.value === value);
+                                label = matchedValue?.label || value;
 
-                            <div className="border-t border-gray-200 mt-3 pt-3 flex justify-between items-center">
-                              <span className="text-xs sm:text-sm font-semibold text-gray-700">
-                                Estimated Total Value
-                              </span>
-                              <span className="text-base sm:text-lg font-bold text-gray-900">
-                                ₹{(price + gstAmount).toFixed(2)}
-                              </span>
-                            </div>
+                                // Calculate price impact
+                                if (matchedValue) {
+                                  if (matchedValue.priceAdd && matchedValue.priceAdd > 0) {
+                                    priceImpact = (matchedValue.priceAdd / 1000) * quantity;
+                                  } else if (matchedValue.priceMultiplier && matchedValue.priceMultiplier !== 1) {
+                                    priceImpact = basePrice * (matchedValue.priceMultiplier - 1) * quantity;
+                                  }
+                                }
+                              }
+                            }
 
-                            <p className="text-[11px] text-white0 mt-1">
-                              Final price may adjust slightly based on selected options and taxes at checkout.
-                            </p>
-                          </div>
-                        </>
-                      )}
+                            result.push({
+                              attributeType: attrId,
+                              attributeName: attrName,
+                              value: value,
+                              label: String(label),
+                              displayOrder: idx,
+                              priceImpact: priceImpact,
+                            });
+
+                            // Check for sub-attributes of this attribute + value
+                            const subAttrKey = `${attrId}__${value}`;
+                            const subAttrValue = selectedDynamicAttributes[subAttrKey];
+                            if (subAttrValue !== null && subAttrValue !== undefined && subAttrValue !== "") {
+                              const subAttributesKey = `${attrId}:${value}`;
+                              const subAttrs = pdpSubAttributes[subAttributesKey] || [];
+                              const matchedSubAttr = subAttrs.find((sa: any) => sa.value === subAttrValue);
+
+                              // Resolve parent value label for display name
+                              const parentAttrValues = attr?.attributeValues || [];
+                              const parentValueLabel = parentAttrValues.find((av: any) => av.value === value)?.label || value;
+
+                              const subPriceImpact = matchedSubAttr?.priceAdd
+                                ? (matchedSubAttr.priceAdd / 1000) * quantity
+                                : 0;
+
+                              result.push({
+                                attributeType: subAttrKey,
+                                attributeName: `${parentValueLabel} Option`,
+                                value: subAttrValue,
+                                label: matchedSubAttr?.label || String(subAttrValue),
+                                displayOrder: idx + 0.5,
+                                priceImpact: subPriceImpact,
+                                isSubAttribute: true,
+                              });
+                            }
+                          });
+
+                          return result;
+                        })()}
+                        quantity={quantity}
+                        showBreakdown={false}
+                        numberOfDesigns={1}
+                        attributeCharges={dynamicAttributesCharges}
+                        pincode={pincode}
+                        onLoadingChange={(loading) => setIsPricingLoading(loading)}
+                        onPriceChange={(pricing) => {
+                          if (pricing) {
+                            setBackendSubtotal(pricing.subtotal);
+                            setGstPercentage(pricing.gstPercentage || 18);
+                            // Immediately sync price and gstAmount using current attribute charges
+                            // This ensures sticky footer matches Order Summary without waiting for a stale useEffect
+                            const currentAttrCharges = dynamicAttributesChargesRef.current.reduce((sum, c) => sum + (c.charge || 0), 0);
+                            const syncedSubtotal = pricing.subtotal + currentAttrCharges;
+                            const syncedGst = Math.round((syncedSubtotal * (pricing.gstPercentage || 18) / 100 + Number.EPSILON) * 100) / 100;
+                            setPrice(syncedSubtotal);
+                            setGstAmount(syncedGst);
+                          } else {
+                            setBackendSubtotal(0);
+                            setGstPercentage(18);
+                            setPrice(0);
+                            setGstAmount(0);
+                          }
+                        }}
+                      />
                     </div>
                   )}
                 </div>
@@ -5792,7 +5929,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                   </label>
                                                   <div className="relative">
                                                     <div className="absolute top-0 left-0 right-0 h-5 bg-gradient-to-b from-white to-transparent pointer-events-none z-10" />
-                                                    <div className="max-h-[220px] overflow-y-auto mini-scrollbar pr-2">
+                                                    <div className="max-h-[250px] overflow-y-auto mini-scrollbar pr-2">
                                                       <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2.5 py-2">
                                                         {availableSubAttributes.map((subAttr) => {
                                                           const getSubAttrPriceDisplay = () => {
@@ -6111,6 +6248,9 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                           // Calculate required pages dynamically
                           const calculatedPages = calculateRequiredPageCount();
 
+                          // Only show PDF upload section when pages are required
+                          if (calculatedPages === 0) return null;
+
                           return (
                             <div className="mb-3 sm:mb-4 bg-white rounded-2xl border border-gray-200 shadow-lg shadow-gray-200/50 overflow-hidden hover:shadow-xl hover:shadow-gray-200/50 transition-all duration-300">
                               {/* Header Section */}
@@ -6297,12 +6437,12 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
                                         {/* Legend */}
                                         <div className="mt-4 p-3.5 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 border border-blue-200 rounded-xl shadow-sm">
-                                          <p className="text-xs font-bold text-gray-800 mb-2.5 flex items-center gap-2">
+                                          <div className="text-xs font-bold text-gray-800 mb-2.5 flex items-center gap-2">
                                             <div className="w-5 h-5 rounded-md bg-blue-100 flex items-center justify-center">
                                               <Info size={13} className="text-blue-600" />
                                             </div>
                                             Legend
-                                          </p>
+                                          </div>
                                           <div className="flex flex-wrap gap-4">
                                             <div className="flex items-center gap-2">
                                               <div className="w-6 h-6 rounded-lg bg-white shadow-sm flex items-center justify-center">
@@ -6380,8 +6520,8 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                       </div>
 
                       {/* Premium Sticky Footer with Total Price + CTA */}
-                      {loading ? (
-                        <div className="mt-auto pt-6 border-t border-gray-100 bg-white bottom-0 z-10">
+                      {(loading || isPricingLoading || pdpLoading) ? (
+                        <div className="sticky bottom-0 z-20 mt-auto pt-6 border-t border-gray-100 bg-white shadow-[0_-10px_20px_-5px_rgba(0,0,0,0.05)] px-2 pb-2">
                           <div className="flex justify-between items-end mb-4">
                             <div className="space-y-2">
                               <Skeleton variant="text" className="w-24 h-3" />
@@ -6392,26 +6532,33 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                           <Skeleton variant="rectangular" className="w-full h-14 rounded-xl" />
                         </div>
                       ) : (
-                        <div className="mt-auto pt-6 border-t border-gray-100 bg-white bottom-0 z-10">
+                        <div className="sticky bottom-0 z-20 mt-auto pt-6 border-t border-gray-100 bg-white shadow-[0_-10px_20px_-5px_rgba(0,0,0,0.05)] px-2 pb-2">
                           <div className="flex justify-between items-end mb-4">
-                            <div>
-                              <p className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-1">Estimated Total Value</p>
-                              <div className="flex items-baseline gap-1">
-                                <span className="text-3xl font-bold text-gray-900">
-                                  ₹{(() => {
-                                    const totalPrice = (price + gstAmount);
-                                    const [integerPart, decimalPart] = totalPrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).split('.');
-                                    return (
-                                      <>
-                                        {integerPart}
-                                        <span className="text-xl">.{decimalPart}</span>
-                                      </>
-                                    );
-                                  })()}
-                                </span>
-                                <span className="text-xs text-gray-500 font-medium">incl. taxes</span>
+                            {(price + gstAmount) > 0 ? (
+                              <div>
+                                <p className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-1">Estimated Total Value</p>
+                                <div className="flex items-baseline gap-1">
+                                  <span className="text-3xl font-bold text-gray-900">
+                                    ₹{(() => {
+                                      const totalPrice = (price + gstAmount);
+                                      const [integerPart, decimalPart] = totalPrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).split('.');
+                                      return (
+                                        <>
+                                          {integerPart}
+                                          <span className="text-xl">.{decimalPart}</span>
+                                        </>
+                                      );
+                                    })()}
+                                  </span>
+                                  <span className="text-xs text-gray-500 font-medium">incl. taxes</span>
+                                </div>
                               </div>
-                            </div>
+                            ) : (
+                              <div className="flex flex-col gap-1">
+                                <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">Estimated Total Value</p>
+                                <span className="text-sm font-medium text-amber-600 italic">Price to be updated</span>
+                              </div>
+                            )}
                             <div className="text-right text-xs text-green-600 font-medium flex flex-col items-end">
                               <span className="flex items-center gap-1">
                                 <Zap size={12} className="text-green-600" />
@@ -6429,6 +6576,18 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                             </div>
                           </div>
 
+                          {/* Validation Error Display */}
+                          {validationError && (
+                            <div className="mb-3 p-3 bg-red-50 border border-red-300 rounded-xl flex items-start gap-2" role="alert">
+                              <AlertCircle size={16} className="text-red-600 flex-shrink-0 mt-0.5" />
+                              <div>
+                                {validationError.split('\n').map((err, i) => (
+                                  <p key={i} className="text-sm text-red-700 font-medium">{err}</p>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
                           <button
                             onClick={handlePlaceOrder}
                             disabled={isProcessingPayment}
@@ -6444,7 +6603,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                               </>
                             ) : (
                               <>
-                                <span>Customize Design</span>
+                                <span>Buy Now</span>
                                 <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
                               </>
                             )}
@@ -6466,252 +6625,387 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
       </div>
 
       {/* Payment Confirmation Modal */}
-      <AnimatePresence>
-        {showPaymentModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
-            onClick={() => !isProcessingPayment && setShowPaymentModal(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-xl shadow-2xl max-w-md w-full p-4 sm:p-6 max-h-[90vh] overflow-y-auto"
-              data-payment-modal
-            >
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg sm:text-xl font-bold text-gray-900 flex items-center gap-2">
-                  <CreditCard size={20} className="sm:w-6 sm:h-6" />
-                  <span className="text-base sm:text-xl">Payment Confirmation</span>
-                </h3>
-                {!isProcessingPayment && (
-                  <button
-                    onClick={() => setShowPaymentModal(false)}
-                    className="text-gray-600 hover:text-gray-900"
-                  >
-                    <X size={24} />
-                  </button>
-                )}
-              </div>
+      <PaymentConfirmationModal
+        isOpen={showPaymentModal}
+        onClose={() => !isProcessingPayment && setShowPaymentModal(false)}
+        onConfirm={async (paymentData) => {
+          // Update state for other components that read these values
+          setCustomerName(paymentData.customerName);
+          setCustomerEmail(paymentData.customerEmail);
+          setPincode(paymentData.pincode);
+          setAddress(paymentData.address);
+          setMobileNumber(paymentData.mobileNumber);
+          // Pass paymentData directly since setState is async and won't be ready yet
+          return await handlePaymentAndOrder(paymentData);
+        }}
+        productId={selectedProduct?._id || ''}
+        productName={selectedProduct?.name || ''}
+        quantity={quantity}
+        selectedDynamicAttributes={(() => {
+          const result: any[] = [];
 
-              <div className="mb-6">
-                <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-700 font-medium">Subtotal (Excluding GST):</span>
-                      <span className="text-lg font-bold text-gray-900">₹{price.toFixed(2)}</span>
-                    </div>
-                    {gstAmount > 0 && (
-                      <>
-                        <div className="flex justify-between items-center text-sm">
-                          <span className="text-gray-600">GST ({selectedProduct?.gstPercentage || 18}%):</span>
-                          <span className="text-gray-700">+₹{gstAmount.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between items-center pt-2 border-t border-gray-300">
-                          <span className="text-gray-700 font-medium">Total Amount (Including GST):</span>
-                          <span className="text-2xl font-bold text-gray-900">₹{(price + gstAmount).toFixed(2)}</span>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                  <p className="text-xs text-gray-600 mt-2">
-                    Your order will be placed and you can pay later.
-                  </p>
+          // Use evaluated attributes if available for proper naming and ordering
+          let evaluatedAttributes: any[] = [];
+          if (isInitialized && pdpAttributes.length > 0) {
+            const ruleResult = applyAttributeRules({
+              attributes: pdpAttributes,
+              rules: pdpRules,
+              selectedValues: { ...selectedDynamicAttributes } as Record<string, string | number | boolean | File | any[] | null>,
+              quantity: quantity,
+            });
+            evaluatedAttributes = ruleResult.attributes.filter(a => a.isVisible);
+          }
+
+          const visibleAttrIds = new Set(evaluatedAttributes.map(a => a._id));
+          const orderedAttrIds = evaluatedAttributes.length > 0
+            ? evaluatedAttributes.map(a => a._id)
+            : Object.keys(selectedDynamicAttributes).filter(k => !k.includes('__'));
+
+          orderedAttrIds.forEach((attrId) => {
+            const value = selectedDynamicAttributes[attrId];
+            if (value === null || value === undefined || value === "") return;
+            if (visibleAttrIds.size > 0 && !visibleAttrIds.has(attrId)) return;
+
+            const attr = (pdpAttributes.find(a => a._id === attrId) ||
+              selectedProduct?.dynamicAttributes?.find((a: any) => (a.attributeType?._id === attrId || a.attributeType === attrId))) as any;
+
+            const attrName = (attr?.attributeType && typeof attr.attributeType === 'object')
+              ? attr.attributeType.attributeName
+              : (attr?.attributeName || attrId);
+
+            // Resolve label
+            let label = value;
+            if (attr) {
+              const attributeValues = (attr as any).attributeValues ||
+                (attr.customValues?.length > 0 ? attr.customValues : attr.attributeType?.attributeValues) || [];
+              if (Array.isArray(value)) {
+                label = value.map(val => attributeValues.find((av: any) => av.value === val)?.label || val).join(', ');
+              } else {
+                label = attributeValues.find((av: any) => av.value === value)?.label || value;
+              }
+            }
+
+            result.push({
+              attributeType: attrId,
+              name: attrName,
+              value: value,
+              label: String(label)
+            });
+
+            // Check for sub-attributes
+            const subAttrKey = `${attrId}__${value}`;
+            const subAttrValue = selectedDynamicAttributes[subAttrKey];
+            if (subAttrValue !== null && subAttrValue !== undefined && subAttrValue !== "") {
+              const subAttributesKey = `${attrId}:${value}`;
+              const subAttrs = pdpSubAttributes[subAttributesKey] || [];
+              const matchedSubAttr = subAttrs.find((sa: any) => sa.value === subAttrValue);
+
+              if (matchedSubAttr) {
+                // Determine sub-attribute name
+                const parentMatchedValue = (attr as any)?.attributeValues?.find((av: any) => av.value === value) ||
+                  (attr?.customValues?.find((cv: any) => cv.value === value));
+                const subAttrName = parentMatchedValue?.label
+                  ? `${attrName}: ${parentMatchedValue.label}`
+                  : `${attrName} (${value})`;
+
+                result.push({
+                  attributeType: subAttrKey,
+                  name: subAttrName,
+                  value: subAttrValue,
+                  label: matchedSubAttr.label || subAttrValue
+                });
+              }
+            }
+          });
+
+          return result;
+        })()}
+        customerName={customerName}
+        setCustomerName={setCustomerName}
+        customerEmail={customerEmail}
+        setCustomerEmail={setCustomerEmail}
+        pincode={pincode}
+        setPincode={setPincode}
+        address={address}
+        setAddress={setAddress}
+        mobileNumber={mobileNumber}
+        setMobileNumber={setMobileNumber}
+        estimatedDeliveryDate={estimatedDeliveryDate || undefined}
+        deliveryLocationSource={deliveryLocationSource}
+        onGetLocation={handleGetLocation}
+        isGettingLocation={isGettingLocation}
+        gstPercentage={gstPercentage}
+        numberOfDesigns={1}
+        preCalculatedPricing={{
+          subtotal: price,
+          gstAmount: gstAmount,
+          total: price + gstAmount
+        }}
+        onPaymentSuccess={(result) => {
+          setShowPaymentModal(false);
+          setIsProcessingPayment(false);
+          // Navigate to order detail page
+          if (result?.orderId) {
+            navigate(`/order/${result.orderId}`);
+          } else {
+            navigate('/my-orders');
+          }
+        }}
+        onPaymentFailure={(error) => {
+          console.error('Payment failed:', error);
+          setIsProcessingPayment(false);
+        }}
+      />
+
+      {/* REMOVED: old inline payment modal replaced by PaymentConfirmationModal above */}
+      {false && (
+        <AnimatePresence>
+          {showPaymentModal && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
+              onClick={() => !isProcessingPayment && setShowPaymentModal(false)}
+            >
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                onClick={(e) => e.stopPropagation()}
+                className="bg-white rounded-xl shadow-2xl max-w-md w-full p-4 sm:p-6 max-h-[90vh] overflow-y-auto"
+                data-payment-modal
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg sm:text-xl font-bold text-gray-900 flex items-center gap-2">
+                    <CreditCard size={20} className="sm:w-6 sm:h-6" />
+                    <span className="text-base sm:text-xl">Payment Confirmation</span>
+                  </h3>
+                  {!isProcessingPayment && (
+                    <button
+                      onClick={() => setShowPaymentModal(false)}
+                      className="text-gray-600 hover:text-gray-900"
+                    >
+                      <X size={24} />
+                    </button>
+                  )}
                 </div>
 
-                {paymentError && (
-                  <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 flex items-start gap-2">
-                    <AlertCircle size={20} className="text-red-600 flex-shrink-0 mt-0.5" />
-                    <p className="text-sm text-red-800">{paymentError}</p>
-                  </div>
-                )}
-
-                {/* Delivery Information Form */}
-                <div className="mb-6 space-y-4">
-                  <h4 className="font-semibold text-gray-900 text-sm mb-3 flex items-center gap-2">
-                    <Truck size={18} />
-                    Delivery Information
-                  </h4>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Full Name <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      name="customerName"
-                      id="customerName"
-                      value={customerName}
-                      onChange={(e) => {
-                        setCustomerName(e.target.value);
-                        if (paymentError) setPaymentError(null);
-                      }}
-                      placeholder="Enter your full name"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none text-sm"
-                      required
-                    />
+                <div className="mb-6">
+                  <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-700 font-medium">Subtotal (Excluding GST):</span>
+                        <span className="text-lg font-bold text-gray-900">₹{price.toFixed(2)}</span>
+                      </div>
+                      {gstAmount > 0 && (
+                        <>
+                          <div className="flex justify-between items-center text-sm">
+                            <span className="text-gray-600">GST ({selectedProduct?.gstPercentage || 18}%):</span>
+                            <span className="text-gray-700">+₹{gstAmount.toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between items-center pt-2 border-t border-gray-300">
+                            <span className="text-gray-700 font-medium">Total Amount (Including GST):</span>
+                            <span className="text-2xl font-bold text-gray-900">₹{(price + gstAmount).toFixed(2)}</span>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-600 mt-2">
+                      Your order will be placed and you can pay later.
+                    </p>
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Email <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="email"
-                      name="customerEmail"
-                      id="customerEmail"
-                      value={customerEmail}
-                      onChange={(e) => {
-                        setCustomerEmail(e.target.value);
-                        if (paymentError) setPaymentError(null);
-                      }}
-                      placeholder="Enter your email address"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none text-sm"
-                      required
-                    />
-                  </div>
+                  {paymentError && (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 flex items-start gap-2">
+                      <AlertCircle size={20} className="text-red-600 flex-shrink-0 mt-0.5" />
+                      <p className="text-sm text-red-800">{paymentError}</p>
+                    </div>
+                  )}
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Pincode <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      name="pincode"
-                      id="pincode"
-                      value={pincode}
-                      onChange={(e) => {
-                        const value = e.target.value.replace(/\D/g, '').slice(0, 6);
-                        setPincode(value);
-                        if (paymentError) setPaymentError(null);
-                      }}
-                      placeholder="Enter 6-digit pincode"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none text-sm"
-                      maxLength={6}
-                    />
-                  </div>
+                  {/* Delivery Information Form */}
+                  <div className="mb-6 space-y-4">
+                    <h4 className="font-semibold text-gray-900 text-sm mb-3 flex items-center gap-2">
+                      <Truck size={18} />
+                      Delivery Information
+                    </h4>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Complete Address <span className="text-red-500">*</span>
-                    </label>
-                    <div className="flex gap-2">
-                      <textarea
-                        name="address"
-                        id="address"
-                        value={address}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Full Name <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        name="customerName"
+                        id="customerName"
+                        value={customerName}
                         onChange={(e) => {
-                          setAddress(e.target.value);
+                          setCustomerName(e.target.value);
                           if (paymentError) setPaymentError(null);
                         }}
-                        placeholder="Enter your complete delivery address"
-                        rows={3}
-                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none text-sm resize-none"
+                        placeholder="Enter your full name"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none text-sm"
+                        required
                       />
-                      <button
-                        type="button"
-                        onClick={handleGetLocation}
-                        disabled={isGettingLocation}
-                        className="px-3 py-2 bg-purple-200 text-gray-900 rounded-lg hover:bg-indigo-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-                        title="Get location automatically"
-                      >
-                        {isGettingLocation ? (
-                          <div className="w-4 h-4 border-2 border-gray-900 border-t-transparent rounded-full animate-spin" />
-                        ) : (
-                          <MapPin size={18} />
-                        )}
-                      </button>
                     </div>
-                    <p className="text-xs text-white0 mt-1">You can enter address manually or use location button</p>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Email <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="email"
+                        name="customerEmail"
+                        id="customerEmail"
+                        value={customerEmail}
+                        onChange={(e) => {
+                          setCustomerEmail(e.target.value);
+                          if (paymentError) setPaymentError(null);
+                        }}
+                        placeholder="Enter your email address"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none text-sm"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Pincode <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        name="pincode"
+                        id="pincode"
+                        value={pincode}
+                        onChange={(e) => {
+                          const value = e.target.value.replace(/\D/g, '').slice(0, 6);
+                          setPincode(value);
+                          if (paymentError) setPaymentError(null);
+                        }}
+                        placeholder="Enter 6-digit pincode"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none text-sm"
+                        maxLength={6}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Complete Address <span className="text-red-500">*</span>
+                      </label>
+                      <div className="flex gap-2">
+                        <textarea
+                          name="address"
+                          id="address"
+                          value={address}
+                          onChange={(e) => {
+                            setAddress(e.target.value);
+                            if (paymentError) setPaymentError(null);
+                          }}
+                          placeholder="Enter your complete delivery address"
+                          rows={3}
+                          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none text-sm resize-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleGetLocation}
+                          disabled={isGettingLocation}
+                          className="px-3 py-2 bg-purple-200 text-gray-900 rounded-lg hover:bg-indigo-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                          title="Get location automatically"
+                        >
+                          {isGettingLocation ? (
+                            <div className="w-4 h-4 border-2 border-gray-900 border-t-transparent rounded-full animate-spin" />
+                          ) : (
+                            <MapPin size={18} />
+                          )}
+                        </button>
+                      </div>
+                      <p className="text-xs text-white0 mt-1">You can enter address manually or use location button</p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Mobile Number <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        name="mobileNumber"
+                        id="mobileNumber"
+                        value={mobileNumber}
+                        onChange={(e) => {
+                          const value = e.target.value.replace(/\D/g, '').slice(0, 10);
+                          setMobileNumber(value);
+                          if (paymentError) setPaymentError(null);
+                        }}
+                        placeholder="Enter 10-digit mobile number"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none text-sm"
+                        maxLength={10}
+                      />
+                    </div>
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Mobile Number <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      name="mobileNumber"
-                      id="mobileNumber"
-                      value={mobileNumber}
-                      onChange={(e) => {
-                        const value = e.target.value.replace(/\D/g, '').slice(0, 10);
-                        setMobileNumber(value);
-                        if (paymentError) setPaymentError(null);
-                      }}
-                      placeholder="Enter 10-digit mobile number"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none text-sm"
-                      maxLength={10}
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2 text-sm text-gray-700">
-                  <p className="font-semibold mb-2">Order Summary:</p>
-                  <div className="space-y-1 ml-4">
-                    <p>• Product: <strong>{selectedProduct?.name}</strong></p>
-                    <p>• Quantity: <strong>{quantity.toLocaleString()}</strong></p>
-                    <p>• Printing Option: <strong>{selectedPrintingOption}</strong></p>
-                    <p>• Delivery Speed: <strong>{selectedDeliverySpeed}</strong></p>
-                    {selectedTextureType && (
-                      <p>• Texture Type: <strong>{selectedTextureType}</strong></p>
-                    )}
-                  </div>
-                </div>
-
-                {/* Estimated Delivery Information - Show at checkout */}
-                {estimatedDeliveryDate && (
-                  <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-                    <h3 className="font-bold text-sm text-gray-900 mb-2 flex items-center gap-2">
-                      <Truck size={16} /> Estimated Delivery
-                    </h3>
-                    <div className="text-green-700 text-sm">
-                      <div className="font-semibold mb-1">Estimated Delivery by <strong>{estimatedDeliveryDate}</strong></div>
-                      {deliveryLocationSource && (
-                        <div className="text-xs text-green-600 mt-1">
-                          {deliveryLocationSource}
-                        </div>
+                  <div className="space-y-2 text-sm text-gray-700">
+                    <p className="font-semibold mb-2">Order Summary:</p>
+                    <div className="space-y-1 ml-4">
+                      <p>• Product: <strong>{selectedProduct?.name}</strong></p>
+                      <p>• Quantity: <strong>{quantity.toLocaleString()}</strong></p>
+                      <p>• Printing Option: <strong>{selectedPrintingOption}</strong></p>
+                      <p>• Delivery Speed: <strong>{selectedDeliverySpeed}</strong></p>
+                      {selectedTextureType && (
+                        <p>• Texture Type: <strong>{selectedTextureType}</strong></p>
                       )}
                     </div>
                   </div>
-                )}
-              </div>
 
-              <div className="flex gap-3">
-                {!isProcessingPayment && (
-                  <button
-                    onClick={() => setShowPaymentModal(false)}
-                    className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                )}
-                <button
-                  onClick={handlePaymentAndOrder}
-                  disabled={isProcessingPayment}
-                  className="flex-1 px-4 py-3 bg-gray-900 text-white rounded-lg font-semibold hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                >
-                  {isProcessingPayment ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-gray-600 border-t-transparent rounded-full animate-spin" />
-                      Processing...
-                    </>
-                  ) : (
-                    <>
-                      <Check size={18} />
-                      Confirm Order ₹{(price + gstAmount).toFixed(2)}
-                    </>
+                  {/* Estimated Delivery Information - Show at checkout */}
+                  {estimatedDeliveryDate && (
+                    <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                      <h3 className="font-bold text-sm text-gray-900 mb-2 flex items-center gap-2">
+                        <Truck size={16} /> Estimated Delivery
+                      </h3>
+                      <div className="text-green-700 text-sm">
+                        <div className="font-semibold mb-1">Estimated Delivery by <strong>{estimatedDeliveryDate}</strong></div>
+                        {deliveryLocationSource && (
+                          <div className="text-xs text-green-600 mt-1">
+                            {deliveryLocationSource}
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   )}
-                </button>
-              </div>
+                </div>
+
+                <div className="flex gap-3">
+                  {!isProcessingPayment && (
+                    <button
+                      onClick={() => setShowPaymentModal(false)}
+                      className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  )}
+                  <button
+                    onClick={() => handlePaymentAndOrder()}
+                    disabled={isProcessingPayment}
+                    className="flex-1 px-4 py-3 bg-gray-900 text-white rounded-lg font-semibold hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {isProcessingPayment ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-gray-600 border-t-transparent rounded-full animate-spin" />
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        <Check size={18} />
+                        Confirm Order ₹{(price + gstAmount).toFixed(2)}
+                      </>
+                    )}
+                  </button>
+                </div>
+              </motion.div>
             </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          )}
+        </AnimatePresence>
+      )}
 
       {/* Full Size Image Modal */}
       <AnimatePresence>

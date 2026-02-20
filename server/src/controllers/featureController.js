@@ -1,200 +1,521 @@
-import Feature from '../models/featureModal.js';
-import { v2 as cloudinary } from 'cloudinary';
-import multer from 'multer';
-import { Readable } from 'stream';
+import Feature from '../models/Feature.js';
+import UserSegment from '../models/UserSegment.js';
+import { User } from '../models/User.js';
 
-// Configure multer for memory storage
-const storage = multer.memoryStorage();
-export const upload = multer({ storage });
+/**
+ * FEATURE CONTROLLER
+ * 
+ * Handles READ-ONLY feature operations and assignments
+ * Features are seeded via seed file, not created through API
+ */
 
-// Get all features
-export const getAllFeatures = async (req, res) => {
+/* =====================
+   FEATURE READ OPERATIONS (PUBLIC/ADMIN)
+====================== */
+
+/**
+ * List all features
+ * GET /api/admin/features
+ */
+export const listFeatures = async (req, res) => {
     try {
-        const features = await Feature.find().sort({ displayOrder: 1 });
-        res.json(features);
+        const { category, isActive, isPremium, isBeta } = req.query;
+
+        const query = {};
+        if (category) query.category = category;
+        if (isActive !== undefined) query.isActive = isActive === 'true';
+        if (isPremium !== undefined) query.isPremium = isPremium === 'true';
+        if (isBeta !== undefined) query.isBeta = isBeta === 'true';
+
+        const features = await Feature.find(query).sort({ category: 1, sortOrder: 1 });
+
+        return res.json({
+            success: true,
+            count: features.length,
+            data: features
+        });
     } catch (error) {
-        res.status(500).json({ message: 'Error fetching features', error: error.message });
+        console.error('List features error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Failed to fetch features',
+            error: error.message
+        });
     }
 };
 
-// Get single feature
-export const getFeatureById = async (req, res) => {
+/**
+ * Get single feature details
+ * GET /api/admin/features/:key
+ */
+export const getFeature = async (req, res) => {
     try {
-        const feature = await Feature.findById(req.params.id);
+        const { key } = req.params;
+
+        const feature = await Feature.findOne({ key: key.toLowerCase() });
+
         if (!feature) {
-            return res.status(404).json({ message: 'Feature not found' });
-        }
-        res.json(feature);
-    } catch (error) {
-        res.status(500).json({ message: 'Error fetching feature', error: error.message });
-    }
-};
-
-// Create feature with optional image upload
-export const createFeature = async (req, res) => {
-    try {
-        const { icon, title, description, color, displayOrder, isVisible, iconShape, iconBackgroundColor } = req.body;
-
-        let iconImage = '';
-
-        // Handle image upload if provided
-        if (req.file) {
-            const uploadStream = cloudinary.uploader.upload_stream(
-                { folder: 'feature-icons' },
-                (error, result) => {
-                    if (error) {
-                        console.error('Cloudinary upload error:', error);
-                        return res.status(500).json({ message: 'Error uploading image' });
-                    }
-
-                    iconImage = result.secure_url;
-
-                    // Create feature after image upload
-                    const feature = new Feature({
-                        icon,
-                        iconImage,
-                        iconShape,
-                        iconBackgroundColor,
-                        title,
-                        description,
-                        color,
-                        displayOrder,
-                        isVisible: isVisible === 'true' || isVisible === true,
-                    });
-
-                    feature.save()
-                        .then(savedFeature => res.status(201).json(savedFeature))
-                        .catch(err => res.status(500).json({ message: 'Error creating feature', error: err.message }));
-                }
-            );
-
-            const bufferStream = Readable.from(req.file.buffer);
-            bufferStream.pipe(uploadStream);
-        } else {
-            // No image, create feature directly
-            const feature = new Feature({
-                icon,
-                iconImage: '',
-                iconShape,
-                iconBackgroundColor,
-                title,
-                description,
-                color,
-                displayOrder,
-                isVisible: isVisible === 'true' || isVisible === true,
+            return res.status(404).json({
+                success: false,
+                message: 'Feature not found'
             });
-
-            const savedFeature = await feature.save();
-            res.status(201).json(savedFeature);
         }
+
+        return res.json({
+            success: true,
+            data: feature
+        });
     } catch (error) {
-        res.status(500).json({ message: 'Error creating feature', error: error.message });
+        console.error('Get feature error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Failed to fetch feature',
+            error: error.message
+        });
     }
 };
 
-// Update feature with optional image upload
-export const updateFeature = async (req, res) => {
+/**
+ * Get features by category
+ * GET /api/admin/features/category/:category
+ */
+export const getFeaturesByCategory = async (req, res) => {
     try {
-        console.log('Update Feature Request Body:', req.body);
-        console.log('Update Feature Request File:', req.file);
-        const { icon, title, description, color, displayOrder, isVisible, iconShape, iconBackgroundColor } = req.body;
+        const { category } = req.params;
 
-        const updateData = {
-            icon,
-            title,
-            description,
-            color,
-            displayOrder,
-            isVisible: isVisible === 'true' || isVisible === true,
-        };
+        const features = await Feature.find({
+            category: category.toUpperCase(),
+            isActive: true
+        }).sort({ sortOrder: 1 });
 
-        if (iconShape !== undefined) updateData.iconShape = iconShape;
-        if (iconBackgroundColor !== undefined) updateData.iconBackgroundColor = iconBackgroundColor;
-
-        // Check if iconImage is explicitly sent as empty string (to clear it)
-        if (req.body.iconImage === '') {
-            updateData.iconImage = '';
-        }
-
-        // Handle image upload if provided
-        if (req.file) {
-            const uploadStream = cloudinary.uploader.upload_stream(
-                { folder: 'feature-icons' },
-                async (error, result) => {
-                    if (error) {
-                        console.error('Cloudinary upload error:', error);
-                        return res.status(500).json({ message: 'Error uploading image' });
-                    }
-
-                    updateData.iconImage = result.secure_url;
-
-                    const feature = await Feature.findByIdAndUpdate(
-                        req.params.id,
-                        updateData,
-                        { new: true, runValidators: true }
-                    );
-
-                    if (!feature) {
-                        return res.status(404).json({ message: 'Feature not found' });
-                    }
-
-                    res.json(feature);
-                }
-            );
-
-            const bufferStream = Readable.from(req.file.buffer);
-            bufferStream.pipe(uploadStream);
-        } else {
-            // No new image, update other fields
-            console.log('Update Data Payload:', updateData);
-            const feature = await Feature.findByIdAndUpdate(
-                req.params.id,
-                updateData,
-                { new: true, runValidators: true }
-            );
-
-            console.log('Updated Feature from DB:', feature);
-
-            if (!feature) {
-                return res.status(404).json({ message: 'Feature not found' });
-            }
-
-            res.json(feature);
-        }
+        return res.json({
+            success: true,
+            category,
+            count: features.length,
+            data: features
+        });
     } catch (error) {
-        res.status(500).json({ message: 'Error updating feature', error: error.message });
+        console.error('Get features by category error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Failed to fetch features',
+            error: error.message
+        });
     }
 };
 
-// Delete feature
-export const deleteFeature = async (req, res) => {
-    try {
-        const feature = await Feature.findByIdAndDelete(req.params.id);
+/* =====================
+   SEGMENT FEATURE ASSIGNMENT
+====================== */
 
+/**
+ * Get features assigned to a segment
+ * GET /api/admin/segments/:segmentId/features
+ */
+export const getSegmentFeatures = async (req, res) => {
+    try {
+        const { segmentId } = req.params;
+
+        const segment = await UserSegment.findById(segmentId);
+
+        if (!segment) {
+            return res.status(404).json({
+                success: false,
+                message: 'Segment not found'
+            });
+        }
+
+        // Get all features and mark which are enabled for this segment
+        const allFeatures = await Feature.find({ isActive: true }).sort({ category: 1, sortOrder: 1 });
+
+        const featuresWithStatus = allFeatures.map(feature => {
+            const segmentFeature = segment.features.find(f => f.featureKey === feature.key);
+
+            return {
+                ...feature.toObject(),
+                assignedToSegment: !!segmentFeature,
+                isEnabledForSegment: segmentFeature?.isEnabled || false,
+                segmentConfig: segmentFeature?.config || null
+            };
+        });
+
+        return res.json({
+            success: true,
+            segment: {
+                _id: segment._id,
+                name: segment.name,
+                code: segment.code
+            },
+            data: featuresWithStatus
+        });
+    } catch (error) {
+        console.error('Get segment features error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Failed to fetch segment features',
+            error: error.message
+        });
+    }
+};
+
+/**
+ * Assign feature to segment (or update existing)
+ * POST /api/admin/segments/:segmentId/features
+ */
+export const assignFeatureToSegment = async (req, res) => {
+    try {
+        const { segmentId } = req.params;
+        const { featureKey, isEnabled = true, config = {} } = req.body;
+
+        if (!featureKey) {
+            return res.status(400).json({
+                success: false,
+                message: 'featureKey is required'
+            });
+        }
+
+        // Validate segment exists
+        const segment = await UserSegment.findById(segmentId);
+        if (!segment) {
+            return res.status(404).json({
+                success: false,
+                message: 'Segment not found'
+            });
+        }
+
+        // Validate feature exists
+        const feature = await Feature.findOne({ key: featureKey.toLowerCase() });
         if (!feature) {
-            return res.status(404).json({ message: 'Feature not found' });
+            return res.status(404).json({
+                success: false,
+                message: `Feature '${featureKey}' not found`
+            });
         }
 
-        res.json({ message: 'Feature deleted successfully' });
+        if (!feature.isActive) {
+            return res.status(400).json({
+                success: false,
+                message: `Feature '${featureKey}' is not active`
+            });
+        }
+
+        // Check if feature already assigned
+        const existingIndex = segment.features.findIndex(f => f.featureKey === featureKey.toLowerCase());
+
+        if (existingIndex >= 0) {
+            // Update existing
+            segment.features[existingIndex].isEnabled = isEnabled;
+            segment.features[existingIndex].config = config;
+        } else {
+            // Add new
+            segment.features.push({
+                featureKey: featureKey.toLowerCase(),
+                isEnabled,
+                config
+            });
+        }
+
+        await segment.save();
+
+        return res.json({
+            success: true,
+            message: `Feature '${featureKey}' ${existingIndex >= 0 ? 'updated' : 'assigned'} to segment '${segment.name}'`,
+            data: {
+                segment: {
+                    _id: segment._id,
+                    name: segment.name,
+                    code: segment.code
+                },
+                feature: {
+                    key: featureKey,
+                    isEnabled,
+                    config
+                }
+            }
+        });
     } catch (error) {
-        res.status(500).json({ message: 'Error deleting feature', error: error.message });
+        console.error('Assign feature to segment error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Failed to assign feature',
+            error: error.message
+        });
     }
 };
 
-// Reorder features
-export const reorderFeatures = async (req, res) => {
+/**
+ * Remove feature from segment
+ * DELETE /api/admin/segments/:segmentId/features/:featureKey
+ */
+export const removeFeatureFromSegment = async (req, res) => {
     try {
-        const { features } = req.body; // Array of { id, displayOrder }
+        const { segmentId, featureKey } = req.params;
 
-        const updatePromises = features.map((item) =>
-            Feature.findByIdAndUpdate(item.id, { displayOrder: item.displayOrder })
-        );
+        const segment = await UserSegment.findById(segmentId);
+        if (!segment) {
+            return res.status(404).json({
+                success: false,
+                message: 'Segment not found'
+            });
+        }
 
-        await Promise.all(updatePromises);
+        const initialLength = segment.features.length;
+        segment.features = segment.features.filter(f => f.featureKey !== featureKey.toLowerCase());
 
-        const updatedFeatures = await Feature.find().sort({ displayOrder: 1 });
-        res.json(updatedFeatures);
+        if (segment.features.length === initialLength) {
+            return res.status(404).json({
+                success: false,
+                message: `Feature '${featureKey}' not assigned to this segment`
+            });
+        }
+
+        await segment.save();
+
+        return res.json({
+            success: true,
+            message: `Feature '${featureKey}' removed from segment '${segment.name}'`
+        });
     } catch (error) {
-        res.status(500).json({ message: 'Error reordering features', error: error.message });
+        console.error('Remove feature from segment error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Failed to remove feature',
+            error: error.message
+        });
     }
+};
+
+/* =====================
+   USER FEATURE OVERRIDES
+====================== */
+
+/**
+ * Get user's all features (segment + overrides merged)
+ * GET /api/admin/users/:userId/features
+ */
+export const getUserFeatures = async (req, res) => {
+    try {
+        const { userId } = req.params;
+
+        const user = await User.findById(userId).populate('userSegment');
+
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: 'User not found'
+            });
+        }
+
+        // Merge segment features and user overrides
+        const featureMap = new Map();
+
+        // First, add segment features
+        if (user.userSegment?.features) {
+            user.userSegment.features.forEach(f => {
+                if (f.isEnabled) {
+                    featureMap.set(f.featureKey, {
+                        key: f.featureKey,
+                        isEnabled: f.isEnabled,
+                        config: f.config || {},
+                        source: 'segment',
+                        segmentName: user.userSegment.name
+                    });
+                }
+            });
+        }
+
+        // Then, apply user overrides (these take precedence)
+        if (user.featureOverrides) {
+            user.featureOverrides.forEach(f => {
+                featureMap.set(f.featureKey, {
+                    key: f.featureKey,
+                    isEnabled: f.isEnabled,
+                    config: f.config || {},
+                    source: 'user_override',
+                    enabledBy: f.enabledBy,
+                    enabledAt: f.enabledAt,
+                    notes: f.notes
+                });
+            });
+        }
+
+        const allFeatures = Array.from(featureMap.values());
+
+        return res.json({
+            success: true,
+            user: {
+                _id: user._id,
+                name: user.name,
+                email: user.email,
+                segment: user.userSegment?.name || 'None'
+            },
+            features: allFeatures,
+            count: allFeatures.length
+        });
+    } catch (error) {
+        console.error('Get user features error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Failed to fetch user features',
+            error: error.message
+        });
+    }
+};
+
+/**
+ * Add/Update user feature override
+ * POST /api/admin/users/:userId/features
+ */
+export const setUserFeatureOverride = async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const { featureKey, isEnabled = true, config = {}, notes = '' } = req.body;
+
+        if (!featureKey) {
+            return res.status(400).json({
+                success: false,
+                message: 'featureKey is required'
+            });
+        }
+
+        // Validate user exists
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: 'User not found'
+            });
+        }
+
+        // Validate feature exists
+        const feature = await Feature.findOne({ key: featureKey.toLowerCase() });
+        if (!feature) {
+            return res.status(404).json({
+                success: false,
+                message: `Feature '${featureKey}' not found`
+            });
+        }
+
+        if (!feature.isActive) {
+            return res.status(400).json({
+                success: false,
+                message: `Feature '${featureKey}' is not active`
+            });
+        }
+
+        // Initialize featureOverrides if not exists
+        if (!user.featureOverrides) {
+            user.featureOverrides = [];
+        }
+
+        // Check if override already exists
+        const existingIndex = user.featureOverrides.findIndex(f => f.featureKey === featureKey.toLowerCase());
+
+        if (existingIndex >= 0) {
+            // Update existing
+            user.featureOverrides[existingIndex].isEnabled = isEnabled;
+            user.featureOverrides[existingIndex].config = config;
+            user.featureOverrides[existingIndex].enabledBy = req.user.id;
+            user.featureOverrides[existingIndex].enabledAt = new Date();
+            user.featureOverrides[existingIndex].notes = notes;
+        } else {
+            // Add new
+            user.featureOverrides.push({
+                featureKey: featureKey.toLowerCase(),
+                isEnabled,
+                config,
+                enabledBy: req.user.id,
+                enabledAt: new Date(),
+                notes
+            });
+        }
+
+        await user.save();
+
+        return res.json({
+            success: true,
+            message: `Feature override ${existingIndex >= 0 ? 'updated' : 'added'} for user`,
+            data: {
+                user: {
+                    _id: user._id,
+                    name: user.name,
+                    email: user.email
+                },
+                feature: {
+                    key: featureKey,
+                    isEnabled,
+                    config,
+                    notes
+                }
+            }
+        });
+    } catch (error) {
+        console.error('Set user feature override error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Failed to set feature override',
+            error: error.message
+        });
+    }
+};
+
+/**
+ * Remove user feature override
+ * DELETE /api/admin/users/:userId/features/:featureKey
+ */
+export const removeUserFeatureOverride = async (req, res) => {
+    try {
+        const { userId, featureKey } = req.params;
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: 'User not found'
+            });
+        }
+
+        if (!user.featureOverrides) {
+            return res.status(404).json({
+                success: false,
+                message: 'No feature overrides found for this user'
+            });
+        }
+
+        const initialLength = user.featureOverrides.length;
+        user.featureOverrides = user.featureOverrides.filter(f => f.featureKey !== featureKey.toLowerCase());
+
+        if (user.featureOverrides.length === initialLength) {
+            return res.status(404).json({
+                success: false,
+                message: `Feature override '${featureKey}' not found for this user`
+            });
+        }
+
+        await user.save();
+
+        return res.json({
+            success: true,
+            message: `Feature override '${featureKey}' removed. User will now inherit from segment.`
+        });
+    } catch (error) {
+        console.error('Remove user feature override error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Failed to remove feature override',
+            error: error.message
+        });
+    }
+};
+
+export default {
+    listFeatures,
+    getFeature,
+    getFeaturesByCategory,
+    getSegmentFeatures,
+    assignFeatureToSegment,
+    removeFeatureFromSegment,
+    getUserFeatures,
+    setUserFeatureOverride,
+    removeUserFeatureOverride
 };

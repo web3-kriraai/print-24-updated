@@ -155,9 +155,8 @@ export const AdminSearchableDropdown: React.FC<AdminSearchableDropdownProps> = (
                 id={id}
                 onClick={() => !disabled && setIsOpen(!isOpen)}
                 disabled={disabled}
-                className={`appearance-none bg-gray-50 border border-gray-200 rounded-xl pl-4 pr-10 py-2.5 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all cursor-pointer w-full min-w-[200px] text-left flex items-center justify-between ${
-                    disabled ? "opacity-50 cursor-not-allowed" : ""
-                }`}
+                className={`appearance-none bg-gray-50 border border-gray-200 rounded-xl pl-4 pr-10 py-2.5 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all cursor-pointer w-full min-w-[200px] text-left flex items-center justify-between ${disabled ? "opacity-50 cursor-not-allowed" : ""
+                    }`}
             >
                 <span className="text-sm truncate">
                     {selectedOption ? selectedOption.label : label}
@@ -186,7 +185,7 @@ export const AdminSearchableDropdown: React.FC<AdminSearchableDropdownProps> = (
               background: #059669;
             }
           `}</style>
-                    <div className="absolute top-full left-0 mt-2 w-max min-w-[350px] max-w-[500px] bg-white rounded-lg shadow-lg border border-gray-200 z-50 overflow-hidden">
+                    <div className="absolute top-full left-0 mt-2 w-full min-w-[300px] max-w-[400px] bg-white rounded-lg shadow-lg border border-gray-200 z-50 overflow-hidden">
                         {enableSearch && (
                             <div className="p-2 border-b border-gray-200">
                                 <div className="relative">
@@ -240,11 +239,10 @@ export const AdminSearchableDropdown: React.FC<AdminSearchableDropdownProps> = (
                                         key={option.value === null ? "null" : option.value}
                                         type="button"
                                         onClick={() => handleSelect(option.value)}
-                                        className={`w-full flex items-center justify-between px-3 py-2 text-sm text-gray-700 rounded-md transition-colors ${
-                                            highlightedIndex === index
+                                        className={`w-full flex items-center justify-between px-3 py-2 text-sm text-gray-700 rounded-md transition-colors ${highlightedIndex === index
                                                 ? "bg-emerald-50"
                                                 : "hover:bg-gray-50"
-                                        }`}
+                                            }`}
                                         onMouseEnter={() => setHighlightedIndex(index)}
                                     >
                                         <span className="text-left break-words pr-2">{option.label}</span>

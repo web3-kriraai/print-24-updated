@@ -86,14 +86,13 @@ const BackButton: React.FC<BackButtonProps> = ({
         e.stopPropagation();
         handleBack();
       }}
-      className={`flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors font-medium cursor-pointer ${className}`}
+      className={`flex items-center text-slate-500 hover:text-slate-700 transition-colors font-medium cursor-pointer ${className}`}
       type="button"
     >
-      <ArrowLeft className="w-5 h-5" />
+      <ArrowLeft className="w-4 h-4 mr-2" />
       {label}
     </button>
   );
 };
 
 export default BackButton;
-

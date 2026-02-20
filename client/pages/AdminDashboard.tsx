@@ -71,6 +71,8 @@ import SiteSettingsManagement from "./admin/components/SiteSettingsManagement";
 import UserSegmentManager from "../components/UserSegmentManager";
 import SegmentApplicationManager from "../components/admin/pricing/SegmentApplicationManager";
 import FormBuilder from "../components/admin/pricing/FormBuilder";
+import PricingDashboard from "./admin/PricingDashboard";
+import AdminComplaintManagement from "./admin/AdminComplaintManagement";
 
 // Simple placeholder image as data URI (1x1 transparent pixel)
 const PLACEHOLDER_IMAGE = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150'%3E%3Crect width='150' height='150' fill='%23f5f5f5'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='%23999' font-family='sans-serif' font-size='14'%3ENo Image%3C/text%3E%3C/svg%3E";
@@ -1285,6 +1287,7 @@ const AdminDashboard: React.FC = () => {
     // AdminDashboard passes:
     // selectedCategoryFilter={selectedCategoryFilter}
     // setSelectedCategoryFilter={setSelectedCategoryFilter}
+
 
     // So 'selectedCategoryFilter' IS state in AdminDashboard. We should find it.
     if (activeTab === 'manage-products') {
@@ -8360,6 +8363,23 @@ const AdminDashboard: React.FC = () => {
         {/* Form Builder Management */}
         {activeTab === "form-builder" && (
           <FormBuilder />
+        )}
+
+        {/* Pricing Management */}
+        {(activeTab === "pricing" ||
+          activeTab === "price-books" ||
+          activeTab === "price-modifiers" ||
+          activeTab === "geo-zones" ||
+          activeTab === "product-availability" ||
+          activeTab === "pricing-audit" ||
+          activeTab === "smart-view" ||
+          activeTab === "payment-gateways") && (
+            <PricingDashboard activeTab={activeTab} />
+          )}
+
+        {/* Complaint Management */}
+        {activeTab === "complaints" && (
+          <AdminComplaintManagement />
         )}
 
         {/* Create Employee Modal (for Department Section) */}
