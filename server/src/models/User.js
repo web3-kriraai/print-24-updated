@@ -14,7 +14,7 @@ const userSchema = new mongoose.Schema(
     approvalStatus: { type: String, enum: ["pending", "approved", "rejected"], default: "pending" },
     userType: { type: String, default: "customer" },
     profileImage: { type: String, default: null },
-    
+
     // ========== Dynamic Segment System ==========
     // Replaced hardcoded signupIntent enum with flexible segment code
     signupIntent: {
@@ -23,13 +23,13 @@ const userSchema = new mongoose.Schema(
       uppercase: true,
       trim: true,
     },
-    
+
     // Application reference (if user applied through a form)
     segmentApplication: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "SegmentApplication",
     },
-    
+
     // Email verification fields
     isEmailVerified: { type: Boolean, default: false },
     emailOtp: { type: String }, // Hashed OTP
@@ -176,6 +176,40 @@ const userSchema = new mongoose.Schema(
         default: 'WEEKLY'
       }
     },
+
+    /* =====================
+       FEATURE OVERRIDES (PMS)
+       Purpose: User-specific feature assignments that override segment defaults
+    ====================== */
+    featureOverrides: [{
+      featureKey: {
+        type: String,
+        required: true,
+        lowercase: true,
+        trim: true
+      },
+      isEnabled: {
+        type: Boolean,
+        default: true
+      },
+      config: {
+        type: mongoose.Schema.Types.Mixed,
+        default: {}
+      },
+      enabledBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+        // Admin who enabled this feature for the user
+      },
+      enabledAt: {
+        type: Date,
+        default: Date.now
+      },
+      notes: {
+        type: String,
+        // Admin notes about why this override was added
+      }
+    }]
   },
   { timestamps: true }
 

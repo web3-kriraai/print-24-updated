@@ -11,7 +11,7 @@ import { User } from '../models/User.js';
 
 /* =====================
    FEATURE READ OPERATIONS (PUBLIC/ADMIN)
-====================== */
+ ====================== */
 
 /**
  * List all features
@@ -106,7 +106,7 @@ export const getFeaturesByCategory = async (req, res) => {
 
 /* =====================
    SEGMENT FEATURE ASSIGNMENT
-====================== */
+ ====================== */
 
 /**
  * Get features assigned to a segment
@@ -287,7 +287,7 @@ export const removeFeatureFromSegment = async (req, res) => {
 
 /* =====================
    USER FEATURE OVERRIDES
-====================== */
+ ====================== */
 
 /**
  * Get user's all features (segment + overrides merged)
@@ -415,7 +415,7 @@ export const setUserFeatureOverride = async (req, res) => {
             // Update existing
             user.featureOverrides[existingIndex].isEnabled = isEnabled;
             user.featureOverrides[existingIndex].config = config;
-            user.featureOverrides[existingIndex].enabledBy = req.user.id;
+            user.featureOverrides[existingIndex].enabledBy = req.user._id;
             user.featureOverrides[existingIndex].enabledAt = new Date();
             user.featureOverrides[existingIndex].notes = notes;
         } else {
@@ -424,7 +424,7 @@ export const setUserFeatureOverride = async (req, res) => {
                 featureKey: featureKey.toLowerCase(),
                 isEnabled,
                 config,
-                enabledBy: req.user.id,
+                enabledBy: req.user._id,
                 enabledAt: new Date(),
                 notes
             });
@@ -460,51 +460,181 @@ export const setUserFeatureOverride = async (req, res) => {
 };
 
 /**
- * Remove user feature override
- * DELETE /api/admin/users/:userId/features/:featureKey
+ * Bulk assign features to segment
+ * POST /api/admin/segments/:segmentId/features/bulk
  */
-export const removeUserFeatureOverride = async (req, res) => {
+export const bulkAssignFeaturesToSegment = async (req, res) => {
     try {
-        const { userId, featureKey } = req.params;
+        const { segmentId } = req.params;
+        const { features } = req.body;
+
+        if (!Array.isArray(features)) {
+            return res.status(400).json({ success: false, message: 'features must be an array' });
+        }
+
+        const segment = await UserSegment.findById(segmentId);
+        if (!segment) {
+            return res.status(404).json({ success: false, message: 'Segment not found' });
+        }
+
+        const results = { updated: 0, added: 0, failed: 0, errors: [] };
+
+        for (const item of features) {
+            const { featureKey, isEnabled = true, config = {} } = item;
+            try {
+                const feature = await Feature.findOne({ key: featureKey.toLowerCase() });
+                if (!feature || !feature.isActive) {
+                    results.failed++;
+                    results.errors.push(`Feature '${featureKey}' not found or inactive`);
+                    continue;
+                }
+
+                const existingIndex = segment.features.findIndex(f => f.featureKey === featureKey.toLowerCase());
+                if (existingIndex >= 0) {
+                    segment.features[existingIndex].isEnabled = isEnabled;
+                    segment.features[existingIndex].config = config;
+                    results.updated++;
+                } else {
+                    segment.features.push({ featureKey: featureKey.toLowerCase(), isEnabled, config });
+                    results.added++;
+                }
+            } catch (err) {
+                results.failed++;
+                results.errors.push(`Error processing '${featureKey}': ${err.message}`);
+            }
+        }
+
+        await segment.save();
+        return res.json({ success: true, message: `Bulk assignment completed`, results });
+    } catch (error) {
+        console.error('Bulk assign features error:', error);
+        return res.status(500).json({ success: false, message: 'Failed to bulk assign features', error: error.message });
+    }
+};
+
+/**
+ * Bulk remove features from segment
+ * DELETE /api/admin/segments/:segmentId/features/bulk
+ */
+export const bulkRemoveSegmentFeatures = async (req, res) => {
+    try {
+        const { segmentId } = req.params;
+        const { featureKeys } = req.body;
+
+        if (!Array.isArray(featureKeys)) {
+            return res.status(400).json({ success: false, message: 'featureKeys must be an array' });
+        }
+
+        const segment = await UserSegment.findById(segmentId);
+        if (!segment) {
+            return res.status(404).json({ success: false, message: 'Segment not found' });
+        }
+
+        const initialLength = segment.features.length;
+        const keysToRemove = featureKeys.map(k => k.toLowerCase());
+        segment.features = segment.features.filter(f => !keysToRemove.includes(f.featureKey));
+        const removedCount = initialLength - segment.features.length;
+
+        await segment.save();
+        return res.json({ success: true, message: `Successfully removed ${removedCount} features` });
+    } catch (error) {
+        console.error('Bulk remove segment features error:', error);
+        return res.status(500).json({ success: false, message: 'Failed to bulk remove features', error: error.message });
+    }
+};
+
+/**
+ * Bulk set user feature overrides
+ * POST /api/admin/users/:userId/features/bulk
+ */
+export const bulkSetUserFeatureOverrides = async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const { features } = req.body;
+
+        if (!Array.isArray(features)) {
+            return res.status(400).json({ success: false, message: 'features must be an array' });
+        }
 
         const user = await User.findById(userId);
         if (!user) {
-            return res.status(404).json({
-                success: false,
-                message: 'User not found'
-            });
+            return res.status(404).json({ success: false, message: 'User not found' });
         }
 
-        if (!user.featureOverrides) {
-            return res.status(404).json({
-                success: false,
-                message: 'No feature overrides found for this user'
-            });
-        }
+        if (!user.featureOverrides) user.featureOverrides = [];
+        const results = { updated: 0, added: 0, failed: 0, errors: [] };
 
-        const initialLength = user.featureOverrides.length;
-        user.featureOverrides = user.featureOverrides.filter(f => f.featureKey !== featureKey.toLowerCase());
+        for (const item of features) {
+            const { featureKey, isEnabled = true, config = {}, notes = '' } = item;
+            try {
+                const feature = await Feature.findOne({ key: featureKey.toLowerCase() });
+                if (!feature || !feature.isActive) {
+                    results.failed++;
+                    results.errors.push(`Feature '${featureKey}' not found or inactive`);
+                    continue;
+                }
 
-        if (user.featureOverrides.length === initialLength) {
-            return res.status(404).json({
-                success: false,
-                message: `Feature override '${featureKey}' not found for this user`
-            });
+                const existingIndex = user.featureOverrides.findIndex(f => f.featureKey === featureKey.toLowerCase());
+                if (existingIndex >= 0) {
+                    user.featureOverrides[existingIndex].isEnabled = isEnabled;
+                    user.featureOverrides[existingIndex].config = config;
+                    user.featureOverrides[existingIndex].notes = notes;
+                    user.featureOverrides[existingIndex].enabledBy = req.user._id;
+                    user.featureOverrides[existingIndex].enabledAt = new Date();
+                    results.updated++;
+                } else {
+                    user.featureOverrides.push({
+                        featureKey: featureKey.toLowerCase(),
+                        isEnabled,
+                        config,
+                        notes,
+                        enabledBy: req.user._id,
+                        enabledAt: new Date()
+                    });
+                    results.added++;
+                }
+            } catch (err) {
+                results.failed++;
+                results.errors.push(`Error processing '${featureKey}': ${err.message}`);
+            }
         }
 
         await user.save();
-
-        return res.json({
-            success: true,
-            message: `Feature override '${featureKey}' removed. User will now inherit from segment.`
-        });
+        return res.json({ success: true, message: `Bulk overrides completed`, results });
     } catch (error) {
-        console.error('Remove user feature override error:', error);
-        return res.status(500).json({
-            success: false,
-            message: 'Failed to remove feature override',
-            error: error.message
-        });
+        console.error('Bulk set user overrides error:', error);
+        return res.status(500).json({ success: false, message: 'Failed to bulk set overrides', error: error.message });
+    }
+};
+
+/**
+ * Bulk remove user feature overrides
+ * DELETE /api/admin/users/:userId/features/bulk
+ */
+export const bulkRemoveUserOverrides = async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const { featureKeys } = req.body;
+
+        if (!Array.isArray(featureKeys)) {
+            return res.status(400).json({ success: false, message: 'featureKeys must be an array' });
+        }
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+
+        const initialLength = user.featureOverrides?.length || 0;
+        const keysToRemove = featureKeys.map(k => k.toLowerCase());
+        user.featureOverrides = user.featureOverrides.filter(f => !keysToRemove.includes(f.featureKey));
+        const removedCount = initialLength - user.featureOverrides.length;
+
+        await user.save();
+        return res.json({ success: true, message: `Successfully removed ${removedCount} overrides` });
+    } catch (error) {
+        console.error('Bulk remove user overrides error:', error);
+        return res.status(500).json({ success: false, message: 'Failed to bulk remove overrides', error: error.message });
     }
 };
 
@@ -515,7 +645,11 @@ export default {
     getSegmentFeatures,
     assignFeatureToSegment,
     removeFeatureFromSegment,
+    bulkAssignFeaturesToSegment,
+    bulkRemoveSegmentFeatures,
     getUserFeatures,
     setUserFeatureOverride,
-    removeUserFeatureOverride
+    removeUserFeatureOverride,
+    bulkSetUserFeatureOverrides,
+    bulkRemoveUserOverrides
 };

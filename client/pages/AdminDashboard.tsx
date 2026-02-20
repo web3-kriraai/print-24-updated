@@ -73,6 +73,9 @@ import SegmentApplicationManager from "../components/admin/pricing/SegmentApplic
 import FormBuilder from "../components/admin/pricing/FormBuilder";
 import PricingDashboard from "./admin/PricingDashboard";
 import AdminComplaintManagement from "./admin/AdminComplaintManagement";
+import FeatureListViewer from "../components/admin/FeatureListViewer";
+import SegmentFeatureAssignment from "../components/admin/SegmentFeatureAssignment";
+import UserFeatureOverride from "../components/admin/UserFeatureOverride";
 
 // Simple placeholder image as data URI (1x1 transparent pixel)
 const PLACEHOLDER_IMAGE = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150'%3E%3Crect width='150' height='150' fill='%23f5f5f5'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='%23999' font-family='sans-serif' font-size='14'%3ENo Image%3C/text%3E%3C/svg%3E";
@@ -8380,6 +8383,21 @@ const AdminDashboard: React.FC = () => {
         {/* Complaint Management */}
         {activeTab === "complaints" && (
           <AdminComplaintManagement />
+        )}
+
+        {/* Feature Management */}
+        {activeTab === "features_list" && (
+          <FeatureListViewer />
+        )}
+
+        {/* Segment Feature Assignment */}
+        {activeTab === "segment_features" && (
+          <SegmentFeatureAssignment />
+        )}
+
+        {/* User Feature Overrides */}
+        {activeTab === "user_overrides" && (
+          <UserFeatureOverride />
         )}
 
         {/* Create Employee Modal (for Department Section) */}

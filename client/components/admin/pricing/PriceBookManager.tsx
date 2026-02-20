@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import toast from "react-hot-toast";
-import { Plus, Edit2, Trash2, Save, X, Book, Star, Eye, Copy, Search, History } from 'lucide-react';
+import { Plus, Edit2, Trash2, Save, X, Book, Star, Eye, Copy } from 'lucide-react';
 import ConflictDetectionModal from '../ConflictDetectionModal';
 import { SUPPORTED_CURRENCIES, getCurrencySymbol } from '../../../utils/currencyUtils';
-import { AdminSearchableDropdown } from '../../AdminSearchableDropdown';
 
 interface PriceBook {
     _id: string;
@@ -559,10 +558,20 @@ const PriceBookManager: React.FC = () => {
     };
 
     return (
-        <div className="p-0">
+        <div className="p-6">
+            {/* Header */}
+            <div className="mb-6">
+                <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
+                    <Book className="text-indigo-600" />
+                    Price Book Manager
+                </h1>
+                <p className="text-gray-600 mt-2">
+                    Manage price books and assign product prices for different pricing strategies
+                </p>
+            </div>
 
             {/* Toolbar: Search, Filters, Create Button */}
-            <div className="mb-6 bg-white border-b border-gray-100 p-6">
+            <div className="mb-6 bg-white rounded-xl shadow-sm border border-gray-200 p-4">
                 <div className="flex flex-wrap gap-4 items-center">
                     {/* Search */}
                     <div className="flex-1 min-w-[200px]">
@@ -581,24 +590,28 @@ const PriceBookManager: React.FC = () => {
                     </div>
 
                     {/* Zone Filter */}
-                    <AdminSearchableDropdown
-                        label="All Zones"
-                        options={geoZones.map(z => ({ value: z._id, label: z.name }))}
+                    <select
                         value={filterZone}
-                        onChange={(val) => setFilterZone(val as string)}
-                        className="min-w-[200px]"
-                        searchPlaceholder="Search zones..."
-                    />
+                        onChange={(e) => setFilterZone(e.target.value)}
+                        className="px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 min-w-[150px]"
+                    >
+                        <option value="">All Zones</option>
+                        {geoZones.map((zone) => (
+                            <option key={zone._id} value={zone._id}>{zone.name}</option>
+                        ))}
+                    </select>
 
                     {/* Segment Filter */}
-                    <AdminSearchableDropdown
-                        label="All Segments"
-                        options={userSegments.map(s => ({ value: s._id, label: s.name }))}
+                    <select
                         value={filterSegment}
-                        onChange={(val) => setFilterSegment(val as string)}
-                        className="min-w-[200px]"
-                        searchPlaceholder="Search segments..."
-                    />
+                        onChange={(e) => setFilterSegment(e.target.value)}
+                        className="px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 min-w-[150px]"
+                    >
+                        <option value="">All Segments</option>
+                        {userSegments.map((segment) => (
+                            <option key={segment._id} value={segment._id}>{segment.name}</option>
+                        ))}
+                    </select>
 
                     {/* Create Button */}
                     <button
@@ -614,75 +627,82 @@ const PriceBookManager: React.FC = () => {
                 </div>
 
                 {/* Stats Bar */}
-                <div className="flex flex-wrap gap-6 mt-6 pt-6 border-t border-gray-100 text-sm text-gray-500">
-                    <div className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-lg border border-indigo-100/50">
-                        <span className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse"></span>
-                        <span className="font-medium">{priceBooks.filter(b => (b as any).isMaster).length} Master Books</span>
+                <div className="flex gap-6 mt-4 pt-4 border-t border-gray-100 text-sm text-gray-600">
+                    <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 bg-indigo-500 rounded-full"></span>
+                        <span>{priceBooks.filter(b => (b as any).isMaster).length} Master</span>
                     </div>
-                    <div className="flex items-center gap-2 px-3 py-1.5 bg-purple-50 text-purple-700 rounded-lg border border-purple-100/50">
+                    <div className="flex items-center gap-2">
                         <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
-                        <span className="font-medium">{priceBooks.filter(b => b.zone).length} Regional</span>
+                        <span>{priceBooks.filter(b => b.zone).length} Zone-Specific</span>
                     </div>
-                    <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg border border-blue-100/50">
+                    <div className="flex items-center gap-2">
                         <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
-                        <span className="font-medium">{priceBooks.filter(b => b.segment).length} Targeted</span>
+                        <span>{priceBooks.filter(b => b.segment).length} Segment-Specific</span>
                     </div>
-                    <div className="ml-auto flex items-center gap-2 font-medium text-gray-400 bg-gray-50 px-4 py-1.5 rounded-full border border-gray-100">
-                        <History size={14} />
-                        Displaying {filteredBooks.length} records
+                    <div className="ml-auto font-medium text-gray-800">
+                        {filteredBooks.length} of {priceBooks.length} price books
                     </div>
                 </div>
             </div>
 
-            <div className="p-6">
-
-                {/* Price Books Table */}
-                <div className="bg-white rounded-2xl border border-gray-200/60 shadow-sm overflow-hidden">
-                    {loading && priceBooks.length === 0 ? (
-                        <div className="text-center text-gray-500 py-16">
-                            <div className="animate-spin w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full mx-auto mb-4"></div>
-                            Loading price books...
-                        </div>
-                    ) : filteredBooks.length === 0 ? (
-                        <div className="text-center py-16">
-                            <Book className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                            <p className="text-gray-500 text-lg">
-                                {priceBooks.length === 0
-                                    ? "No price books found. Create one to get started."
-                                    : "No price books match your search criteria."
-                                }
-                            </p>
-                            {priceBooks.length > 0 && (
-                                <button
-                                    onClick={() => { setSearchQuery(''); setFilterZone(''); setFilterSegment(''); }}
-                                    className="mt-4 text-indigo-600 hover:underline"
-                                >
-                                    Clear filters
-                                </button>
-                            )}
-                        </div>
-                    ) : (
-                        <div className="overflow-x-auto">
-                            <table className="w-full">
-                                <thead className="bg-gray-50/50 border-b border-gray-100">
-                                    <tr>
-                                        <th className="text-left px-6 py-4 text-[11px] font-bold text-gray-400 uppercase tracking-widest">Price Book</th>
-                                        <th className="text-left px-6 py-4 text-[11px] font-bold text-gray-400 uppercase tracking-widest">Scope</th>
-                                        <th className="text-left px-6 py-4 text-[11px] font-bold text-gray-400 uppercase tracking-widest">Currency</th>
-                                        <th className="text-left px-6 py-4 text-[11px] font-bold text-gray-400 uppercase tracking-widest">Created</th>
-                                        <th className="text-center px-6 py-4 text-[11px] font-bold text-gray-400 uppercase tracking-widest">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-100">
-                                    {paginatedBooks.map((book) => (
-                                        <tr
-                                            key={book._id}
-                                            className={`hover:bg-gray-50 transition-colors ${(book as any).isMaster ? 'bg-indigo-50/30' : ''}`}
-                                        >
-                                            {/* Name & Type */}
-                                            <td className="px-6 py-4">
-                                                <div className="flex items-center gap-3">
-                                                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${(book as any).isMaster
+            {/* Price Books Table */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                {loading && priceBooks.length === 0 ? (
+                    <div className="text-center text-gray-500 py-16">
+                        <div className="animate-spin w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+                        Loading price books...
+                    </div>
+                ) : filteredBooks.length === 0 ? (
+                    <div className="text-center py-16">
+                        <Book className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                        <p className="text-gray-500 text-lg">
+                            {priceBooks.length === 0
+                                ? "No price books found. Create one to get started."
+                                : "No price books match your search criteria."
+                            }
+                        </p>
+                        {priceBooks.length > 0 && (
+                            <button
+                                onClick={() => { setSearchQuery(''); setFilterZone(''); setFilterSegment(''); }}
+                                className="mt-4 text-indigo-600 hover:underline"
+                            >
+                                Clear filters
+                            </button>
+                        )}
+                    </div>
+                ) : (
+                    <div className="overflow-x-auto">
+                        <table className="w-full">
+                            <thead className="bg-gray-50 border-b border-gray-200">
+                                <tr>
+                                    <th className="text-left px-6 py-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                                        Price Book
+                                    </th>
+                                    <th className="text-left px-6 py-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                                        Scope
+                                    </th>
+                                    <th className="text-left px-6 py-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                                        Currency
+                                    </th>
+                                    <th className="text-left px-6 py-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                                        Created
+                                    </th>
+                                    <th className="text-center px-6 py-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                                        Actions
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                                {paginatedBooks.map((book) => (
+                                    <tr
+                                        key={book._id}
+                                        className={`hover:bg-gray-50 transition-colors ${(book as any).isMaster ? 'bg-indigo-50/30' : ''}`}
+                                    >
+                                        {/* Name & Type */}
+                                        <td className="px-6 py-4">
+                                            <div className="flex items-center gap-3">
+                                                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${(book as any).isMaster
                                                         ? 'bg-indigo-100 text-indigo-600'
                                                         : book.zone && book.segment
                                                             ? 'bg-emerald-100 text-emerald-600'
@@ -691,547 +711,557 @@ const PriceBookManager: React.FC = () => {
                                                                 : book.segment
                                                                     ? 'bg-blue-100 text-blue-600'
                                                                     : 'bg-gray-100 text-gray-600'
-                                                        }`}>
-                                                        <Book size={20} />
+                                                    }`}>
+                                                    <Book size={20} />
+                                                </div>
+                                                <div>
+                                                    <div className="font-semibold text-gray-900 flex items-center gap-2">
+                                                        {book.name}
+                                                        {(book as any).isMaster && (
+                                                            <Star size={14} className="text-amber-500 fill-amber-500" />
+                                                        )}
                                                     </div>
-                                                    <div>
-                                                        <div className="font-semibold text-gray-900 flex items-center gap-2">
-                                                            {book.name}
-                                                            {(book as any).isMaster && (
-                                                                <Star size={14} className="text-amber-500 fill-amber-500" />
-                                                            )}
-                                                        </div>
-                                                        <div className="text-sm text-gray-500">
-                                                            {(book as any).description ||
-                                                                ((book as any).isMaster ? 'Base prices for all products' : 'Custom pricing rules')}
-                                                        </div>
+                                                    <div className="text-sm text-gray-500">
+                                                        {(book as any).description ||
+                                                            ((book as any).isMaster ? 'Base prices for all products' : 'Custom pricing rules')}
                                                     </div>
                                                 </div>
-                                            </td>
+                                            </div>
+                                        </td>
 
-                                            {/* Scope (Zone/Segment) */}
-                                            <td className="px-6 py-4">
-                                                <div className="flex flex-wrap gap-1.5">
-                                                    {(book as any).isMaster && (
-                                                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
-                                                            Master
-                                                        </span>
-                                                    )}
-                                                    {book.zone && (
-                                                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                                                            📍 {book.zone.name}
-                                                        </span>
-                                                    )}
-                                                    {book.segment && (
-                                                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                                            👥 {book.segment.name}
-                                                        </span>
-                                                    )}
-                                                    {!book.zone && !book.segment && !(book as any).isMaster && (
-                                                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
-                                                            Global
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </td>
+                                        {/* Scope (Zone/Segment) */}
+                                        <td className="px-6 py-4">
+                                            <div className="flex flex-wrap gap-1.5">
+                                                {(book as any).isMaster && (
+                                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                                                        Master
+                                                    </span>
+                                                )}
+                                                {book.zone && (
+                                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                                                        📍 {book.zone.name}
+                                                    </span>
+                                                )}
+                                                {book.segment && (
+                                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                                        👥 {book.segment.name}
+                                                    </span>
+                                                )}
+                                                {!book.zone && !book.segment && !(book as any).isMaster && (
+                                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                                                        Global
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </td>
 
-                                            {/* Currency */}
-                                            <td className="px-6 py-4">
-                                                <span className="inline-flex items-center px-3 py-1 rounded-lg bg-gray-100 text-gray-800 font-mono text-sm font-medium">
-                                                    {book.currency}
-                                                </span>
-                                            </td>
+                                        {/* Currency */}
+                                        <td className="px-6 py-4">
+                                            <span className="inline-flex items-center px-3 py-1 rounded-lg bg-gray-100 text-gray-800 font-mono text-sm font-medium">
+                                                {book.currency}
+                                            </span>
+                                        </td>
 
-                                            {/* Created Date */}
-                                            <td className="px-6 py-4 text-sm text-gray-600">
-                                                {book.createdAt ? new Date(book.createdAt).toLocaleDateString('en-IN', {
-                                                    day: 'numeric',
-                                                    month: 'short',
-                                                    year: 'numeric'
-                                                }) : '-'}
-                                            </td>
+                                        {/* Created Date */}
+                                        <td className="px-6 py-4 text-sm text-gray-600">
+                                            {book.createdAt ? new Date(book.createdAt).toLocaleDateString('en-IN', {
+                                                day: 'numeric',
+                                                month: 'short',
+                                                year: 'numeric'
+                                            }) : '-'}
+                                        </td>
 
-                                            {/* Actions */}
-                                            <td className="px-6 py-4">
-                                                <div className="flex items-center justify-center gap-2">
-                                                    <button
-                                                        onClick={() => handleViewEntries(book)}
-                                                        className="p-2 rounded-lg bg-green-50 text-green-600 hover:bg-green-100 transition-colors"
-                                                        title="View Prices"
-                                                    >
-                                                        <Eye size={18} />
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleCopyPriceBook(book)}
-                                                        className="p-2 rounded-lg bg-purple-50 text-purple-600 hover:bg-purple-100 transition-colors"
-                                                        title="Copy Price Book"
-                                                    >
-                                                        <Copy size={18} />
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleEdit(book)}
-                                                        className="p-2 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
-                                                        title="Edit"
-                                                    >
-                                                        <Edit2 size={18} />
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleDelete(book._id)}
-                                                        className={`p-2 rounded-lg transition-colors ${(book as any).isMaster
+                                        {/* Actions */}
+                                        <td className="px-6 py-4">
+                                            <div className="flex items-center justify-center gap-2">
+                                                <button
+                                                    onClick={() => handleViewEntries(book)}
+                                                    className="p-2 rounded-lg bg-green-50 text-green-600 hover:bg-green-100 transition-colors"
+                                                    title="View Prices"
+                                                >
+                                                    <Eye size={18} />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleCopyPriceBook(book)}
+                                                    className="p-2 rounded-lg bg-purple-50 text-purple-600 hover:bg-purple-100 transition-colors"
+                                                    title="Copy Price Book"
+                                                >
+                                                    <Copy size={18} />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleEdit(book)}
+                                                    className="p-2 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
+                                                    title="Edit"
+                                                >
+                                                    <Edit2 size={18} />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDelete(book._id)}
+                                                    className={`p-2 rounded-lg transition-colors ${(book as any).isMaster
                                                             ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                                                             : 'bg-red-50 text-red-600 hover:bg-red-100'
-                                                            }`}
-                                                        title={(book as any).isMaster ? "Cannot delete Master" : "Delete"}
-                                                        disabled={(book as any).isMaster}
-                                                    >
-                                                        <Trash2 size={18} />
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
+                                                        }`}
+                                                    title={(book as any).isMaster ? "Cannot delete Master" : "Delete"}
+                                                    disabled={(book as any).isMaster}
+                                                >
+                                                    <Trash2 size={18} />
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
 
-                    {/* Pagination Controls */}
-                    {filteredBooks.length > 0 && (
-                        <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
-                            <div className="flex items-center gap-4">
-                                <span className="text-sm text-gray-600">
-                                    Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, filteredBooks.length)} of {filteredBooks.length}
-                                </span>
-                                <select
-                                    value={itemsPerPage}
-                                    onChange={(e) => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1); }}
-                                    className="px-2 py-1 border border-gray-300 rounded text-sm"
-                                >
-                                    <option value={5}>5 per page</option>
-                                    <option value={10}>10 per page</option>
-                                    <option value={20}>20 per page</option>
-                                    <option value={50}>50 per page</option>
-                                </select>
-                            </div>
-                            <div className="flex items-center gap-1">
-                                <button
-                                    onClick={() => setCurrentPage(1)}
-                                    disabled={currentPage === 1}
-                                    className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    ⏮
-                                </button>
-                                <button
-                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                                    disabled={currentPage === 1}
-                                    className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    ◀
-                                </button>
-                                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                                    let pageNum;
-                                    if (totalPages <= 5) {
-                                        pageNum = i + 1;
-                                    } else if (currentPage <= 3) {
-                                        pageNum = i + 1;
-                                    } else if (currentPage >= totalPages - 2) {
-                                        pageNum = totalPages - 4 + i;
-                                    } else {
-                                        pageNum = currentPage - 2 + i;
-                                    }
-                                    return (
-                                        <button
-                                            key={pageNum}
-                                            onClick={() => setCurrentPage(pageNum)}
-                                            className={`px-3 py-1.5 text-sm rounded-lg ${currentPage === pageNum
+                {/* Pagination Controls */}
+                {filteredBooks.length > 0 && (
+                    <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                            <span className="text-sm text-gray-600">
+                                Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, filteredBooks.length)} of {filteredBooks.length}
+                            </span>
+                            <select
+                                value={itemsPerPage}
+                                onChange={(e) => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1); }}
+                                className="px-2 py-1 border border-gray-300 rounded text-sm"
+                            >
+                                <option value={5}>5 per page</option>
+                                <option value={10}>10 per page</option>
+                                <option value={20}>20 per page</option>
+                                <option value={50}>50 per page</option>
+                            </select>
+                        </div>
+                        <div className="flex items-center gap-1">
+                            <button
+                                onClick={() => setCurrentPage(1)}
+                                disabled={currentPage === 1}
+                                className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                ⏮
+                            </button>
+                            <button
+                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                disabled={currentPage === 1}
+                                className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                ◀
+                            </button>
+                            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                                let pageNum;
+                                if (totalPages <= 5) {
+                                    pageNum = i + 1;
+                                } else if (currentPage <= 3) {
+                                    pageNum = i + 1;
+                                } else if (currentPage >= totalPages - 2) {
+                                    pageNum = totalPages - 4 + i;
+                                } else {
+                                    pageNum = currentPage - 2 + i;
+                                }
+                                return (
+                                    <button
+                                        key={pageNum}
+                                        onClick={() => setCurrentPage(pageNum)}
+                                        className={`px-3 py-1.5 text-sm rounded-lg ${currentPage === pageNum
                                                 ? 'bg-indigo-600 text-white'
                                                 : 'border border-gray-300 hover:bg-gray-100'
-                                                }`}
-                                        >
-                                            {pageNum}
-                                        </button>
-                                    );
-                                })}
-                                <button
-                                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                                    disabled={currentPage === totalPages}
-                                    className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    ▶
-                                </button>
-                                <button
-                                    onClick={() => setCurrentPage(totalPages)}
-                                    disabled={currentPage === totalPages}
-                                    className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    ⏭
-                                </button>
-                            </div>
-                        </div>
-                    )}
-                </div>
-
-                {/* Create/Edit Price Book Modal */}
-                {showModal && (
-                    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-                        <div className="bg-white rounded-lg p-6 w-full max-w-md">
-                            <h2 className="text-2xl font-bold mb-4">
-                                {editingBook ? 'Edit Price Book' : 'Create Price Book'}
-                            </h2>
-
-                            <form onSubmit={handleSubmit}>
-                                {/* Name */}
-                                <div className="mb-4">
-                                    <label className="block text-sm font-medium mb-2">Price Book Name *</label>
-                                    <input
-                                        type="text"
-                                        value={formData.name}
-                                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                        className="w-full border rounded-lg px-3 py-2"
-                                        placeholder="e.g., Standard Pricing, Seasonal Sale"
-                                        required
-                                    />
-                                </div>
-
-                                {/* Currency */}
-                                <div className="mb-4">
-                                    <label className="block text-sm font-medium mb-2">
-                                        Currency *
-                                        {formData.zone && (
-                                            <span className="ml-2 text-xs text-indigo-600 font-normal">
-                                                (Auto-set from GeoZone)
-                                            </span>
-                                        )}
-                                    </label>
-                                    <AdminSearchableDropdown
-                                        label="Select Currency *"
-                                        options={SUPPORTED_CURRENCIES.map(curr => ({
-                                            value: curr.code,
-                                            label: `${curr.code} (${curr.symbol}) - ${curr.name}`
-                                        }))}
-                                        value={formData.currency}
-                                        onChange={(val) => setFormData({ ...formData, currency: val as string })}
-                                        disabled={!!formData.zone}
-                                        searchPlaceholder="Search currency..."
-                                    />
-                                    {formData.zone ? (
-                                        <p className="text-xs text-indigo-600 mt-1">
-                                            ✓ Currency automatically set from selected GeoZone
-                                        </p>
-                                    ) : (
-                                        <p className="text-xs text-gray-500 mt-1">
-                                            Select a GeoZone to auto-set currency, or choose manually
-                                        </p>
-                                    )}
-                                </div>
-
-                                {/* Geo Zone Selection */}
-                                <div className="mb-4">
-                                    <label className="block text-sm font-medium mb-2">Geo Zone (Optional)</label>
-                                    <AdminSearchableDropdown
-                                        label="-- No Zone (Global) --"
-                                        options={geoZones.map(zone => ({
-                                            value: zone._id,
-                                            label: `${zone.name} (${zone.currency_code || 'INR'})`
-                                        }))}
-                                        value={formData.zone}
-                                        onChange={(val) => {
-                                            const selectedZoneId = val as string;
-                                            const selectedZone = geoZones.find(z => z._id === selectedZoneId);
-                                            setFormData({
-                                                ...formData,
-                                                zone: selectedZoneId,
-                                                currency: selectedZone?.currency_code || formData.currency
-                                            });
-                                        }}
-                                        searchPlaceholder="Search zones..."
-                                    />
-                                    <p className="text-xs text-gray-500 mt-1">
-                                        Limit these prices to a specific geographic area. Currency will be auto-set.
-                                    </p>
-                                </div>
-
-                                {/* User Segment Selection */}
-                                <div className="mb-4">
-                                    <label className="block text-sm font-medium mb-2">User Segment (Optional)</label>
-                                    <AdminSearchableDropdown
-                                        label="-- No Segment (All Users) --"
-                                        options={userSegments.map(segment => ({
-                                            value: segment._id,
-                                            label: `${segment.name} (${segment.code})`
-                                        }))}
-                                        value={formData.segment}
-                                        onChange={(val) => setFormData({ ...formData, segment: val as string })}
-                                        searchPlaceholder="Search segments..."
-                                    />
-                                    <p className="text-xs text-gray-500 mt-1">
-                                        Limit these prices to a specific group of customers
-                                    </p>
-                                </div>
-
-                                {/* Master Price Book - Only checkbox needed */}
-                                <div className="mb-4 p-3 bg-indigo-50 rounded-lg border border-indigo-200">
-                                    <label className="flex items-center gap-2 mb-2">
-                                        <input
-                                            type="checkbox"
-                                            checked={formData.isMaster}
-                                            onChange={(e) => setFormData({ ...formData, isMaster: e.target.checked })}
-                                            className="rounded text-indigo-600"
-                                        />
-                                        <span className="text-sm font-bold text-indigo-900">📚 Master Price Book</span>
-                                    </label>
-                                    <p className="text-xs text-indigo-700 mb-1">
-                                        ✓ Contains base prices for ALL products (foundation layer)
-                                    </p>
-                                    <p className="text-xs text-indigo-600">
-                                        ⚠️ Only ONE master book should exist. Zone/Segment books override these prices.
-                                    </p>
-                                </div>
-
-                                {/* Actions */}
-                                <div className="flex gap-2 justify-end">
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setShowModal(false);
-                                            resetForm();
-                                        }}
-                                        className="px-4 py-2 border rounded-lg hover:bg-gray-50"
+                                            }`}
                                     >
-                                        Cancel
+                                        {pageNum}
                                     </button>
-                                    <button
-                                        type="submit"
-                                        disabled={loading}
-                                        className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 flex items-center gap-2"
-                                    >
-                                        <Save size={18} />
-                                        {loading ? 'Saving...' : 'Save'}
-                                    </button>
-                                </div>
-                            </form>
+                                );
+                            })}
+                            <button
+                                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                disabled={currentPage === totalPages}
+                                className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                ▶
+                            </button>
+                            <button
+                                onClick={() => setCurrentPage(totalPages)}
+                                disabled={currentPage === totalPages}
+                                className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                ⏭
+                            </button>
                         </div>
                     </div>
-                )}
-
-                {/* Price Book Entries Modal */}
-                {showEntriesModal && selectedPriceBook && (
-                    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                        <div className="bg-white rounded-lg w-full max-w-6xl max-h-[90vh] overflow-y-auto">
-                            <div className="sticky top-0 bg-white border-b p-6 flex justify-between items-center">
-                                <div>
-                                    <h2 className="text-2xl font-bold text-gray-900">
-                                        {selectedPriceBook.name} - Product Prices
-                                    </h2>
-                                    <p className="text-sm text-gray-600 mt-1">
-                                        Manage product prices for this price book
-                                    </p>
-                                </div>
-                                <button
-                                    onClick={() => {
-                                        setShowEntriesModal(false);
-                                        setSelectedPriceBook(null);
-                                        setPriceBookEntries([]);
-                                    }}
-                                    className="p-2 hover:bg-gray-100 rounded-lg"
-                                >
-                                    <X size={24} />
-                                </button>
-                            </div>
-
-                            <div className="p-6">
-                                {/* Add Product Button */}
-                                <div className="mb-6">
-                                    <button
-                                        onClick={() => {
-                                            resetEntryForm();
-                                            setShowEntryForm(true);
-                                        }}
-                                        className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2"
-                                    >
-                                        <Plus size={20} />
-                                        Add Product Price
-                                    </button>
-                                </div>
-
-                                {/* Entries Table */}
-                                <div className="bg-white rounded-lg shadow overflow-hidden">
-                                    <table className="w-full">
-                                        <thead className="bg-gray-50 border-b">
-                                            <tr>
-                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
-                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
-                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Base Price</th>
-                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Compare At</th>
-                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-gray-200">
-                                            {loadingEntries ? (
-                                                <tr>
-                                                    <td colSpan={5} className="px-6 py-4 text-center text-gray-500">
-                                                        Loading...
-                                                    </td>
-                                                </tr>
-                                            ) : priceBookEntries.length === 0 ? (
-                                                <tr>
-                                                    <td colSpan={5} className="px-6 py-4 text-center text-gray-500">
-                                                        No products added yet. Click "Add Product Price" to get started.
-                                                    </td>
-                                                </tr>
-                                            ) : (
-                                                priceBookEntries.map((entry) => (
-                                                    <tr key={entry._id} className="hover:bg-gray-50">
-                                                        <td className="px-6 py-4">
-                                                            <div className="flex items-center gap-3">
-                                                                {entry.product?.image && (
-                                                                    <img
-                                                                        src={entry.product.image}
-                                                                        alt={entry.product.name}
-                                                                        className="w-10 h-10 rounded object-cover"
-                                                                    />
-                                                                )}
-                                                                <span className="font-medium">{entry.product?.name || 'Unknown Product'}</span>
-                                                            </div>
-                                                        </td>
-                                                        <td className="px-6 py-4 text-sm text-gray-600">
-                                                            {entry.product?.category?.name || '-'}
-                                                        </td>
-                                                        <td className="px-6 py-4 font-semibold text-green-600">
-                                                            {selectedPriceBook.currency} {entry.basePrice.toFixed(2)}
-                                                        </td>
-                                                        <td className="px-6 py-4 text-sm text-gray-600">
-                                                            {entry.compareAtPrice ? `${selectedPriceBook.currency} ${entry.compareAtPrice.toFixed(2)}` : '-'}
-                                                        </td>
-                                                        <td className="px-6 py-4">
-                                                            <div className="flex gap-2">
-                                                                <button
-                                                                    onClick={() => handleEditEntry(entry)}
-                                                                    className="text-blue-600 hover:text-blue-800"
-                                                                >
-                                                                    <Edit2 size={18} />
-                                                                </button>
-                                                                <button
-                                                                    onClick={() => handleDeleteEntry(entry._id)}
-                                                                    className="text-red-600 hover:text-red-800"
-                                                                >
-                                                                    <Trash2 size={18} />
-                                                                </button>
-                                                            </div>
-                                                        </td>
-                                                    </tr>
-                                                ))
-                                            )}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* Add/Edit Entry Form Modal */}
-                {showEntryForm && selectedPriceBook && (
-                    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[9999]">
-                        <div className="bg-white rounded-lg p-6 w-full max-w-md">
-                            <h2 className="text-2xl font-bold mb-4">
-                                {editingEntry ? 'Edit Product Price' : 'Add Product Price'}
-                            </h2>
-
-                            <form onSubmit={handleEntrySubmit}>
-                                {/* Product Selection */}
-                                <div className="mb-4">
-                                    <label className="block text-sm font-medium mb-2">Product *</label>
-                                    <AdminSearchableDropdown
-                                        label="Select Product"
-                                        options={availableProducts.map(product => ({
-                                            value: product._id,
-                                            label: product.name
-                                        }))}
-                                        value={entryForm.product}
-                                        onChange={(val) => setEntryForm({ ...entryForm, product: val as string })}
-                                        disabled={!!editingEntry}
-                                        searchPlaceholder="Search products by name..."
-                                    />
-                                </div>
-
-                                {/* Base Price */}
-                                <div className="mb-4">
-                                    <label className="block text-sm font-medium mb-2">Base Price ({selectedPriceBook.currency}) *</label>
-                                    <input
-                                        type="number"
-                                        step="0.01"
-                                        value={entryForm.basePrice}
-                                        onChange={(e) => setEntryForm({ ...entryForm, basePrice: e.target.value })}
-                                        className="w-full border rounded-lg px-3 py-2"
-                                        placeholder="0.00"
-                                        required
-                                    />
-                                </div>
-
-                                {/* Compare At Price */}
-                                <div className="mb-4">
-                                    <label className="block text-sm font-medium mb-2">Compare At Price ({selectedPriceBook.currency})</label>
-                                    <input
-                                        type="number"
-                                        step="0.01"
-                                        value={entryForm.compareAtPrice}
-                                        onChange={(e) => setEntryForm({ ...entryForm, compareAtPrice: e.target.value })}
-                                        className="w-full border rounded-lg px-3 py-2"
-                                        placeholder="0.00 (optional)"
-                                    />
-                                    <p className="text-xs text-gray-500 mt-1">
-                                        Original price before discount (for showing savings)
-                                    </p>
-                                </div>
-
-                                {/* Actions */}
-                                <div className="flex gap-2 justify-end">
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setShowEntryForm(false);
-                                            resetEntryForm();
-                                        }}
-                                        className="px-4 py-2 border rounded-lg hover:bg-gray-50"
-                                    >
-                                        Cancel
-                                    </button>
-                                    <button
-                                        type="submit"
-                                        disabled={loadingEntries}
-                                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2"
-                                    >
-                                        <Save size={18} />
-                                        {loadingEntries ? 'Saving...' : 'Save'}
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                )}
-
-                {/* CONFLICT RESOLUTION MODAL */}
-                {(() => {
-                    console.log('🎭 Modal Render Check:', {
-                        showConflictModal,
-                        hasConflictData: !!conflictData,
-                        conflictData: conflictData
-                    });
-                    return null;
-                })()}
-                {showConflictModal && conflictData && (
-                    <ConflictDetectionModal
-                        conflict={conflictData}
-                        onResolve={handleResolveConflict}
-                        onCancel={() => {
-                            setShowConflictModal(false);
-                            setConflictData(null);
-                            setLoadingEntries(false);
-                        }}
-                    />
                 )}
             </div>
+
+            {/* Create/Edit Price Book Modal */}
+            {showModal && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+                    <div className="bg-white rounded-lg p-6 w-full max-w-md">
+                        <h2 className="text-2xl font-bold mb-4">
+                            {editingBook ? 'Edit Price Book' : 'Create Price Book'}
+                        </h2>
+
+                        <form onSubmit={handleSubmit}>
+                            {/* Name */}
+                            <div className="mb-4">
+                                <label className="block text-sm font-medium mb-2">Price Book Name *</label>
+                                <input
+                                    type="text"
+                                    value={formData.name}
+                                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                    className="w-full border rounded-lg px-3 py-2"
+                                    placeholder="e.g., Standard Pricing, Seasonal Sale"
+                                    required
+                                />
+                            </div>
+
+                            {/* Currency */}
+                            <div className="mb-4">
+                                <label className="block text-sm font-medium mb-2">
+                                    Currency *
+                                    {formData.zone && (
+                                        <span className="ml-2 text-xs text-indigo-600 font-normal">
+                                            (Auto-set from GeoZone)
+                                        </span>
+                                    )}
+                                </label>
+                                <select
+                                    value={formData.currency}
+                                    onChange={(e) => setFormData({ ...formData, currency: e.target.value })}
+                                    className={`w-full border rounded-lg px-3 py-2 ${formData.zone ? 'bg-gray-100 cursor-not-allowed' : ''
+                                        }`}
+                                    disabled={!!formData.zone}
+                                    required
+                                >
+                                    {SUPPORTED_CURRENCIES.map((curr) => (
+                                        <option key={curr.code} value={curr.code}>
+                                            {curr.code} ({curr.symbol}) - {curr.name}
+                                        </option>
+                                    ))}
+                                </select>
+                                {formData.zone ? (
+                                    <p className="text-xs text-indigo-600 mt-1">
+                                        ✓ Currency automatically set from selected GeoZone
+                                    </p>
+                                ) : (
+                                    <p className="text-xs text-gray-500 mt-1">
+                                        Select a GeoZone to auto-set currency, or choose manually
+                                    </p>
+                                )}
+                            </div>
+
+                            {/* Geo Zone Selection */}
+                            <div className="mb-4">
+                                <label className="block text-sm font-medium mb-2">Geo Zone (Optional)</label>
+                                <select
+                                    value={formData.zone}
+                                    onChange={(e) => {
+                                        const selectedZoneId = e.target.value;
+                                        // Find the selected zone and auto-set currency
+                                        const selectedZone = geoZones.find(z => z._id === selectedZoneId);
+                                        setFormData({
+                                            ...formData,
+                                            zone: selectedZoneId,
+                                            currency: selectedZone?.currency_code || formData.currency
+                                        });
+                                    }}
+                                    className="w-full border rounded-lg px-3 py-2"
+                                >
+                                    <option value="">-- No Zone (Global) --</option>
+                                    {geoZones.map((zone) => (
+                                        <option key={zone._id} value={zone._id}>
+                                            {zone.name} ({zone.currency_code || 'INR'})
+                                        </option>
+                                    ))}
+                                </select>
+                                <p className="text-xs text-gray-500 mt-1">
+                                    Limit these prices to a specific geographic area. Currency will be auto-set.
+                                </p>
+                            </div>
+
+                            {/* User Segment Selection */}
+                            <div className="mb-4">
+                                <label className="block text-sm font-medium mb-2">User Segment (Optional)</label>
+                                <select
+                                    value={formData.segment}
+                                    onChange={(e) => setFormData({ ...formData, segment: e.target.value })}
+                                    className="w-full border rounded-lg px-3 py-2"
+                                >
+                                    <option value="">-- No Segment (All Users) --</option>
+                                    {userSegments.map((segment) => (
+                                        <option key={segment._id} value={segment._id}>
+                                            {segment.name} ({segment.code})
+                                        </option>
+                                    ))}
+                                </select>
+                                <p className="text-xs text-gray-500 mt-1">
+                                    Limit these prices to a specific group of customers
+                                </p>
+                            </div>
+
+                            {/* Master Price Book - Only checkbox needed */}
+                            <div className="mb-4 p-3 bg-indigo-50 rounded-lg border border-indigo-200">
+                                <label className="flex items-center gap-2 mb-2">
+                                    <input
+                                        type="checkbox"
+                                        checked={formData.isMaster}
+                                        onChange={(e) => setFormData({ ...formData, isMaster: e.target.checked })}
+                                        className="rounded text-indigo-600"
+                                    />
+                                    <span className="text-sm font-bold text-indigo-900">📚 Master Price Book</span>
+                                </label>
+                                <p className="text-xs text-indigo-700 mb-1">
+                                    ✓ Contains base prices for ALL products (foundation layer)
+                                </p>
+                                <p className="text-xs text-indigo-600">
+                                    ⚠️ Only ONE master book should exist. Zone/Segment books override these prices.
+                                </p>
+                            </div>
+
+                            {/* Actions */}
+                            <div className="flex gap-2 justify-end">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setShowModal(false);
+                                        resetForm();
+                                    }}
+                                    className="px-4 py-2 border rounded-lg hover:bg-gray-50"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={loading}
+                                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 flex items-center gap-2"
+                                >
+                                    <Save size={18} />
+                                    {loading ? 'Saving...' : 'Save'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Price Book Entries Modal */}
+            {showEntriesModal && selectedPriceBook && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-lg w-full max-w-6xl max-h-[90vh] overflow-y-auto">
+                        <div className="sticky top-0 bg-white border-b p-6 flex justify-between items-center">
+                            <div>
+                                <h2 className="text-2xl font-bold text-gray-900">
+                                    {selectedPriceBook.name} - Product Prices
+                                </h2>
+                                <p className="text-sm text-gray-600 mt-1">
+                                    Manage product prices for this price book
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => {
+                                    setShowEntriesModal(false);
+                                    setSelectedPriceBook(null);
+                                    setPriceBookEntries([]);
+                                }}
+                                className="p-2 hover:bg-gray-100 rounded-lg"
+                            >
+                                <X size={24} />
+                            </button>
+                        </div>
+
+                        <div className="p-6">
+                            {/* Add Product Button */}
+                            <div className="mb-6">
+                                <button
+                                    onClick={() => {
+                                        resetEntryForm();
+                                        setShowEntryForm(true);
+                                    }}
+                                    className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2"
+                                >
+                                    <Plus size={20} />
+                                    Add Product Price
+                                </button>
+                            </div>
+
+                            {/* Entries Table */}
+                            <div className="bg-white rounded-lg shadow overflow-hidden">
+                                <table className="w-full">
+                                    <thead className="bg-gray-50 border-b">
+                                        <tr>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Base Price</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Compare At</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-200">
+                                        {loadingEntries ? (
+                                            <tr>
+                                                <td colSpan={5} className="px-6 py-4 text-center text-gray-500">
+                                                    Loading...
+                                                </td>
+                                            </tr>
+                                        ) : priceBookEntries.length === 0 ? (
+                                            <tr>
+                                                <td colSpan={5} className="px-6 py-4 text-center text-gray-500">
+                                                    No products added yet. Click "Add Product Price" to get started.
+                                                </td>
+                                            </tr>
+                                        ) : (
+                                            priceBookEntries.map((entry) => (
+                                                <tr key={entry._id} className="hover:bg-gray-50">
+                                                    <td className="px-6 py-4">
+                                                        <div className="flex items-center gap-3">
+                                                            {entry.product?.image && (
+                                                                <img
+                                                                    src={entry.product.image}
+                                                                    alt={entry.product.name}
+                                                                    className="w-10 h-10 rounded object-cover"
+                                                                />
+                                                            )}
+                                                            <span className="font-medium">{entry.product?.name || 'Unknown Product'}</span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-sm text-gray-600">
+                                                        {entry.product?.category?.name || '-'}
+                                                    </td>
+                                                    <td className="px-6 py-4 font-semibold text-green-600">
+                                                        {selectedPriceBook.currency} {entry.basePrice.toFixed(2)}
+                                                    </td>
+                                                    <td className="px-6 py-4 text-sm text-gray-600">
+                                                        {entry.compareAtPrice ? `${selectedPriceBook.currency} ${entry.compareAtPrice.toFixed(2)}` : '-'}
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <div className="flex gap-2">
+                                                            <button
+                                                                onClick={() => handleEditEntry(entry)}
+                                                                className="text-blue-600 hover:text-blue-800"
+                                                            >
+                                                                <Edit2 size={18} />
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleDeleteEntry(entry._id)}
+                                                                className="text-red-600 hover:text-red-800"
+                                                            >
+                                                                <Trash2 size={18} />
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Add/Edit Entry Form Modal */}
+            {showEntryForm && selectedPriceBook && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[9999]">
+                    <div className="bg-white rounded-lg p-6 w-full max-w-md">
+                        <h2 className="text-2xl font-bold mb-4">
+                            {editingEntry ? 'Edit Product Price' : 'Add Product Price'}
+                        </h2>
+
+                        <form onSubmit={handleEntrySubmit}>
+                            {/* Product Selection */}
+                            <div className="mb-4">
+                                <label className="block text-sm font-medium mb-2">Product *</label>
+                                <select
+                                    value={entryForm.product}
+                                    onChange={(e) => setEntryForm({ ...entryForm, product: e.target.value })}
+                                    className="w-full border rounded-lg px-3 py-2"
+                                    required
+                                    disabled={!!editingEntry}
+                                >
+                                    <option value="">Select Product</option>
+                                    {availableProducts.map((product) => (
+                                        <option key={product._id} value={product._id}>
+                                            {product.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {/* Base Price */}
+                            <div className="mb-4">
+                                <label className="block text-sm font-medium mb-2">Base Price ({selectedPriceBook.currency}) *</label>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    value={entryForm.basePrice}
+                                    onChange={(e) => setEntryForm({ ...entryForm, basePrice: e.target.value })}
+                                    className="w-full border rounded-lg px-3 py-2"
+                                    placeholder="0.00"
+                                    required
+                                />
+                            </div>
+
+                            {/* Compare At Price */}
+                            <div className="mb-4">
+                                <label className="block text-sm font-medium mb-2">Compare At Price ({selectedPriceBook.currency})</label>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    value={entryForm.compareAtPrice}
+                                    onChange={(e) => setEntryForm({ ...entryForm, compareAtPrice: e.target.value })}
+                                    className="w-full border rounded-lg px-3 py-2"
+                                    placeholder="0.00 (optional)"
+                                />
+                                <p className="text-xs text-gray-500 mt-1">
+                                    Original price before discount (for showing savings)
+                                </p>
+                            </div>
+
+                            {/* Actions */}
+                            <div className="flex gap-2 justify-end">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setShowEntryForm(false);
+                                        resetEntryForm();
+                                    }}
+                                    className="px-4 py-2 border rounded-lg hover:bg-gray-50"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={loadingEntries}
+                                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2"
+                                >
+                                    <Save size={18} />
+                                    {loadingEntries ? 'Saving...' : 'Save'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* CONFLICT RESOLUTION MODAL */}
+            {(() => {
+                console.log('🎭 Modal Render Check:', {
+                    showConflictModal,
+                    hasConflictData: !!conflictData,
+                    conflictData: conflictData
+                });
+                return null;
+            })()}
+            {showConflictModal && conflictData && (
+                <ConflictDetectionModal
+                    conflict={conflictData}
+                    onResolve={handleResolveConflict}
+                    onCancel={() => {
+                        setShowConflictModal(false);
+                        setConflictData(null);
+                        setLoadingEntries(false);
+                    }}
+                />
+            )}
         </div>
     );
 };

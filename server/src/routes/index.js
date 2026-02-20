@@ -219,6 +219,9 @@ import bulkOrderRoutes from "./bulkOrderRoutes.js";
 /* COMPLAINT ROUTES */
 import complaintRoutes from "./complaintRoutes.js";
 
+/* FEATURE MANAGEMENT ROUTES (PMS) */
+import featureRoutes from "./featureRoutes.js";
+
 const router = express.Router();
 
 /* =====================================
@@ -674,5 +677,10 @@ router.use("/bulk-orders", bulkOrderRoutes);
    COMPLAINT ROUTES
 ===================================== */
 router.use("/complaints", complaintRoutes);
+
+/* =====================================
+   FEATURE MANAGEMENT ROUTES (PMS)
+===================================== */
+router.use("/admin/features", featureRoutes);
 
 export default router;

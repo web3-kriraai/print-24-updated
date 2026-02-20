@@ -80,6 +80,28 @@ router.delete(
     featureController.removeFeatureFromSegment
 );
 
+/**
+ * Bulk Assign/Update features to segment
+ * POST /api/admin/segments/:segmentId/bulk
+ */
+router.post(
+    '/segments/:segmentId/bulk',
+    authMiddleware,
+    requireAdmin,
+    featureController.bulkAssignFeaturesToSegment
+);
+
+/**
+ * Bulk Remove features from segment
+ * DELETE /api/admin/segments/:segmentId/bulk
+ */
+router.delete(
+    '/segments/:segmentId/bulk',
+    authMiddleware,
+    requireAdmin,
+    featureController.bulkRemoveSegmentFeatures
+);
+
 /* =====================
    USER FEATURE OVERRIDES
 ====================== */
@@ -116,6 +138,28 @@ router.delete(
     authMiddleware,
     requireAdmin,
     featureController.removeUserFeatureOverride
+);
+
+/**
+ * Bulk Add/Update user feature overrides
+ * POST /api/admin/users/:userId/bulk
+ */
+router.post(
+    '/users/:userId/bulk',
+    authMiddleware,
+    requireAdmin,
+    featureController.bulkSetUserFeatureOverrides
+);
+
+/**
+ * Bulk Remove user feature overrides
+ * DELETE /api/admin/users/:userId/bulk
+ */
+router.delete(
+    '/users/:userId/bulk',
+    authMiddleware,
+    requireAdmin,
+    featureController.bulkRemoveUserOverrides
 );
 
 export default router;
