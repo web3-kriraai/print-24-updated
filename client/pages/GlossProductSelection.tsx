@@ -2087,7 +2087,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
             }
           }
         });
-        
+
       }
 
       // Calculate base subtotal before discount
@@ -6588,26 +6588,37 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                             </div>
                           )}
 
-                          <button
-                            onClick={handlePlaceOrder}
-                            disabled={isProcessingPayment}
-                            className={`w-full py-4 rounded-xl font-bold text-base transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 flex items-center justify-center gap-2 group ${isProcessingPayment
-                              ? 'bg-gray-400 text-gray-700 cursor-not-allowed opacity-60'
-                              : 'bg-gray-900 text-white hover:bg-black'
-                              }`}
-                          >
-                            {isProcessingPayment ? (
+                          {(() => {
+                            const noPriceAvailable = !isPricingLoading && (price === 0 && gstAmount === 0);
+                            const isDisabled = isProcessingPayment || noPriceAvailable;
+                            return (
                               <>
-                                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                                <span>Processing...</span>
+                                <button
+                                  onClick={isDisabled ? undefined : handlePlaceOrder}
+                                  disabled={isDisabled}
+                                  title={noPriceAvailable ? 'Price not available — this product cannot be ordered' : undefined}
+                                  className={`w-full py-4 rounded-xl font-bold text-base transition-all shadow-lg flex items-center justify-center gap-2 group ${isProcessingPayment
+                                    ? 'bg-gray-400 text-gray-700 cursor-not-allowed opacity-60'
+                                    : noPriceAvailable
+                                      ? 'bg-gray-600 text-white cursor-not-allowed opacity-70'
+                                      : 'bg-gray-900 text-white hover:bg-black hover:shadow-xl hover:-translate-y-0.5'
+                                    }`}
+                                >
+                                  {isProcessingPayment ? (
+                                    <>
+                                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                      <span>Processing...</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <span>Buy Now</span>
+                                      {!noPriceAvailable && <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />}
+                                    </>
+                                  )}
+                                </button>
                               </>
-                            ) : (
-                              <>
-                                <span>Buy Now</span>
-                                <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
-                              </>
-                            )}
-                          </button>
+                            );
+                          })()}
 
                           <div className="mt-3 text-center text-xs text-gray-400 flex items-center justify-center gap-2">
                             <Lock size={12} />
