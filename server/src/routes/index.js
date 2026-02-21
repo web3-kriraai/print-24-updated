@@ -77,6 +77,8 @@ import {
   getMyOrders,
   getSingleOrder,
   getAllOrders,
+  listOrders,
+  getOrderStats,
   updateOrderStatus,
   cancelOrder,
 } from "../controllers/orderController.js";
@@ -441,6 +443,8 @@ router.put("/orders/:orderId/cancel", authMiddleware, cancelOrder);
 
 // Admin order routes
 router.get("/admin/orders", authMiddleware, adminAuth, getAllOrders);
+router.get("/admin/orders/list", authMiddleware, adminAuth, listOrders);
+router.get("/admin/orders/stats", authMiddleware, adminAuth, getOrderStats);
 router.put(
   "/admin/orders/:orderId",
   authMiddleware,

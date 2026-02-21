@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { 
-    Search, RefreshCw, ChevronLeft, ChevronRight, 
-    MoreVertical, Loader2, Package, User, Calendar, 
-    Clock, CheckCircle, AlertCircle, FileText, 
+import {
+    Search, RefreshCw, ChevronLeft, ChevronRight,
+    MoreVertical, Loader2, Package, User, Calendar,
+    Clock, CheckCircle, AlertCircle, FileText,
     Database, ArrowRight
 } from 'lucide-react';
 import axios from 'axios';
@@ -133,52 +133,30 @@ const AdminBulkOrdersView: React.FC = () => {
 
     return (
         <div className="space-y-6">
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div>
-                        <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-                            <Database className="text-blue-600" />
-                            Bulk Orders Management
-                        </h2>
-                        <p className="text-slate-500 text-sm mt-1">Monitor and manage bulk design processing</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <button 
-                            onClick={() => fetchBulkOrders()}
-                            className="p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                            title="Refresh"
-                        >
-                            <RefreshCw size={20} className={loading ? 'animate-spin' : ''} />
-                        </button>
-                    </div>
-                </div>
-
-                <div className="mt-6 flex flex-col md:flex-row gap-4">
-                    <form onSubmit={handleSearch} className="flex-1 relative">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                        <input 
-                            type="text"
-                            placeholder="Search by Order Number..."
-                            className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all font-medium"
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                        />
-                    </form>
-                    <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0">
-                        {['all', 'UPLOADED', 'SPLITTING', 'PROCESSING', 'ORDER_CREATED', 'FAILED'].map((status) => (
-                            <button
-                                key={status}
-                                onClick={() => setStatusFilter(status)}
-                                className={`px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-all border ${
-                                    statusFilter === status 
-                                        ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-200' 
-                                        : 'bg-white text-slate-600 border-slate-200 hover:border-blue-400'
+            <div className="flex flex-col md:flex-row gap-4">
+                <form onSubmit={handleSearch} className="flex-1 relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                    <input
+                        type="text"
+                        placeholder="Search by Order Number..."
+                        className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all font-medium"
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                    />
+                </form>
+                <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0">
+                    {['all', 'UPLOADED', 'SPLITTING', 'PROCESSING', 'ORDER_CREATED', 'FAILED'].map((status) => (
+                        <button
+                            key={status}
+                            onClick={() => setStatusFilter(status)}
+                            className={`px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-all border ${statusFilter === status
+                                    ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-200'
+                                    : 'bg-white text-slate-600 border-slate-200 hover:border-blue-400'
                                 }`}
-                            >
-                                {status === 'all' ? 'All Orders' : status.replace('_', ' ')}
-                            </button>
-                        ))}
-                    </div>
+                        >
+                            {status === 'all' ? 'All Orders' : status.replace('_', ' ')}
+                        </button>
+                    ))}
                 </div>
             </div>
 
@@ -264,12 +242,11 @@ const AdminBulkOrdersView: React.FC = () => {
                                                         <span>{order.progress?.currentStep}</span>
                                                     </div>
                                                     <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                                                        <motion.div 
+                                                        <motion.div
                                                             initial={{ width: 0 }}
                                                             animate={{ width: `${order.progress?.percentage || 0}%` }}
-                                                            className={`h-full rounded-full ${
-                                                                order.status === 'FAILED' ? 'bg-red-500' : 'bg-blue-600'
-                                                            }`}
+                                                            className={`h-full rounded-full ${order.status === 'FAILED' ? 'bg-red-500' : 'bg-blue-600'
+                                                                }`}
                                                         />
                                                     </div>
                                                 </div>
@@ -281,7 +258,7 @@ const AdminBulkOrdersView: React.FC = () => {
                                         <td className="px-6 py-4">
                                             <div className="flex items-center gap-2">
                                                 {order.status === 'FAILED' && (
-                                                    <button 
+                                                    <button
                                                         onClick={() => handleRetry(order._id)}
                                                         className="px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white rounded-lg text-xs font-bold transition-all border border-blue-200"
                                                     >
@@ -306,7 +283,7 @@ const AdminBulkOrdersView: React.FC = () => {
                             Showing <span className="text-slate-900">{(pagination.page - 1) * pagination.limit + 1}</span> to <span className="text-slate-900">{Math.min(pagination.page * pagination.limit, pagination.total)}</span> of <span className="text-slate-900">{pagination.total}</span> entries
                         </p>
                         <div className="flex items-center gap-2">
-                            <button 
+                            <button
                                 onClick={() => setPagination(prev => ({ ...prev, page: Math.max(1, prev.page - 1) }))}
                                 disabled={pagination.page === 1}
                                 className="p-2 border border-slate-200 rounded-lg hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
@@ -314,7 +291,7 @@ const AdminBulkOrdersView: React.FC = () => {
                                 <ChevronLeft size={20} />
                             </button>
                             <span className="text-sm font-bold text-slate-700 px-4">Page {pagination.page}</span>
-                            <button 
+                            <button
                                 onClick={() => setPagination(prev => ({ ...prev, page: Math.min(Math.ceil(prev.total / prev.limit), prev.page + 1) }))}
                                 disabled={pagination.page >= Math.ceil(pagination.total / pagination.limit)}
                                 className="p-2 border border-slate-200 rounded-lg hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"

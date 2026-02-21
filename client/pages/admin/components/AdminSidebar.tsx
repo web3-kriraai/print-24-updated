@@ -101,7 +101,6 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ activeTab, onTabChange, isO
             icon: <ShoppingBag size={20} />,
             subItems: [
                 { id: 'orders', label: 'Manage Orders' },
-                { id: 'bulk-orders-management', label: 'Bulk Orders' },
             ],
         },
         {

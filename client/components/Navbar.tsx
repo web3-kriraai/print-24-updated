@@ -9,6 +9,7 @@ import {
   Settings,
   User as UserIcon,
   Package,
+  ShoppingBag,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLogo } from "../hooks/useSiteSettings";
@@ -278,6 +279,16 @@ const Navbar: React.FC = () => {
                               <UserIcon size={16} />
                               My Profile
                             </button>
+                            <button
+                              onClick={() => {
+                                navigate("/my-orders");
+                                setIsProfileDropdownOpen(false);
+                              }}
+                              className="w-full flex items-center gap-3 px-4 py-2 text-sm text-cream-700 hover:bg-cream-50 transition-colors"
+                            >
+                              <ShoppingBag size={16} />
+                              My Orders
+                            </button>
                             {userData.role === "admin" && (
                               <button
                                 onClick={() => {
@@ -427,6 +438,17 @@ const Navbar: React.FC = () => {
                       >
                         <UserIcon size={16} />
                         My Profile
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          navigate("/my-orders");
+                          setIsMobileMenuOpen(false);
+                        }}
+                        className="w-full text-center text-cream-900 font-medium py-2 flex items-center justify-center gap-2"
+                      >
+                        <ShoppingBag size={16} />
+                        My Orders
                       </button>
 
                       {userData.role === "admin" && (
