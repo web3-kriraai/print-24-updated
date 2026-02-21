@@ -241,6 +241,8 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
   const [gstAmount, setGstAmount] = useState(0);
   // Ref to hold the latest dynamicAttributesCharges without stale closure issues
   const dynamicAttributesChargesRef = useRef<Array<{ name: string; label: string; charge: number; perUnitCharge?: number; isSubAttribute?: boolean }>>([]);
+  // Ref to hold the latest selectedDynamicAttributes to avoid infinite loops in auto-select useEffect
+  const selectedDynamicAttributesRef = useRef<{ [key: string]: string | number | boolean | File | any[] | null }>({});
   const [additionalDesignCharge, setAdditionalDesignCharge] = useState(0);
   const [appliedDiscount, setAppliedDiscount] = useState<number | null>(null);
   // Track individual charges for order summary
@@ -259,6 +261,8 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [isPricingLoading, setIsPricingLoading] = useState(true); // Start with true
+  const [showStickyBar, setShowStickyBar] = useState(false);
+  const stickyAnchorRef = useRef<HTMLDivElement>(null);
 
   // RADIO attribute modal state
   const [radioModalOpen, setRadioModalOpen] = useState(false);
@@ -433,6 +437,15 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
     return () => window.removeEventListener("keydown", handleEscape);
   }, [isImageModalOpen]);
 
+  // Scroll listener for sticky bar
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowStickyBar(window.scrollY > 50);
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
   // Auto-select single options when product changes
   useEffect(() => {
     if (!selectedProduct) return;
@@ -460,11 +473,14 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
     // Auto-select dynamic attributes with single option (only if PDP is initialized)
     if (selectedProduct && isInitialized && pdpAttributes.length > 0) {
+      // Read current selections from ref to avoid this effect being a dep on selectedDynamicAttributes
+      const currentAttrs = selectedDynamicAttributesRef.current;
+
       // Apply rules to get evaluated attributes
       const ruleResult = applyAttributeRules({
         attributes: pdpAttributes,
         rules: pdpRules,
-        selectedValues: { ...selectedDynamicAttributes } as Record<string, string | number | boolean | File | any[] | null>,
+        selectedValues: { ...currentAttrs } as Record<string, string | number | boolean | File | any[] | null>,
         quantity: quantity,
       });
 
@@ -474,7 +490,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
         const attributeValues = attr.attributeValues || [];
         if (attributeValues.length === 1) {
           const singleValue = attributeValues[0];
-          if (!selectedDynamicAttributes[attr._id] || selectedDynamicAttributes[attr._id] !== singleValue.value) {
+          if (!currentAttrs[attr._id] || currentAttrs[attr._id] !== singleValue.value) {
             setSelectedDynamicAttributes((prev) => ({
               ...prev,
               [attr._id]: singleValue.value,
@@ -482,7 +498,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
           }
         }
         // Apply SET_DEFAULT if no selection and default is set
-        if (attr.defaultValue && !selectedDynamicAttributes[attr._id]) {
+        if (attr.defaultValue && !currentAttrs[attr._id]) {
           const defaultValueExists = attributeValues.some((av: any) => av.value === attr.defaultValue);
           if (defaultValueExists) {
             setSelectedDynamicAttributes((prev) => ({
@@ -495,7 +511,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
               [attr._id]: attributeValues[0].value,
             }));
           }
-        } else if (!selectedDynamicAttributes[attr._id] && attributeValues.length > 0) {
+        } else if (!currentAttrs[attr._id] && attributeValues.length > 0) {
           if (attr.inputStyle !== 'CHECKBOX') {
             setSelectedDynamicAttributes((prev) => ({
               ...prev,
@@ -516,6 +532,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
       setActiveQuantityConstraints(quantityConstraints);
     } else if (selectedProduct && !isInitialized) {
       // Fallback to old logic if PDP not loaded yet
+      const currentAttrs = selectedDynamicAttributesRef.current;
       if (selectedProduct.dynamicAttributes) {
         selectedProduct.dynamicAttributes.forEach((attr) => {
           if (!attr.isEnabled) return;
@@ -528,7 +545,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
           if (attributeValues.length === 1) {
             const singleValue = attributeValues[0];
-            if (!selectedDynamicAttributes[attrType._id] || selectedDynamicAttributes[attrType._id] !== singleValue.value) {
+            if (!currentAttrs[attrType._id] || currentAttrs[attrType._id] !== singleValue.value) {
               setSelectedDynamicAttributes((prev) => ({
                 ...prev,
                 [attrType._id]: singleValue.value,
@@ -538,12 +555,19 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
         });
       }
     }
-  }, [selectedProduct, isInitialized, pdpAttributes, pdpRules, selectedDynamicAttributes, quantity]);
+    // selectedDynamicAttributes intentionally excluded — read via ref to prevent infinite loop
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedProduct, isInitialized, pdpAttributes, pdpRules, quantity]);
 
   // Keep ref in sync with latest dynamicAttributesCharges for use in onPriceChange callback
   useEffect(() => {
     dynamicAttributesChargesRef.current = dynamicAttributesCharges;
   }, [dynamicAttributesCharges]);
+
+  // Keep selectedDynamicAttributesRef in sync so auto-select effect can read it without being a dependency
+  useEffect(() => {
+    selectedDynamicAttributesRef.current = selectedDynamicAttributes;
+  }, [selectedDynamicAttributes]);
 
   // useEffect to recalculate price when dynamicAttributesCharges change (without a new API response)
   useEffect(() => {
@@ -5559,10 +5583,10 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                               {/* Quantity Selection */}
                               <div className="mb-3 sm:mb-4" data-section="quantity">
                                 <div className="flex items-center gap-4">
-                                  <label className="text-xs sm:text-sm font-bold text-gray-900 uppercase tracking-wider shrink-0" style={{ minWidth: '200px' }}>
+                                  <label className="text-xs sm:text-sm font-bold text-gray-900 uppercase tracking-wider shrink-0 min-w-0" style={{ minWidth: '200px' }}>
                                     {sectionNum++}. Select Quantity
                                   </label>
-                                  <div className="flex-1">
+                                  <div className="flex-1 min-w-0">
                                     <Select
                                       options={generateQuantities(selectedProduct).map((q) => ({
                                         value: q,
@@ -5855,11 +5879,11 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                             <div data-attribute={attrId} data-attribute-name={attrType.attributeName}>
                                               {/* Inline layout for label and select */}
                                               <div className="flex items-center gap-4">
-                                                <label className="text-xs sm:text-sm font-bold text-gray-900 uppercase tracking-wider shrink-0" style={{ minWidth: '200px' }}>
+                                                <label className="text-xs sm:text-sm font-bold text-gray-900 uppercase tracking-wider shrink-0 min-w-0" style={{ minWidth: '200px' }}>
                                                   {sectionNum++}. {attrType.attributeName}
                                                   {isRequired && <span className="text-red-500 ml-1">*</span>}
                                                 </label>
-                                                <div className="flex-1">
+                                                <div className="flex-1 min-w-0">
                                                   {attributeValues.length === 0 ? (
                                                     <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                                                       <p className="text-sm text-yellow-800">
@@ -6521,7 +6545,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
                       {/* Premium Sticky Footer with Total Price + CTA */}
                       {(loading || isPricingLoading || pdpLoading) ? (
-                        <div className="sticky bottom-0 z-20 mt-auto pt-6 border-t border-gray-100 bg-white shadow-[0_-10px_20px_-5px_rgba(0,0,0,0.05)] px-2 pb-2">
+                        <div className="sticky top-0 z-20 mt-auto pt-6 border-t border-gray-100 bg-white shadow-[0_-10px_20px_-5px_rgba(0,0,0,0.05)] px-2 pb-2">
                           <div className="flex justify-between items-end mb-4">
                             <div className="space-y-2">
                               <Skeleton variant="text" className="w-24 h-3" />
@@ -6532,97 +6556,100 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                           <Skeleton variant="rectangular" className="w-full h-14 rounded-xl" />
                         </div>
                       ) : (
-                        <div className="sticky bottom-0 z-20 mt-auto pt-6 border-t border-gray-100 bg-white shadow-[0_-10px_20px_-5px_rgba(0,0,0,0.05)] px-2 pb-2">
-                          <div className="flex justify-between items-end mb-4">
-                            {(price + gstAmount) > 0 ? (
-                              <div>
-                                <p className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-1">Estimated Total Value</p>
-                                <div className="flex items-baseline gap-1">
-                                  <span className="text-3xl font-bold text-gray-900">
-                                    ₹{(() => {
-                                      const totalPrice = (price + gstAmount);
-                                      const [integerPart, decimalPart] = totalPrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).split('.');
-                                      return (
-                                        <>
-                                          {integerPart}
-                                          <span className="text-xl">.{decimalPart}</span>
-                                        </>
-                                      );
-                                    })()}
-                                  </span>
-                                  <span className="text-xs text-gray-500 font-medium">incl. taxes</span>
+                        <div ref={stickyAnchorRef} className="sticky bottom-0 z-20 mt-auto">
+                          {/* Top gradient fade */}
+                          <div className="h-4 bg-gradient-to-t from-white to-transparent -mt-4 pointer-events-none" />
+
+                          <div className="bg-white border-t border-gray-100 px-3 pb-3 pt-3 shadow-[0_-8px_32px_-4px_rgba(0,0,0,0.08)]">
+
+                            {/* Price Row */}
+                            <div className="flex items-center justify-between mb-3">
+                              {(price + gstAmount) > 0 ? (
+                                <div>
+                                  <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-widest mb-0.5">Total Payable</p>
+                                  <div className="flex items-end gap-1.5">
+                                    <span className="text-2xl font-black text-gray-900 leading-none">
+                                      ₹{(() => {
+                                        const totalPrice = (price + gstAmount);
+                                        const [integerPart, decimalPart] = totalPrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).split('.');
+                                        return (
+                                          <>
+                                            {integerPart}
+                                            <span className="text-base font-bold">.{decimalPart}</span>
+                                          </>
+                                        );
+                                      })()}
+                                    </span>
+                                    <span className="text-[10px] text-gray-400 mb-0.5">incl. GST</span>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div>
+                                  <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-widest mb-0.5">Total Payable</p>
+                                  <span className="text-sm font-semibold text-amber-500">Calculating…</span>
+                                </div>
+                              )}
+
+                              {/* Trust pill */}
+                              <div className="flex flex-col items-end gap-1">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-semibold">
+                                  <Zap size={9} className="fill-emerald-500 text-emerald-500" />
+                                  Fast Production
+                                </span>
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[10px] font-semibold">
+                                  <Lock size={9} />
+                                  Secure Checkout
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Validation Error */}
+                            {validationError && (
+                              <div className="mb-2.5 p-2.5 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2" role="alert">
+                                <AlertCircle size={14} className="text-red-500 flex-shrink-0 mt-0.5" />
+                                <div>
+                                  {validationError.split('\n').map((err, i) => (
+                                    <p key={i} className="text-xs text-red-600 font-medium">{err}</p>
+                                  ))}
                                 </div>
                               </div>
-                            ) : (
-                              <div className="flex flex-col gap-1">
-                                <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">Estimated Total Value</p>
-                                <span className="text-sm font-medium text-amber-600 italic">Price to be updated</span>
-                              </div>
                             )}
-                            <div className="text-right text-xs text-green-600 font-medium flex flex-col items-end">
-                              <span className="flex items-center gap-1">
-                                <Zap size={12} className="text-green-600" />
-                                Fast Production
-                              </span>
-                              {/* <span className="text-gray-600">
-                                Est. Delivery: <strong className="text-gray-900">
-                                  {(() => {
-                                    const d = new Date();
-                                    d.setDate(d.getDate() + (selectedProduct.productionTime || 4));
-                                    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                                  })()}
-                                </strong>
-                              </span> */}
-                            </div>
-                          </div>
 
-                          {/* Validation Error Display */}
-                          {validationError && (
-                            <div className="mb-3 p-3 bg-red-50 border border-red-300 rounded-xl flex items-start gap-2" role="alert">
-                              <AlertCircle size={16} className="text-red-600 flex-shrink-0 mt-0.5" />
-                              <div>
-                                {validationError.split('\n').map((err, i) => (
-                                  <p key={i} className="text-sm text-red-700 font-medium">{err}</p>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-
-                          {(() => {
-                            const noPriceAvailable = !isPricingLoading && (price === 0 && gstAmount === 0);
-                            const isDisabled = isProcessingPayment || noPriceAvailable;
-                            return (
-                              <>
+                            {/* CTA Button */}
+                            {(() => {
+                              const noPriceAvailable = !isPricingLoading && (price === 0 && gstAmount === 0);
+                              const isDisabled = isProcessingPayment || noPriceAvailable;
+                              return (
                                 <button
                                   onClick={isDisabled ? undefined : handlePlaceOrder}
                                   disabled={isDisabled}
                                   title={noPriceAvailable ? 'Price not available — this product cannot be ordered' : undefined}
-                                  className={`w-full py-4 rounded-xl font-bold text-base transition-all shadow-lg flex items-center justify-center gap-2 group ${isProcessingPayment
-                                    ? 'bg-gray-400 text-gray-700 cursor-not-allowed opacity-60'
-                                    : noPriceAvailable
-                                      ? 'bg-gray-600 text-white cursor-not-allowed opacity-70'
-                                      : 'bg-gray-900 text-white hover:bg-black hover:shadow-xl hover:-translate-y-0.5'
+                                  className={`w-full py-3.5 rounded-xl font-bold text-[15px] tracking-wide transition-all duration-200 flex items-center justify-center gap-2 group relative overflow-hidden
+                                    ${isProcessingPayment
+                                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                      : noPriceAvailable
+                                        ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                                        : 'bg-gray-900 text-white hover:bg-gray-800 active:scale-[0.98] shadow-md hover:shadow-lg'
                                     }`}
                                 >
+                                  {/* shimmer effect on hover */}
+                                  {!isDisabled && (
+                                    <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-in-out" />
+                                  )}
                                   {isProcessingPayment ? (
                                     <>
-                                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                                      <span>Processing...</span>
+                                      <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                                      <span>Processing…</span>
                                     </>
                                   ) : (
                                     <>
-                                      <span>Buy Now</span>
-                                      {!noPriceAvailable && <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />}
+                                      <span>{noPriceAvailable ? 'Price Unavailable' : 'Place Order'}</span>
+                                      {!noPriceAvailable && <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform duration-200" />}
                                     </>
                                   )}
                                 </button>
-                              </>
-                            );
-                          })()}
-
-                          <div className="mt-3 text-center text-xs text-gray-400 flex items-center justify-center gap-2">
-                            <Lock size={12} />
-                            <span>Secure Payment & Data Protection</span>
+                              );
+                            })()}
                           </div>
                         </div>
                       )}
@@ -7396,9 +7423,98 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Scroll-Triggered Sticky Top Bar */}
+      <AnimatePresence>
+        {showStickyBar && selectedProduct && (
+          <motion.div
+            initial={{ y: -80, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: -80, opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+            className="fixed top-[8%] left-0 right-0 z-[200] bg-white border-b border-gray-200 shadow-lg sm:hidden"
+          >
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2.5 flex items-center justify-between gap-4">
+              {/* Left: Product image + name */}
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-12 h-12 rounded-lg overflow-hidden border border-gray-200 bg-gray-50 flex-shrink-0">
+                  <img
+                    src={(() => {
+                      // Priority 0: Uploaded file preview (PDF/image first page)
+                      if (pdfPreviewPages && pdfPreviewPages.length > 0) return pdfPreviewPages[0];
+                      // Use the same image resolution logic as the main panel
+                      let img = selectedProduct?.image || selectedSubCategory?.image || "/Glossy.png";
+                      if (matrixImageUrl) img = matrixImageUrl;
+                      else if (selectedProduct && userSelectedAttributes.size > 0) {
+                        const selectionArray = Array.from(userSelectedAttributes).reverse();
+                        for (const attrId of selectionArray) {
+                          const attr = selectedProduct.dynamicAttributes?.find(a => {
+                            const aType = typeof a.attributeType === 'object' ? a.attributeType : null;
+                            return aType && aType._id === attrId;
+                          });
+                          if (!attr || !attr.isEnabled) continue;
+                          const attrType = typeof attr.attributeType === 'object' ? attr.attributeType : null;
+                          if (!attrType) continue;
+                          const selectedValue = selectedDynamicAttributes[attrType._id];
+                          if (!selectedValue) continue;
+                          const attributeValues = attr.customValues && attr.customValues.length > 0 ? attr.customValues : attrType.attributeValues || [];
+                          const selectedAttrValue = attributeValues.find(av => av.value === selectedValue || av.value === String(selectedValue));
+                          if (selectedAttrValue && selectedAttrValue.image && selectedAttrValue.image.trim() !== '') {
+                            img = selectedAttrValue.image;
+                            break;
+                          }
+                        }
+                      }
+                      return img;
+                    })()}
+                    alt={selectedProduct.name}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-gray-900 truncate">{selectedProduct.name}</p>
+                  <p className="text-xs text-gray-500">{quantity.toLocaleString()} units</p>
+                </div>
+              </div>
+
+              {/* Right: Total price + Buy Now */}
+              <div className="flex items-center gap-3 flex-shrink-0">
+                {(price + gstAmount) > 0 && (
+                  <div className="text-right block">
+                    {/* <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Total Payable</p> */}
+                    <div className="flex items-baseline gap-0.5">
+                      <span className="text-xl font-bold text-gray-900">
+                        ₹{(() => {
+                          const totalPrice = price + gstAmount;
+                          const [integerPart, decimalPart] = totalPrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).split('.');
+                          return <>{integerPart}<span className="text-sm">.{decimalPart}</span></>;
+                        })()}
+                      </span>
+                      {/* <span className="text-[10px] text-gray-500 ml-0.5">incl. taxes</span> */}
+                    </div>
+                  </div>
+                )}
+                {/* <button
+                  onClick={handlePlaceOrder}
+                  disabled={isProcessingPayment || (!isPricingLoading && price === 0 && gstAmount === 0)}
+                  className="px-5 py-2.5 bg-gray-900 text-white rounded-xl text-sm font-bold hover:bg-black transition-all shadow flex items-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {isProcessingPayment ? (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <>
+                      Buy Now
+                      <ArrowRight size={14} />
+                    </>
+                  )}
+                </button> */}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div >
   );
 };
 
 export default GlossProductSelection;
-
