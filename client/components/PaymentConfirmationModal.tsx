@@ -164,7 +164,7 @@ const PaymentConfirmationModal: React.FC<PaymentConfirmationModalProps> = ({
               })
             });
             const result = await verifyResponse.json();
-            if (result.success) onPaymentSuccess?.({ ...result, orderId: result?.orderId || createdOrderId });
+            if (result.success) await onPaymentSuccess?.({ ...result, orderId: result?.orderId || createdOrderId });
             else onPaymentFailure?.(new Error('Payment verification failed'));
           } catch (error) {
             onPaymentFailure?.(error);
@@ -381,22 +381,27 @@ const PaymentConfirmationModal: React.FC<PaymentConfirmationModalProps> = ({
                     <InputField label="Pincode" icon={<MapPin size={14} />} required>
                       <div className="flex gap-2">
                         <input
-                          className={`${inputClass} flex-1 bg-gray-50 cursor-not-allowed`}
+                          className={`${inputClass} flex-1 ${isProcessing ? 'bg-gray-50 cursor-not-allowed' : ''}`}
                           maxLength={6}
                           placeholder="400001"
                           value={pincode}
                           onChange={e => { setPincode(e.target.value.replace(/\D/g, '')); clearError(); }}
-                          disabled
+                          disabled={isProcessing}
                         />
                         <button
+                          type="button"
                           onClick={onGetLocation}
-                          disabled={true}
-                          className="px-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 opacity-50 cursor-not-allowed flex items-center gap-2"
+                          disabled={isProcessing || isGettingLocation}
+                          className={`px-4 py-3.5 border border-gray-200 rounded-xl text-sm font-medium flex items-center gap-2 transition-all duration-200
+                            ${isProcessing || isGettingLocation
+                              ? 'bg-gray-50 text-gray-400 cursor-not-allowed opacity-70'
+                              : 'bg-white text-gray-700 hover:bg-gray-50 hover:border-gray-300 active:scale-95 shadow-sm'
+                            }`}
                         >
                           {isGettingLocation ? (
                             <Loader size={16} className="animate-spin" />
                           ) : (
-                            <MapPinned size={16} className="text-blue-600" />
+                            <MapPinned size={16} className={isProcessing ? "text-gray-400" : "text-blue-600"} />
                           )}
                           <span className="hidden sm:inline">Locate</span>
                         </button>

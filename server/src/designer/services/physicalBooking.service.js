@@ -81,6 +81,15 @@ export async function bookVisit(customerId, body) {
         throw Object.assign(new Error('You can only book a designer for your own orders.'), { statusCode: 403 });
     }
 
+    // ── 2b. Idempotency Check (Duplicate Request Handling) ───────────────────
+    // If a booking already exists for this orderId, return it.
+    // This prevents 409 errors if the frontend success handler triggers twice.
+    const existingBooking = await PhysicalDesignerBooking.findOne({ orderId });
+    if (existingBooking) {
+        console.log(`[PhysicalBooking] Idempotent trigger for orderId: ${orderId}. Returning existing booking.`);
+        return existingBooking;
+    }
+
     // ── 3. Validate order status ─────────────────────────────────────────────
     const rawStatus = order.paymentStatus;
     const status = String(rawStatus || '').trim().toLowerCase();

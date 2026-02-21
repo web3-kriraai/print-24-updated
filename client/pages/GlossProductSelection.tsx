@@ -248,6 +248,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
   const [pdpQuantityConfig, setPdpQuantityConfig] = useState<any>(null);
   const [pdpLoading, setPdpLoading] = useState(false);
   const [pdpError, setPdpError] = useState<string | null>(null);
+  const [paidOrderId, setPaidOrderId] = useState<string | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
 
   // Filter states for selected product
@@ -437,13 +438,20 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
     }
   }, [selectedDesigner?._id, selectedDate]);
 
-  // Fetch slots on date/designer change
+  // Fetch slots on date/designer change or when modal is opened
   useEffect(() => {
     if (selectedDesigner?._id && selectedDate) {
       fetchSlots(selectedDesigner._id, selectedDate);
       setSelectedSlot('');
     }
   }, [selectedDesigner?._id, selectedDate]);
+
+  // Ensure fresh slots when the physical designer modal is re-opened
+  useEffect(() => {
+    if (showPhysicalDesignerList && selectedDesigner?._id && selectedDate) {
+      fetchSlots(selectedDesigner._id, selectedDate);
+    }
+  }, [showPhysicalDesignerList]);
 
   // Real-time "isPast" update timer (Runs every minute)
   useEffect(() => {
@@ -3546,6 +3554,13 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
   const firstErrorField = useRef<HTMLElement | null>(null);
 
   const handlePlaceOrder = async () => {
+    // If the user has already paid but booking failed previously
+    if (paidOrderId) {
+      setShowPhysicalDesignerList(true);
+      setBookingStep(3);
+      return;
+    }
+
     // Check if user is logged in — redirect to login if not
     const token = localStorage.getItem("token");
     if (!token) {
@@ -3587,6 +3602,14 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
             const uploadSection = document.querySelector('[data-upload-section]') as HTMLElement;
             if (uploadSection) firstErrorField.current = uploadSection;
           }
+        }
+      }
+    } else if (designMethod === 'hire') {
+      if (!isDesignerConfirmed) {
+        validationErrors.push('Please complete the designer selection process');
+        if (!firstErrorField.current) {
+          const designerSection = document.querySelector('[data-section-designer]') as HTMLElement;
+          if (designerSection) firstErrorField.current = designerSection;
         }
       }
     }
@@ -3777,10 +3800,31 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
       shippingCost: shippingCost || 0
     });
 
-    // If hiring a designer and not yet confirmed, show the designer selection modal
-    if (designMethod === 'hire' && !isDesignerConfirmed) {
-      setShowDesignerSelectionModal(true);
-      return;
+    // For physical visits: double check slot availability before showing payment modal
+    if (designMethod === 'hire' && selectedDesignerType === 'physical' && visitType === 'Office') {
+      try {
+        setIsProcessingPayment(true);
+        const response = await fetch(`${API_BASE_URL}/physical/${selectedDesigner?._id}/slots?date=${selectedDate}`, {
+          headers: getAuthHeaders()
+        });
+        if (response.ok) {
+          const data = await response.json();
+          const slots: TimeSlot[] = data.slots || [];
+          const currentSlot = slots.find(s => s.time === selectedSlot);
+          if (!currentSlot || currentSlot.isBooked) {
+            toast.error("This slot was just booked by someone else! Please select another slot.");
+            setAvailableSlots(slots);
+            setShowPhysicalDesignerList(true);
+            setBookingStep(3);
+            setIsProcessingPayment(false);
+            return;
+          }
+        }
+      } catch (err) {
+        console.error("Pre-payment slot check failed:", err);
+      } finally {
+        setIsProcessingPayment(false);
+      }
     }
 
     // All product/design validations passed - show payment modal with customer information form
@@ -3817,6 +3861,9 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
       // Accept either a PDF/CDR design file OR a reference image upload — skip if hiring a designer
       if (designMethod !== 'hire' && !frontDesignFile && !pdfFile) {
         throw new Error("Please upload a design file (PDF/CDR) or a reference image.");
+      }
+      if (designMethod === 'hire' && !isDesignerConfirmed) {
+        throw new Error("Please complete the designer selection process.");
       }
     }
     // Only validate if product has multiple printing options (single option is auto-selected)
@@ -4330,7 +4377,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
         // User is authenticated - use regular endpoint
         response = await fetch(`${API_BASE_URL}/orders`, {
           method: "POST",
-          headers: getAuthHeaders(),
+          headers: getAuthHeaders(true),
           body: JSON.stringify(orderData),
         });
       }
@@ -4378,87 +4425,8 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
               setIsProcessingPayment(false);
 
               // Step 4: Handle Designer Specific Logic even in retry flow
-              if (designMethod === 'hire' && orderId) {
-                if (selectedDesignerType === 'visual') {
-                  // Upload files if any
-                  if (visualLogoFile || visualPhotoFile) {
-                    const formData = new FormData();
-                    if (visualLogoFile) formData.append('logo', visualLogoFile);
-                    if (visualPhotoFile) formData.append('photo', visualPhotoFile);
-
-                    const designFormData = {
-                      designFor: visualFormData.designFor === 'Other' ? visualFormData.otherDesignFor : visualFormData.designFor,
-                      designStyle: visualFormData.designStyle,
-                      colorPreference: visualFormData.colorPreference,
-                      language: visualFormData.language,
-                      specialInstructions: visualFormData.specialInstructions,
-                      logoAvailable: visualFormData.logoAvailable,
-                      photoOnCard: visualFormData.photoOnCard,
-                    };
-
-                    Object.keys(designFormData).forEach(key => {
-                      formData.append(key, (designFormData as any)[key]);
-                    });
-
-                    await fetch(`${API_BASE_URL}/designer-orders/${orderId}/design-form`, {
-                      method: "POST",
-                      headers: getAuthHeaders(),
-                      body: formData,
-                    });
-                  }
-                } else if (selectedDesignerType === 'physical' && selectedDesigner?._id) {
-                  try {
-                    await createPhysicalBooking({
-                      orderId,
-                      designerId: selectedDesigner._id,
-                      visitDate: selectedDate,
-                      timeSlot: visitType === 'Home' ? undefined : selectedSlot,
-                      visitLocation: visitType === 'Home' ? 'HOME' : 'OFFICE',
-                      visitAddress: physicalVisitAddress,
-                      customerPhone: (customerPhone || pMobile || mobileNumber).replace(/[\s\-]/g, ''),
-                      advancePaid: 0,
-                      socketId: getSocketId() || undefined,
-                      productSnapshot: {
-                        productId: selectedProduct?._id,
-                        productName: selectedProduct?.name,
-                        quantity: quantity,
-                        printingType: selectedPrintingOption || 'Standard',
-                        selectedOptions: selectedOptions || {},
-                        selectedDynamicAttributes: (() => {
-                          const readable: Record<string, any> = {};
-                          if (selectedProduct?.dynamicAttributes) {
-                            selectedProduct.dynamicAttributes.forEach((attr: any) => {
-                              const attrType = typeof attr.attributeType === 'object' ? attr.attributeType : null;
-                              if (attrType) {
-                                const val = selectedDynamicAttributes[attrType._id];
-                                if (val && !(val instanceof File) && !String(attrType._id).endsWith('_images')) {
-                                  readable[attrType.attributeName] = val;
-                                }
-                              }
-                            });
-                          }
-                          return readable;
-                        })(),
-                        totalOrderAmount: price + gstAmount,
-                        specialInstructions: orderNotes || ""
-                      }
-                    });
-                  } catch (bookingErr: any) {
-                    console.error("Physical booking error during payment retry flow:", bookingErr);
-                    // If slot was already booked (409 conflict), immediately disable it in UI
-                    if (bookingErr.status === 409 && selectedSlot) {
-                      setAvailableSlots(prev => prev.map(slot =>
-                        slot.time === selectedSlot ? { ...slot, isBooked: true } : slot
-                      ));
-                      setSelectedSlot('');
-                      if (selectedDesigner?._id && selectedDate) {
-                        fetchSlots(selectedDesigner._id, selectedDate);
-                      }
-                    }
-                    toast.error(`Order placed, but designer booking failed: ${bookingErr.message}. Please contact support.`);
-                  }
-                }
-              }
+              // MOVED: This logic has been moved to finalizeDesignerWorkflow
+              // which is called in onPaymentSuccess.
 
               if (retryData.isNewUser && retryData.tempPassword) {
                 // Email service temporarily disabled - show password in alert instead
@@ -4513,104 +4481,9 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
       }
 
       // Step 4: Handle Designer Specific Logic (if any)
-      if (designMethod === 'hire') {
-        if (selectedDesignerType === 'visual') {
-          // Upload files if any
-          if (visualLogoFile || visualPhotoFile) {
-            const formData = new FormData();
-            if (visualLogoFile) formData.append('logo', visualLogoFile);
-            if (visualPhotoFile) formData.append('photo', visualPhotoFile);
-
-            const designFormData = {
-              designFor: visualFormData.designFor === 'Other' ? visualFormData.otherDesignFor : visualFormData.designFor,
-              designStyle: visualFormData.designStyle,
-              colorPreference: visualFormData.colorPreference,
-              language: visualFormData.language,
-              specialInstructions: visualFormData.specialInstructions,
-              logoAvailable: visualFormData.logoAvailable,
-              photoOnCard: visualFormData.photoOnCard,
-            };
-
-            Object.keys(designFormData).forEach(key => {
-              formData.append(key, (designFormData as any)[key]);
-            });
-
-            await fetch(`${API_BASE_URL}/designer-orders/${orderId}/design-form`, {
-              method: "POST",
-              headers: getAuthHeaders(),
-              body: formData,
-            });
-          }
-        } else if (selectedDesignerType === 'physical') {
-          if (!selectedDesigner?._id) {
-            console.error("[PhysicalBooking] No designer selected for physical booking");
-            toast.error("Please select a designer again.");
-          } else if (!selectedDate) {
-            console.error("[PhysicalBooking] No date selected for physical booking");
-            toast.error("Please select a visit date.");
-          } else {
-            console.log("[PhysicalBooking] Attempting to create booking for order:", orderId);
-            try {
-              await createPhysicalBooking({
-                orderId,
-                designerId: selectedDesigner._id,
-                visitDate: selectedDate,
-                timeSlot: visitType === 'Home' ? undefined : selectedSlot,
-                visitLocation: visitType === 'Home' ? 'HOME' : 'OFFICE',
-                visitAddress: physicalVisitAddress,
-                customerPhone: (customerPhone || pMobile || mobileNumber).replace(/[\s\-]/g, ''),
-                advancePaid: 0,
-                socketId: getSocketId() || undefined,
-                productSnapshot: {
-                  productId: selectedProduct?._id,
-                  productName: selectedProduct?.name,
-                  quantity: quantity,
-                  printingType: selectedPrintingOption || 'Standard',
-                  selectedOptions: selectedOptions || {},
-                  selectedDynamicAttributes: (() => {
-                    const readable: Record<string, any> = {};
-                    if (selectedProduct?.dynamicAttributes) {
-                      selectedProduct.dynamicAttributes.forEach((attr: any) => {
-                        const attrType = typeof attr.attributeType === 'object' ? attr.attributeType : null;
-                        if (attrType) {
-                          const val = selectedDynamicAttributes[attrType._id];
-                          if (val && !(val instanceof File) && !String(attrType._id).endsWith('_images')) {
-                            readable[attrType.attributeName] = val;
-                          }
-                        }
-                      });
-                    }
-                    return readable;
-                  })(),
-                  totalOrderAmount: price + gstAmount,
-                  specialInstructions: orderNotes || ""
-                }
-              });
-              console.log("[PhysicalBooking] Booking successful");
-            } catch (bookingErr: any) {
-              console.error("[PhysicalBooking] Booking failed:", bookingErr);
-
-              // If slot was already booked (409 conflict), immediately disable it in UI
-              if (bookingErr.status === 409 && selectedSlot) {
-                setAvailableSlots(prev => prev.map(slot =>
-                  slot.time === selectedSlot ? { ...slot, isBooked: true } : slot
-                ));
-                setSelectedSlot('');
-                // Re-fetch all slots for latest state
-                if (selectedDesigner?._id && selectedDate) {
-                  fetchSlots(selectedDesigner._id, selectedDate);
-                }
-              }
-
-              // CRITICAL: We throw the error here so that handlePaymentAndOrder fails
-              // correctly and DOES NOT proceed to payment initialization.
-              const finalErrMsg = bookingErr.message || "Order placed, but physical booking failed. Please contact support.";
-              toast.error(finalErrMsg);
-              throw new Error(finalErrMsg);
-            }
-          }
-        }
-      }
+      // MOVED: This logic has been moved to finalizeDesignerWorkflow
+      // which is called in onPaymentSuccess to ensure visits are only booked
+      // after successful payment confirmation.
 
       // If new user, show temp password alert
       if (responseData.isNewUser && responseData.tempPassword) {
@@ -4631,6 +4504,126 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
       setPaymentError(err instanceof Error ? err.message : "Failed to create order. Please try again.");
       setIsProcessingPayment(false);
       throw err; // Re-throw so the modal can display the error
+    }
+  };
+
+  // Finalize designer workflow (upload form/book physical visit)
+  // This is called AFTER successful payment to ensure no orphans are created
+  const finalizeDesignerWorkflow = async (orderId: string): Promise<boolean> => {
+    if (designMethod !== 'hire') return true;
+
+    try {
+      if (selectedDesignerType === 'visual') {
+        // Upload visual design form/assets
+        if (visualLogoFile || visualPhotoFile) {
+          const formData = new FormData();
+          if (visualLogoFile) formData.append('logo', visualLogoFile);
+          if (visualPhotoFile) formData.append('photo', visualPhotoFile);
+
+          const designFormData = {
+            designFor: visualFormData.designFor === 'Other' ? visualFormData.otherDesignFor : visualFormData.designFor,
+            designStyle: visualFormData.designStyle,
+            colorPreference: visualFormData.colorPreference,
+            language: visualFormData.language,
+            specialInstructions: visualFormData.specialInstructions,
+            logoAvailable: visualFormData.logoAvailable,
+            photoOnCard: visualFormData.photoOnCard,
+          };
+
+          Object.keys(designFormData).forEach(key => {
+            formData.append(key, (designFormData as any)[key]);
+          });
+
+          await fetch(`${API_BASE_URL}/designer-orders/${orderId}/design-form`, {
+            method: "POST",
+            headers: getAuthHeaders(),
+            body: formData,
+          });
+        }
+        return true;
+      } else if (selectedDesignerType === 'physical') {
+        // Create physical visit booking
+        if (!selectedDesigner?._id || !selectedDate) {
+          console.error("[PhysicalBooking] Missing designer or date for finalization");
+          return false;
+        }
+
+        // Prepare readable attributes snapshot for booking
+        const productSnapshotDynamicAttributes = (() => {
+          const readable: Record<string, any> = {};
+          if (selectedProduct?.dynamicAttributes) {
+            selectedProduct.dynamicAttributes.forEach((attr: any) => {
+              const attrType = typeof attr.attributeType === 'object' ? attr.attributeType : null;
+              if (attrType) {
+                const val = selectedDynamicAttributes[attrType._id];
+                if (val && !(val instanceof File) && !String(attrType._id).endsWith('_images')) {
+                  readable[attrType.attributeName] = val;
+                }
+              }
+            });
+          }
+          return readable;
+        })();
+
+        // Prepare selected options snapshot
+        const selectedOptions = selectedProductOptions.map(optionName => {
+          const option = selectedProduct?.options?.find((opt: any) => opt.name === optionName);
+          return {
+            optionId: optionName,
+            optionName: option?.name || optionName,
+            priceAdd: option?.priceAdd || 0,
+          };
+        });
+
+        await createPhysicalBooking({
+          orderId,
+          designerId: selectedDesigner._id,
+          visitDate: selectedDate,
+          timeSlot: visitType === 'Home' ? undefined : selectedSlot,
+          visitLocation: visitType === 'Home' ? 'HOME' : 'OFFICE',
+          visitAddress: physicalVisitAddress,
+          customerPhone: (customerPhone || mobileNumber || "").replace(/[\s\-]/g, ''),
+          advancePaid: 0,
+          socketId: getSocketId() || undefined,
+          productSnapshot: {
+            productId: selectedProduct?._id,
+            productName: selectedProduct?.name,
+            quantity: quantity,
+            printingType: selectedPrintingOption || 'Standard',
+            selectedOptions: selectedOptions,
+            selectedDynamicAttributes: productSnapshotDynamicAttributes,
+            totalOrderAmount: price + gstAmount + (shippingCost || 0),
+            specialInstructions: orderNotes || ""
+          }
+        });
+
+        // Clear UI states for booking
+        setSelectedSlot('');
+        if (selectedDesigner?._id && selectedDate) {
+          fetchSlots(selectedDesigner._id, selectedDate);
+        }
+        setPaidOrderId(null);
+        return true;
+      }
+      return true;
+    } catch (err: any) {
+      console.error("Failed to finalize designer workflow:", err);
+
+      if (err.status === 409) {
+        toast.error("This slot was just booked by someone else! Please select another slot.");
+        if (selectedDesigner?._id && selectedDate) {
+          fetchSlots(selectedDesigner._id, selectedDate);
+        }
+        setPaidOrderId(orderId);
+        setShowPhysicalDesignerList(true);
+        setBookingStep(3); // Go to slot selection step
+        return false;
+      }
+
+      // We don't throw here to avoid breaking the successful payment flow completely,
+      // but we return false so the caller knows it failed.
+      toast.error("Order placed, but designer booking encountered an error. Please contact support.");
+      return false;
     }
   };
 
@@ -4715,7 +4708,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
     try {
       const response = await fetch(`${API_BASE_URL}/physical/book`, {
         method: "POST",
-        headers: getAuthHeaders(),
+        headers: getAuthHeaders(true),
         body: JSON.stringify(payload),
       });
 
@@ -4756,6 +4749,16 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
         }
         if (!customerPhone) {
           toast.error("Please enter your mobile number");
+          return;
+        }
+
+        // If this order is already paid but booking failed previously
+        if (paidOrderId) {
+          const success = await finalizeDesignerWorkflow(paidOrderId);
+          if (success) {
+            setShowPhysicalDesignerList(false);
+            navigate(`/order/${paidOrderId}`);
+          }
           return;
         }
       } else if (type === 'visual') {
@@ -5512,9 +5515,8 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                           if (pricing) {
                             setBackendSubtotal(pricing.subtotal);
                             setGstPercentage(pricing.gstPercentage || 18);
-                            // Immediately sync price and gstAmount using current attribute charges and designer fee
-                            // This ensures sticky footer matches Order Summary without waiting for a stale useEffect
                             const currentAttrCharges = dynamicAttributesChargesRef.current.reduce((sum, c) => sum + (c.charge || 0), 0);
+                            const numDesigns = orderMode === 'bulk' ? (parseInt(numberOfDesigns) || 1) : 1;
 
                             // Include designer fee if hired and confirmed
                             let designerFee = 0;
@@ -5531,15 +5533,19 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                               }
                             }
 
-                            const syncedSubtotal = pricing.subtotal + currentAttrCharges + designerFee + visitFee;
-                            const syncedGst = Math.round((syncedSubtotal * (pricing.gstPercentage || 18) / 100 + Number.EPSILON) * 100) / 100;
-                            setPrice(syncedSubtotal);
-                            setGstAmount(syncedGst);
+                            const perDesignSubtotal = pricing.subtotal + currentAttrCharges;
+                            const totalOrderSubtotal = (perDesignSubtotal * numDesigns) + designerFee + visitFee;
+                            const totalOrderGst = Math.round((totalOrderSubtotal * (pricing.gstPercentage || 18) / 100 + Number.EPSILON) * 100) / 100;
+
+                            setPrice(totalOrderSubtotal);
+                            setGstAmount(totalOrderGst);
+                            setIsPricingLoading(false); // Calculation complete
                           } else {
                             setBackendSubtotal(0);
                             setGstPercentage(18);
                             setPrice(0);
                             setGstAmount(0);
+                            setIsPricingLoading(false);
                           }
                         }}
                       />
@@ -7009,6 +7015,48 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
 
 
+                              {/* Design Method Selection */}
+                              <div className="mb-6">
+                                <label className="block text-xs sm:text-sm font-bold text-gray-900 mb-3 uppercase tracking-wider">
+                                  {sectionNum++}. How would you like to design?
+                                </label>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                  <button
+                                    type="button"
+                                    onClick={() => setDesignMethod('upload')}
+                                    className={`flex flex-col items-center p-1 sm:p-2 rounded-xl border-2 transition-all duration-200 ${designMethod === 'upload'
+                                      ? "border-gray-900 bg-gray-50 text-gray-900 shadow-md"
+                                      : "border-gray-200 text-gray-700 hover:border-gray-400 hover:bg-white"
+                                      }`}
+                                  >
+                                    <div className={`w-8 h-8 sm:w-12 sm:h-12 rounded-full flex items-center justify-center mb-1.5 sm:mb-3 ${designMethod === 'upload' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600'}`}>
+                                      <UploadIcon size={16} className="sm:w-5 sm:h-5" />
+                                    </div>
+                                    <span className="font-bold text-[13px] sm:text-sm">Upload My Design</span>
+                                    <p className="text-[9px] sm:text-[10px] text-gray-500 mt-0.5 sm:mt-1 text-center font-medium">I have a print-ready file (PDF, CDR)</p>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setDesignMethod('hire');
+                                      setIsDesignerConfirmed(false);
+                                      setShowDesignerSelectionModal(true);
+                                    }}
+                                    className={`flex flex-col items-center p-1 sm:p-2 rounded-xl border-2 transition-all duration-200 ${designMethod === 'hire'
+                                      ? "border-gray-900 bg-gray-50 text-gray-900 shadow-md"
+                                      : "border-gray-200 text-gray-700 hover:border-gray-400 hover:bg-white"
+                                      }`}
+                                  >
+                                    <div className={`w-8 h-8 sm:w-12 sm:h-12 rounded-full flex items-center justify-center mb-1.5 sm:mb-3 ${designMethod === 'hire' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600'}`}>
+                                      <Zap size={16} className="sm:w-6 sm:h-6" />
+                                    </div>
+                                    <span className="font-bold text-[13px] sm:text-sm">Hire a Professional</span>
+                                    <p className="text-[9px] sm:text-[10px] text-gray-500 mt-0.5 sm:mt-1 text-center font-medium">Get it designed by our expert designers</p>
+                                  </button>
+                                </div>
+                              </div>
+
                               {/* Bulk Order Toggle - Properly placed above the upload part */}
                               {
                                 hasBulkPermission && !loading && (
@@ -7263,8 +7311,8 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                     // Calculate required pages dynamically
                                     const calculatedPages = calculateRequiredPageCount();
 
-                                    // Only show PDF upload section when pages are required
-                                    if (calculatedPages === 0) return null;
+                                    // Only show PDF upload section when pages are required and user is not hiring a designer
+                                    if (calculatedPages === 0 || designMethod === 'hire') return null;
 
                                     return (
                                       <div className="mb-3 sm:mb-4 bg-white rounded-2xl border border-gray-200 shadow-lg shadow-gray-200/50 overflow-hidden hover:shadow-xl hover:shadow-gray-200/50 transition-all duration-300">
@@ -7535,43 +7583,6 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                 })()
                               }
 
-                              {/* Design Method Selection */}
-                              <div className="mb-6">
-                                <label className="block text-xs sm:text-sm font-bold text-gray-900 mb-3 uppercase tracking-wider">
-                                  {sectionNum++}. How would you like to design?
-                                </label>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                  <button
-                                    type="button"
-                                    onClick={() => setDesignMethod('upload')}
-                                    className={`flex flex-col items-center p-1 sm:p-2 rounded-xl border-2 transition-all duration-200 ${designMethod === 'upload'
-                                      ? "border-gray-900 bg-gray-50 text-gray-900 shadow-md"
-                                      : "border-gray-200 text-gray-700 hover:border-gray-400 hover:bg-white"
-                                      }`}
-                                  >
-                                    <div className={`w-8 h-8 sm:w-12 sm:h-12 rounded-full flex items-center justify-center mb-1.5 sm:mb-3 ${designMethod === 'upload' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600'}`}>
-                                      <UploadIcon size={16} className="sm:w-5 sm:h-5" />
-                                    </div>
-                                    <span className="font-bold text-[13px] sm:text-sm">Upload My Design</span>
-                                    <p className="text-[9px] sm:text-[10px] text-gray-500 mt-0.5 sm:mt-1 text-center font-medium">I have a print-ready file (PDF, CDR)</p>
-                                  </button>
-
-                                  <button
-                                    type="button"
-                                    onClick={() => setDesignMethod('hire')}
-                                    className={`flex flex-col items-center p-1 sm:p-2 rounded-xl border-2 transition-all duration-200 ${designMethod === 'hire'
-                                      ? "border-gray-900 bg-gray-50 text-gray-900 shadow-md"
-                                      : "border-gray-200 text-gray-700 hover:border-gray-400 hover:bg-white"
-                                      }`}
-                                  >
-                                    <div className={`w-8 h-8 sm:w-12 sm:h-12 rounded-full flex items-center justify-center mb-1.5 sm:mb-3 ${designMethod === 'hire' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600'}`}>
-                                      <Zap size={16} className="sm:w-6 sm:h-6" />
-                                    </div>
-                                    <span className="font-bold text-[13px] sm:text-sm">Hire a Professional</span>
-                                    <p className="text-[9px] sm:text-[10px] text-gray-500 mt-0.5 sm:mt-1 text-center font-medium">Get it designed by our expert designers</p>
-                                  </button>
-                                </div>
-                              </div>
                             </>
                           );
                         })()}
@@ -7593,7 +7604,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                         ) : (
                           <div ref={stickyAnchorRef} className="sticky bottom-0 z-20 mt-auto pt-6 border-t border-gray-100 bg-white shadow-[0_-10px_20px_-5px_rgba(0,0,0,0.05)] px-2 pb-2">
                             <div className="flex justify-between items-end mb-4">
-                              {(price + gstAmount) > 0 ? (
+                              {(price + gstAmount + shippingCost) > 0 ? (
                                 <div>
                                   <p className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-1">
                                     {orderMode === 'bulk'
@@ -7603,10 +7614,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                   <div className="flex items-baseline gap-1">
                                     <span className="text-3xl font-bold text-gray-900">
                                       ₹{(() => {
-                                        const numDesigns = parseInt(numberOfDesigns) || 1;
-                                        const totalPrice = orderMode === 'bulk'
-                                          ? (price + gstAmount) * numDesigns
-                                          : (price + gstAmount);
+                                        const totalPrice = price + gstAmount + shippingCost;
                                         const [integerPart, decimalPart] = totalPrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).split('.');
                                         return (
                                           <>
@@ -7620,7 +7628,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                   </div>
                                   {orderMode === 'bulk' && (parseInt(numberOfDesigns) || 1) > 1 && (
                                     <p className="text-[10px] text-gray-400 mt-0.5">
-                                      ₹{(price + gstAmount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} × {parseInt(numberOfDesigns) || 1} designs
+                                      Total for {parseInt(numberOfDesigns) || 1} designs (incl. taxes & fees)
                                     </p>
                                   )}
                                 </div>
@@ -7657,16 +7665,26 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                             {/* CTA Button */}
                             {(() => {
                               const noPriceAvailable = !isPricingLoading && (price === 0 && gstAmount === 0);
-                              const isDisabled = isProcessingPayment || noPriceAvailable;
+
+                              // Enabled only if:
+                              // 1. Price is available (not loading and not zero)
+                              // 2. Not already processing
+                              // 3. Either "upload" mode with a file/preview, OR "hire" mode with confirmed designer
+                              const hasDesignReady = designMethod === 'upload'
+                                ? (!!frontDesignFile || !!pdfFile)
+                                : (designMethod === 'hire' && isDesignerConfirmed);
+
+                              const isDisabled = isProcessingPayment || noPriceAvailable || !hasDesignReady;
+
                               return (
                                 <button
                                   onClick={isDisabled ? undefined : handlePlaceOrder}
                                   disabled={isDisabled}
-                                  title={noPriceAvailable ? 'Price not available — this product cannot be ordered' : undefined}
+                                  title={noPriceAvailable ? 'Price not available' : !hasDesignReady ? 'Please complete design selection' : undefined}
                                   className={`w-full py-3.5 rounded-xl font-bold text-[15px] tracking-wide transition-all duration-200 flex items-center justify-center gap-2 group relative overflow-hidden
                                     ${isProcessingPayment
                                       ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                                      : noPriceAvailable
+                                      : (noPriceAvailable || !hasDesignReady)
                                         ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
                                         : 'bg-gray-900 text-white hover:bg-gray-800 active:scale-[0.98] shadow-md hover:shadow-lg'
                                     }`}
@@ -7825,13 +7843,26 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
           shippingCost: shippingCost || 0,
           total: (price + gstAmount) * (parseInt(numberOfDesigns) || 1) + (shippingCost || 0)
         }}
-        onPaymentSuccess={(result) => {
-          setShowPaymentModal(false);
-          setIsProcessingPayment(false);
-          // Navigate to order detail page
+        onPaymentSuccess={async (result) => {
           if (result?.orderId) {
-            navigate(`/order/${result.orderId}`);
+            // Ensure designer booking happens only after payment is confirmed
+            const success = await finalizeDesignerWorkflow(result.orderId);
+
+            if (success) {
+              setShowPaymentModal(false);
+              setIsProcessingPayment(false);
+              navigate(`/order/${result.orderId}`);
+            } else {
+              // If booking failed (e.g. conflict), finalizeDesignerWorkflow will have:
+              // 1. Shown a toast
+              // 2. Set paidOrderId
+              // 3. Re-opened the designer modal
+              setShowPaymentModal(false);
+              setIsProcessingPayment(false);
+            }
           } else {
+            setShowPaymentModal(false);
+            setIsProcessingPayment(false);
             navigate('/my-orders');
           }
         }}
@@ -8288,6 +8319,9 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                           }
                           onClick={() => {
                             fetchDesigners(selectedDate);
+                            if (selectedDesigner) {
+                              fetchSlots(selectedDesigner._id, selectedDate);
+                            }
                             setBookingStep(3);
                           }}
                           className="flex-[2] py-4 bg-gray-900 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-black shadow-lg transition-all disabled:opacity-50"
