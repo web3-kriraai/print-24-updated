@@ -28,6 +28,7 @@ const FeatureConfigForm: React.FC<FeatureConfigFormProps> = ({ schema, currentCo
     const [formData, setFormData] = useState<any>({});
 
     useEffect(() => {
+        if (!schema || !schema.fields) return;
         // Merge currentConfig with default values from schema
         const initialData = { ...currentConfig };
         schema.fields.forEach(field => {
@@ -43,6 +44,14 @@ const FeatureConfigForm: React.FC<FeatureConfigFormProps> = ({ schema, currentCo
         setFormData(updatedData);
         onChange(updatedData);
     };
+    if (!schema || !schema.fields) {
+        return (
+            <div className="p-4 bg-amber-50 border border-amber-100 rounded-xl flex gap-3 text-sm text-amber-900">
+                <Info className="flex-shrink-0 text-amber-600" size={18} />
+                <p>This feature does not have a defined configuration schema.</p>
+            </div>
+        );
+    }
 
     return (
         <div className="space-y-6">
@@ -54,9 +63,8 @@ const FeatureConfigForm: React.FC<FeatureConfigFormProps> = ({ schema, currentCo
                     </label>
 
                     {field.fieldType === 'checkbox' ? (
-                        <label className={`flex items-start p-4 border rounded-xl transition-all cursor-pointer ${
-                            formData[field.fieldId] ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300 bg-gray-50'
-                        }`}>
+                        <label className={`flex items-start p-4 border rounded-xl transition-all cursor-pointer ${formData[field.fieldId] ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300 bg-gray-50'
+                            }`}>
                             <input
                                 type="checkbox"
                                 checked={!!formData[field.fieldId]}

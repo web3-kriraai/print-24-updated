@@ -265,7 +265,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [isPricingLoading, setIsPricingLoading] = useState(true); // Start with true
-  
+
   // DRAGON LOCK: Capture current price/quantity when opening modal to prevent updates
   const [lockedPricing, setLockedPricing] = useState<{
     price: number;
@@ -2937,6 +2937,21 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
       return;
     }
 
+    const minDesigns = bulkConfig?.minDesigns || 1;
+    const maxDesigns = bulkConfig?.maxDesigns || 50;
+
+    if (numberOfDesignsNum < minDesigns) {
+      setBulkPdfError(`You must upload at least ${minDesigns} designs for a bulk order.`);
+      setBulkCompositePdf(null);
+      return;
+    }
+
+    if (numberOfDesignsNum > maxDesigns) {
+      setBulkPdfError(`Maximum allowed designs is ${maxDesigns}. You entered ${numberOfDesignsNum}.`);
+      setBulkCompositePdf(null);
+      return;
+    }
+
     // Validate file type
     const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
     const isCdr = file.name.toLowerCase().endsWith('.cdr') ||
@@ -3575,7 +3590,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
     // Use locked pricing if available, otherwise fallback to current state
     const currentPrice = pricingContext?.price ?? price;
     const currentGst = pricingContext?.gstAmount ?? gstAmount;
-    
+
     const finalTotalPrice = currentPrice + currentGst;
     if (!finalTotalPrice || finalTotalPrice <= 0) {
       throw new Error("Invalid order total. Please refresh and try again.");
@@ -4033,7 +4048,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
         (orderData as any).isBulkOrder = true;
         (orderData as any).numberOfDesigns = numDesigns;
         (orderData as any).perDesignQuantity = quantity; // Send per-design quantity clearly
-        
+
         // Override totalPrice for bulk (per-design price × numberOfDesigns)
         // Price and GST are already calculated for a single design's quantity
         (orderData as any).totalPrice = (currentPrice + currentGst) * numDesigns;
@@ -6423,19 +6438,19 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                         {hasBulkPermission && !loading && (
                           <div className="space-y-4 mb-6 mt-6 pt-6 border-t border-gray-100">
                             <div className="flex items-center justify-between mb-2">
-                               <h4 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-                                 <div className="w-1.5 h-6 bg-blue-600 rounded-full"></div>
-                                 Order Mode
-                               </h4>
-                               <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Select your order style</span>
+                              <h4 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                                <div className="w-1.5 h-6 bg-blue-600 rounded-full"></div>
+                                Order Mode
+                              </h4>
+                              <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Select your order style</span>
                             </div>
-                            <BulkOrderToggle 
-                              orderMode={orderMode} 
-                              setOrderMode={setOrderMode} 
+                            <BulkOrderToggle
+                              orderMode={orderMode}
+                              setOrderMode={setOrderMode}
                             />
-                            
+
                             {orderMode === 'bulk' && (
-                              <motion.div 
+                              <motion.div
                                 initial={{ opacity: 0, height: 0 }}
                                 animate={{ opacity: 1, height: 'auto' }}
                                 className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 rounded-2xl p-4 shadow-sm"
@@ -6516,14 +6531,16 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                     </label>
                                     <input
                                       type="number"
-                                      min="1"
-                                      max="50"
+                                      min={bulkConfig?.minDesigns || 1}
+                                      max={bulkConfig?.maxDesigns || 50}
                                       value={numberOfDesigns}
                                       onChange={(e) => setNumberOfDesigns(e.target.value)}
-                                      placeholder="e.g., 30"
+                                      placeholder={`e.g., ${bulkConfig?.minDesigns || 10}`}
                                       className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent text-lg font-semibold"
                                     />
-                                    <p className="text-xs text-gray-600 mt-1">How many distinct designs are in your PDF? (Max: 50)</p>
+                                    <p className="text-xs text-gray-600 mt-1">
+                                      How many distinct designs are in your PDF? (Min: {bulkConfig?.minDesigns || 1}, Max: {bulkConfig?.maxDesigns || 50})
+                                    </p>
 
                                     {numberOfDesignsNum > 0 && (
                                       <div className="mt-3 p-3 bg-orange-50 border border-orange-200 rounded-lg animate-in fade-in slide-in-from-top-1 duration-300">
@@ -6601,7 +6618,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                             Upload your bulk design file
                                           </p>
                                           <p className="text-sm text-gray-600 mb-3 font-medium">
-                                            PDF or CDR • Max 100MB
+                                            PDF or CDR • Max {bulkConfig?.maxFileSizeMB || 10}MB
                                           </p>
                                           <div className="inline-flex items-center gap-2 px-5 py-2.5 bg-orange-600 text-white rounded-xl text-sm font-bold hover:bg-orange-700 transition-all hover:shadow-lg hover:scale-105">
                                             <FileText size={16} />
@@ -6679,265 +6696,265 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                     <div className="w-9 h-9 rounded-xl bg-white shadow-md flex items-center justify-center ring-1 ring-blue-100">
                                       <FileText className="w-5 h-5 text-blue-600" />
                                     </div>
-                                  <div className="flex-1">
-                                    <h3 className="font-bold text-sm sm:text-base text-gray-900">
-                                      Upload Design File
-                                    </h3>
-                                    <p className="text-xs text-gray-600 mt-0.5 font-medium">
-                                      {calculatedPages} page{calculatedPages !== 1 ? 's' : ''} required • PDF or CDR • Max: {MAX_PDF_SIZE_MB}MB
-                                    </p>
-                                  </div>
-                                  {pdfFile && !pdfValidationError && (
-                                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-green-100 to-emerald-100 text-green-700 text-xs font-bold shadow-sm">
-                                      <Check size={14} strokeWidth={3} />
-                                      Complete
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-
-                              {/* Upload Area */}
-                              <div className="p-4 sm:p-5">
-                                {/* Upload Input */}
-                                <input
-                                  type="file"
-                                  id="pdf-upload-input"
-                                  accept=".pdf,.cdr,application/pdf,application/x-coreldraw,application/coreldraw"
-                                  onChange={handlePdfUpload}
-                                  className="hidden"
-                                  data-required-field
-                                />
-
-                                {!pdfFile ? (
-                                  /* Upload Prompt */
-                                  <label
-                                    htmlFor="pdf-upload-input"
-                                    className={`block cursor-pointer border-2 border-dashed rounded-xl transition-all duration-300 hover:scale-[1.01] ${pdfValidationError
-                                      ? 'border-red-400 bg-red-50/50 shadow-inner'
-                                      : 'border-gray-300 bg-gradient-to-br from-gray-50 to-slate-50 hover:border-blue-500 hover:bg-gradient-to-br hover:from-blue-50 hover:to-indigo-50 hover:shadow-md'
-                                      }`}
-                                  >
-                                    <div className="p-8 text-center">
-                                      {isPdfProcessing ? (
-                                        <div className="flex flex-col items-center">
-                                          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-3"></div>
-                                          <p className="text-sm font-semibold text-gray-700">Processing Design File...</p>
-                                          <p className="text-xs text-gray-500 mt-1">Extracting pages as images</p>
-                                        </div>
-                                      ) : (
-                                        <>
-                                          <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center mx-auto mb-4">
-                                            <UploadCloud className="w-7 h-7 text-blue-600" />
-                                          </div>
-                                          <p className="text-base font-bold text-gray-800 mb-1">
-                                            Click to upload design file
-                                          </p>
-                                          <p className="text-sm text-gray-600 mb-2 font-medium">
-                                            {calculatedPages} page{calculatedPages !== 1 ? 's' : ''} required
-                                          </p>
-                                          <p className="text-xs text-gray-500 mb-4">
-                                            Supports PDF & CDR • Max: {MAX_PDF_SIZE_MB}MB
-                                          </p>
-                                          <div className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg text-sm font-bold hover:from-blue-700 hover:to-indigo-700 transition-all hover:shadow-lg hover:scale-105">
-                                            <FileImage size={16} />
-                                            Select Design File
-                                          </div>
-                                        </>
-                                      )}
+                                    <div className="flex-1">
+                                      <h3 className="font-bold text-sm sm:text-base text-gray-900">
+                                        Upload Design File
+                                      </h3>
+                                      <p className="text-xs text-gray-600 mt-0.5 font-medium">
+                                        {calculatedPages} page{calculatedPages !== 1 ? 's' : ''} required • PDF or CDR • Max: {MAX_PDF_SIZE_MB}MB
+                                      </p>
                                     </div>
-                                  </label>
-                                ) : (
-                                  <>
-                                    {/* PDF Upload Success & Preview */}
-                                    <div className="space-y-4">
-                                      {/* PDF File Info */}
-                                      <div className="flex items-center justify-between p-4 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-300 rounded-xl shadow-md hover:shadow-lg transition-all">
-                                        <div className="flex items-center gap-3">
-                                          <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-md">
-                                            <FileText className="w-6 h-6 text-white" />
+                                    {pdfFile && !pdfValidationError && (
+                                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-green-100 to-emerald-100 text-green-700 text-xs font-bold shadow-sm">
+                                        <Check size={14} strokeWidth={3} />
+                                        Complete
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Upload Area */}
+                                <div className="p-4 sm:p-5">
+                                  {/* Upload Input */}
+                                  <input
+                                    type="file"
+                                    id="pdf-upload-input"
+                                    accept=".pdf,.cdr,application/pdf,application/x-coreldraw,application/coreldraw"
+                                    onChange={handlePdfUpload}
+                                    className="hidden"
+                                    data-required-field
+                                  />
+
+                                  {!pdfFile ? (
+                                    /* Upload Prompt */
+                                    <label
+                                      htmlFor="pdf-upload-input"
+                                      className={`block cursor-pointer border-2 border-dashed rounded-xl transition-all duration-300 hover:scale-[1.01] ${pdfValidationError
+                                        ? 'border-red-400 bg-red-50/50 shadow-inner'
+                                        : 'border-gray-300 bg-gradient-to-br from-gray-50 to-slate-50 hover:border-blue-500 hover:bg-gradient-to-br hover:from-blue-50 hover:to-indigo-50 hover:shadow-md'
+                                        }`}
+                                    >
+                                      <div className="p-8 text-center">
+                                        {isPdfProcessing ? (
+                                          <div className="flex flex-col items-center">
+                                            <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-3"></div>
+                                            <p className="text-sm font-semibold text-gray-700">Processing Design File...</p>
+                                            <p className="text-xs text-gray-500 mt-1">Extracting pages as images</p>
                                           </div>
-                                          <div>
-                                            <p className="text-sm font-semibold text-gray-900">
-                                              {pdfFile.name}
+                                        ) : (
+                                          <>
+                                            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center mx-auto mb-4">
+                                              <UploadCloud className="w-7 h-7 text-blue-600" />
+                                            </div>
+                                            <p className="text-base font-bold text-gray-800 mb-1">
+                                              Click to upload design file
                                             </p>
-                                            <p className="text-xs text-gray-600">
-                                              {pdfFile.name.toLowerCase().endsWith('.cdr')
-                                                ? `CDR file ready (will be processed server-side)`
-                                                : `${extractedPdfPages.length} page${extractedPdfPages.length !== 1 ? 's' : ''} extracted`
-                                              }
+                                            <p className="text-sm text-gray-600 mb-2 font-medium">
+                                              {calculatedPages} page{calculatedPages !== 1 ? 's' : ''} required
                                             </p>
-                                          </div>
-                                        </div>
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            setPdfFile(null);
-                                            setExtractedPdfPages([]);
-                                            setPdfPreviewPages([]);
-                                            setPdfValidationError(null);
-                                            // Clear mapped images
-                                            setFrontDesignFile(null);
-                                            setBackDesignFile(null);
-                                            setFrontDesignPreview("");
-                                            setBackDesignPreview("");
-                                            const fileInput = document.getElementById('pdf-upload-input') as HTMLInputElement;
-                                            if (fileInput) fileInput.value = '';
-                                          }}
-                                          className="px-3 py-1.5 text-xs font-bold text-red-700 bg-red-100 hover:bg-red-200 rounded-lg transition-all hover:shadow-md hover:scale-105"
-                                        >
-                                          Remove
-                                        </button>
+                                            <p className="text-xs text-gray-500 mb-4">
+                                              Supports PDF & CDR • Max: {MAX_PDF_SIZE_MB}MB
+                                            </p>
+                                            <div className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg text-sm font-bold hover:from-blue-700 hover:to-indigo-700 transition-all hover:shadow-lg hover:scale-105">
+                                              <FileImage size={16} />
+                                              Select Design File
+                                            </div>
+                                          </>
+                                        )}
                                       </div>
+                                    </label>
+                                  ) : (
+                                    <>
+                                      {/* PDF Upload Success & Preview */}
+                                      <div className="space-y-4">
+                                        {/* PDF File Info */}
+                                        <div className="flex items-center justify-between p-4 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-300 rounded-xl shadow-md hover:shadow-lg transition-all">
+                                          <div className="flex items-center gap-3">
+                                            <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-md">
+                                              <FileText className="w-6 h-6 text-white" />
+                                            </div>
+                                            <div>
+                                              <p className="text-sm font-semibold text-gray-900">
+                                                {pdfFile.name}
+                                              </p>
+                                              <p className="text-xs text-gray-600">
+                                                {pdfFile.name.toLowerCase().endsWith('.cdr')
+                                                  ? `CDR file ready (will be processed server-side)`
+                                                  : `${extractedPdfPages.length} page${extractedPdfPages.length !== 1 ? 's' : ''} extracted`
+                                                }
+                                              </p>
+                                            </div>
+                                          </div>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setPdfFile(null);
+                                              setExtractedPdfPages([]);
+                                              setPdfPreviewPages([]);
+                                              setPdfValidationError(null);
+                                              // Clear mapped images
+                                              setFrontDesignFile(null);
+                                              setBackDesignFile(null);
+                                              setFrontDesignPreview("");
+                                              setBackDesignPreview("");
+                                              const fileInput = document.getElementById('pdf-upload-input') as HTMLInputElement;
+                                              if (fileInput) fileInput.value = '';
+                                            }}
+                                            className="px-3 py-1.5 text-xs font-bold text-red-700 bg-red-100 hover:bg-red-200 rounded-lg transition-all hover:shadow-md hover:scale-105"
+                                          >
+                                            Remove
+                                          </button>
+                                        </div>
 
-                                      {/* Extracted Pages with Purpose Labels - Enhanced UI */}
-                                      {pdfPreviewPages.length > 0 && pdfPageMapping.length > 0 && (
-                                        <div>
-                                          <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                                            <FileText size={16} className="text-blue-600" />
-                                            Page Assignments
-                                          </h4>
-                                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                                            {pdfPreviewPages.map((preview, index) => {
-                                              const mapping = pdfPageMapping[index];
-                                              if (!mapping) return null;
+                                        {/* Extracted Pages with Purpose Labels - Enhanced UI */}
+                                        {pdfPreviewPages.length > 0 && pdfPageMapping.length > 0 && (
+                                          <div>
+                                            <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                                              <FileText size={16} className="text-blue-600" />
+                                              Page Assignments
+                                            </h4>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                              {pdfPreviewPages.map((preview, index) => {
+                                                const mapping = pdfPageMapping[index];
+                                                if (!mapping) return null;
 
-                                              // Color coding based on type
-                                              const colorClasses = {
-                                                border: 'border-blue-400',
-                                                badge: 'bg-gradient-to-br from-blue-500 to-indigo-600',
-                                                labelBg: 'bg-gradient-to-r from-blue-600 to-indigo-700'
-                                              };
+                                                // Color coding based on type
+                                                const colorClasses = {
+                                                  border: 'border-blue-400',
+                                                  badge: 'bg-gradient-to-br from-blue-500 to-indigo-600',
+                                                  labelBg: 'bg-gradient-to-r from-blue-600 to-indigo-700'
+                                                };
 
-                                              return (
-                                                <div key={index} className="relative group">
-                                                  {/* Image Container with dynamic aspect ratio */}
-                                                  <div className="w-full relative overflow-hidden rounded-xl ring-2 ring-blue-400 ring-offset-0 shadow-lg hover:shadow-2xl hover:ring-blue-500 transition-all duration-300 hover:scale-[1.02]">
-                                                    <img
-                                                      src={preview}
-                                                      alt={`Page ${index + 1}`}
-                                                      className="w-full bg-white object-contain"
-                                                      style={{ aspectRatio: 'auto' }}
-                                                    />
-                                                  </div>
-
-                                                  {/* Page Number Badge */}
-                                                  <div className={`absolute -top-2 -left-2 w-8 h-8 ${colorClasses.badge} rounded-full flex items-center justify-center shadow-xl border-2 border-white ring-1 ring-blue-200`}>
-                                                    <span className="text-white text-xs font-black">{mapping.pageNumber}</span>
-                                                  </div>
-
-                                                  {/* Required Badge */}
-                                                  {mapping.isRequired && (
-                                                    <div className="absolute -top-2 -right-2 w-7 h-7 bg-gradient-to-br from-red-500 to-rose-600 rounded-full flex items-center justify-center shadow-xl border-2 border-white ring-1 ring-red-200">
-                                                      <span className="text-white text-xs font-black">!</span>
+                                                return (
+                                                  <div key={index} className="relative group">
+                                                    {/* Image Container with dynamic aspect ratio */}
+                                                    <div className="w-full relative overflow-hidden rounded-xl ring-2 ring-blue-400 ring-offset-0 shadow-lg hover:shadow-2xl hover:ring-blue-500 transition-all duration-300 hover:scale-[1.02]">
+                                                      <img
+                                                        src={preview}
+                                                        alt={`Page ${index + 1}`}
+                                                        className="w-full bg-white object-contain"
+                                                        style={{ aspectRatio: 'auto' }}
+                                                      />
                                                     </div>
-                                                  )}
 
-                                                  {/* Purpose Label - Always Visible */}
-                                                  <div className={`absolute bottom-0 left-0 right-0 ${colorClasses.labelBg} text-white px-2 py-2.5 rounded-b-xl shadow-md`}>
-                                                    <div className="flex items-center gap-1.5">
-                                                      <ImageIcon size={15} className="flex-shrink-0" />
-                                                      <div className="flex-1 min-w-0">
-                                                        <p className="text-[11px] font-bold truncate leading-tight">
-                                                          {mapping.purpose}
-                                                        </p>
-                                                        {mapping.type === 'attribute' && (
-                                                          <p className="text-[9px] opacity-95 truncate font-medium">
-                                                            {mapping.isRequired ? 'Required' : 'Optional'}
+                                                    {/* Page Number Badge */}
+                                                    <div className={`absolute -top-2 -left-2 w-8 h-8 ${colorClasses.badge} rounded-full flex items-center justify-center shadow-xl border-2 border-white ring-1 ring-blue-200`}>
+                                                      <span className="text-white text-xs font-black">{mapping.pageNumber}</span>
+                                                    </div>
+
+                                                    {/* Required Badge */}
+                                                    {mapping.isRequired && (
+                                                      <div className="absolute -top-2 -right-2 w-7 h-7 bg-gradient-to-br from-red-500 to-rose-600 rounded-full flex items-center justify-center shadow-xl border-2 border-white ring-1 ring-red-200">
+                                                        <span className="text-white text-xs font-black">!</span>
+                                                      </div>
+                                                    )}
+
+                                                    {/* Purpose Label - Always Visible */}
+                                                    <div className={`absolute bottom-0 left-0 right-0 ${colorClasses.labelBg} text-white px-2 py-2.5 rounded-b-xl shadow-md`}>
+                                                      <div className="flex items-center gap-1.5">
+                                                        <ImageIcon size={15} className="flex-shrink-0" />
+                                                        <div className="flex-1 min-w-0">
+                                                          <p className="text-[11px] font-bold truncate leading-tight">
+                                                            {mapping.purpose}
                                                           </p>
-                                                        )}
+                                                          {mapping.type === 'attribute' && (
+                                                            <p className="text-[9px] opacity-95 truncate font-medium">
+                                                              {mapping.isRequired ? 'Required' : 'Optional'}
+                                                            </p>
+                                                          )}
+                                                        </div>
                                                       </div>
                                                     </div>
+
+                                                    {/* Hover Tooltip with Full Details */}
+                                                    <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300 rounded-xl pointer-events-none"></div>
                                                   </div>
-
-                                                  {/* Hover Tooltip with Full Details */}
-                                                  <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300 rounded-xl pointer-events-none"></div>
-                                                </div>
-                                              );
-                                            })}
-                                          </div>
-
-                                          {/* Legend */}
-                                          <div className="mt-4 p-3.5 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 border border-blue-200 rounded-xl shadow-sm">
-                                            <div className="text-xs font-bold text-gray-800 mb-2.5 flex items-center gap-2">
-                                              <div className="w-5 h-5 rounded-md bg-blue-100 flex items-center justify-center">
-                                                <Info size={13} className="text-blue-600" />
-                                              </div>
-                                              Legend
+                                                );
+                                              })}
                                             </div>
-                                            <div className="flex flex-wrap gap-4">
-                                              <div className="flex items-center gap-2">
-                                                <div className="w-6 h-6 rounded-lg bg-white shadow-sm flex items-center justify-center">
-                                                  <ImageIcon size={15} className="text-blue-600" />
+
+                                            {/* Legend */}
+                                            <div className="mt-4 p-3.5 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 border border-blue-200 rounded-xl shadow-sm">
+                                              <div className="text-xs font-bold text-gray-800 mb-2.5 flex items-center gap-2">
+                                                <div className="w-5 h-5 rounded-md bg-blue-100 flex items-center justify-center">
+                                                  <Info size={13} className="text-blue-600" />
                                                 </div>
-                                                <span className="text-xs text-gray-700 font-medium">Attribute Images</span>
+                                                Legend
                                               </div>
-                                              <div className="flex items-center gap-2">
-                                                <div className="w-6 h-6 rounded-lg bg-white shadow-sm flex items-center justify-center">
-                                                  <AlertTriangle size={15} className="text-red-600" />
+                                              <div className="flex flex-wrap gap-4">
+                                                <div className="flex items-center gap-2">
+                                                  <div className="w-6 h-6 rounded-lg bg-white shadow-sm flex items-center justify-center">
+                                                    <ImageIcon size={15} className="text-blue-600" />
+                                                  </div>
+                                                  <span className="text-xs text-gray-700 font-medium">Attribute Images</span>
                                                 </div>
-                                                <span className="text-xs text-gray-700 font-medium">Required</span>
+                                                <div className="flex items-center gap-2">
+                                                  <div className="w-6 h-6 rounded-lg bg-white shadow-sm flex items-center justify-center">
+                                                    <AlertTriangle size={15} className="text-red-600" />
+                                                  </div>
+                                                  <span className="text-xs text-gray-700 font-medium">Required</span>
+                                                </div>
                                               </div>
                                             </div>
                                           </div>
-                                        </div>
-                                      )}
+                                        )}
 
-                                      {/* CDR File Information Message */}
-                                      {pdfFile && pdfFile.name.toLowerCase().endsWith('.cdr') && pdfPreviewPages.length === 0 && (
-                                        <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                                          <div className="flex items-start gap-2">
-                                            <Info size={16} className="text-blue-600 mt-0.5 flex-shrink-0" />
-                                            <div className="text-xs text-blue-900">
-                                              <p className="font-semibold mb-1">CDR File Uploaded Successfully</p>
-                                              <p>Your CorelDRAW file will be processed on the server. Page previews are not available for CDR files, but your design will be processed according to the required page count ({requiredPageCount} page{requiredPageCount !== 1 ? 's' : ''}).</p>
+                                        {/* CDR File Information Message */}
+                                        {pdfFile && pdfFile.name.toLowerCase().endsWith('.cdr') && pdfPreviewPages.length === 0 && (
+                                          <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                                            <div className="flex items-start gap-2">
+                                              <Info size={16} className="text-blue-600 mt-0.5 flex-shrink-0" />
+                                              <div className="text-xs text-blue-900">
+                                                <p className="font-semibold mb-1">CDR File Uploaded Successfully</p>
+                                                <p>Your CorelDRAW file will be processed on the server. Page previews are not available for CDR files, but your design will be processed according to the required page count ({requiredPageCount} page{requiredPageCount !== 1 ? 's' : ''}).</p>
+                                              </div>
                                             </div>
                                           </div>
-                                        </div>
-                                      )}
-                                    </div>
-                                  </>
+                                        )}
+                                      </div>
+                                    </>
                                   )}
 
-                                {/* Validation Error */}
-                                {pdfValidationError && (
-                                  <div className="mt-4 p-4 bg-red-50 border-2 border-red-200 rounded-xl">
-                                    <div className="flex items-start gap-2">
-                                      <AlertCircle className="text-red-600 flex-shrink-0 mt-0.5" size={18} />
-                                      <div>
-                                        <p className="text-sm font-semibold text-red-900 mb-1">Upload Error</p>
-                                        <p className="text-sm text-red-700">{pdfValidationError}</p>
+                                  {/* Validation Error */}
+                                  {pdfValidationError && (
+                                    <div className="mt-4 p-4 bg-red-50 border-2 border-red-200 rounded-xl">
+                                      <div className="flex items-start gap-2">
+                                        <AlertCircle className="text-red-600 flex-shrink-0 mt-0.5" size={18} />
+                                        <div>
+                                          <p className="text-sm font-semibold text-red-900 mb-1">Upload Error</p>
+                                          <p className="text-sm text-red-700">{pdfValidationError}</p>
+                                        </div>
                                       </div>
                                     </div>
-                                  </div>
-                                )}
+                                  )}
 
-                                {/* Additional Notes Section */}
-                                <div className="mt-4 p-4 rounded-lg border-2 border-gray-200 bg-gray-50">
-                                  <div className="flex items-center gap-2 mb-3">
-                                    <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-purple-100 text-purple-700 text-xs font-bold">
-                                      <Info size={12} />
-                                    </span>
-                                    <h4 className="text-sm font-bold text-gray-900">
-                                      Additional Notes
-                                    </h4>
-                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-200 text-gray-600 text-[10px] font-semibold">
-                                      Optional
-                                    </span>
+                                  {/* Additional Notes Section */}
+                                  <div className="mt-4 p-4 rounded-lg border-2 border-gray-200 bg-gray-50">
+                                    <div className="flex items-center gap-2 mb-3">
+                                      <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-purple-100 text-purple-700 text-xs font-bold">
+                                        <Info size={12} />
+                                      </span>
+                                      <h4 className="text-sm font-bold text-gray-900">
+                                        Additional Notes
+                                      </h4>
+                                      <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-200 text-gray-600 text-[10px] font-semibold">
+                                        Optional
+                                      </span>
+                                    </div>
+                                    <textarea
+                                      value={orderNotes}
+                                      onChange={(e) => setOrderNotes(e.target.value)}
+                                      placeholder="Any special instructions or notes for your order..."
+                                      className="w-full p-3 rounded-lg border-2 border-gray-200 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none text-sm resize-none bg-white transition-all"
+                                      rows={3}
+                                    />
                                   </div>
-                                  <textarea
-                                    value={orderNotes}
-                                    onChange={(e) => setOrderNotes(e.target.value)}
-                                    placeholder="Any special instructions or notes for your order..."
-                                    className="w-full p-3 rounded-lg border-2 border-gray-200 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none text-sm resize-none bg-white transition-all"
-                                    rows={3}
-                                  />
                                 </div>
                               </div>
-                            </div>
-                          );
-                        }
-                        return null;
-                      })()}
+                            );
+                          }
+                          return null;
+                        })()}
 
 
                       </div>

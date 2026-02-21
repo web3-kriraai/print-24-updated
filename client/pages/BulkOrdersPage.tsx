@@ -3,25 +3,75 @@ import { motion } from 'framer-motion';
 import {
     Package, Calendar, Clock, CheckCircle, AlertCircle,
     XCircle, Loader, FileText, Eye, ChevronRight,
-    Filter, Search, Plus, Upload, Layers
+    Filter, Search, Plus, Upload, Layers, ShieldOff
 } from 'lucide-react';
 import { useBulkOrders } from '../hooks/useBulkOrder';
 import { useNavigate } from 'react-router-dom';
+import { API_BASE_URL_WITH_API } from '../lib/apiConfig';
 
 const BulkOrdersPage: React.FC = () => {
     const navigate = useNavigate();
     const [statusFilter, setStatusFilter] = useState<string>('');
     const [searchQuery, setSearchQuery] = useState<string>('');
+    const [featureAllowed, setFeatureAllowed] = useState<boolean | null>(null); // null = loading
 
     const { bulkOrders, loading, error, refetch } = useBulkOrders({
         status: statusFilter || undefined,
     });
 
-    // Auth check
+    // Auth + feature gate check
     React.useEffect(() => {
         const token = localStorage.getItem('token');
-        if (!token) navigate('/login');
+        if (!token) {
+            navigate('/login');
+            return;
+        }
+
+        // Check if user's segment has bulk_order_upload feature enabled
+        fetch(`${API_BASE_URL_WITH_API}/user/check-feature?feature=bulk_order_upload`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        })
+            .then(res => res.json())
+            .then(data => {
+                setFeatureAllowed(data.hasFeature === true);
+            })
+            .catch(() => {
+                // On error, deny access to be safe
+                setFeatureAllowed(false);
+            });
     }, [navigate]);
+
+    // Show loading while checking feature access
+    if (featureAllowed === null) {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
+                <Loader className="w-10 h-10 text-blue-600 animate-spin" />
+            </div>
+        );
+    }
+
+    // Show access denied if feature is disabled for this segment
+    if (!featureAllowed) {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-4">
+                <div className="bg-white rounded-2xl shadow-xl p-10 max-w-md w-full text-center">
+                    <ShieldOff className="w-16 h-16 text-red-400 mx-auto mb-4" />
+                    <h2 className="text-2xl font-bold text-gray-900 mb-2">Access Restricted</h2>
+                    <p className="text-gray-600 mb-6">
+                        Bulk order uploads are not available for your account type.
+                        Please contact your account manager to request access.
+                    </p>
+                    <button
+                        onClick={() => navigate('/')}
+                        className="px-6 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors"
+                    >
+                        Go to Home
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
 
     // Filter by search query
     const filteredOrders = searchQuery

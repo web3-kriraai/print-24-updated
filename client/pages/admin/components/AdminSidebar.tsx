@@ -92,9 +92,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ activeTab, onTabChange, isO
             label: 'Features',
             icon: <Shield size={20} />, // Make sure Shield is imported
             subItems: [
-                { id: 'features_list', label: 'Features List' },
                 { id: 'segment_features', label: 'Segment Features' },
-                { id: 'user_overrides', label: 'User Overrides' },
             ],
         },
         {

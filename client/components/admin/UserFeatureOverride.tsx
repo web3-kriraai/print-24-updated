@@ -536,8 +536,8 @@ const UserFeatureOverride: React.FC = () => {
                                                     <button
                                                         onClick={() => openOverrideModal(feature)}
                                                         className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${feature.isOverride
-                                                                ? 'bg-purple-100 text-purple-700 hover:bg-purple-200'
-                                                                : 'bg-gray-100 text-gray-500 hover:bg-purple-600 hover:text-white'
+                                                            ? 'bg-purple-100 text-purple-700 hover:bg-purple-200'
+                                                            : 'bg-gray-100 text-gray-500 hover:bg-purple-600 hover:text-white'
                                                             }`}
                                                     >
                                                         {feature.isOverride ? 'Config' : 'Override'}
@@ -715,7 +715,7 @@ const UserFeatureOverride: React.FC = () => {
                                                     onClick={() => setIsAdvancedMode(!isAdvancedMode)}
                                                     className="text-xs font-bold text-blue-600 hover:text-blue-800 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100 transition-all"
                                                 >
-                                                    {isAdvancedMode ? 'Switch to Smart UI' : 'Switch to Advanced (JSON)'}
+                                                    Switch to Smart UI'
                                                 </button>
                                             )}
                                             <button
@@ -728,47 +728,21 @@ const UserFeatureOverride: React.FC = () => {
                                     </div>
 
                                     <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
-                                        {overrideModal.feature?.configSchema?.fields ? (
-                                            isAdvancedMode ? (
-                                                <div className="p-4 bg-blue-50 border border-blue-100 rounded-xl flex gap-3 text-sm text-blue-900">
-                                                    <Info className="flex-shrink-0 text-blue-600" size={18} />
-                                                    <p>You are in advanced mode. Edit the raw JSON configuration directly. Switch to Smart UI for a guided experience.</p>
-                                                </div>
-                                            ) : (
-                                                <div className="p-4 bg-blue-50 border border-blue-100 rounded-xl flex gap-3 text-sm text-blue-900">
-                                                    <Info className="flex-shrink-0 text-blue-600" size={18} />
-                                                    <p>You are in Smart UI mode. Use the form fields below to configure this feature. Switch to Advanced (JSON) for direct JSON editing.</p>
-                                                </div>
-                                            )
-                                        ) : (
-                                            <div className="p-4 bg-amber-50 border border-amber-100 rounded-xl flex gap-3 text-sm text-amber-900">
-                                                <Info className="flex-shrink-0 text-amber-600" size={18} />
-                                                <p>This feature does not have a defined configuration schema. You can only edit its raw JSON configuration in advanced mode.</p>
-                                            </div>
-                                        )}
-
-                                        <div className="p-4 bg-amber-50 border border-amber-100 rounded-xl flex gap-3 text-sm text-amber-900">
-                                            <Info className="flex-shrink-0 text-amber-600" size={18} />
-                                            <p>User-level overrides take precedence over segment-level features. Use this for specific user customizations.</p>
-                                        </div>
-
                                         <div className="grid grid-cols-2 gap-4">
                                             <div className="flex flex-col gap-1">
                                                 <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Override Status</label>
                                                 <div className="flex gap-2">
                                                     <button
                                                         onClick={() => setOverrideForm(prev => ({ ...prev, isEnabled: true }))}
-                                                        className={`flex-1 py-2 rounded-lg border font-bold text-sm transition-all ${
-                                                            overrideForm.isEnabled ? 'bg-green-50 border-green-200 text-green-700' : 'bg-gray-50 border-gray-100 text-gray-400'
-                                                        }`}
+                                                        className={`flex-1 py-2 rounded-lg border font-bold text-sm transition-all ${overrideForm.isEnabled ? 'bg-green-50 border-green-200 text-green-700' : 'bg-gray-50 border-gray-100 text-gray-400'
+                                                            }`}
                                                     >
                                                         ENABLED
                                                     </button>
                                                     <button
                                                         onClick={() => setOverrideForm(prev => ({ ...prev, isEnabled: false }))}
-                                                        className={`flex-1 py-2 rounded-lg border font-bold text-sm transition-all ${
-                                                            !overrideForm.isEnabled ? 'bg-red-50 border-red-200 text-red-700' : 'bg-gray-50 border-gray-100 text-gray-400'
-                                                        }`}
+                                                        className={`flex-1 py-2 rounded-lg border font-bold text-sm transition-all ${!overrideForm.isEnabled ? 'bg-red-50 border-red-200 text-red-700' : 'bg-gray-50 border-gray-100 text-gray-400'
+                                                            }`}
                                                     >
                                                         DISABLED
                                                     </button>

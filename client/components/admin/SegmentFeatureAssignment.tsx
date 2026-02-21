@@ -473,19 +473,9 @@ const SegmentFeatureAssignment: React.FC = () => {
                                 <Settings className="text-blue-600" />
                                 Configure: {configModalFeature.name}
                             </h2>
-                            <div className="flex items-center gap-4">
-                                {configModalFeature.configSchema?.fields && (
-                                    <button 
-                                        onClick={() => setIsAdvancedMode(!isAdvancedMode)}
-                                        className="text-xs font-bold text-blue-600 hover:text-blue-800 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100 transition-all"
-                                    >
-                                        {isAdvancedMode ? 'Switch to Smart UI' : 'Switch to Advanced (JSON)'}
-                                    </button>
-                                )}
                                 <button onClick={() => setConfigModalFeature(null)} className="text-gray-400 hover:text-gray-600 transition-colors">
                                     <XCircle size={24} />
                                 </button>
-                            </div>
                         </div>
 
                         <div className="p-6">
@@ -493,37 +483,22 @@ const SegmentFeatureAssignment: React.FC = () => {
                                 <Info className="text-blue-600 flex-shrink-0" size={20} />
                                 <div className="text-sm text-blue-900">
                                     <p className="font-bold mb-1">
-                                        {isAdvancedMode ? 'Advanced JSON Configuration' : 'Feature Configuration'}
+                                    Feature Configuration
                                     </p>
                                     <p className="opacity-80">
-                                        {isAdvancedMode 
-                                            ? 'Define custom limits, feature flags, or integration settings for this specific segment.'
-                                            : 'Easily manage specific settings for this feature using the form below.'
-                                        }
+                                      
+                                        Easily manage specific settings for this feature using the form below.
+                                    
                                     </p>
                                 </div>
                             </div>
 
                             <div className="mb-6 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
-                                {isAdvancedMode ? (
-                                    <>
-                                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
-                                            Feature JSON Data
-                                        </label>
-                                        <textarea
-                                            value={configText}
-                                            onChange={(e) => setConfigText(e.target.value)}
-                                            className="w-full border border-gray-200 rounded-xl px-4 py-3 font-mono text-sm h-64 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
-                                            placeholder='{"key": "value"}'
-                                        />
-                                    </>
-                                ) : (
                                     <FeatureConfigForm 
                                         schema={configModalFeature.configSchema}
                                         currentConfig={JSON.parse(configText || '{}')}
                                         onChange={handleFormConfigChange}
                                     />
-                                )}
                             </div>
 
                             <div className="flex gap-3 justify-end pt-4 border-t border-gray-100">

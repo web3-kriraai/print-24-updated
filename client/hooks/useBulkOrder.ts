@@ -5,8 +5,10 @@ const DEFAULT_BULK_MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10MB fallback
 
 /**
  * Hook to check if user has bulk order upload permission.
- * Reads the `bulk_upload` feature from the user's segment configuration.
- * Admin sets maxFileSizeMB on the segment's features in the admin panel.
+ * Uses the dedicated /api/user/check-feature endpoint which correctly
+ * checks user-level overrides first, then falls back to segment features.
+ *
+ * Feature key: 'bulk_order_upload'
  *
  * @returns {{hasPermission: boolean, config: object|null, loading: boolean, error: string|null}}
  */
@@ -32,56 +34,40 @@ export const useBulkOrderPermission = () => {
                 return;
             }
 
-            // Fetch user context which includes segment features
-            const response = await axios.get('/api/user/context', {
+            // Use the dedicated check-feature endpoint which properly respects
+            // both user-level overrides AND segment-level features
+            const response = await axios.get('/api/user/check-feature', {
+                params: { feature: 'bulk_order_upload' },
                 headers: { Authorization: `Bearer ${token}` },
             });
 
-            if (response.data?.success) {
-                const segmentFeatures: any[] = response.data.segment?.features || [];
+            const isEnabled = response.data?.hasFeature === true;
+            const featureConfig = response.data?.config || {};
 
-                // Find the bulk_upload feature for this segment
-                const bulkFeature = segmentFeatures.find(
-                    (f: any) => f.featureKey === 'bulk_upload'
-                );
+            // Parse configuration with fallbacks based on seed schema
+            const maxFileSizeMB = featureConfig.maxFileSizeMB || 10;
+            const maxFileSizeBytes = maxFileSizeMB * 1024 * 1024;
+            const minDesigns = featureConfig.minDesigns || 1;
+            const maxDesigns = featureConfig.maxDesigns || 50;
 
-                const isEnabled = bulkFeature ? bulkFeature.isEnabled : true; // default: allow
-                const featureConfig = bulkFeature?.config || {};
-
-                // maxFileSizeMB set by admin, fallback to 10MB (Cloudinary free limit)
-                const maxFileSizeMB = featureConfig.maxFileSizeMB || 10;
-                const maxFileSizeBytes = maxFileSizeMB * 1024 * 1024;
-
-                setHasPermission(isEnabled);
+            setHasPermission(isEnabled);
+            if (isEnabled) {
                 setConfig({
-                    maxDesigns: featureConfig.maxDesigns || 50,
+                    minDesigns,
+                    maxDesigns,
                     maxFileSizeMB,
-                    maxFileSize: maxFileSizeBytes, // in bytes for direct comparison
-                    maxTotalCopies: featureConfig.maxTotalCopies || 100000,
-                    // Pass through any other admin-defined config
+                    maxFileSize: maxFileSizeBytes,
                     ...featureConfig,
                 });
             } else {
-                // API failed gracefully — allow but with default limits
-                setHasPermission(true);
-                setConfig({
-                    maxDesigns: 50,
-                    maxFileSizeMB: 10,
-                    maxFileSize: DEFAULT_BULK_MAX_FILE_SIZE_BYTES,
-                    maxTotalCopies: 100000,
-                });
+                setConfig(null);
             }
         } catch (err: any) {
             console.error('Error checking bulk order permission:', err);
             setError(err.message || 'Failed to check permissions');
-            // On error, still allow with default limits
-            setHasPermission(true);
-            setConfig({
-                maxDesigns: 50,
-                maxFileSizeMB: 10,
-                maxFileSize: DEFAULT_BULK_MAX_FILE_SIZE_BYTES,
-                maxTotalCopies: 100000,
-            });
+            // Fail closed on error — do NOT grant access
+            setHasPermission(false);
+            setConfig(null);
         } finally {
             setLoading(false);
         }

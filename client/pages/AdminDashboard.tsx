@@ -73,9 +73,8 @@ import SegmentApplicationManager from "../components/admin/pricing/SegmentApplic
 import FormBuilder from "../components/admin/pricing/FormBuilder";
 import PricingDashboard from "./admin/PricingDashboard";
 import AdminComplaintManagement from "./admin/AdminComplaintManagement";
-import FeatureListViewer from "../components/admin/FeatureListViewer";
+
 import SegmentFeatureAssignment from "../components/admin/SegmentFeatureAssignment";
-import UserFeatureOverride from "../components/admin/UserFeatureOverride";
 import AdminBulkOrdersView from "./admin/components/AdminBulkOrdersView";
 
 // Simple placeholder image as data URI (1x1 transparent pixel)
@@ -8392,20 +8391,12 @@ const AdminDashboard: React.FC = () => {
           <AdminComplaintManagement />
         )}
 
-        {/* Feature Management */}
-        {activeTab === "features_list" && (
-          <FeatureListViewer />
-        )}
 
         {/* Segment Feature Assignment */}
         {activeTab === "segment_features" && (
           <SegmentFeatureAssignment />
         )}
 
-        {/* User Feature Overrides */}
-        {activeTab === "user_overrides" && (
-          <UserFeatureOverride />
-        )}
 
         {/* Create Employee Modal (for Department Section) */}
         <AnimatePresence>

@@ -34,26 +34,28 @@ const featuresToSeed = [
         configSchema: {
             fields: [
                 {
-                    fieldId: 'allowPdfUpload',
-                    label: 'Allow PDF Upload',
-                    fieldType: 'checkbox',
-                    defaultValue: true,
-                    helpText: 'If enabled, users can upload PDF files for bulk orders.'
+                    fieldId: 'minDesigns',
+                    label: 'Minimum Designs (Quantity)',
+                    fieldType: 'number',
+                    defaultValue: 1,
+                    validation: { min: 1 },
+                    helpText: 'The minimum number of distinct designs required to place a bulk order.'
                 },
                 {
-                    fieldId: 'maxOrderItems',
-                    label: 'Maximum Items per Order',
+                    fieldId: 'maxDesigns',
+                    label: 'Maximum Designs (Quantity)',
                     fieldType: 'number',
                     defaultValue: 50,
-                    validation: { min: 1, max: 1000 },
-                    helpText: 'Set the maximum number of items a user can include in a single bulk order.'
+                    validation: { min: 1, max: 200 },
+                    helpText: 'The maximum number of distinct designs allowed in a single bulk PDF upload.'
                 },
                 {
-                    fieldId: 'requireApproval',
-                    label: 'Require Admin Approval',
-                    fieldType: 'checkbox',
-                    defaultValue: false,
-                    helpText: 'If enabled, bulk orders will need manual approval before processing.'
+                    fieldId: 'maxFileSizeMB',
+                    label: 'Maximum File Size (MB)',
+                    fieldType: 'number',
+                    defaultValue: 10,
+                    validation: { min: 1, max: 50 },
+                    helpText: 'The maximum allowed file size for the composite bulk PDF.'
                 }
             ]
         }
