@@ -17,6 +17,7 @@ const FeatureSchema = new mongoose.Schema({
     isActive: { type: Boolean, default: true },
     isBeta: { type: Boolean, default: false },
     isPremium: { type: Boolean, default: false },
+    configSchema: { type: mongoose.Schema.Types.Mixed, default: {} },
     sortOrder: { type: Number, default: 0 }
 }, { timestamps: true });
 
@@ -24,12 +25,38 @@ const Feature = mongoose.model('Feature', FeatureSchema);
 
 const featuresToSeed = [
     {
-        key: 'bulk_order',
+        key: 'bulk_order_upload',
         name: 'Bulk Order Management',
         description: 'Enables multi-product bulk ordering via CSV/PDF upload and wizard.',
         category: 'ORDERS',
         isActive: true,
-        sortOrder: 10
+        sortOrder: 10,
+        configSchema: {
+            fields: [
+                {
+                    fieldId: 'allowPdfUpload',
+                    label: 'Allow PDF Upload',
+                    fieldType: 'checkbox',
+                    defaultValue: true,
+                    helpText: 'If enabled, users can upload PDF files for bulk orders.'
+                },
+                {
+                    fieldId: 'maxOrderItems',
+                    label: 'Maximum Items per Order',
+                    fieldType: 'number',
+                    defaultValue: 50,
+                    validation: { min: 1, max: 1000 },
+                    helpText: 'Set the maximum number of items a user can include in a single bulk order.'
+                },
+                {
+                    fieldId: 'requireApproval',
+                    label: 'Require Admin Approval',
+                    fieldType: 'checkbox',
+                    defaultValue: false,
+                    helpText: 'If enabled, bulk orders will need manual approval before processing.'
+                }
+            ]
+        }
     },
     {
         key: 'bulk_feature_mgmt',

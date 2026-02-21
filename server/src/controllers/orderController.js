@@ -6,9 +6,11 @@ import sharp from "sharp";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { uploadBufferToCloudinary, uploadPdfToCloudinary, MAX_PDF_SIZE_BYTES } from "../utils/cloudinaryUploadHelper.js";
+import UserContextService from "../services/UserContextService.js";
 // Email service temporarily disabled - uncomment when email configuration is ready
 // import { sendAccountCreationEmail, sendOrderConfirmationEmail } from "../utils/emailService.js";
 import PricingService from "../services/pricing/PricingService.js";
+import bulkOrderService from "../services/bulkOrderService.js"; // Create child orders synchronously
 
 // Create a new order
 export const createOrder = async (req, res) => {
@@ -26,7 +28,14 @@ export const createOrder = async (req, res) => {
       mobileNumber,
       uploadedDesign,
       notes,
+      isBulkOrder,
+      numberOfDesigns,
     } = req.body;
+
+    console.log('📬 [OrderController:createOrder] Incoming uploadedDesign keys:', uploadedDesign ? Object.keys(uploadedDesign) : 'null');
+    if (uploadedDesign?.pdfFile) {
+      console.log('📬 [OrderController:createOrder] pdfFile present, data length:', uploadedDesign.pdfFile.data ? uploadedDesign.pdfFile.data.length : 'MISSING');
+    }
 
     // Validate required fields
     const missingFields = [];
@@ -49,7 +58,7 @@ export const createOrder = async (req, res) => {
     const orderShape = shape || 'Standard';
 
     // Verify product exists
-    const product = await Product.findById(productId);
+    const product = await Product.findById(productId).populate("category");
     if (!product) {
       return res.status(404).json({ error: "Product not found" });
     }
@@ -57,7 +66,10 @@ export const createOrder = async (req, res) => {
     // Generate unique order number first (needed for Cloudinary folder structure)
     const timestamp = Date.now();
     const random = Math.floor(Math.random() * 10000);
-    const orderNumber = `ORD-${timestamp}-${String(random).padStart(4, "0")}`;
+    let orderNumber = `ORD-${timestamp}-${String(random).padStart(4, "0")}`;
+    if (isBulkOrder === true || isBulkOrder === "true") {
+      orderNumber = `PARENT-${orderNumber}`;
+    }
     const cloudinaryFolder = `orders/${orderNumber}`;
 
     // Process uploaded design - convert to CMYK and upload to Cloudinary
@@ -170,11 +182,18 @@ export const createOrder = async (req, res) => {
         try {
           const pdfBase64 = uploadedDesign.pdfFile.data;
 
-          // Validate PDF size
+          // Validate PDF size dynamically based on user segment
+          const userContext = await UserContextService.buildContextFromRequest(req);
+          const bulkFeature = userContext.userSegment?.features?.find(f => f.featureKey === 'bulk_upload');
+          
+          // Use segment-specific limit (maxFileSizeMB), fallback to global MAX_PDF_SIZE_BYTES
+          const maxFileSizeMB = bulkFeature?.config?.maxFileSizeMB;
+          const currentLimitBytes = maxFileSizeMB ? (maxFileSizeMB * 1024 * 1024) : MAX_PDF_SIZE_BYTES;
+
           const pdfSizeBytes = Buffer.from(pdfBase64, 'base64').length;
-          if (pdfSizeBytes > MAX_PDF_SIZE_BYTES) {
+          if (pdfSizeBytes > currentLimitBytes) {
             return res.status(400).json({
-              error: `PDF file is too large. Maximum size is ${MAX_PDF_SIZE_BYTES / (1024 * 1024)}MB.`
+              error: `PDF file is too large. Maximum size allowed for your account is ${currentLimitBytes / (1024 * 1024)}MB.`
             });
           }
 
@@ -194,9 +213,13 @@ export const createOrder = async (req, res) => {
             pageMapping: uploadedDesign.pdfFile.pageMapping || [],
           };
         } catch (err) {
-          console.error("Error uploading PDF to Cloudinary:", err);
-          // PDF is supplementary, log error but continue
-          console.warn("Skipping PDF upload due to error:", err.message);
+          console.error("❌ [OrderController] Error uploading PDF to Cloudinary:", err);
+          // For bulk orders, log warning but still proceed — child orders will be created without PDF URL
+          // User can upgrade their Cloudinary plan to support larger files
+          console.warn(`⚠️ [OrderController] PDF upload failed (${err.message}). Order will be created without PDF URL.`);
+          if (!(isBulkOrder === true || isBulkOrder === "true")) {
+            console.warn("⚠️ Skipping PDF upload for regular order due to error:", err.message);
+          }
         }
       }
     } else {
@@ -438,7 +461,9 @@ export const createOrder = async (req, res) => {
       user: userId,
       orderNumber: orderNumber, // Set orderNumber explicitly
       product: productId,
-      quantity: parseInt(quantity),
+      quantity: (isBulkOrder === true || isBulkOrder === "true") 
+        ? (parseInt(req.body.perDesignQuantity) || parseInt(quantity)) * (parseInt(numberOfDesigns) || 1) 
+        : parseInt(quantity),
       finish: orderFinish,
       shape: orderShape,
       selectedOptions: enhancedSelectedOptions,
@@ -460,41 +485,53 @@ export const createOrder = async (req, res) => {
       paperQuality: req.body.paperQuality || null,
       laminationType: req.body.laminationType || null,
       specialEffects: req.body.specialEffects || [],
+      // Bulk order fields
+      isBulkParent: isBulkOrder === true || isBulkOrder === "true",
+      distinctDesigns: isBulkOrder ? parseInt(numberOfDesigns) || 1 : 1,
     };
 
     // --- PRICING INTEGRATION START ---
+    // PricingService runs for AUDIT / SNAPSHOT only — the client-provided totalPrice
+    // is the price already shown and agreed upon by the user on the product page.
+    // The checkout delivery pincode is for address/delivery purposes only and must NOT
+    // silently change the price the user was shown.
     try {
-      console.log("Calculating price via PricingService for Order...");
+      console.log("Calculating price snapshot via PricingService (audit only)...");
       const pricingSnapshotResult = await PricingService.createPriceSnapshot({
         userId: userId,
         productId: productId,
         pincode: pincode,
-        selectedDynamicAttributes: processedDynamicAttributes, // Use processed attributes
+        selectedDynamicAttributes: processedDynamicAttributes,
         quantity: parseInt(quantity),
       });
 
       const snapshot = pricingSnapshotResult.priceSnapshot;
-      const fullResult = pricingSnapshotResult.fullPricingResult;
 
-      // Overwrite totalPrice with calculated value for integrity
-      orderData.totalPrice = snapshot.totalPayable;
-      orderData.priceSnapshot = snapshot;
+      // Store snapshot for audit/records, but DO NOT override totalPrice.
+      // Scale snapshot for bulk visibility (informational only).
+      if (orderData.isBulkParent) {
+        const designs = orderData.distinctDesigns || 1;
+        console.log(`📦 Bulk order snapshot (${designs} designs) — price locked to client value: ${totalPrice}`);
+        orderData.priceSnapshot = {
+          ...snapshot,
+          subtotal: snapshot.subtotal * designs,
+          gstAmount: snapshot.gstAmount * designs,
+          totalPayable: snapshot.totalPayable * designs
+        };
+      } else {
+        orderData.priceSnapshot = snapshot;
+      }
 
-      console.log(`Price calculated: ${snapshot.totalPayable} (Requested: ${totalPrice})`);
-
-      // Validate if requested price matches calculated price (Optional: allow small variance)
-      if (Math.abs(snapshot.totalPayable - parseFloat(totalPrice)) > 1.0) {
-        console.warn(`WARNING: Price mismatch! Client: ${totalPrice}, Server: ${snapshot.totalPayable}`);
-        // check if we should block or just log
+      // Keep client-provided totalPrice — do NOT override it
+      const serverPrice = orderData.isBulkParent
+        ? snapshot.totalPayable * (orderData.distinctDesigns || 1)
+        : snapshot.totalPayable;
+      console.log(`Price audit: Client=${totalPrice}, Server-calculated=${serverPrice}`);
+      if (Math.abs(serverPrice - parseFloat(totalPrice)) > 1.0) {
+        console.warn(`⚠️ Price audit mismatch (client price kept): Client=${totalPrice}, Server=${serverPrice}`);
       }
     } catch (pricingError) {
       console.error("PricingService calculation failed:", pricingError);
-      // Fallback: Proceed with client-provided price but log error? 
-      // Or fail order creation? 
-      // For now, let's log and proceed, but NOT set priceSnapshot (legacy behavior)
-      // ideally we should fail if pricing is critical.
-      // re-throwing for now to ensure data integrity
-      // throw new Error(`Pricing calculation failed: ${pricingError.message}`);
       console.warn("Proceeding with client-provided price due to calculation error.");
     }
     // --- PRICING INTEGRATION END ---
@@ -548,6 +585,31 @@ export const createOrder = async (req, res) => {
       path: "departmentStatuses.department",
       select: "name sequence",
     });
+
+    // === SYNCHRONOUS CHILD ORDER CREATION FOR BULK ORDERS ===
+    let childOrders = [];
+    if (isBulkOrder === true || isBulkOrder === "true") {
+      try {
+        console.log(`🧩 [OrderController] Creating child orders for bulk parent: ${order.orderNumber}`);
+        childOrders = await bulkOrderService.createChildOrders(order);
+        console.log(`✅ [OrderController] ${childOrders.length} child orders created.`);
+        // Re-fetch the parent to include childOrders array
+        const updatedParent = await Order.findById(order._id).populate('product', 'name image').populate('user', 'name email');
+        return res.status(201).json({
+          message: "Bulk order created successfully with child orders",
+          order: updatedParent,
+          childOrders,
+        });
+      } catch (childErr) {
+        console.error(`❌ [OrderController] Failed to create child orders:`, childErr);
+        // Parent order was saved, so still return success but warn about children
+        return res.status(201).json({
+          message: "Parent order created, but child order creation failed",
+          order,
+          error: childErr.message,
+        });
+      }
+    }
 
     res.status(201).json({
       message: "Order created successfully",
@@ -621,6 +683,8 @@ export const createOrderWithAccount = async (req, res) => {
       paperQuality,
       laminationType,
       specialEffects,
+      isBulkOrder,
+      numberOfDesigns,
     } = req.body;
 
     // Validate required fields
@@ -666,7 +730,7 @@ export const createOrderWithAccount = async (req, res) => {
     }
 
     // Verify product exists
-    const product = await Product.findById(productId);
+    const product = await Product.findById(productId).populate("category");
     if (!product) {
       return res.status(404).json({ error: "Product not found" });
     }
@@ -674,7 +738,10 @@ export const createOrderWithAccount = async (req, res) => {
     // Generate unique order number first (needed for Cloudinary folder structure)
     const timestamp = Date.now();
     const random = Math.floor(Math.random() * 10000);
-    const orderNumber = `ORD-${timestamp}-${String(random).padStart(4, "0")}`;
+    let orderNumber = `ORD-${timestamp}-${String(random).padStart(4, "0")}`;
+    if (isBulkOrder === true || isBulkOrder === "true") {
+      orderNumber = `PARENT-${orderNumber}`;
+    }
     const cloudinaryFolder = `orders/${orderNumber}`;
 
     // Process uploaded design - convert to CMYK and upload to Cloudinary
@@ -775,11 +842,18 @@ export const createOrderWithAccount = async (req, res) => {
         try {
           const pdfBase64 = uploadedDesign.pdfFile.data;
 
-          // Validate PDF size
+          // Validate PDF size dynamically based on user segment
+          const userContext = await UserContextService.buildContextFromRequest(req);
+          const bulkFeature = userContext.userSegment?.features?.find(f => f.featureKey === 'bulk_upload');
+          
+          // Use segment-specific limit (maxFileSizeMB), fallback to global MAX_PDF_SIZE_BYTES
+          const maxFileSizeMB = bulkFeature?.config?.maxFileSizeMB;
+          const currentLimitBytes = maxFileSizeMB ? (maxFileSizeMB * 1024 * 1024) : MAX_PDF_SIZE_BYTES;
+
           const pdfSizeBytes = Buffer.from(pdfBase64, 'base64').length;
-          if (pdfSizeBytes > MAX_PDF_SIZE_BYTES) {
+          if (pdfSizeBytes > currentLimitBytes) {
             return res.status(400).json({
-              error: `PDF file is too large. Maximum size is ${MAX_PDF_SIZE_BYTES / (1024 * 1024)}MB.`
+              error: `PDF file is too large. Maximum size allowed for your account is ${currentLimitBytes / (1024 * 1024)}MB.`
             });
           }
 
@@ -799,8 +873,13 @@ export const createOrderWithAccount = async (req, res) => {
             pageMapping: uploadedDesign.pdfFile.pageMapping || [],
           };
         } catch (err) {
-          console.error("Error uploading PDF to Cloudinary:", err);
-          console.warn("Skipping PDF upload due to error:", err.message);
+          console.error("❌ [OrderController] Error uploading PDF to Cloudinary:", err);
+          // For bulk orders, log warning but still proceed — child orders will be created without PDF URL
+          // User can upgrade their Cloudinary plan to support larger files
+          console.warn(`⚠️ [OrderController] PDF upload failed (${err.message}). Order will be created without PDF URL.`);
+          if (!(isBulkOrder === true || isBulkOrder === "true")) {
+            console.warn("⚠️ Skipping PDF upload for regular order due to error:", err.message);
+          }
         }
       }
     } else {
@@ -963,7 +1042,9 @@ export const createOrderWithAccount = async (req, res) => {
       user: user._id,
       orderNumber: orderNumber,
       product: productId,
-      quantity: parseInt(quantity),
+      quantity: (isBulkOrder === true || isBulkOrder === "true") 
+        ? (parseInt(req.body.perDesignQuantity) || parseInt(quantity)) * (parseInt(numberOfDesigns) || 1) 
+        : parseInt(quantity),
       finish: orderFinish,
       shape: orderShape,
       selectedOptions: enhancedSelectedOptions,
@@ -983,6 +1064,9 @@ export const createOrderWithAccount = async (req, res) => {
       paperQuality: paperQuality || null,
       laminationType: laminationType || null,
       specialEffects: specialEffects || [],
+      // Bulk order fields
+      isBulkParent: isBulkOrder === true || isBulkOrder === "true",
+      distinctDesigns: isBulkOrder ? parseInt(numberOfDesigns) || 1 : 1,
     };
 
     // --- PRICING INTEGRATION START ---
@@ -998,11 +1082,24 @@ export const createOrderWithAccount = async (req, res) => {
 
       const snapshot = pricingSnapshotResult.priceSnapshot;
 
-      // Overwrite totalPrice with calculated value for integrity
-      orderData.totalPrice = snapshot.totalPayable;
-      orderData.priceSnapshot = snapshot;
+      // 🧮 Bulk Price Scaling (Guest): Multiply calculated single-design price by number of designs
+      if (orderData.isBulkParent) {
+        const designs = orderData.distinctDesigns || 1;
+        console.log(`📦 Scaling price for bulk order (GUEST, ${designs} designs)`);
+        
+        orderData.totalPrice = snapshot.totalPayable * designs;
+        orderData.priceSnapshot = {
+          ...snapshot,
+          subtotal: snapshot.subtotal * designs,
+          gstAmount: snapshot.gstAmount * designs,
+          totalPayable: snapshot.totalPayable * designs
+        };
+      } else {
+        orderData.totalPrice = snapshot.totalPayable;
+        orderData.priceSnapshot = snapshot;
+      }
 
-      console.log(`Price calculated: ${snapshot.totalPayable} (Requested: ${totalPrice})`);
+      console.log(`Price calculated: ${orderData.totalPrice} (Requested: ${totalPrice})`);
     } catch (pricingError) {
       console.error("PricingService calculation failed (WithAccount):", pricingError);
       console.warn("Proceeding with client-provided price due to calculation error.");
@@ -1053,7 +1150,39 @@ export const createOrderWithAccount = async (req, res) => {
       { expiresIn: "7d" }
     );
 
-    res.status(201).json({
+    // === SYNCHRONOUS CHILD ORDER CREATION FOR BULK ORDERS ===
+    const isBulkReq = req.body.isBulkOrder;
+    if (isBulkReq === true || isBulkReq === "true") {
+      try {
+        console.log(`🧩 [OrderController:withAcc] Creating child orders for: ${order.orderNumber}`);
+        const childOrders = await bulkOrderService.createChildOrders(order);
+        console.log(`✅ ${childOrders.length} child orders created.`);
+        const updatedParent = await Order.findById(order._id).populate('product', 'name image').populate('user', 'name email');
+        return res.status(201).json({
+          message: "Bulk order created successfully with child orders",
+          order: updatedParent,
+          childOrders,
+          user: { id: user._id, name: user.name, email: user.email, role: user.role },
+          token,
+          isNewUser,
+          tempPassword: isNewUser ? tempPassword : undefined,
+        });
+      } catch (childErr) {
+        console.error(`❌ Failed to create child orders:`, childErr);
+        return res.status(201).json({
+          message: "Parent order created, but child order creation failed",
+          order,
+          error: childErr.message,
+          user: { id: user._id, name: user.name, email: user.email, role: user.role },
+          token,
+          isNewUser,
+          tempPassword: isNewUser ? tempPassword : undefined,
+        });
+      }
+    }
+
+    // Non-bulk order response
+    return res.status(201).json({
       message: "Order created successfully",
       order,
       user: {
@@ -1064,8 +1193,9 @@ export const createOrderWithAccount = async (req, res) => {
       },
       token,
       isNewUser,
-      tempPassword: isNewUser ? tempPassword : undefined, // Only send temp password for new users
+      tempPassword: isNewUser ? tempPassword : undefined,
     });
+
   } catch (error) {
     console.error("Create order with account error:", error);
 
@@ -1155,6 +1285,15 @@ export const getSingleOrder = async (req, res) => {
       .populate({
         path: "productionTimeline.department",
         select: "name",
+      })
+      .populate({
+        // Populate child orders for bulk parent views
+        path: "childOrders",
+        select: "orderNumber quantity status paymentStatus designSequence uploadedDesign priceSnapshot totalPrice product createdAt isBulkChild",
+        populate: {
+          path: "product",
+          select: "name image"
+        }
       })
       .lean(); // Use lean() for faster queries - returns plain JavaScript objects
 

@@ -58,28 +58,52 @@ export const uploadPdfToCloudinary = async (base64Data, folder, filename) => {
             throw new Error("Empty PDF data provided");
         }
 
-        // Create data URL for Cloudinary upload
-        const dataUrl = `data:application/pdf;base64,${base64Data}`;
-
-        // Upload to Cloudinary with raw resource type for PDFs
-        const result = await cloudinary.uploader.upload(dataUrl, {
-            folder: folder,
-            resource_type: "raw", // Use 'raw' for non-image files like PDFs
-            public_id: filename.replace(/\.[^/.]+$/, ""), // Remove extension for public_id
-            overwrite: true,
-            format: "pdf",
-        });
-
-        return {
-            url: result.secure_url,
-            publicId: result.public_id,
-            filename: filename,
-        };
+        // Convert base64 to Buffer and use stream upload to avoid data URL size limits
+        const buffer = Buffer.from(base64Data, 'base64');
+        return await uploadPdfBufferToCloudinary(buffer, folder, filename);
     } catch (error) {
         console.error("Error uploading PDF to Cloudinary:", error);
         throw new Error(`Failed to upload PDF to Cloudinary: ${error.message}`);
     }
 };
+
+/**
+ * Upload a PDF Buffer directly to Cloudinary via upload_stream (no base64 overhead)
+ * This bypasses the 10MB base64 data URL limit on the free plan.
+ * @param {Buffer} buffer - PDF buffer
+ * @param {string} folder - Cloudinary folder path
+ * @param {string} filename - Original filename
+ * @returns {Promise<{url: string, publicId: string, filename: string}>}
+ */
+export const uploadPdfBufferToCloudinary = async (buffer, folder, filename) => {
+    return new Promise((resolve, reject) => {
+        const publicId = filename.replace(/\.[^/.]+$/, "");
+        const uploadStream = cloudinary.uploader.upload_stream(
+            {
+                folder,
+                resource_type: "raw",
+                public_id: publicId,
+                overwrite: true,
+                format: "pdf",
+            },
+            (error, result) => {
+                if (error) {
+                    console.error("Error uploading PDF buffer to Cloudinary:", error);
+                    reject(new Error(`Failed to upload PDF to Cloudinary: ${error.message}`));
+                } else {
+                    resolve({
+                        url: result.secure_url,
+                        publicId: result.public_id,
+                        filename,
+                    });
+                }
+            }
+        );
+        // Write buffer to stream
+        uploadStream.end(buffer);
+    });
+};
+
 
 /**
  * Upload a buffer (already processed image) to Cloudinary

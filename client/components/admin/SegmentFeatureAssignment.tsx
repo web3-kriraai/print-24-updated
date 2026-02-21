@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Settings, Save, Info, CheckCircle, XCircle, Trash2, CheckSquare, Square, MinusSquare } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
+import FeatureConfigForm from './FeatureConfigForm';
+
 interface Feature {
     _id: string;
     key: string;
@@ -13,6 +15,7 @@ interface Feature {
     assignedToSegment: boolean;
     isEnabledForSegment: boolean;
     segmentConfig: any;
+    configSchema?: any;
 }
 
 interface UserSegment {
@@ -37,6 +40,7 @@ const SegmentFeatureAssignment: React.FC = () => {
     // Config modal state
     const [configModalFeature, setConfigModalFeature] = useState<Feature | null>(null);
     const [configText, setConfigText] = useState('{}');
+    const [isAdvancedMode, setIsAdvancedMode] = useState(false);
 
     useEffect(() => {
         fetchSegments();
@@ -188,7 +192,14 @@ const SegmentFeatureAssignment: React.FC = () => {
 
     const openConfigModal = (feature: Feature) => {
         setConfigModalFeature(feature);
-        setConfigText(JSON.stringify(feature.segmentConfig || {}, null, 2));
+        const config = feature.segmentConfig || {};
+        setConfigText(JSON.stringify(config, null, 2));
+        // Default to form mode if schema exists, otherwise JSON
+        setIsAdvancedMode(!feature.configSchema || !feature.configSchema.fields);
+    };
+
+    const handleFormConfigChange = (newConfig: any) => {
+        setConfigText(JSON.stringify(newConfig, null, 2));
     };
 
     const saveFeatureConfig = async () => {
@@ -196,7 +207,14 @@ const SegmentFeatureAssignment: React.FC = () => {
         setSaving(true);
         try {
             const token = localStorage.getItem('token');
-            const config = JSON.parse(configText);
+            let config;
+            try {
+                config = JSON.parse(configText);
+            } catch (e) {
+                alert('Invalid JSON format');
+                setSaving(false);
+                return;
+            }
 
             const response = await fetch(`/api/admin/features/segments/${selectedSegment}`, {
                 method: 'POST',
@@ -220,7 +238,7 @@ const SegmentFeatureAssignment: React.FC = () => {
             }
         } catch (error) {
             console.error('Save config error:', error);
-            alert('Invalid JSON or save failed');
+            alert('Save failed');
         } finally {
             setSaving(false);
         }
@@ -455,33 +473,60 @@ const SegmentFeatureAssignment: React.FC = () => {
                                 <Settings className="text-blue-600" />
                                 Configure: {configModalFeature.name}
                             </h2>
-                            <button onClick={() => setConfigModalFeature(null)} className="text-gray-400 hover:text-gray-600 transition-colors">
-                                <XCircle size={24} />
-                            </button>
+                            <div className="flex items-center gap-4">
+                                {configModalFeature.configSchema?.fields && (
+                                    <button 
+                                        onClick={() => setIsAdvancedMode(!isAdvancedMode)}
+                                        className="text-xs font-bold text-blue-600 hover:text-blue-800 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100 transition-all"
+                                    >
+                                        {isAdvancedMode ? 'Switch to Smart UI' : 'Switch to Advanced (JSON)'}
+                                    </button>
+                                )}
+                                <button onClick={() => setConfigModalFeature(null)} className="text-gray-400 hover:text-gray-600 transition-colors">
+                                    <XCircle size={24} />
+                                </button>
+                            </div>
                         </div>
 
                         <div className="p-6">
                             <div className="mb-6 p-4 bg-blue-50 border border-blue-100 rounded-xl flex gap-3">
                                 <Info className="text-blue-600 flex-shrink-0" size={20} />
                                 <div className="text-sm text-blue-900">
-                                    <p className="font-bold mb-1">Advanced JSON Configuration</p>
-                                    <p className="opacity-80">Define custom limits, feature flags, or integration settings for this specific segment.</p>
+                                    <p className="font-bold mb-1">
+                                        {isAdvancedMode ? 'Advanced JSON Configuration' : 'Feature Configuration'}
+                                    </p>
+                                    <p className="opacity-80">
+                                        {isAdvancedMode 
+                                            ? 'Define custom limits, feature flags, or integration settings for this specific segment.'
+                                            : 'Easily manage specific settings for this feature using the form below.'
+                                        }
+                                    </p>
                                 </div>
                             </div>
 
-                            <div className="mb-6">
-                                <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
-                                    Feature JSON Data
-                                </label>
-                                <textarea
-                                    value={configText}
-                                    onChange={(e) => setConfigText(e.target.value)}
-                                    className="w-full border border-gray-200 rounded-xl px-4 py-3 font-mono text-sm h-64 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
-                                    placeholder='{"key": "value"}'
-                                />
+                            <div className="mb-6 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
+                                {isAdvancedMode ? (
+                                    <>
+                                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
+                                            Feature JSON Data
+                                        </label>
+                                        <textarea
+                                            value={configText}
+                                            onChange={(e) => setConfigText(e.target.value)}
+                                            className="w-full border border-gray-200 rounded-xl px-4 py-3 font-mono text-sm h-64 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
+                                            placeholder='{"key": "value"}'
+                                        />
+                                    </>
+                                ) : (
+                                    <FeatureConfigForm 
+                                        schema={configModalFeature.configSchema}
+                                        currentConfig={JSON.parse(configText || '{}')}
+                                        onChange={handleFormConfigChange}
+                                    />
+                                )}
                             </div>
 
-                            <div className="flex gap-3 justify-end">
+                            <div className="flex gap-3 justify-end pt-4 border-t border-gray-100">
                                 <button
                                     onClick={() => setConfigModalFeature(null)}
                                     className="px-6 py-2.5 text-gray-600 font-bold hover:bg-gray-100 rounded-xl transition-all"

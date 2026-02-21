@@ -44,7 +44,7 @@ import UserContextService from "../services/UserContextService.js";
  */
 export const getPriceQuote = async (req, res) => {
     try {
-        const { productId, pincode, selectedDynamicAttributes = [], quantity = 1, numberOfDesigns = 1 } = req.body;
+        const { productId, pincode, selectedDynamicAttributes = [], quantity = 1 } = req.body;
 
         // Validation
         if (!productId) {
@@ -65,8 +65,11 @@ export const getPriceQuote = async (req, res) => {
         // Use pincode from context (IP-detected if not explicitly provided)
         const resolvedPincode = pricingContext.pincode;
 
-        // Calculate total quantity for bulk orders (numberOfDesigns × quantity)
-        const totalQuantity = parseInt(quantity) * parseInt(numberOfDesigns);
+        // NOTE: Do NOT multiply quantity by numberOfDesigns here.
+        // The server calculates price for a single design (quantity per design).
+        // The frontend ProductPriceBox already multiplies subtotal × numberOfDesigns for the bulk total display.
+        // Multiplying here would change the pricing tier AND cause double-counting.
+        const resolvedQuantity = parseInt(quantity);
 
         // Resolve price
         const pricingResult = await PricingService.resolvePrice({
@@ -74,7 +77,7 @@ export const getPriceQuote = async (req, res) => {
             productId,
             pincode: resolvedPincode,
             selectedDynamicAttributes,
-            quantity: totalQuantity, // Use multiplied quantity for bulk orders
+            quantity: resolvedQuantity, // Price for a single design's quantity
             cacheResults: true,
         });
 

@@ -428,6 +428,43 @@ const OrderSchema = new mongoose.Schema(
     specialEffects: [{
       type: String, // e.g., "UV", "Embossed UV", "Texture", "Foiling", "Die-cut shape"
     }],
+    /* =====================
+       📦 BULK ORDER TRACKING
+    ====================== */
+    isBulkParent: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    isBulkChild: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    childOrders: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Order",
+      },
+    ],
+    bulkOrderRef: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "BulkOrder",
+      index: true,
+    },
+    distinctDesigns: {
+      type: Number,
+      default: 1,
+    },
+    designSequence: {
+      type: Number,
+      default: null,
+    },
+    parentOrderId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Order",
+      index: true,
+    },
   },
   { timestamps: true }
 );
@@ -440,6 +477,10 @@ OrderSchema.index({ "departmentStatuses.department": 1 }); // For getDepartmentO
 OrderSchema.index({ createdAt: -1 }); // For sorting by creation date
 OrderSchema.index({ status: 1, "departmentStatuses.department": 1 }); // Compound index for getDepartmentOrders
 OrderSchema.index({ currentDepartment: 1 }); // For tracking current department
+OrderSchema.index({ isBulkParent: 1 });
+OrderSchema.index({ isBulkChild: 1 });
+OrderSchema.index({ bulkOrderRef: 1 });
+OrderSchema.index({ parentOrderId: 1 });
 
 // Generate unique order number before saving (always generate if not provided)
 OrderSchema.pre("save", async function (next) {

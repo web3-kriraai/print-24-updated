@@ -18,7 +18,6 @@ const router = express.Router();
 router.post(
     "/upload",
     authMiddleware,
-    requireFeature("bulk_order_upload", { attachConfig: true }),
     uploadPDF.single("compositeFile"),
     bulkOrderController.uploadBulkOrder
 );
@@ -71,6 +70,16 @@ router.get(
     authMiddleware,
     adminAuth,
     bulkOrderController.getBulkOrderStats
+);
+
+/**
+ * List all bulk orders
+ */
+router.get(
+    "/admin/list",
+    authMiddleware,
+    adminAuth,
+    bulkOrderController.listAllBulkOrders
 );
 
 /**

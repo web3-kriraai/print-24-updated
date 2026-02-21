@@ -1,8 +1,13 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 
+const DEFAULT_BULK_MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10MB fallback
+
 /**
- * Hook to check if user has bulk order upload permission
+ * Hook to check if user has bulk order upload permission.
+ * Reads the `bulk_upload` feature from the user's segment configuration.
+ * Admin sets maxFileSizeMB on the segment's features in the admin panel.
+ *
  * @returns {{hasPermission: boolean, config: object|null, loading: boolean, error: string|null}}
  */
 export const useBulkOrderPermission = () => {
@@ -20,35 +25,63 @@ export const useBulkOrderPermission = () => {
             setLoading(true);
             setError(null);
 
-            // Get auth token
             const token = localStorage.getItem('token');
-
             if (!token) {
                 setHasPermission(false);
-                setLoading(false);
+                setConfig(null);
                 return;
             }
 
-            // Check feature permission
-            const response = await axios.get('/api/user/check-feature', {
-                params: { feature: 'bulk_order_upload' },
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                },
+            // Fetch user context which includes segment features
+            const response = await axios.get('/api/user/context', {
+                headers: { Authorization: `Bearer ${token}` },
             });
 
-            if (response.data.success) {
-                setHasPermission(response.data.hasFeature);
-                setConfig(response.data.config);
+            if (response.data?.success) {
+                const segmentFeatures: any[] = response.data.segment?.features || [];
+
+                // Find the bulk_upload feature for this segment
+                const bulkFeature = segmentFeatures.find(
+                    (f: any) => f.featureKey === 'bulk_upload'
+                );
+
+                const isEnabled = bulkFeature ? bulkFeature.isEnabled : true; // default: allow
+                const featureConfig = bulkFeature?.config || {};
+
+                // maxFileSizeMB set by admin, fallback to 10MB (Cloudinary free limit)
+                const maxFileSizeMB = featureConfig.maxFileSizeMB || 10;
+                const maxFileSizeBytes = maxFileSizeMB * 1024 * 1024;
+
+                setHasPermission(isEnabled);
+                setConfig({
+                    maxDesigns: featureConfig.maxDesigns || 50,
+                    maxFileSizeMB,
+                    maxFileSize: maxFileSizeBytes, // in bytes for direct comparison
+                    maxTotalCopies: featureConfig.maxTotalCopies || 100000,
+                    // Pass through any other admin-defined config
+                    ...featureConfig,
+                });
             } else {
-                setHasPermission(false);
-                setConfig(null);
+                // API failed gracefully — allow but with default limits
+                setHasPermission(true);
+                setConfig({
+                    maxDesigns: 50,
+                    maxFileSizeMB: 10,
+                    maxFileSize: DEFAULT_BULK_MAX_FILE_SIZE_BYTES,
+                    maxTotalCopies: 100000,
+                });
             }
         } catch (err: any) {
             console.error('Error checking bulk order permission:', err);
-            setError(err.response?.data?.message || 'Failed to check permissions');
-            setHasPermission(false);
-            setConfig(null);
+            setError(err.message || 'Failed to check permissions');
+            // On error, still allow with default limits
+            setHasPermission(true);
+            setConfig({
+                maxDesigns: 50,
+                maxFileSizeMB: 10,
+                maxFileSize: DEFAULT_BULK_MAX_FILE_SIZE_BYTES,
+                maxTotalCopies: 100000,
+            });
         } finally {
             setLoading(false);
         }
@@ -119,59 +152,53 @@ export const useBulkOrderStatus = (bulkOrderId: string, enabled = false) => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
+    const fetchStatus = async () => {
+        if (!bulkOrderId) return;
+        try {
+            setLoading(true);
+            const token = localStorage.getItem('token');
+
+            const response = await axios.get(`/api/bulk-orders/${bulkOrderId}/status`, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+            });
+
+            if (response.data.success) {
+                setStatus(response.data.data);
+                return response.data.data;
+            }
+        } catch (err: any) {
+            setError(err.response?.data?.message || 'Failed to fetch status');
+        } finally {
+            setLoading(false);
+        }
+    };
+
     useEffect(() => {
         if (!enabled || !bulkOrderId) return;
 
-        let isMounted = true;
-        let intervalId: number | undefined;
+        let intervalId: any;
 
-        const fetchStatus = async () => {
-            try {
-                setLoading(true);
-                const token = localStorage.getItem('token');
-
-                const response = await axios.get(`/api/bulk-orders/${bulkOrderId}/status`, {
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                    },
-                });
-
-                if (isMounted && response.data.success) {
-                    setStatus(response.data.data);
-
-                    // Stop polling if processing is complete or failed
-                    if (['ORDER_CREATED', 'FAILED', 'CANCELLED'].includes(response.data.data.status)) {
-                        if (intervalId) {
-                            clearInterval(intervalId);
-                        }
-                    }
-                }
-            } catch (err: any) {
-                if (isMounted) {
-                    setError(err.response?.data?.message || 'Failed to fetch status');
-                }
-            } finally {
-                if (isMounted) {
-                    setLoading(false);
-                }
+        const poll = async () => {
+            const data = await fetchStatus();
+            if (data && ['ORDER_CREATED', 'FAILED', 'CANCELLED'].includes(data.status)) {
+                if (intervalId) clearInterval(intervalId);
             }
         };
 
         // Initial fetch
-        fetchStatus();
+        poll();
 
-        // Poll every 3 seconds
-        intervalId = setInterval(fetchStatus, 3000);
+        // Poll every 5 seconds
+        intervalId = setInterval(poll, 5000);
 
         return () => {
-            isMounted = false;
-            if (intervalId) {
-                clearInterval(intervalId);
-            }
+            if (intervalId) clearInterval(intervalId);
         };
     }, [bulkOrderId, enabled]);
 
-    return { status, loading, error };
+    return { status, loading, error, refetch: fetchStatus };
 };
 
 /**

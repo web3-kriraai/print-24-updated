@@ -17,9 +17,13 @@ import { extractPDFMetadata } from "../services/pdfSplitterService.js";
 export const uploadBulkOrder = async (req, res) => {
     try {
         const userId = req.user.id;
+
+        // Accept field aliases from BulkOrderWizard:
+        //   numberOfDesigns  → distinctDesigns
+        //   selectedQuantity → totalCopies
+        const distinctDesigns = req.body.distinctDesigns ?? req.body.numberOfDesigns;
+        const totalCopies     = req.body.totalCopies     ?? req.body.selectedQuantity;
         const {
-            totalCopies,
-            distinctDesigns,
             pagesPerDesign,
             hireDesigner,
             productId,
@@ -40,7 +44,7 @@ export const uploadBulkOrder = async (req, res) => {
         if (!totalCopies || !distinctDesigns || !pagesPerDesign || !productId) {
             return res.status(400).json({
                 success: false,
-                message: "Missing required fields: totalCopies, distinctDesigns, pagesPerDesign, productId",
+                message: "Missing required fields: totalCopies (or selectedQuantity), distinctDesigns (or numberOfDesigns), pagesPerDesign, productId",
             });
         }
 
@@ -280,6 +284,47 @@ export const listUserBulkOrders = async (req, res) => {
 };
 
 /**
+ * @desc    List all bulk orders (Admin)
+ * @route   GET /api/bulk-orders/admin/list
+ * @access  Admin
+ */
+export const listAllBulkOrders = async (req, res) => {
+    try {
+        const { limit = 20, skip = 0, status, search } = req.query;
+
+        const options = {
+            limit: parseInt(limit),
+            skip: parseInt(skip),
+            status,
+            search
+        };
+
+        const bulkOrders = await bulkOrderService.listAllBulkOrders(options);
+        
+        // Also get total count for pagination
+        const query = {};
+        if (status) query.status = status;
+        if (search) {
+            query.$or = [{ orderNumber: { $regex: search, $options: 'i' } }];
+        }
+        const totalCount = await BulkOrder.countDocuments(query);
+
+        return res.json({
+            success: true,
+            data: bulkOrders,
+            count: totalCount,
+        });
+    } catch (error) {
+        console.error("Admin list bulk orders error:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Failed to list bulk orders",
+            error: error.message,
+        });
+    }
+};
+
+/**
  * @desc    Cancel bulk order
  * @route   DELETE /api/bulk-orders/:id
  * @access  Private
@@ -411,6 +456,7 @@ export default {
     getBulkOrderStatus,
     getBulkOrderDetails,
     listUserBulkOrders,
+    listAllBulkOrders,
     cancelBulkOrder,
     getBulkOrderStats,
     retryBulkOrder,

@@ -88,7 +88,9 @@ const FinalPriceDisplay: React.FC<FinalPriceDisplayProps> = ({
 
     return (
         <div className="flex flex-col items-end">
-            <span className="text-[10px] text-gray-400 uppercase tracking-widest font-bold">Total Payable</span>
+            <span className="text-[10px] text-gray-400 uppercase tracking-widest font-bold">
+                {numberOfDesigns > 1 ? `Total for ${numberOfDesigns} Designs` : 'Total Payable'}
+            </span>
             <span className="text-2xl font-black text-blue-600 tracking-tight">
                 {formatPrice(total || 0, 'INR')}
             </span>

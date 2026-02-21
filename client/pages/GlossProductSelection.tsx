@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useParams, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowRight, Check, Truck, Upload as UploadIcon, FileImage, CreditCard, X, Info, Lock, AlertCircle, MapPin, Zap, Square, Circle, FileText, UploadCloud, Image as ImageIcon, AlertTriangle } from 'lucide-react';
+import { ArrowRight, Check, Truck, Upload as UploadIcon, FileImage, CreditCard, X, Info, Lock, AlertCircle, MapPin, Zap, Square, Circle, FileText, UploadCloud, Image as ImageIcon, AlertTriangle, Database, CheckCircle } from 'lucide-react';
 import { Select, SelectOption } from '@/components/ui/select';
 import { ProductImageSkeleton, AttributeCardSkeleton, Skeleton } from '@/components/ui/Skeleton';
 import { LazyImage, CloudinaryLazyImage } from '@/components/ui/LazyImage';
@@ -10,6 +10,9 @@ import { API_BASE_URL_WITH_API as API_BASE_URL } from '../lib/apiConfig';
 import { applyAttributeRules, type AttributeRule, type Attribute } from '../utils/attributeRuleEngine';
 import * as pdfjsLib from 'pdfjs-dist';
 import PaymentConfirmationModal from '../components/PaymentConfirmationModal';
+import BulkOrderWizard from '../components/BulkOrderWizard';
+import BulkOrderToggle from '../components/BulkOrderToggle';
+import { useBulkOrderPermission } from '../hooks/useBulkOrder';
 
 // Configure PDF.js worker - use local file for reliability
 pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
@@ -241,6 +244,9 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
   const [gstAmount, setGstAmount] = useState(0);
   // Ref to hold the latest dynamicAttributesCharges without stale closure issues
   const dynamicAttributesChargesRef = useRef<Array<{ name: string; label: string; charge: number; perUnitCharge?: number; isSubAttribute?: boolean }>>([]);
+  // Refs to hold the latest gstPercentage and backendSubtotal without stale closures
+  const gstPercentageRef = useRef<number>(18);
+  const backendSubtotalRef = useRef<number>(0);
   const [additionalDesignCharge, setAdditionalDesignCharge] = useState(0);
   const [appliedDiscount, setAppliedDiscount] = useState<number | null>(null);
   // Track individual charges for order summary
@@ -259,6 +265,13 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [isPricingLoading, setIsPricingLoading] = useState(true); // Start with true
+  
+  // DRAGON LOCK: Capture current price/quantity when opening modal to prevent updates
+  const [lockedPricing, setLockedPricing] = useState<{
+    price: number;
+    gstAmount: number;
+    numberOfDesigns: number;
+  } | null>(null);
 
   // RADIO attribute modal state
   const [radioModalOpen, setRadioModalOpen] = useState(false);
@@ -293,6 +306,19 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
     selectedValue: string | null;
   } | null>(null);
   const [isGettingLocation, setIsGettingLocation] = useState(false);
+
+  // Bulk Order states
+  const [orderMode, setOrderMode] = useState<'single' | 'bulk'>('single');
+  const [numberOfDesigns, setNumberOfDesigns] = useState<string>('1');
+  const [isBulkWizardOpen, setIsBulkWizardOpen] = useState(false);
+  const { hasPermission: hasBulkPermission, config: bulkConfig } = useBulkOrderPermission();
+
+  // Bulk Upload States
+  const [bulkCompositePdf, setBulkCompositePdf] = useState<File | null>(null);
+  const [bulkPdfPreviewPages, setBulkPdfPreviewPages] = useState<string[]>([]);
+  const [bulkPdfExtractedPages, setBulkPdfExtractedPages] = useState<File[]>([]);
+  const [isBulkPdfProcessing, setIsBulkPdfProcessing] = useState<boolean>(false);
+  const [bulkPdfError, setBulkPdfError] = useState<string>('');
 
   // Matrix Strategy: Pre-rendered combination image lookup
   const [matrixImageUrl, setMatrixImageUrl] = useState<string | null>(null);
@@ -540,20 +566,26 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
     }
   }, [selectedProduct, isInitialized, pdpAttributes, pdpRules, selectedDynamicAttributes, quantity]);
 
-  // Keep ref in sync with latest dynamicAttributesCharges for use in onPriceChange callback
+  // Keep refs in sync with state
   useEffect(() => {
     dynamicAttributesChargesRef.current = dynamicAttributesCharges;
   }, [dynamicAttributesCharges]);
+  useEffect(() => { gstPercentageRef.current = gstPercentage; }, [gstPercentage]);
+  useEffect(() => { backendSubtotalRef.current = backendSubtotal; }, [backendSubtotal]);
 
-  // useEffect to recalculate price when dynamicAttributesCharges change (without a new API response)
+  // Recalculate sticky-footer price when attribute charges change (e.g. user picks/unpicks Foil).
+  // Uses refs for backendSubtotal and gstPercentage so the effect never captures a stale value.
+  // onPriceChange is the authoritative source (runs after every API response); this effect only
+  // handles fast UI interactions between API round-trips.
   useEffect(() => {
-    if (backendSubtotal === 0) return; // Wait for API response first
+    if (backendSubtotalRef.current <= 0) return;
     const totalAttrCharges = dynamicAttributesCharges.reduce((sum, c) => sum + (c.charge || 0), 0);
-    const finalSubtotal = backendSubtotal + totalAttrCharges;
-    const finalGst = Math.round((finalSubtotal * gstPercentage / 100 + Number.EPSILON) * 100) / 100;
+    const finalSubtotal = backendSubtotalRef.current + totalAttrCharges;
+    const finalGst = Math.round((finalSubtotal * gstPercentageRef.current / 100 + Number.EPSILON) * 100) / 100;
     setPrice(finalSubtotal);
     setGstAmount(finalGst);
-  }, [backendSubtotal, gstPercentage, dynamicAttributesCharges]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dynamicAttributesCharges]); // refs used for other values to avoid triggering on their changes
 
   // Set isPricingLoading to true when dependencies change to show skeleton immediately
   // useEffect(() => {
@@ -2884,6 +2916,90 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
     }
   };
 
+  /**
+   * Main handler for bulk PDF/CDR file uploads
+   */
+  const handleBulkPdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    const numberOfDesignsNum = parseInt(numberOfDesigns) || 0;
+
+    if (!file) {
+      setBulkCompositePdf(null);
+      setBulkPdfPreviewPages([]);
+      setBulkPdfExtractedPages([]);
+      setBulkPdfError('');
+      return;
+    }
+
+    if (numberOfDesignsNum < 1) {
+      setBulkPdfError('Please enter the number of designs first.');
+      setBulkCompositePdf(null);
+      return;
+    }
+
+    // Validate file type
+    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    const isCdr = file.name.toLowerCase().endsWith('.cdr') ||
+      file.type === 'application/x-coreldraw' ||
+      file.type === 'application/coreldraw';
+
+    if (!isPdf && !isCdr) {
+      setBulkPdfError('Please upload a valid PDF or CDR file.');
+      setBulkCompositePdf(null);
+      return;
+    }
+
+    // Check file size (dynamic limit from user segment config, fallback to 10MB)
+    const maxBulkSize = bulkConfig?.maxFileSize || (10 * 1024 * 1024);
+    if (file.size > maxBulkSize) {
+      setBulkPdfError(`File too large. Maximum size: ${bulkConfig?.maxFileSizeMB || 10}MB`);
+      setBulkCompositePdf(null);
+      return;
+    }
+
+    setIsBulkPdfProcessing(true);
+    setBulkPdfError('');
+
+    try {
+      const pagesPerDesign = calculateRequiredPageCount();
+      const expectedTotalPages = numberOfDesignsNum * pagesPerDesign;
+
+      if (isPdf) {
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        const numPages = pdf.numPages;
+
+        if (numPages !== expectedTotalPages) {
+          setBulkPdfError(
+            `Invalid page count. Your bulk file has ${numPages} pages, but ${expectedTotalPages} pages are required (${numberOfDesignsNum} designs × ${pagesPerDesign} pages per design).`
+          );
+          setBulkCompositePdf(null);
+          setBulkPdfPreviewPages([]);
+          setBulkPdfExtractedPages([]);
+          return;
+        }
+
+        // Extract pages for preview
+        const { pages, previews } = await extractPdfPagesToImages(file);
+        setBulkPdfExtractedPages(pages);
+        setBulkPdfPreviewPages(previews);
+      } else if (isCdr) {
+        // We can't easily extract pages from CDR in browser
+        setBulkPdfPreviewPages([]);
+        setBulkPdfExtractedPages([]);
+      }
+
+      setBulkCompositePdf(file);
+      setBulkPdfError('');
+    } catch (error) {
+      console.error('Bulk PDF processing error:', error);
+      setBulkPdfError('Failed to process bulk design file. Please ensure it is a valid PDF.');
+      setBulkCompositePdf(null);
+    } finally {
+      setIsBulkPdfProcessing(false);
+    }
+  };
+
   // Helper function to calculate distance between two coordinates (Haversine formula)
   const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
     const R = 6371; // Radius of the Earth in km
@@ -3194,17 +3310,32 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
         firstErrorField.current = document.querySelector('[data-product-select]') as HTMLElement;
       }
     }
-    // Accept either a PDF/CDR design file OR a reference image upload
-    const hasDesignFile = !!frontDesignFile || !!pdfFile;
-    if (!hasDesignFile) {
-      validationErrors.push('Please upload a design file (PDF/CDR) or a reference image');
-      if (!firstErrorField.current) {
-        const fileInput = document.querySelector('input[type="file"][accept*="image"]') as HTMLElement;
-        if (fileInput) {
-          firstErrorField.current = fileInput;
-        } else {
-          const uploadSection = document.querySelector('[data-upload-section]') as HTMLElement;
+    // Accept either a PDF/CDR design file OR a reference image upload (for single mode)
+    // In bulk mode, validate composite PDF instead
+    if (orderMode === 'bulk') {
+      if (!bulkCompositePdf) {
+        validationErrors.push('Please upload a composite PDF file for your bulk order');
+        if (!firstErrorField.current) {
+          const uploadSection = document.querySelector('[data-bulk-upload-section]') as HTMLElement;
           if (uploadSection) firstErrorField.current = uploadSection;
+        }
+      }
+      const numDesigns = parseInt(numberOfDesigns);
+      if (!numDesigns || numDesigns < 1) {
+        validationErrors.push('Please enter the number of designs (minimum 1)');
+      }
+    } else {
+      const hasDesignFile = !!frontDesignFile || !!pdfFile;
+      if (!hasDesignFile) {
+        validationErrors.push('Please upload a design file (PDF/CDR) or a reference image');
+        if (!firstErrorField.current) {
+          const fileInput = document.querySelector('input[type="file"][accept*="image"]') as HTMLElement;
+          if (fileInput) {
+            firstErrorField.current = fileInput;
+          } else {
+            const uploadSection = document.querySelector('[data-upload-section]') as HTMLElement;
+            if (uploadSection) firstErrorField.current = uploadSection;
+          }
         }
       }
     }
@@ -3387,8 +3518,12 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
       return;
     }
 
-    // Clear any previous validation errors
-    setValidationError(null);
+    // DRAGON LOCK: Capture current state for the modal
+    setLockedPricing({
+      price,
+      gstAmount,
+      numberOfDesigns: orderMode === 'bulk' ? (parseInt(numberOfDesigns) || 1) : 1
+    });
 
     // All product/design validations passed - show payment modal with customer information form
     setShowPaymentModal(true);
@@ -3397,7 +3532,10 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
 
   // Process payment and create order
-  const handlePaymentAndOrder = async (paymentData?: { customerName: string; customerEmail: string; pincode: string; address: string; mobileNumber: string }) => {
+  const handlePaymentAndOrder = async (
+    paymentData?: { customerName: string; customerEmail: string; pincode: string; address: string; mobileNumber: string },
+    pricingContext?: { price: number; gstAmount: number; numberOfDesigns: number } | null
+  ) => {
     // Use paymentData directly if provided (avoids React async setState race condition)
     const pName = paymentData?.customerName || customerName;
     const pEmail = paymentData?.customerEmail || customerEmail;
@@ -3408,9 +3546,20 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
     if (!selectedProduct) {
       throw new Error("Please select a product.");
     }
-    // Accept either a PDF/CDR design file OR a reference image upload
-    if (!frontDesignFile && !pdfFile) {
-      throw new Error("Please upload a design file (PDF/CDR) or a reference image.");
+    // In bulk mode, validate the composite PDF instead of a single design file
+    if (orderMode === 'bulk') {
+      if (!bulkCompositePdf) {
+        throw new Error("Please upload a composite PDF file for your bulk order.");
+      }
+      const numDesigns = parseInt(numberOfDesigns);
+      if (!numDesigns || numDesigns < 1) {
+        throw new Error("Please enter a valid number of designs (minimum 1).");
+      }
+    } else {
+      // Accept either a PDF/CDR design file OR a reference image upload
+      if (!frontDesignFile && !pdfFile) {
+        throw new Error("Please upload a design file (PDF/CDR) or a reference image.");
+      }
     }
     // Only validate if product has multiple printing options (single option is auto-selected)
     if (selectedProduct.filters?.printingOption && selectedProduct.filters.printingOption.length > 1 && !selectedPrintingOption) {
@@ -3423,7 +3572,11 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
     if (!quantity || quantity <= 0) {
       throw new Error("Please enter a valid quantity (must be greater than 0).");
     }
-    const finalTotalPrice = price + gstAmount;
+    // Use locked pricing if available, otherwise fallback to current state
+    const currentPrice = pricingContext?.price ?? price;
+    const currentGst = pricingContext?.gstAmount ?? gstAmount;
+    
+    const finalTotalPrice = currentPrice + currentGst;
     if (!finalTotalPrice || finalTotalPrice <= 0) {
       throw new Error("Invalid order total. Please refresh and try again.");
     }
@@ -3497,6 +3650,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
       const uploadedDesign: any = {};
 
       // Prepare front image (required only when no PDF is uploaded)
+      // In bulk mode, bulkCompositePdf serves as the design PDF — skip front image requirement
       if (frontDesignPreview && frontDesignFile) {
         try {
           // Handle base64 data - remove data:image/... prefix if present
@@ -3516,8 +3670,8 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
           // Front image is optional when PDF is provided
           console.error('Failed to prepare front design image:', err);
         }
-      } else if (!pdfFile) {
-        // No design file at all - this should have been caught by validation
+      } else if (!pdfFile && orderMode !== 'bulk') {
+        // No design file at all (single mode only) - this should have been caught by validation
         throw new Error("Please upload a design file (PDF/CDR) or a reference image.");
       }
 
@@ -3542,8 +3696,30 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
         }
       }
 
-      // Prepare original PDF file (if uploaded via PDF upload feature)
-      if (pdfFile && pdfPageMapping.length > 0) {
+      // Prepare BULK composite PDF — treat as the design PDF (same as single order's pdfFile)
+      if (orderMode === 'bulk' && bulkCompositePdf) {
+        try {
+          const pdfArrayBuffer = await bulkCompositePdf.arrayBuffer();
+          const pdfBase64 = btoa(
+            new Uint8Array(pdfArrayBuffer)
+              .reduce((data, byte) => data + String.fromCharCode(byte), '')
+          );
+          uploadedDesign.pdfFile = {
+            data: pdfBase64,
+            contentType: bulkCompositePdf.type || 'application/pdf',
+            filename: bulkCompositePdf.name,
+            pageCount: bulkPdfPreviewPages.length || 0,
+            isBulkComposite: true,
+            numberOfDesigns: parseInt(numberOfDesigns) || 1,
+          };
+        } catch (err) {
+          console.error('Failed to prepare bulk composite PDF:', err);
+          throw new Error('Failed to process composite PDF. Please try again.');
+        }
+      }
+
+      // Prepare single-order PDF file (if uploaded via PDF upload feature, single mode only)
+      if (pdfFile && pdfPageMapping.length > 0 && orderMode !== 'bulk') {
         try {
           // Convert PDF to base64
           const pdfArrayBuffer = await pdfFile.arrayBuffer();
@@ -3833,7 +4009,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
         shape: selectedDeliverySpeed || 'Standard',
         selectedOptions: selectedOptions,
         selectedDynamicAttributes: selectedDynamicAttributesArray, // Send complete attribute information
-        totalPrice: price + gstAmount, // Store total including GST for order
+        totalPrice: currentPrice + currentGst, // Store total including GST for order
         // Delivery information collected at checkout
         pincode: pPincode.trim(),
         address: pAddress.trim(),
@@ -3850,6 +4026,18 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
         laminationType: orderDynamicAttributes.laminationType || null,
         specialEffects: orderDynamicAttributes.specialEffects ? [orderDynamicAttributes.specialEffects] : [],
       };
+
+      // For bulk mode: mark the order as bulk and set correct total price
+      if (orderMode === 'bulk') {
+        const numDesigns = parseInt(numberOfDesigns) || 1;
+        (orderData as any).isBulkOrder = true;
+        (orderData as any).numberOfDesigns = numDesigns;
+        (orderData as any).perDesignQuantity = quantity; // Send per-design quantity clearly
+        
+        // Override totalPrice for bulk (per-design price × numberOfDesigns)
+        // Price and GST are already calculated for a single design's quantity
+        (orderData as any).totalPrice = (currentPrice + currentGst) * numDesigns;
+      }
 
       // Check if user is authenticated
       const token = localStorage.getItem("token");
@@ -3972,7 +4160,10 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
       // Return order data so the modal can proceed to payment step
       const orderId = order._id || order.order?._id;
       const orderNumber = order.orderNumber || order.order?.orderNumber || null;
-      const totalAmount = price + gstAmount;
+      // For bulk mode: multiply by number of designs so payment gateway gets full amount
+      const numDesignsForPayment = orderMode === 'bulk' ? (parseInt(numberOfDesigns) || 1) : 1;
+      // Use locked unit price for final amount
+      const totalAmount = (currentPrice + currentGst) * numDesignsForPayment;
 
       return { orderId, totalAmount, orderNumber };
     } catch (err) {
@@ -4468,6 +4659,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
           </motion.div>
         )}
 
+
         {/* Loading State */}
 
 
@@ -4752,7 +4944,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                         })()}
                         quantity={quantity}
                         showBreakdown={false}
-                        numberOfDesigns={1}
+                        numberOfDesigns={parseInt(numberOfDesigns) || 1}
                         attributeCharges={dynamicAttributesCharges}
                         pincode={pincode}
                         onLoadingChange={(loading) => setIsPricingLoading(loading)}
@@ -5361,6 +5553,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                           const hasDeliverySpeed = selectedProduct.filters?.deliverySpeed && selectedProduct.filters.deliverySpeed.length > 0;
 
                           return (
+
                             <>
                               {/* Product Options (from options table) */}
                               {hasOptions && (
@@ -5697,6 +5890,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                   // Fallback to product's quantity configuration
                                   const orderQuantity = selectedProduct.filters.orderQuantity;
                                   const quantityType = orderQuantity.quantityType || "SIMPLE";
+                                  return null;
                                 })()}
                                 {appliedDiscount !== null && appliedDiscount > 0 && (
                                   <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded-lg">
@@ -6034,7 +6228,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                         }
                                                       </span>
                                                       {selectedDynamicAttributes[attrId] && (
-                                                        <div className="text-xs text-white0 mt-1">
+                                                        <div className="text-xs text-gray-400 mt-1">
                                                           Click to change selection
                                                         </div>
                                                       )}
@@ -6224,6 +6418,44 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
 
 
+
+                        {/* Bulk Order Toggle - Properly placed above the upload part */}
+                        {hasBulkPermission && !loading && (
+                          <div className="space-y-4 mb-6 mt-6 pt-6 border-t border-gray-100">
+                            <div className="flex items-center justify-between mb-2">
+                               <h4 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                                 <div className="w-1.5 h-6 bg-blue-600 rounded-full"></div>
+                                 Order Mode
+                               </h4>
+                               <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Select your order style</span>
+                            </div>
+                            <BulkOrderToggle 
+                              orderMode={orderMode} 
+                              setOrderMode={setOrderMode} 
+                            />
+                            
+                            {orderMode === 'bulk' && (
+                              <motion.div 
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: 'auto' }}
+                                className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 rounded-2xl p-4 shadow-sm"
+                              >
+                                <div className="flex gap-3">
+                                  <div className="bg-blue-600 p-2 rounded-xl text-white h-fit shadow-md shadow-blue-200">
+                                    <Database size={20} />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <h4 className="text-sm font-bold text-blue-900">Bulk Order Mode Active</h4>
+                                    <p className="text-xs text-blue-700 leading-relaxed">
+                                      Upload a single composite PDF containing all your designs. We'll automatically split them and create individual orders for you.
+                                    </p>
+                                  </div>
+                                </div>
+                              </motion.div>
+                            )}
+                          </div>
+                        )}
+
                         {/* Unified PDF Upload Section - Replaces Both Image Upload Sections */}
                         {(() => {
                           if (loading) {
@@ -6245,20 +6477,208 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                             )
                           }
 
-                          // Calculate required pages dynamically
-                          const calculatedPages = calculateRequiredPageCount();
+                          // BULK ORDER MODE - New Composite PDF Upload UI
+                          if (orderMode === 'bulk') {
+                            const numberOfDesignsNum = parseInt(numberOfDesigns) || 0;
+                            const pagesPerDesign = calculateRequiredPageCount();
+                            const expectedPages = numberOfDesignsNum * pagesPerDesign;
 
-                          // Only show PDF upload section when pages are required
-                          if (calculatedPages === 0) return null;
-
-                          return (
-                            <div className="mb-3 sm:mb-4 bg-white rounded-2xl border border-gray-200 shadow-lg shadow-gray-200/50 overflow-hidden hover:shadow-xl hover:shadow-gray-200/50 transition-all duration-300">
-                              {/* Header Section */}
-                              <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 px-4 sm:px-5 py-3 sm:py-4 border-b border-gray-200">
-                                <div className="flex items-center gap-3">
-                                  <div className="w-9 h-9 rounded-xl bg-white shadow-md flex items-center justify-center ring-1 ring-blue-100">
-                                    <FileText className="w-5 h-5 text-blue-600" />
+                            return (
+                              <div className="mb-3 sm:mb-4 bg-white rounded-2xl border border-gray-200 shadow-lg shadow-gray-200/50 overflow-hidden hover:shadow-xl hover:shadow-gray-200/50 transition-all duration-300">
+                                {/* Header Section */}
+                                <div className="bg-gradient-to-r from-orange-50 via-amber-50 to-yellow-50 px-4 sm:px-5 py-3 sm:py-4 border-b border-gray-200">
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-9 h-9 rounded-xl bg-white shadow-md flex items-center justify-center ring-1 ring-orange-100">
+                                      <UploadIcon className="w-5 h-5 text-orange-600" />
+                                    </div>
+                                    <div className="flex-1">
+                                      <h3 className="font-bold text-sm sm:text-base text-gray-900">
+                                        Bulk Order Upload
+                                      </h3>
+                                      <p className="text-xs text-gray-600 mt-0.5 font-medium">
+                                        Upload composite PDF with multiple designs
+                                      </p>
+                                    </div>
+                                    {bulkCompositePdf && !bulkPdfError && (
+                                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-green-100 to-emerald-100 text-green-700 text-xs font-bold shadow-sm">
+                                        <Check size={14} strokeWidth={3} />
+                                        Ready
+                                      </span>
+                                    )}
                                   </div>
+                                </div>
+
+                                <div className="p-4 sm:p-5 space-y-4">
+                                  {/* Number of Designs Input */}
+                                  <div>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                      Number of Designs *
+                                    </label>
+                                    <input
+                                      type="number"
+                                      min="1"
+                                      max="50"
+                                      value={numberOfDesigns}
+                                      onChange={(e) => setNumberOfDesigns(e.target.value)}
+                                      placeholder="e.g., 30"
+                                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent text-lg font-semibold"
+                                    />
+                                    <p className="text-xs text-gray-600 mt-1">How many distinct designs are in your PDF? (Max: 50)</p>
+
+                                    {numberOfDesignsNum > 0 && (
+                                      <div className="mt-3 p-3 bg-orange-50 border border-orange-200 rounded-lg animate-in fade-in slide-in-from-top-1 duration-300">
+                                        <p className="text-sm font-bold text-orange-900 flex items-center gap-2">
+                                          <Info className="w-4 h-4 text-orange-600" />
+                                          Required Page Count: {expectedPages} Pages
+                                        </p>
+                                        <p className="text-xs text-orange-700 mt-1">
+                                          Your PDF/CDR must have exactly {expectedPages} pages ({numberOfDesignsNum} designs × {pagesPerDesign} pages per design)
+                                        </p>
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* Composite PDF Upload */}
+                                  <div data-bulk-upload-section>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                      Upload Composite PDF *
+                                    </label>
+                                    <input
+                                      type="file"
+                                      id="bulk-pdf-upload-input"
+                                      accept=".pdf,.cdr,application/pdf,application/x-coreldraw,application/coreldraw"
+                                      onChange={handleBulkPdfUpload}
+                                      className="hidden"
+                                    />
+
+                                    <label
+                                      htmlFor="bulk-pdf-upload-input"
+                                      className={`block cursor-pointer border-2 border-dashed rounded-xl p-6 sm:p-8 text-center transition-all ${bulkPdfError
+                                        ? 'border-red-400 bg-red-50/50'
+                                        : bulkCompositePdf
+                                          ? 'border-green-400 bg-green-50/30 shadow-inner'
+                                          : 'border-orange-300 bg-orange-50/30 hover:border-orange-500 hover:bg-orange-50/50 hover:shadow-md'
+                                        }`}
+                                    >
+                                      {isBulkPdfProcessing ? (
+                                        <div className="flex flex-col items-center py-4">
+                                          <div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mb-3"></div>
+                                          <p className="text-sm font-bold text-gray-700">Analyzing Bulk File...</p>
+                                          <p className="text-xs text-gray-500 mt-1">Extracting {expectedPages} design pages</p>
+                                        </div>
+                                      ) : bulkCompositePdf ? (
+                                        <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+                                          <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-md">
+                                            <FileText className="w-6 h-6 text-white" />
+                                          </div>
+                                          <div className="text-center sm:text-left flex-1 min-w-0">
+                                            <p className="font-bold text-gray-900 text-sm sm:text-base truncate">{bulkCompositePdf.name}</p>
+                                            <p className="text-xs sm:text-sm text-gray-600 font-medium">
+                                              {(bulkCompositePdf.size / (1024 * 1024)).toFixed(2)} MB • {bulkPdfPreviewPages.length > 0 ? `${bulkPdfPreviewPages.length} Pages Extracted` : 'Ready'}
+                                            </p>
+                                          </div>
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.preventDefault();
+                                              setBulkCompositePdf(null);
+                                              setBulkPdfPreviewPages([]);
+                                              setBulkPdfExtractedPages([]);
+                                              const fileInput = document.getElementById('bulk-pdf-upload-input') as HTMLInputElement;
+                                              if (fileInput) fileInput.value = '';
+                                            }}
+                                            className="px-4 py-2 text-xs font-bold text-red-700 bg-red-100 hover:bg-red-200 rounded-xl transition-all hover:shadow-md"
+                                          >
+                                            Remove
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <div className="py-2">
+                                          <div className="w-14 h-14 rounded-full bg-orange-100 flex items-center justify-center mx-auto mb-4">
+                                            <UploadCloud className="w-8 h-8 text-orange-600" />
+                                          </div>
+                                          <p className="text-base font-bold text-gray-800 mb-1">
+                                            Upload your bulk design file
+                                          </p>
+                                          <p className="text-sm text-gray-600 mb-3 font-medium">
+                                            PDF or CDR • Max 100MB
+                                          </p>
+                                          <div className="inline-flex items-center gap-2 px-5 py-2.5 bg-orange-600 text-white rounded-xl text-sm font-bold hover:bg-orange-700 transition-all hover:shadow-lg hover:scale-105">
+                                            <FileText size={16} />
+                                            Select Bulk File
+                                          </div>
+                                        </div>
+                                      )}
+                                    </label>
+
+                                    {/* Scrollable Preview Window for Bulk PDF */}
+                                    {bulkPdfPreviewPages.length > 0 && (
+                                      <div className="mt-4 animate-in fade-in slide-in-from-top-4 duration-500">
+                                        <div className="flex items-center justify-between mb-3 px-1">
+                                          <h4 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                                            <div className="w-2 h-6 bg-orange-500 rounded-full"></div>
+                                            Design Preview ({bulkPdfPreviewPages.length} Pages)
+                                          </h4>
+                                          <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Scroll to view all designs</span>
+                                        </div>
+
+                                        <div className="relative group">
+                                          <div className="flex gap-4 overflow-x-auto pb-4 pt-1 snap-x px-1 scrollbar-thin">
+                                            {bulkPdfPreviewPages.map((preview, index) => (
+                                              <div
+                                                key={index}
+                                                className="flex-shrink-0 w-[180px] sm:w-[220px] snap-start"
+                                              >
+                                                <div className="relative aspect-[3/4] bg-white rounded-xl border-2 border-orange-100 shadow-md group/item overflow-hidden hover:border-orange-400 transition-all duration-300">
+                                                  <img
+                                                    src={preview}
+                                                    alt={`Design ${index + 1}`}
+                                                    className="w-full h-full object-contain"
+                                                  />
+                                                  <div className="absolute top-2 left-2 w-7 h-7 bg-orange-600 text-white rounded-full flex items-center justify-center text-[10px] font-black shadow-lg border-2 border-white ring-1 ring-orange-200">
+                                                    {index + 1}
+                                                  </div>
+                                                </div>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {bulkPdfError && (
+                                      <div className="mt-4 p-4 bg-red-50 border-2 border-red-200 rounded-xl">
+                                        <div className="flex items-start gap-2">
+                                          <AlertCircle className="text-red-600 flex-shrink-0 mt-0.5" size={18} />
+                                          <div>
+                                            <p className="text-sm font-semibold text-red-900 mb-1">Upload Error</p>
+                                            <p className="text-sm text-red-700">{bulkPdfError}</p>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          }
+
+                          // SINGLE ORDER MODE
+                          if (orderMode === 'single') {
+                            // Calculate required pages dynamically
+                            const calculatedPages = calculateRequiredPageCount();
+
+                            // Only show PDF upload section when pages are required
+                            if (calculatedPages === 0) return null;
+
+                            return (
+                              <div className="mb-3 sm:mb-4 bg-white rounded-2xl border border-gray-200 shadow-lg shadow-gray-200/50 overflow-hidden hover:shadow-xl hover:shadow-gray-200/50 transition-all duration-300">
+                                {/* Header Section */}
+                                <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 px-4 sm:px-5 py-3 sm:py-4 border-b border-gray-200">
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-9 h-9 rounded-xl bg-white shadow-md flex items-center justify-center ring-1 ring-blue-100">
+                                      <FileText className="w-5 h-5 text-blue-600" />
+                                    </div>
                                   <div className="flex-1">
                                     <h3 className="font-bold text-sm sm:text-base text-gray-900">
                                       Upload Design File
@@ -6327,156 +6747,156 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                     </div>
                                   </label>
                                 ) : (
-                                  /* PDF Upload Success & Preview */
-                                  <div className="space-y-4">
-                                    {/* PDF File Info */}
-                                    <div className="flex items-center justify-between p-4 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-300 rounded-xl shadow-md hover:shadow-lg transition-all">
-                                      <div className="flex items-center gap-3">
-                                        <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-md">
-                                          <FileText className="w-6 h-6 text-white" />
+                                  <>
+                                    {/* PDF Upload Success & Preview */}
+                                    <div className="space-y-4">
+                                      {/* PDF File Info */}
+                                      <div className="flex items-center justify-between p-4 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-300 rounded-xl shadow-md hover:shadow-lg transition-all">
+                                        <div className="flex items-center gap-3">
+                                          <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-md">
+                                            <FileText className="w-6 h-6 text-white" />
+                                          </div>
+                                          <div>
+                                            <p className="text-sm font-semibold text-gray-900">
+                                              {pdfFile.name}
+                                            </p>
+                                            <p className="text-xs text-gray-600">
+                                              {pdfFile.name.toLowerCase().endsWith('.cdr')
+                                                ? `CDR file ready (will be processed server-side)`
+                                                : `${extractedPdfPages.length} page${extractedPdfPages.length !== 1 ? 's' : ''} extracted`
+                                              }
+                                            </p>
+                                          </div>
                                         </div>
-                                        <div>
-                                          <p className="text-sm font-semibold text-gray-900">
-                                            {pdfFile.name}
-                                          </p>
-                                          <p className="text-xs text-gray-600">
-                                            {pdfFile.name.toLowerCase().endsWith('.cdr')
-                                              ? `CDR file ready (will be processed server-side)`
-                                              : `${extractedPdfPages.length} page${extractedPdfPages.length !== 1 ? 's' : ''} extracted`
-                                            }
-                                          </p>
-                                        </div>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setPdfFile(null);
+                                            setExtractedPdfPages([]);
+                                            setPdfPreviewPages([]);
+                                            setPdfValidationError(null);
+                                            // Clear mapped images
+                                            setFrontDesignFile(null);
+                                            setBackDesignFile(null);
+                                            setFrontDesignPreview("");
+                                            setBackDesignPreview("");
+                                            const fileInput = document.getElementById('pdf-upload-input') as HTMLInputElement;
+                                            if (fileInput) fileInput.value = '';
+                                          }}
+                                          className="px-3 py-1.5 text-xs font-bold text-red-700 bg-red-100 hover:bg-red-200 rounded-lg transition-all hover:shadow-md hover:scale-105"
+                                        >
+                                          Remove
+                                        </button>
                                       </div>
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setPdfFile(null);
-                                          setExtractedPdfPages([]);
-                                          setPdfPreviewPages([]);
-                                          setPdfValidationError(null);
-                                          // Clear mapped images
-                                          setFrontDesignFile(null);
-                                          setBackDesignFile(null);
-                                          setFrontDesignPreview("");
-                                          setBackDesignPreview("");
-                                          const fileInput = document.getElementById('pdf-upload-input') as HTMLInputElement;
-                                          if (fileInput) fileInput.value = '';
-                                        }}
-                                        className="px-3 py-1.5 text-xs font-bold text-red-700 bg-red-100 hover:bg-red-200 rounded-lg transition-all hover:shadow-md hover:scale-105"
-                                      >
-                                        Remove
-                                      </button>
-                                    </div>
 
-                                    {/* Extracted Pages with Purpose Labels - Enhanced UI */}
-                                    {pdfPreviewPages.length > 0 && pdfPageMapping.length > 0 && (
-                                      <div>
-                                        <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                                          <FileText size={16} className="text-blue-600" />
-                                          Page Assignments
-                                        </h4>
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                                          {pdfPreviewPages.map((preview, index) => {
-                                            const mapping = pdfPageMapping[index];
-                                            if (!mapping) return null;
+                                      {/* Extracted Pages with Purpose Labels - Enhanced UI */}
+                                      {pdfPreviewPages.length > 0 && pdfPageMapping.length > 0 && (
+                                        <div>
+                                          <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                                            <FileText size={16} className="text-blue-600" />
+                                            Page Assignments
+                                          </h4>
+                                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                            {pdfPreviewPages.map((preview, index) => {
+                                              const mapping = pdfPageMapping[index];
+                                              if (!mapping) return null;
 
-                                            // Color coding based on type
-                                            const colorClasses = {
-                                              border: 'border-blue-400',
-                                              badge: 'bg-gradient-to-br from-blue-500 to-indigo-600',
-                                              labelBg: 'bg-gradient-to-r from-blue-600 to-indigo-700'
-                                            };
+                                              // Color coding based on type
+                                              const colorClasses = {
+                                                border: 'border-blue-400',
+                                                badge: 'bg-gradient-to-br from-blue-500 to-indigo-600',
+                                                labelBg: 'bg-gradient-to-r from-blue-600 to-indigo-700'
+                                              };
 
-                                            return (
-                                              <div key={index} className="relative group">
-                                                {/* Image Container with dynamic aspect ratio */}
-                                                <div className="w-full relative overflow-hidden rounded-xl ring-2 ring-blue-400 ring-offset-0 shadow-lg hover:shadow-2xl hover:ring-blue-500 transition-all duration-300 hover:scale-[1.02]">
-                                                  <img
-                                                    src={preview}
-                                                    alt={`Page ${index + 1}`}
-                                                    className="w-full bg-white object-contain"
-                                                    style={{ aspectRatio: 'auto' }}
-                                                  />
-                                                </div>
-
-                                                {/* Page Number Badge */}
-                                                <div className={`absolute -top-2 -left-2 w-8 h-8 ${colorClasses.badge} rounded-full flex items-center justify-center shadow-xl border-2 border-white ring-1 ring-blue-200`}>
-                                                  <span className="text-white text-xs font-black">{mapping.pageNumber}</span>
-                                                </div>
-
-                                                {/* Required Badge */}
-                                                {mapping.isRequired && (
-                                                  <div className="absolute -top-2 -right-2 w-7 h-7 bg-gradient-to-br from-red-500 to-rose-600 rounded-full flex items-center justify-center shadow-xl border-2 border-white ring-1 ring-red-200">
-                                                    <span className="text-white text-xs font-black">!</span>
+                                              return (
+                                                <div key={index} className="relative group">
+                                                  {/* Image Container with dynamic aspect ratio */}
+                                                  <div className="w-full relative overflow-hidden rounded-xl ring-2 ring-blue-400 ring-offset-0 shadow-lg hover:shadow-2xl hover:ring-blue-500 transition-all duration-300 hover:scale-[1.02]">
+                                                    <img
+                                                      src={preview}
+                                                      alt={`Page ${index + 1}`}
+                                                      className="w-full bg-white object-contain"
+                                                      style={{ aspectRatio: 'auto' }}
+                                                    />
                                                   </div>
-                                                )}
 
-                                                {/* Purpose Label - Always Visible */}
-                                                <div className={`absolute bottom-0 left-0 right-0 ${colorClasses.labelBg} text-white px-2 py-2.5 rounded-b-xl shadow-md`}>
-                                                  <div className="flex items-center gap-1.5">
-                                                    <ImageIcon size={15} className="flex-shrink-0" />
-                                                    <div className="flex-1 min-w-0">
-                                                      <p className="text-[11px] font-bold truncate leading-tight">
-                                                        {mapping.purpose}
-                                                      </p>
-                                                      {mapping.type === 'attribute' && (
-                                                        <p className="text-[9px] opacity-95 truncate font-medium">
-                                                          {mapping.isRequired ? 'Required' : 'Optional'}
+                                                  {/* Page Number Badge */}
+                                                  <div className={`absolute -top-2 -left-2 w-8 h-8 ${colorClasses.badge} rounded-full flex items-center justify-center shadow-xl border-2 border-white ring-1 ring-blue-200`}>
+                                                    <span className="text-white text-xs font-black">{mapping.pageNumber}</span>
+                                                  </div>
+
+                                                  {/* Required Badge */}
+                                                  {mapping.isRequired && (
+                                                    <div className="absolute -top-2 -right-2 w-7 h-7 bg-gradient-to-br from-red-500 to-rose-600 rounded-full flex items-center justify-center shadow-xl border-2 border-white ring-1 ring-red-200">
+                                                      <span className="text-white text-xs font-black">!</span>
+                                                    </div>
+                                                  )}
+
+                                                  {/* Purpose Label - Always Visible */}
+                                                  <div className={`absolute bottom-0 left-0 right-0 ${colorClasses.labelBg} text-white px-2 py-2.5 rounded-b-xl shadow-md`}>
+                                                    <div className="flex items-center gap-1.5">
+                                                      <ImageIcon size={15} className="flex-shrink-0" />
+                                                      <div className="flex-1 min-w-0">
+                                                        <p className="text-[11px] font-bold truncate leading-tight">
+                                                          {mapping.purpose}
                                                         </p>
-                                                      )}
+                                                        {mapping.type === 'attribute' && (
+                                                          <p className="text-[9px] opacity-95 truncate font-medium">
+                                                            {mapping.isRequired ? 'Required' : 'Optional'}
+                                                          </p>
+                                                        )}
+                                                      </div>
                                                     </div>
                                                   </div>
+
+                                                  {/* Hover Tooltip with Full Details */}
+                                                  <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300 rounded-xl pointer-events-none"></div>
                                                 </div>
-
-                                                {/* Hover Tooltip with Full Details */}
-                                                <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300 rounded-xl pointer-events-none"></div>
-                                              </div>
-                                            );
-                                          })}
-                                        </div>
-
-                                        {/* Legend */}
-                                        <div className="mt-4 p-3.5 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 border border-blue-200 rounded-xl shadow-sm">
-                                          <div className="text-xs font-bold text-gray-800 mb-2.5 flex items-center gap-2">
-                                            <div className="w-5 h-5 rounded-md bg-blue-100 flex items-center justify-center">
-                                              <Info size={13} className="text-blue-600" />
-                                            </div>
-                                            Legend
+                                              );
+                                            })}
                                           </div>
-                                          <div className="flex flex-wrap gap-4">
-                                            <div className="flex items-center gap-2">
-                                              <div className="w-6 h-6 rounded-lg bg-white shadow-sm flex items-center justify-center">
-                                                <ImageIcon size={15} className="text-blue-600" />
+
+                                          {/* Legend */}
+                                          <div className="mt-4 p-3.5 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 border border-blue-200 rounded-xl shadow-sm">
+                                            <div className="text-xs font-bold text-gray-800 mb-2.5 flex items-center gap-2">
+                                              <div className="w-5 h-5 rounded-md bg-blue-100 flex items-center justify-center">
+                                                <Info size={13} className="text-blue-600" />
                                               </div>
-                                              <span className="text-xs text-gray-700 font-medium">Attribute Images</span>
+                                              Legend
                                             </div>
-                                            <div className="flex items-center gap-2">
-                                              <div className="w-6 h-6 rounded-lg bg-white shadow-sm flex items-center justify-center">
-                                                <AlertTriangle size={15} className="text-red-600" />
+                                            <div className="flex flex-wrap gap-4">
+                                              <div className="flex items-center gap-2">
+                                                <div className="w-6 h-6 rounded-lg bg-white shadow-sm flex items-center justify-center">
+                                                  <ImageIcon size={15} className="text-blue-600" />
+                                                </div>
+                                                <span className="text-xs text-gray-700 font-medium">Attribute Images</span>
                                               </div>
-                                              <span className="text-xs text-gray-700 font-medium">Required</span>
+                                              <div className="flex items-center gap-2">
+                                                <div className="w-6 h-6 rounded-lg bg-white shadow-sm flex items-center justify-center">
+                                                  <AlertTriangle size={15} className="text-red-600" />
+                                                </div>
+                                                <span className="text-xs text-gray-700 font-medium">Required</span>
+                                              </div>
                                             </div>
                                           </div>
                                         </div>
-                                      </div>
-                                    )}
+                                      )}
 
-                                    {/* CDR File Information Message */}
-                                    {pdfFile && pdfFile.name.toLowerCase().endsWith('.cdr') && pdfPreviewPages.length === 0 && (
-                                      <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                                        <div className="flex items-start gap-2">
-                                          <Info size={16} className="text-blue-600 mt-0.5 flex-shrink-0" />
-                                          <div className="text-xs text-blue-900">
-                                            <p className="font-semibold mb-1">CDR File Uploaded Successfully</p>
-                                            <p>Your CorelDRAW file will be processed on the server. Page previews are not available for CDR files, but your design will be processed according to the required page count ({requiredPageCount} page{requiredPageCount !== 1 ? 's' : ''}).</p>
+                                      {/* CDR File Information Message */}
+                                      {pdfFile && pdfFile.name.toLowerCase().endsWith('.cdr') && pdfPreviewPages.length === 0 && (
+                                        <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                                          <div className="flex items-start gap-2">
+                                            <Info size={16} className="text-blue-600 mt-0.5 flex-shrink-0" />
+                                            <div className="text-xs text-blue-900">
+                                              <p className="font-semibold mb-1">CDR File Uploaded Successfully</p>
+                                              <p>Your CorelDRAW file will be processed on the server. Page previews are not available for CDR files, but your design will be processed according to the required page count ({requiredPageCount} page{requiredPageCount !== 1 ? 's' : ''}).</p>
+                                            </div>
                                           </div>
                                         </div>
-                                      </div>
-                                    )}
-
-
-                                  </div>
-                                )}
+                                      )}
+                                    </div>
+                                  </>
+                                  )}
 
                                 {/* Validation Error */}
                                 {pdfValidationError && (
@@ -6515,7 +6935,10 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                               </div>
                             </div>
                           );
-                        })()}
+                        }
+                        return null;
+                      })()}
+
 
                       </div>
 
@@ -6536,11 +6959,18 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                           <div className="flex justify-between items-end mb-4">
                             {(price + gstAmount) > 0 ? (
                               <div>
-                                <p className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-1">Estimated Total Value</p>
+                                <p className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-1">
+                                  {orderMode === 'bulk'
+                                    ? `Estimated Total Value (${parseInt(numberOfDesigns) || 1} ${(parseInt(numberOfDesigns) || 1) === 1 ? 'Design' : 'Designs'})`
+                                    : 'Estimated Total Value'}
+                                </p>
                                 <div className="flex items-baseline gap-1">
                                   <span className="text-3xl font-bold text-gray-900">
                                     ₹{(() => {
-                                      const totalPrice = (price + gstAmount);
+                                      const numDesigns = parseInt(numberOfDesigns) || 1;
+                                      const totalPrice = orderMode === 'bulk'
+                                        ? (price + gstAmount) * numDesigns
+                                        : (price + gstAmount);
                                       const [integerPart, decimalPart] = totalPrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).split('.');
                                       return (
                                         <>
@@ -6552,6 +6982,11 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                   </span>
                                   <span className="text-xs text-gray-500 font-medium">incl. taxes</span>
                                 </div>
+                                {orderMode === 'bulk' && (parseInt(numberOfDesigns) || 1) > 1 && (
+                                  <p className="text-[10px] text-gray-400 mt-0.5">
+                                    ₹{(price + gstAmount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} × {parseInt(numberOfDesigns) || 1} designs
+                                  </p>
+                                )}
                               </div>
                             ) : (
                               <div className="flex flex-col gap-1">
@@ -6647,7 +7082,8 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
           setAddress(paymentData.address);
           setMobileNumber(paymentData.mobileNumber);
           // Pass paymentData directly since setState is async and won't be ready yet
-          return await handlePaymentAndOrder(paymentData);
+          // Use lockedPricing to ensure we use the values from when the modal was opened
+          return await handlePaymentAndOrder(paymentData, lockedPricing);
         }}
         productId={selectedProduct?._id || ''}
         productName={selectedProduct?.name || ''}
@@ -6746,12 +7182,12 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
         onGetLocation={handleGetLocation}
         isGettingLocation={isGettingLocation}
         gstPercentage={gstPercentage}
-        numberOfDesigns={1}
-        preCalculatedPricing={{
-          subtotal: price,
-          gstAmount: gstAmount,
-          total: price + gstAmount
-        }}
+        numberOfDesigns={parseInt(numberOfDesigns) || 1}
+        preCalculatedPricing={lockedPricing ? {
+          subtotal: lockedPricing.price * lockedPricing.numberOfDesigns,
+          gstAmount: lockedPricing.gstAmount * lockedPricing.numberOfDesigns,
+          total: (lockedPricing.price + lockedPricing.gstAmount) * lockedPricing.numberOfDesigns
+        } : undefined}
         onPaymentSuccess={(result) => {
           setShowPaymentModal(false);
           setIsProcessingPayment(false);
@@ -6930,7 +7366,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                           )}
                         </button>
                       </div>
-                      <p className="text-xs text-white0 mt-1">You can enter address manually or use location button</p>
+                      <p className="text-xs text-gray-400 mt-1">You can enter address manually or use location button</p>
                     </div>
 
                     <div>
@@ -7396,6 +7832,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
           </motion.div>
         )}
       </AnimatePresence>
+
     </div >
   );
 };

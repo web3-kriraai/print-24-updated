@@ -76,6 +76,7 @@ import AdminComplaintManagement from "./admin/AdminComplaintManagement";
 import FeatureListViewer from "../components/admin/FeatureListViewer";
 import SegmentFeatureAssignment from "../components/admin/SegmentFeatureAssignment";
 import UserFeatureOverride from "../components/admin/UserFeatureOverride";
+import AdminBulkOrdersView from "./admin/components/AdminBulkOrdersView";
 
 // Simple placeholder image as data URI (1x1 transparent pixel)
 const PLACEHOLDER_IMAGE = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150'%3E%3Crect width='150' height='150' fill='%23f5f5f5'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='%23999' font-family='sans-serif' font-size='14'%3ENo Image%3C/text%3E%3C/svg%3E";
@@ -6138,6 +6139,8 @@ const AdminDashboard: React.FC = () => {
               fetchPrintPartnerRequests();
             } else if (tab === "orders") {
               fetchOrders();
+            } else if (tab === "bulk-orders-management") {
+              // Handled in separate component, but good to have here for completeness
             } else if (tab === "attribute-types") {
               fetchAttributeTypes();
             } else if (tab === "attribute-rules") {
@@ -6578,6 +6581,10 @@ const AdminDashboard: React.FC = () => {
                   </div>
                 )}
               </div>
+            )}
+
+            {activeTab === "bulk-orders-management" && (
+              <AdminBulkOrdersView />
             )}
 
             {/* Uploaded Images */}

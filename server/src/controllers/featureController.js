@@ -638,6 +638,55 @@ export const bulkRemoveUserOverrides = async (req, res) => {
     }
 };
 
+/**
+ * Remove user feature override
+ * DELETE /api/admin/users/:userId/features/:featureKey
+ */
+export const removeUserFeatureOverride = async (req, res) => {
+    try {
+        const { userId, featureKey } = req.params;
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: 'User not found'
+            });
+        }
+
+        if (!user.featureOverrides) {
+            return res.status(404).json({
+                success: false,
+                message: 'No overrides found for this user'
+            });
+        }
+
+        const initialLength = user.featureOverrides.length;
+        user.featureOverrides = user.featureOverrides.filter(f => f.featureKey !== featureKey.toLowerCase());
+
+        if (user.featureOverrides.length === initialLength) {
+            return res.status(404).json({
+                success: false,
+                message: `Override for '${featureKey}' not found`
+            });
+        }
+
+        await user.save();
+
+        return res.json({
+            success: true,
+            message: `Feature override '${featureKey}' removed for user`
+        });
+    } catch (error) {
+        console.error('Remove user feature override error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Failed to remove feature override',
+            error: error.message
+        });
+    }
+};
+
 export default {
     listFeatures,
     getFeature,

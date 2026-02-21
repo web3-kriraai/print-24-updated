@@ -98,6 +98,15 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ activeTab, onTabChange, isO
             ],
         },
         {
+            id: 'orders',
+            label: 'Orders',
+            icon: <ShoppingBag size={20} />,
+            subItems: [
+                { id: 'orders', label: 'Manage Orders' },
+                { id: 'bulk-orders-management', label: 'Bulk Orders' },
+            ],
+        },
+        {
             id: 'pricing',
             label: 'Pricing',
             icon: <DollarSign size={20} />,

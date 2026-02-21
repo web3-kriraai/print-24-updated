@@ -7,8 +7,44 @@
 import PaymentWebhookLog from '../models/PaymentWebhookLog.js';
 import PaymentTransaction from '../models/PaymentTransaction.js';
 import Order from '../models/orderModal.js';
-import BulkOrder from '../models/BulkOrder.js'; // BulkOrder ported
+import BulkOrder from '../models/BulkOrder.js';
 import { paymentRouter } from '../services/payment/index.js';
+
+/**
+ * After payment is confirmed, cascade COMPLETED status to all child orders.
+ * Child orders are already created synchronously at order creation time.
+ * @param {Order|string} updatedOrderOrId - The parent order document or ID
+ */
+export async function triggerBulkProcessingIfNeeded(updatedOrderOrId) {
+    if (!updatedOrderOrId) return;
+
+    const orderId = updatedOrderOrId._id || updatedOrderOrId;
+    const updatedOrder = await Order.findById(orderId);
+
+    if (!updatedOrder?.isBulkParent) return;
+
+    try {
+        console.log('💳 [Webhook] Cascading payment status to child orders for:', updatedOrder.orderNumber);
+
+        if (updatedOrder.childOrders && updatedOrder.childOrders.length > 0) {
+            const result = await Order.updateMany(
+                { _id: { $in: updatedOrder.childOrders } },
+                {
+                    $set: {
+                        paymentStatus: 'COMPLETED',
+                        status: 'confirmed',
+                    }
+                }
+            );
+            console.log(`✅ [Webhook] Cascaded payment to ${result.modifiedCount} child orders.`);
+        } else {
+            console.warn(`⚠️ [Webhook] Parent order ${updatedOrder.orderNumber} has no child orders array.`);
+        }
+    } catch (err) {
+        console.error('[Webhook] Failed to cascade payment to child orders:', err);
+    }
+}
+
 
 /**
  * Universal webhook endpoint
@@ -345,6 +381,9 @@ async function processPayUCallback(payload, provider) {
                         console.log('✅ Order updated successfully!');
                         console.log('   Order Number:', updatedOrder.orderNumber);
                         console.log('   Payment Status:', updatedOrder.paymentStatus);
+
+                        // 🔑 Trigger bulk processing AFTER payment confirmed
+                        await triggerBulkProcessingIfNeeded(updatedOrder);
                     } else {
                         // If not an order, try updating as a bulk order
                         console.log('ℹ️ Order not found, checking if it is a BulkOrder...');
@@ -514,7 +553,7 @@ async function processRazorpayWebhook(payload, provider) {
                 }
             });
 
-            await Order.findByIdAndUpdate(transaction.order, {
+            const rzpUpdatedOrder = await Order.findByIdAndUpdate(transaction.order, {
                 paymentStatus: 'COMPLETED',
                 status: 'confirmed', // Confirmed after successful payment
                 'payment_details.transaction_id': transaction._id,
@@ -522,7 +561,10 @@ async function processRazorpayWebhook(payload, provider) {
                 'payment_details.payment_method': payment.method,
                 'payment_details.captured_at': new Date(),
                 'payment_details.amount_paid': transaction.amount
-            });
+            }, { new: true });
+
+            // 🔑 Trigger bulk processing AFTER payment confirmed
+            await triggerBulkProcessingIfNeeded(rzpUpdatedOrder);
 
             return {
                 processed: true,
@@ -584,7 +626,7 @@ async function processStripeWebhook(payload, provider) {
                     method_details: {}
                 });
 
-                await Order.findByIdAndUpdate(transaction.order, {
+                const stripeUpdatedOrder = await Order.findByIdAndUpdate(transaction.order, {
                     paymentStatus: 'COMPLETED',
                     status: 'confirmed', // Confirmed after successful payment
                     'payment_details.transaction_id': transaction._id,
@@ -592,7 +634,10 @@ async function processStripeWebhook(payload, provider) {
                     'payment_details.payment_method': 'CARD',
                     'payment_details.captured_at': new Date(),
                     'payment_details.amount_paid': transaction.amount
-                });
+                }, { new: true });
+
+                // 🔑 Trigger bulk processing AFTER payment confirmed
+                await triggerBulkProcessingIfNeeded(stripeUpdatedOrder);
 
                 return { processed: true, transaction: transaction._id };
             }
@@ -648,14 +693,17 @@ async function processPhonePeWebhook(payload, provider) {
                 method_details: data.paymentInstrument
             });
 
-            await Order.findByIdAndUpdate(transaction.order, {
+            const phonePeUpdatedOrder = await Order.findByIdAndUpdate(transaction.order, {
                 paymentStatus: 'COMPLETED',
                 status: 'confirmed', // Confirmed after successful payment
                 'payment_details.gateway_used': 'PHONEPE',
                 'payment_details.payment_method': data.paymentInstrument?.type || 'UPI',
                 'payment_details.captured_at': new Date(),
                 'payment_details.amount_paid': transaction.amount
-            });
+            }, { new: true });
+
+            // 🔑 Trigger bulk processing AFTER payment confirmed
+            await triggerBulkProcessingIfNeeded(phonePeUpdatedOrder);
 
             return { processed: true, transaction: transaction._id };
         }
