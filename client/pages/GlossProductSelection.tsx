@@ -6878,75 +6878,31 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                 };
 
                                                 return (
-                                                  <div key={index} className="relative group">
-                                                    {/* Image Container with dynamic aspect ratio */}
-                                                    <div className="w-full relative overflow-hidden rounded-xl ring-2 ring-blue-400 ring-offset-0 shadow-lg hover:shadow-2xl hover:ring-blue-500 transition-all duration-300 hover:scale-[1.02]">
+                                                  <div key={index} className="bg-white border rounded-lg overflow-hidden transition hover:shadow-md"
+                                                    style={{ borderColor: "#e4e6eb" }}>
+
+                                                    {/* Image */}
+                                                    <div className="w-full bg-white">
                                                       <img
                                                         src={preview}
                                                         alt={`Page ${index + 1}`}
-                                                        className="w-full bg-white object-contain"
-                                                        style={{ aspectRatio: 'auto' }}
+                                                        className="w-full object-contain"
+                                                        style={{ aspectRatio: "auto" }}
                                                       />
                                                     </div>
 
-                                                    {/* Page Number Badge */}
-                                                    <div className={`absolute -top-2 -left-2 w-8 h-8 ${colorClasses.badge} rounded-full flex items-center justify-center shadow-xl border-2 border-white ring-1 ring-blue-200`}>
-                                                      <span className="text-white text-xs font-black">{mapping.pageNumber}</span>
-                                                    </div>
+                                                    <div className="p-3 space-y-2">
 
-                                                    {/* Required Badge */}
-                                                    {mapping.isRequired && (
-                                                      <div className="absolute -top-2 -right-2 w-7 h-7 bg-gradient-to-br from-red-500 to-rose-600 rounded-full flex items-center justify-center shadow-xl border-2 border-white ring-1 ring-red-200">
-                                                        <span className="text-white text-xs font-black">!</span>
-                                                      </div>
-                                                    )}
-
-                                                    {/* Purpose Label - Always Visible */}
-                                                    <div className={`absolute bottom-0 left-0 right-0 ${colorClasses.labelBg} text-white px-2 py-2.5 rounded-b-xl shadow-md`}>
-                                                      <div className="flex items-center gap-1.5">
-                                                        <ImageIcon size={15} className="flex-shrink-0" />
-                                                        <div className="flex-1 min-w-0">
-                                                          <p className="text-[11px] font-bold truncate leading-tight">
-                                                            {mapping.purpose}
-                                                          </p>
-                                                          {mapping.type === 'attribute' && (
-                                                            <p className="text-[9px] opacity-95 truncate font-medium">
-                                                              {mapping.isRequired ? 'Required' : 'Optional'}
-                                                            </p>
-                                                          )}
-                                                        </div>
+                                                      <div className="flex items-center gap-2">
+                                                        <ImageIcon size={16} className="text-black flex-shrink-0" />
+                                                        <p className="text-sm font-medium text-black truncate">
+                                                          {mapping.purpose}
+                                                        </p>
                                                       </div>
                                                     </div>
-
-                                                    {/* Hover Tooltip with Full Details */}
-                                                    <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300 rounded-xl pointer-events-none"></div>
                                                   </div>
                                                 );
                                               })}
-                                            </div>
-
-                                            {/* Legend */}
-                                            <div className="mt-4 p-3.5 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 border border-blue-200 rounded-xl shadow-sm">
-                                              <div className="text-xs font-bold text-gray-800 mb-2.5 flex items-center gap-2">
-                                                <div className="w-5 h-5 rounded-md bg-blue-100 flex items-center justify-center">
-                                                  <Info size={13} className="text-blue-600" />
-                                                </div>
-                                                Legend
-                                              </div>
-                                              <div className="flex flex-wrap gap-4">
-                                                <div className="flex items-center gap-2">
-                                                  <div className="w-6 h-6 rounded-lg bg-white shadow-sm flex items-center justify-center">
-                                                    <ImageIcon size={15} className="text-blue-600" />
-                                                  </div>
-                                                  <span className="text-xs text-gray-700 font-medium">Attribute Images</span>
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                  <div className="w-6 h-6 rounded-lg bg-white shadow-sm flex items-center justify-center">
-                                                    <AlertTriangle size={15} className="text-red-600" />
-                                                  </div>
-                                                  <span className="text-xs text-gray-700 font-medium">Required</span>
-                                                </div>
-                                              </div>
                                             </div>
                                           </div>
                                         )}

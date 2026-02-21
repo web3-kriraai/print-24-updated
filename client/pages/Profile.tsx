@@ -1011,8 +1011,8 @@ const Profile: React.FC = () => {
   const handleUpdateProfile = async () => {
     // Validate required fields
     const name = `${editFormData.firstName.trim()} ${editFormData.lastName.trim()}`.trim();
-    if (!editFormData.firstName || !editFormData.lastName) {
-      setProfileError("First name and last name are required.");
+    if (!editFormData.firstName) {
+      setProfileError("First name is required.");
       return;
     }
 

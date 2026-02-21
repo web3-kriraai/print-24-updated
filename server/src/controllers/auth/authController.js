@@ -158,7 +158,7 @@ export const loginUser = async (req, res) => {
     // Compare password
     const match = await bcrypt.compare(password, user.password);
     console.log(`   - Password match result: ${match}`);
-    
+
     if (!match) {
       // Log for debugging (remove in production or make it conditional)
       console.log(`❌ Password comparison failed for user: ${user.email || user.mobileNumber}`);
@@ -879,7 +879,7 @@ export const updateUserProfile = async (req, res) => {
       // Delete OTP after successful verification
       otpStore.delete(mobileNumber);
     }
-    
+
     // Handle profile image upload if present
     let profileImageUrl = user.profileImage;
     if (req.file) {
