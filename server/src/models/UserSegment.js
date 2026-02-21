@@ -64,7 +64,7 @@ const UserSegmentSchema = new mongoose.Schema({
   },
 
   // ========== Dynamic Form System ==========
-  
+
   // Associated signup form
   signupForm: {
     type: mongoose.Schema.Types.ObjectId,
@@ -95,6 +95,34 @@ const UserSegmentSchema = new mongoose.Schema({
     type: String,
     trim: true,
   },
+
+  // ========== Feature Management ==========
+
+  // Features enabled for this segment
+  features: [
+    {
+      featureKey: {
+        type: String,
+        required: true,
+      },
+      isEnabled: {
+        type: Boolean,
+        default: true,
+      },
+      config: {
+        type: mongoose.Schema.Types.Mixed,
+        default: {},
+      },
+    },
+  ],
+
+  // Permissions (legacy, features are preferred)
+  permissions: [
+    {
+      type: String,
+      trim: true,
+    },
+  ],
 }, { timestamps: true });
 
 /* =========================

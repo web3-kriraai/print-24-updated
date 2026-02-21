@@ -50,7 +50,9 @@ export const getUserContext = async (req, res) => {
                 id: context.userSegmentId,
                 code: context.userSegmentCode,
                 name: context.userSegmentName,
-                pricingTier: context.pricingTier
+                pricingTier: context.pricingTier,
+                // Expose segment features for frontend feature gating
+                features: context.userSegment?.features || [],
             },
             location: {
                 pincode: context.pincode,

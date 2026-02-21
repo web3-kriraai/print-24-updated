@@ -21,7 +21,7 @@ const PricingCalculationLogSchema = new mongoose.Schema(
 
     scope: {
       type: String,
-      enum: ["GLOBAL", "ZONE", "SEGMENT", "PRODUCT", "ATTRIBUTE"],
+      enum: ["GLOBAL", "ZONE", "SEGMENT", "PRODUCT", "ATTRIBUTE", "ZONE_BOOK"],
       required: true,
     },
 

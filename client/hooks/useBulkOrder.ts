@@ -1,8 +1,15 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 
+const DEFAULT_BULK_MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10MB fallback
+
 /**
- * Hook to check if user has bulk order upload permission
+ * Hook to check if user has bulk order upload permission.
+ * Uses the dedicated /api/user/check-feature endpoint which correctly
+ * checks user-level overrides first, then falls back to segment features.
+ *
+ * Feature key: 'bulk_order_upload'
+ *
  * @returns {{hasPermission: boolean, config: object|null, loading: boolean, error: string|null}}
  */
 export const useBulkOrderPermission = () => {
@@ -20,33 +27,45 @@ export const useBulkOrderPermission = () => {
             setLoading(true);
             setError(null);
 
-            // Get auth token
             const token = localStorage.getItem('token');
-
             if (!token) {
                 setHasPermission(false);
-                setLoading(false);
+                setConfig(null);
                 return;
             }
 
-            // Check feature permission
+            // Use the dedicated check-feature endpoint which properly respects
+            // both user-level overrides AND segment-level features
             const response = await axios.get('/api/user/check-feature', {
                 params: { feature: 'bulk_order_upload' },
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                },
+                headers: { Authorization: `Bearer ${token}` },
             });
 
-            if (response.data.success) {
-                setHasPermission(response.data.hasFeature);
-                setConfig(response.data.config);
+            const isEnabled = response.data?.hasFeature === true;
+            const featureConfig = response.data?.config || {};
+
+            // Parse configuration with fallbacks based on seed schema
+            const maxFileSizeMB = featureConfig.maxFileSizeMB || 10;
+            const maxFileSizeBytes = maxFileSizeMB * 1024 * 1024;
+            const minDesigns = featureConfig.minDesigns || 1;
+            const maxDesigns = featureConfig.maxDesigns || 50;
+
+            setHasPermission(isEnabled);
+            if (isEnabled) {
+                setConfig({
+                    minDesigns,
+                    maxDesigns,
+                    maxFileSizeMB,
+                    maxFileSize: maxFileSizeBytes,
+                    ...featureConfig,
+                });
             } else {
-                setHasPermission(false);
                 setConfig(null);
             }
         } catch (err: any) {
             console.error('Error checking bulk order permission:', err);
-            setError(err.response?.data?.message || 'Failed to check permissions');
+            setError(err.message || 'Failed to check permissions');
+            // Fail closed on error — do NOT grant access
             setHasPermission(false);
             setConfig(null);
         } finally {
@@ -119,59 +138,53 @@ export const useBulkOrderStatus = (bulkOrderId: string, enabled = false) => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
+    const fetchStatus = async () => {
+        if (!bulkOrderId) return;
+        try {
+            setLoading(true);
+            const token = localStorage.getItem('token');
+
+            const response = await axios.get(`/api/bulk-orders/${bulkOrderId}/status`, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+            });
+
+            if (response.data.success) {
+                setStatus(response.data.data);
+                return response.data.data;
+            }
+        } catch (err: any) {
+            setError(err.response?.data?.message || 'Failed to fetch status');
+        } finally {
+            setLoading(false);
+        }
+    };
+
     useEffect(() => {
         if (!enabled || !bulkOrderId) return;
 
-        let isMounted = true;
-        let intervalId: number | undefined;
+        let intervalId: any;
 
-        const fetchStatus = async () => {
-            try {
-                setLoading(true);
-                const token = localStorage.getItem('token');
-
-                const response = await axios.get(`/api/bulk-orders/${bulkOrderId}/status`, {
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                    },
-                });
-
-                if (isMounted && response.data.success) {
-                    setStatus(response.data.data);
-
-                    // Stop polling if processing is complete or failed
-                    if (['ORDER_CREATED', 'FAILED', 'CANCELLED'].includes(response.data.data.status)) {
-                        if (intervalId) {
-                            clearInterval(intervalId);
-                        }
-                    }
-                }
-            } catch (err: any) {
-                if (isMounted) {
-                    setError(err.response?.data?.message || 'Failed to fetch status');
-                }
-            } finally {
-                if (isMounted) {
-                    setLoading(false);
-                }
+        const poll = async () => {
+            const data = await fetchStatus();
+            if (data && ['ORDER_CREATED', 'FAILED', 'CANCELLED'].includes(data.status)) {
+                if (intervalId) clearInterval(intervalId);
             }
         };
 
         // Initial fetch
-        fetchStatus();
+        poll();
 
-        // Poll every 3 seconds
-        intervalId = setInterval(fetchStatus, 3000);
+        // Poll every 5 seconds
+        intervalId = setInterval(poll, 5000);
 
         return () => {
-            isMounted = false;
-            if (intervalId) {
-                clearInterval(intervalId);
-            }
+            if (intervalId) clearInterval(intervalId);
         };
     }, [bulkOrderId, enabled]);
 
-    return { status, loading, error };
+    return { status, loading, error, refetch: fetchStatus };
 };
 
 /**

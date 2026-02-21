@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2, Users, Save, X, Star, ShieldCheck, Lock } from 'lucide-react';
-import toast from 'react-hot-toast';
 
 interface SignupForm {
     _id: string;
@@ -119,17 +118,17 @@ const UserSegmentManager: React.FC = () => {
             });
 
             if (response.ok) {
-                toast.success(editingSegment ? 'User segment updated!' : 'User segment created!');
+                alert(editingSegment ? 'User segment updated!' : 'User segment created!');
                 setShowModal(false);
                 resetForm();
                 fetchSegments();
             } else {
                 const error = await response.json();
-                toast.error(error.message || 'Failed to save user segment');
+                alert(error.message || 'Failed to save user segment');
             }
         } catch (error) {
             console.error('Error saving user segment:', error);
-            toast.error('Failed to save user segment');
+            alert('Failed to save user segment');
         } finally {
             setLoading(false);
         }
@@ -148,15 +147,12 @@ const UserSegmentManager: React.FC = () => {
             });
 
             if (response.ok) {
-                toast.success('User segment deleted successfully!');
+                alert('User segment deleted!');
                 fetchSegments();
-            } else {
-                const error = await response.json();
-                toast.error(error.message || 'Failed to delete user segment');
             }
         } catch (error) {
             console.error('Error deleting user segment:', error);
-            toast.error('Failed to delete user segment');
+            alert('Failed to delete user segment');
         }
     };
 

@@ -122,6 +122,7 @@ class UserContextService {
                 creditLimit: user.creditLimit || 0,
                 paymentTerms: user.paymentTerms || null,
                 isAuthenticated: true,
+                userSegment: userSegment, // ADDED: Full segment object for features access
             };
 
             return context;

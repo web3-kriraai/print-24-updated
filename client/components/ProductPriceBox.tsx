@@ -138,7 +138,9 @@ export default function ProductPriceBox({
           productId,
           selectedDynamicAttributes: formatAttributesForPricing(selectedDynamicAttributes),
           quantity,
-          numberOfDesigns,
+          // NOTE: numberOfDesigns is intentionally NOT sent to the API.
+          // The API returns per-design pricing (base price × quantity only).
+          // The frontend multiplies by numberOfDesigns for display and totals.
         };
 
         // Use explicit pincode prop if provided, otherwise fall back to userContext
@@ -354,8 +356,10 @@ export default function ProductPriceBox({
         {(() => {
           // Calculate total attribute charges from frontend-computed attribute pricing
           const totalAttrCharges = attributeCharges.reduce((sum, c) => sum + c.charge, 0);
-          // Compute the adjusted subtotal, GST, and total including attribute charges
-          const adjustedSubtotal = (pricing.subtotal * numberOfDesigns) + totalAttrCharges;
+          // Per-design subtotal = API subtotal (for selected qty) + attribute charges
+          // Then multiply by numberOfDesigns so BOTH base price AND attribute costs scale correctly
+          const perDesignSubtotal = pricing.subtotal + totalAttrCharges;
+          const adjustedSubtotal = perDesignSubtotal * numberOfDesigns;
           const adjustedGst = Math.round((adjustedSubtotal * pricing.gstPercentage / 100 + Number.EPSILON) * 100) / 100;
           const adjustedTotal = Math.round((adjustedSubtotal + adjustedGst + Number.EPSILON) * 100) / 100;
 
@@ -440,7 +444,8 @@ export default function ProductPriceBox({
       <div className="border-t border-gray-100 pt-6">
         {(() => {
           const totalAttrCharges = attributeCharges.reduce((sum, c) => sum + c.charge, 0);
-          const adjustedSubtotal = (pricing.subtotal * numberOfDesigns) + totalAttrCharges;
+          const perDesignSubtotal = pricing.subtotal + totalAttrCharges;
+          const adjustedSubtotal = perDesignSubtotal * numberOfDesigns;
           const adjustedGst = Math.round((adjustedSubtotal * pricing.gstPercentage / 100 + Number.EPSILON) * 100) / 100;
           const adjustedTotal = Math.round((adjustedSubtotal + adjustedGst + (shippingCharge || 0) + Number.EPSILON) * 100) / 100;
           return (

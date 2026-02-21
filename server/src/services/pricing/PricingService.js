@@ -328,11 +328,14 @@ class PricingService {
             unitPrice: pricingResult.unitPrice,
             quantity: pricingResult.quantity,
             appliedModifiers: pricingResult.appliedModifiers.map((mod) => ({
-                pricingKey: mod.pricingKey,
+                pricingKey: mod.pricingKey || `MOD-${mod.modifierId || (Math.random().toString(36).substring(7))}`,
                 modifierType: mod.modifierType,
                 value: mod.value,
                 source: mod.source,
-                modifierId: mod.modifierId,
+                modifierId: mod.modifierId || null,
+                beforeAmount: mod.beforeAmount || 0,
+                afterAmount: mod.afterAmount || 0,
+                reason: mod.reason || "",
             })),
             subtotal: pricingResult.subtotal,
             gstPercentage: pricingResult.gstPercentage,
@@ -361,9 +364,9 @@ class PricingService {
         try {
             const logEntries = appliedModifiers.map((mod) => ({
                 order: orderId,
-                pricingKey: mod.pricingKey,
+                pricingKey: mod.pricingKey || `MOD-${mod.modifierId || (Math.random().toString(36).substring(7))}`,
                 modifier: mod.modifierId || null,
-                scope: mod.source,
+                scope: mod.source || "GLOBAL",
                 beforeAmount: mod.beforeAmount || 0,
                 afterAmount: mod.afterAmount || 0,
                 reason: mod.reason || "",

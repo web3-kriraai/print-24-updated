@@ -228,6 +228,9 @@ import { getShipmentDetails, getTrackingInfo, retryShipment } from "../controlle
 /* COURIER WEBHOOK */
 import { handleCourierWebhook } from "../controllers/courierWebhook.controller.js";
 
+/* FEATURE MANAGEMENT ROUTES (PMS) */
+import featureRoutes from "./featureRoutes.js";
+
 const router = express.Router();
 
 /* =====================================
@@ -672,6 +675,9 @@ router.use("/otp", otpRoutes);
 /* =====================================
    PMS ROUTES (Pricing & Modifiers)
 ===================================== */
+
+// Feature Management Routes
+router.use("/admin/features", featureRoutes);
 
 // Admin pricing routes: /api/admin/price-books, /api/admin/pricing/geo-zones, etc.
 router.use("/admin", pricingAdminRoutes);

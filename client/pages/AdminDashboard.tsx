@@ -74,6 +74,9 @@ import FormBuilder from "../components/admin/pricing/FormBuilder";
 import PricingDashboard from "./admin/PricingDashboard";
 import AdminComplaintManagement from "./admin/AdminComplaintManagement";
 
+import SegmentFeatureAssignment from "../components/admin/SegmentFeatureAssignment";
+import AdminBulkOrdersView from "./admin/components/AdminBulkOrdersView";
+
 // Simple placeholder image as data URI (1x1 transparent pixel)
 const PLACEHOLDER_IMAGE = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150'%3E%3Crect width='150' height='150' fill='%23f5f5f5'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='%23999' font-family='sans-serif' font-size='14'%3ENo Image%3C/text%3E%3C/svg%3E";
 const PLACEHOLDER_IMAGE_LARGE = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect width='400' height='400' fill='%23f5f5f5'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='%23999' font-family='sans-serif' font-size='18'%3EImage Not Available%3C/text%3E%3C/svg%3E";
@@ -6148,6 +6151,8 @@ const AdminDashboard: React.FC = () => {
               fetchPrintPartnerRequests();
             } else if (tab === "orders") {
               fetchOrders();
+            } else if (tab === "bulk-orders-management") {
+              // Handled in separate component, but good to have here for completeness
             } else if (tab === "attribute-types") {
               fetchAttributeTypes();
             } else if (tab === "attribute-rules") {
@@ -6588,6 +6593,10 @@ const AdminDashboard: React.FC = () => {
                   </div>
                 )}
               </div>
+            )}
+
+            {activeTab === "bulk-orders-management" && (
+              <AdminBulkOrdersView />
             )}
 
             {/* Uploaded Images */}
@@ -8394,6 +8403,13 @@ const AdminDashboard: React.FC = () => {
         {activeTab === "complaints" && (
           <AdminComplaintManagement />
         )}
+
+
+        {/* Segment Feature Assignment */}
+        {activeTab === "segment_features" && (
+          <SegmentFeatureAssignment />
+        )}
+
 
         {/* Create Employee Modal (for Department Section) */}
         <AnimatePresence>

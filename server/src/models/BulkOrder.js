@@ -14,14 +14,12 @@ const BulkOrderSchema = new mongoose.Schema(
         orderNumber: {
             type: String,
             unique: true,
-            index: true,
         },
 
         user: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "User",
             required: true,
-            index: true,
         },
 
         userSegment: {
@@ -50,7 +48,7 @@ const BulkOrderSchema = new mongoose.Schema(
         pagesPerDesign: {
             type: Number,
             required: true,
-            enum: [1, 2, 4], // Single-sided, double-sided, or multi-page
+            min: 1, // Any positive integer allowed (1=single-sided, 2=double-sided, etc.)
         },
 
         /* =====================
@@ -163,7 +161,6 @@ const BulkOrderSchema = new mongoose.Schema(
                 "CANCELLED",
             ],
             default: "UPLOADED",
-            index: true,
         },
 
         paymentStatus: {
@@ -241,7 +238,6 @@ const BulkOrderSchema = new mongoose.Schema(
 ====================== */
 BulkOrderSchema.index({ user: 1, createdAt: -1 });
 BulkOrderSchema.index({ status: 1 });
-BulkOrderSchema.index({ orderNumber: 1 });
 BulkOrderSchema.index({ parentOrderId: 1 });
 
 /* =====================
@@ -357,6 +353,32 @@ BulkOrderSchema.statics.getByUser = async function (userId, options = {}) {
         .limit(limit)
         .skip(skip)
         .populate("product", "name category")
+        .populate("parentOrderId", "orderNumber status")
+        .lean();
+};
+
+/**
+ * List all bulk orders (Admin)
+ */
+BulkOrderSchema.statics.listAll = async function (options = {}) {
+    const { limit = 20, skip = 0, status, search } = options;
+
+    const query = {};
+    if (status) query.status = status;
+    
+    // Simple search by order number if provided
+    if (search) {
+        query.$or = [
+            { orderNumber: { $regex: search, $options: 'i' } }
+        ];
+    }
+
+    return await this.find(query)
+        .sort({ createdAt: -1 })
+        .limit(limit)
+        .skip(skip)
+        .populate("product", "name category")
+        .populate("user", "name email mobileNumber")
         .populate("parentOrderId", "orderNumber status")
         .lean();
 };

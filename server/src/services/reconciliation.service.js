@@ -214,9 +214,12 @@ class ReconciliationService {
             'payment_details.amount_paid': transaction.amount
         });
 
-        if (!updatedOrder) {
+        if (updatedOrder) {
+            const { triggerBulkProcessingIfNeeded } = await import('../controllers/webhook.controller.js');
+            await triggerBulkProcessingIfNeeded(updatedOrder);
+        } else {
             // Try updating as a bulk order
-            /*
+            const BulkOrder = (await import('../models/BulkOrder.js')).default;
             const updatedBulkOrder = await BulkOrder.findByIdAndUpdate(transaction.order, {
                 paymentStatus: 'COMPLETED'
             });
@@ -226,26 +229,31 @@ class ReconciliationService {
                 await updatedBulkOrder.save();
 
                 // 🔄 Cascade Payment Status to Child Orders
-                await Order.updateMany(
-                    {
-                        $or: [
-                            { bulkOrderRef: updatedBulkOrder._id },
-                            { bulkParentOrderId: updatedBulkOrder._id }
-                        ]
-                    },
-                    {
-                        $set: {
-                            paymentStatus: 'COMPLETED',
-                            'payment_details.transaction_id': transaction._id,
-                            'payment_details.gateway_used': transaction.gateway_name,
-                            'payment_details.payment_method': mappedMethod,
-                            'payment_details.captured_at': transaction.captured_at,
-                            'payment_details.amount_paid': transaction.amount
-                        }
-                    }
-                );
+                const childOrders = await Order.find({
+                    $or: [
+                        { bulkOrderRef: updatedBulkOrder._id },
+                        { parentOrderId: updatedBulkOrder._id }
+                    ]
+                });
+
+                for (const child of childOrders) {
+                    child.paymentStatus = 'COMPLETED';
+                    child.status = 'approved';
+                    child.payment_details = {
+                        transaction_id: transaction._id,
+                        gateway_used: transaction.gateway_name,
+                        payment_method: mappedMethod,
+                        captured_at: transaction.captured_at,
+                        amount_paid: transaction.amount
+                    };
+                    await child.save();
+
+                    // Auto approve for production
+                    const { autoApproveOrder } = await import('../controllers/webhook.controller.js');
+                    await autoApproveOrder(child._id);
+                }
+                console.log(`✅ [Reconciliation] Cascaded payment to ${childOrders.length} child orders`);
             }
-            */
         }
 
         job.stats.auto_resolved++;

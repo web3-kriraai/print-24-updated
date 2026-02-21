@@ -116,7 +116,8 @@ export const requireFeature = (featureKey, options = {}) => {
 
 /**
  * Check if user has a feature (doesn't block, just adds boolean to req)
- * Useful for optional features
+ * Useful for optional features.
+ * PRIORITY: user-level overrides are checked FIRST, then segment features.
  */
 export const checkFeature = (featureKey) => {
     return async (req, res, next) => {
@@ -129,7 +130,23 @@ export const checkFeature = (featureKey) => {
             const { User } = await import("../models/User.js");
             const user = await User.findById(req.user.id).populate("userSegment");
 
-            if (!user || !user.userSegment) {
+            if (!user) {
+                req.hasFeature = false;
+                return next();
+            }
+
+            // PRIORITY 1: Check user-level override first
+            const userOverride = user.featureOverrides?.find(f => f.featureKey === featureKey);
+            if (userOverride) {
+                req.hasFeature = userOverride.isEnabled;
+                if (userOverride.isEnabled) {
+                    req.featureConfig = userOverride.config || {};
+                }
+                return next();
+            }
+
+            // PRIORITY 2: Fall back to segment features
+            if (!user.userSegment) {
                 req.hasFeature = false;
                 return next();
             }

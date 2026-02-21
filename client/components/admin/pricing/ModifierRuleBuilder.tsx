@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, X, Save, AlertCircle, Search, Edit2, Trash2, MapPin, Package, Calendar, Users, ChevronLeft, ChevronRight, CheckCircle } from 'lucide-react';
-import { AdminSearchableDropdown } from '../../AdminSearchableDropdown';
+import { Plus, X, Save, AlertCircle } from 'lucide-react';
 
 /**
  * =========================================================================
@@ -460,10 +459,15 @@ export const ModifierRuleBuilder: React.FC = () => {
     };
 
     return (
-        <div className="p-0">
+        <div className="min-h-screen bg-gray-50 p-6">
+            {/* Header */}
+            <div className="mb-8">
+                <h1 className="text-3xl font-bold text-gray-900">Price Modifier Rules</h1>
+                <p className="text-gray-600 mt-2">Create dynamic pricing rules for different scopes</p>
+            </div>
 
-            {/* Actions Bar */}
-            <div className="mb-6 bg-white border-b border-gray-100 p-6 flex flex-wrap gap-4 justify-between items-center">
+            {/* Create Button */}
+            <div className="mb-6">
                 <button
                     onClick={() => {
                         setEditingModifier(null);
@@ -480,132 +484,99 @@ export const ModifierRuleBuilder: React.FC = () => {
                         setRuleRows([{ id: '1', field: 'geo_zone', operator: 'EQUALS', value: '' }]);
                         setShowCreateModal(true);
                     }}
-                    className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl hover:bg-indigo-700 flex items-center gap-2 font-bold shadow-lg shadow-indigo-100 transition-all active:scale-[0.98]"
+                    className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
                 >
-                    <Plus size={20} />
-                    New Modifier Rule
+                    <Plus className="w-4 h-4" />
+                    Create New Modifier
                 </button>
-
-                <div className="flex-1 max-w-md hidden md:block">
-                    <div className="relative group">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-indigo-500 transition-colors" size={18} />
-                        <input
-                            type="text"
-                            placeholder="Find rules by reason or scope..."
-                            className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none"
-                        />
-                    </div>
-                </div>
             </div>
 
             {/* Modifiers List */}
-            <div className="p-6">
-                <div className="bg-white rounded-2xl border border-gray-200/60 shadow-sm overflow-hidden flex flex-col">
-                    <div className="px-6 py-5 border-b border-gray-50 bg-gray-50/30">
-                        <h2 className="text-sm font-bold text-gray-900 flex items-center gap-2 uppercase tracking-[0.15em]">
-                            Active Strategy Matrix
-                        </h2>
+            <div className="bg-white rounded-lg shadow-md p-6">
+                <h2 className="text-xl font-semibold mb-4">Active Modifiers</h2>
+
+                {loading ? (
+                    <div className="text-center py-8 text-gray-500">Loading modifiers...</div>
+                ) : modifiers.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                        No modifiers yet. Create one to get started!
                     </div>
-
-                    <div className="divide-y divide-gray-100">
-                        {loading ? (
-                            <div className="py-20 text-center">
-                                <div className="inline-block w-8 h-8 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-                                <p className="text-sm text-gray-500 font-medium">Analyzing pricing strategies...</p>
-                            </div>
-                        ) : modifiers.length === 0 ? (
-                            <div className="py-20 text-center">
-                                <div className="p-4 bg-gray-50 rounded-full inline-block mb-4">
-                                    <AlertCircle size={32} className="text-gray-300" />
-                                </div>
-                                <h3 className="text-gray-900 font-bold text-lg">No active modifiers</h3>
-                                <p className="text-sm text-gray-500 mt-1 max-w-xs mx-auto">Create a pricing rule to start adjusting costs dynamically across your platform.</p>
-                            </div>
-                        ) : (
-                            modifiers.map((modifier) => (
-                                <div
-                                    key={modifier._id}
-                                    className="p-6 hover:bg-gray-50/50 transition-colors group relative"
-                                >
-                                    <div className="flex items-start justify-between gap-6">
-                                        <div className="flex-1">
-                                            <div className="flex flex-wrap items-center gap-3 mb-3">
-                                                <span className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border ${getScopeColor(modifier.appliesTo).replace('bg-', 'text-').replace('-100', '-700')} border-current/20 ${getScopeColor(modifier.appliesTo)}`}>
-                                                    {modifier.appliesTo}
+                ) : (
+                    <div className="space-y-4">
+                        {modifiers.map((modifier) => (
+                            <div
+                                key={modifier._id}
+                                className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50"
+                            >
+                                <div className="flex items-start justify-between">
+                                    <div className="flex-1">
+                                        <div className="flex items-center gap-3 mb-2">
+                                            <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getScopeColor(modifier.appliesTo)}`}>
+                                                {modifier.appliesTo}
+                                            </span>
+                                            <span className="text-2xl">{getModifierTypeIcon(modifier.modifierType)}</span>
+                                            <span className="font-semibold text-lg">
+                                                {modifier.modifierType.includes('PERCENT') ? `${modifier.value}%` : `₹${modifier.value}`}
+                                            </span>
+                                            <span className="text-sm text-gray-600">
+                                                (Priority: {modifier.priority})
+                                            </span>
+                                            {!modifier.isActive && (
+                                                <span className="px-2 py-1 bg-red-100 text-red-800 text-xs rounded">
+                                                    Inactive
                                                 </span>
-                                                <div className="flex items-center gap-1.5 px-3 py-1 bg-gray-900 text-white rounded-lg">
-                                                    <span className="text-indigo-400 font-bold">{getModifierTypeIcon(modifier.modifierType)}</span>
-                                                    <span className="text-sm font-bold tracking-tight">
-                                                        {modifier.modifierType.includes('PERCENT') ? `${modifier.value}%` : `₹${modifier.value}`}
-                                                    </span>
-                                                </div>
-                                                <div className="flex items-center gap-1 text-[10px] font-bold text-gray-400 bg-gray-100 px-2.5 py-1 rounded-md uppercase tracking-widest">
-                                                    Priority {modifier.priority}
-                                                </div>
-                                                {!modifier.isActive && (
-                                                    <span className="px-2.5 py-1 bg-rose-50 text-rose-600 border border-rose-100 text-[10px] font-bold uppercase tracking-widest rounded-md">
-                                                        Disabled
-                                                    </span>
-                                                )}
-                                                {modifier.isStackable && (
-                                                    <span className="px-2.5 py-1 bg-teal-50 text-teal-600 border border-teal-100 text-[10px] font-bold uppercase tracking-widest rounded-md">
-                                                        Stackable
-                                                    </span>
-                                                )}
-                                            </div>
-
-                                            <h3 className="text-lg font-bold text-gray-900 mb-2 leading-tight">{modifier.reason || 'Unnamed Pricing Rule'}</h3>
-
-                                            <div className="flex flex-wrap gap-x-6 gap-y-2">
-                                                {modifier.geoZone && (
-                                                    <div className="flex items-center gap-2 text-xs font-semibold text-gray-500">
-                                                        <MapPin size={14} className="text-gray-300" />
-                                                        {(modifier.geoZone as any).name || modifier.geoZone}
-                                                    </div>
-                                                )}
-                                                {modifier.userSegment && (
-                                                    <div className="flex items-center gap-2 text-xs font-semibold text-gray-500">
-                                                        <Users size={14} className="text-gray-300" />
-                                                        {(modifier.userSegment as any).name || modifier.userSegment}
-                                                    </div>
-                                                )}
-                                                {modifier.product && (
-                                                    <div className="flex items-center gap-2 text-xs font-semibold text-gray-500">
-                                                        <Package size={14} className="text-gray-300" />
-                                                        {(modifier.product as any).name || modifier.product}
-                                                    </div>
-                                                )}
-                                                {modifier.validFrom && (
-                                                    <div className="flex items-center gap-2 text-xs font-semibold text-gray-500 bg-indigo-50/50 px-2 py-1 rounded border border-indigo-100/50">
-                                                        <Calendar size={14} className="text-indigo-400" />
-                                                        {new Date(modifier.validFrom).toLocaleDateString()} - {modifier.validTo ? new Date(modifier.validTo).toLocaleDateString() : 'Forever'}
-                                                    </div>
-                                                )}
-                                            </div>
+                                            )}
                                         </div>
 
-                                        <div className="flex gap-2">
-                                            <button
-                                                onClick={() => openEditModal(modifier)}
-                                                className="w-10 h-10 flex items-center justify-center text-blue-600 hover:bg-blue-50 border border-gray-100 rounded-xl transition-all"
-                                                title="Edit Rule"
-                                            >
-                                                <Edit2 size={18} />
-                                            </button>
-                                            <button
-                                                onClick={() => modifier._id && handleDelete(modifier._id)}
-                                                className="w-10 h-10 flex items-center justify-center text-rose-600 hover:bg-rose-50 border border-gray-100 rounded-xl transition-all"
-                                                title="Remove Rule"
-                                            >
-                                                <Trash2 size={18} />
-                                            </button>
+                                        <p className="text-gray-700 mb-2">{modifier.reason || 'No description'}</p>
+
+                                        <div className="flex flex-wrap gap-3 text-sm text-gray-600">
+                                            {modifier.geoZone && (
+                                                <span>Zone: {(modifier.geoZone as any).name || modifier.geoZone}</span>
+                                            )}
+                                            {modifier.userSegment && (
+                                                <span>Segment: {(modifier.userSegment as any).name || modifier.userSegment}</span>
+                                            )}
+                                            {modifier.product && (
+                                                <span>Product: {(modifier.product as any).name || modifier.product}</span>
+                                            )}
+                                            {modifier.attributeType && (
+                                                <span>Attribute: {(modifier.attributeType as any).attributeName || modifier.attributeType}</span>
+                                            )}
+                                            {modifier.minQuantity && (
+                                                <span>Min Qty: {modifier.minQuantity}</span>
+                                            )}
+                                            {modifier.maxQuantity && (
+                                                <span>Max Qty: {modifier.maxQuantity}</span>
+                                            )}
+                                            {modifier.validFrom && (
+                                                <span>From: {new Date(modifier.validFrom).toLocaleDateString()}</span>
+                                            )}
+                                            {modifier.validTo && (
+                                                <span>To: {new Date(modifier.validTo).toLocaleDateString()}</span>
+                                            )}
                                         </div>
                                     </div>
+
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => openEditModal(modifier)}
+                                            className="px-3 py-1 text-blue-600 hover:bg-blue-50 rounded"
+                                        >
+                                            Edit
+                                        </button>
+                                        <button
+                                            onClick={() => modifier._id && handleDelete(modifier._id)}
+                                            className="px-3 py-1 text-red-600 hover:bg-red-50 rounded"
+                                        >
+                                            Delete
+                                        </button>
+                                    </div>
                                 </div>
-                            ))
-                        )}
+                            </div>
+                        ))}
                     </div>
-                </div>
+                )}
             </div>
 
             {/* Create/Edit Modal */}
@@ -650,16 +621,18 @@ export const ModifierRuleBuilder: React.FC = () => {
                                     <label className="block text-sm font-medium text-gray-700 mb-1">
                                         Geo Zone *
                                     </label>
-                                    <AdminSearchableDropdown
-                                        label="Select a zone..."
-                                        options={geoZones.map((zone) => ({
-                                            value: zone._id,
-                                            label: zone.name
-                                        }))}
+                                    <select
                                         value={formData.geoZone || ''}
-                                        onChange={(val) => setFormData({ ...formData, geoZone: val as string })}
-                                        searchPlaceholder="Search zones..."
-                                    />
+                                        onChange={(e) => setFormData({ ...formData, geoZone: e.target.value })}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                    >
+                                        <option value="">Select a zone...</option>
+                                        {geoZones.map((zone) => (
+                                            <option key={zone._id} value={zone._id}>
+                                                {zone.name}
+                                            </option>
+                                        ))}
+                                    </select>
                                 </div>
                             )}
 
@@ -668,16 +641,18 @@ export const ModifierRuleBuilder: React.FC = () => {
                                     <label className="block text-sm font-medium text-gray-700 mb-1">
                                         User Segment *
                                     </label>
-                                    <AdminSearchableDropdown
-                                        label="Select a segment..."
-                                        options={userSegments.map((segment) => ({
-                                            value: segment._id,
-                                            label: `${segment.name} (${segment.code})`
-                                        }))}
+                                    <select
                                         value={formData.userSegment || ''}
-                                        onChange={(val) => setFormData({ ...formData, userSegment: val as string })}
-                                        searchPlaceholder="Search segments..."
-                                    />
+                                        onChange={(e) => setFormData({ ...formData, userSegment: e.target.value })}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                    >
+                                        <option value="">Select a segment...</option>
+                                        {userSegments.map((segment) => (
+                                            <option key={segment._id} value={segment._id}>
+                                                {segment.name} ({segment.code})
+                                            </option>
+                                        ))}
+                                    </select>
                                 </div>
                             )}
 
@@ -686,16 +661,18 @@ export const ModifierRuleBuilder: React.FC = () => {
                                     <label className="block text-sm font-medium text-gray-700 mb-1">
                                         Product *
                                     </label>
-                                    <AdminSearchableDropdown
-                                        label="Select a product..."
-                                        options={products.map((product) => ({
-                                            value: product._id,
-                                            label: product.name
-                                        }))}
+                                    <select
                                         value={formData.product || ''}
-                                        onChange={(val) => setFormData({ ...formData, product: val as string })}
-                                        searchPlaceholder="Search products..."
-                                    />
+                                        onChange={(e) => setFormData({ ...formData, product: e.target.value })}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                    >
+                                        <option value="">Select a product...</option>
+                                        {products.map((product) => (
+                                            <option key={product._id} value={product._id}>
+                                                {product.name}
+                                            </option>
+                                        ))}
+                                    </select>
                                 </div>
                             )}
 

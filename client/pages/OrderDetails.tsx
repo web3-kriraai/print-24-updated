@@ -31,6 +31,9 @@ import {
   Plus,
   ExternalLink,
   Copy,
+  Image as ImageIcon,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { formatCurrency, calculateOrderBreakdown, OrderForCalculation } from '../utils/pricing';
 import { API_BASE_URL_WITH_API as API_BASE_URL } from '../lib/apiConfig';
@@ -132,19 +135,42 @@ interface Order {
   }>;
   uploadedDesign?: {
     frontImage?: {
-      data: string;
-      filename: string;
+      data?: string;
+      url?: string;
+      filename?: string;
     };
     backImage?: {
-      data: string;
-      filename: string;
+      data?: string;
+      url?: string;
+      filename?: string;
+    };
+    pdfFile?: {
+      url?: string;
+      publicId?: string;
+      filename?: string;
+      pageCount?: number;
     };
   };
   advancePaid?: number;
   paymentStatus?: 'PENDING' | 'PARTIAL' | 'COMPLETED' | 'FAILED' | 'REFUNDED' | 'PARTIALLY_REFUNDED';
 
   paymentGatewayInvoiceId?: string | null;
-  childOrders?: any[]; // For bulk parents
+  bulkOrderRef?: string; // BulkOrder document ID
+  childOrders?: Array<{
+    _id: string;
+    orderNumber: string;
+    quantity: number;
+    status: string;
+    paymentStatus?: string;
+    designSequence?: number;
+    totalPrice?: number;
+    priceSnapshot?: { totalPayable: number };
+    product?: { _id: string; name: string; image?: string };
+    uploadedDesign?: {
+      frontImage?: { url?: string; data?: string; filename?: string };
+    };
+    createdAt?: string;
+  }>;
 
   // Modern pricing structure
   priceSnapshot?: {
@@ -202,6 +228,8 @@ interface Order {
     timestamp: string;
   }>;
   isBulkParent?: boolean;
+  isBulkChild?: boolean;
+  parentOrderId?: string | { _id: string, orderNumber: string };
   distinctDesigns?: number;
 }
 
@@ -683,23 +711,29 @@ const FileUploadPanel: React.FC<{ order: Order }> = ({ order }) => {
   const files: Array<{ type: string; fileName: string; uploadedAt: string; sizeMb: number; data?: string }> = [];
 
   if (order.uploadedDesign?.frontImage) {
-    files.push({
-      type: 'front',
-      fileName: order.uploadedDesign.frontImage.filename || 'front-design.png',
-      uploadedAt: order.createdAt,
-      sizeMb: 0,
-      data: order.uploadedDesign.frontImage.data,
-    });
+    const imgSrc = order.uploadedDesign.frontImage.url || order.uploadedDesign.frontImage.data;
+    if (imgSrc) {
+      files.push({
+        type: 'front',
+        fileName: order.uploadedDesign.frontImage.filename || 'front-design.pdf',
+        uploadedAt: order.createdAt,
+        sizeMb: 0,
+        data: imgSrc,
+      });
+    }
   }
 
   if (order.uploadedDesign?.backImage) {
-    files.push({
-      type: 'back',
-      fileName: order.uploadedDesign.backImage.filename || 'back-design.png',
-      uploadedAt: order.createdAt,
-      sizeMb: 0,
-      data: order.uploadedDesign.backImage.data,
-    });
+    const imgSrc = order.uploadedDesign.backImage.url || order.uploadedDesign.backImage.data;
+    if (imgSrc) {
+      files.push({
+        type: 'back',
+        fileName: order.uploadedDesign.backImage.filename || 'back-design.pdf',
+        uploadedAt: order.createdAt,
+        sizeMb: 0,
+        data: imgSrc,
+      });
+    }
   }
 
   return (
@@ -1316,6 +1350,25 @@ const OrderDetails: React.FC = () => {
                     <p className="text-gray-600">{categoryName}</p>
                   </div>
                 </div>
+
+                {order.isBulkChild && order.parentOrderId && (
+                  <div className="mt-4 p-4 bg-indigo-50 border border-indigo-200 rounded-xl flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-indigo-700">
+                      <Layers className="w-5 h-5" />
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-wider">Child Order</p>
+                        <p className="text-sm">Main order: <span className="font-mono font-bold">{(order.parentOrderId as any).orderNumber || 'Parent Order'}</span></p>
+                      </div>
+                    </div>
+                    <a 
+                      href={`/order/${typeof order.parentOrderId === 'object' ? order.parentOrderId._id : order.parentOrderId}`}
+                      className="text-xs font-bold bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 transition-all flex items-center gap-1"
+                    >
+                      View Parent
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+                )}
               </div>
 
               <div className="flex flex-col gap-3">
@@ -1739,106 +1792,168 @@ const OrderDetails: React.FC = () => {
           <div className="lg:col-span-2 space-y-8">
             <ProductSpecsPanel order={order} />
 
-            {/* Child Orders Section - For Parent Bulk Orders */}
-            {order.childOrders && order.childOrders.length > 0 && (
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <div className="border-b border-gray-200 px-6 py-4 bg-gradient-to-r from-blue-50 to-white">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-blue-100 rounded-lg">
-                      <Package className="w-5 h-5 text-blue-600" />
+            {/* ─── Bulk Order Child Designs Section ─────────────────── */}
+            {order.isBulkParent && (
+              <div className="bg-white rounded-2xl shadow-sm border border-indigo-100 overflow-hidden">
+                {/* Header */}
+                <div className="bg-gradient-to-r from-indigo-600 to-violet-600 px-6 py-5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-white/20 rounded-xl">
+                        <Layers className="w-6 h-6 text-white" />
+                      </div>
+                      <div>
+                        <h3 className="text-xl font-bold text-white">Bulk Order — Individual Designs</h3>
+                        <p className="text-indigo-200 text-sm mt-0.5">
+                          {order.distinctDesigns} design{(order.distinctDesigns || 0) > 1 ? 's' : ''} •{' '}
+                          {order.quantity?.toLocaleString()} total copies
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="text-lg font-bold text-gray-900">Child Orders</h3>
-                      <p className="text-sm text-gray-600">
-                        {order.childOrders.length} order{order.childOrders.length !== 1 ? 's' : ''} in this bulk order
+                    {order.bulkOrderRef && (
+                      <a
+                        href={`/bulk-order/${order.bulkOrderRef}`}
+                        className="flex items-center gap-2 text-sm font-semibold text-white/90 hover:text-white bg-white/10 hover:bg-white/20 px-4 py-2 rounded-xl transition-all"
+                      >
+                        Track Bulk Status
+                        <ExternalLink className="w-4 h-4" />
+                      </a>
+                    )}
+                  </div>
+
+                  {/* Stats Row */}
+                  <div className="grid grid-cols-3 gap-4 mt-5">
+                    <div className="bg-white/10 rounded-xl p-3 text-center">
+                      <p className="text-2xl font-black text-white">{order.distinctDesigns || 0}</p>
+                      <p className="text-xs text-indigo-200 font-semibold uppercase tracking-wide mt-1">Designs</p>
+                    </div>
+                    <div className="bg-white/10 rounded-xl p-3 text-center">
+                      <p className="text-2xl font-black text-white">{order.quantity?.toLocaleString()}</p>
+                      <p className="text-xs text-indigo-200 font-semibold uppercase tracking-wide mt-1">Total Copies</p>
+                    </div>
+                    <div className="bg-white/10 rounded-xl p-3 text-center">
+                      <p className="text-2xl font-black text-white">
+                        {order.distinctDesigns ? Math.round((order.quantity || 0) / order.distinctDesigns) : 0}
                       </p>
+                      <p className="text-xs text-indigo-200 font-semibold uppercase tracking-wide mt-1">Copies / Design</p>
                     </div>
                   </div>
                 </div>
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Order #
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Product
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Quantity
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Price
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Status
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Payment
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {order.childOrders.map((child: any, idx: number) => (
-                        <tr key={child._id || idx} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <a
-                              href={`/order/${child._id}`}
-                              className="text-sm font-medium text-blue-600 hover:text-blue-800"
-                            >
-                              {child.orderNumber}
-                            </a>
-                          </td>
-                          <td className="px-6 py-4 text-sm text-gray-900">
-                            {typeof child.product === 'object' ? child.product?.name : 'Product'}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {child.quantity?.toLocaleString() || 0} units
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                            {formatCurrency(
-                              child.payment_details?.amount_paid ||
-                              child.priceSnapshot?.totalPayable ||
-                              child.totalPrice ||
-                              0
-                            )}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`px-2 py-1 text-xs font-semibold rounded-full ${child.status === 'completed' ? 'bg-green-100 text-green-800' :
-                              child.status === 'processing' ? 'bg-blue-100 text-blue-800' :
-                                child.status === 'request' ? 'bg-yellow-100 text-yellow-800' :
-                                  'bg-gray-100 text-gray-800'
-                              }`}>
-                              {child.status}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`px-2 py-1 text-xs font-semibold rounded-full ${child.paymentStatus === 'COMPLETED' ? 'bg-green-100 text-green-800' :
-                              child.paymentStatus === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
-                                'bg-gray-100 text-gray-800'
-                              }`}>
-                              {child.paymentStatus}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                    <tfoot className="bg-gray-50">
-                      <tr>
-                        <td colSpan={2} className="px-6 py-4 text-sm font-bold text-gray-900">
-                          Total
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">
-                          {order.childOrders.reduce((sum: number, child: any) => sum + (child.quantity || 0), 0).toLocaleString()} units
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">
-                          {formatCurrency(order.payment_details?.amount_paid || order.priceSnapshot?.totalPayable || order.totalPrice || 0)}
-                        </td>
-                        <td colSpan={2}></td>
-                      </tr>
-                    </tfoot>
-                  </table>
+
+                {/* Child Order Cards */}
+                <div className="p-6">
+                  {order.childOrders && order.childOrders.length > 0 ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {order.childOrders.map((child, idx) => {
+                        const designImg = child.uploadedDesign?.frontImage?.url || child.uploadedDesign?.frontImage?.data;
+                        const productName = typeof child.product === 'object' ? child.product?.name : (order.product?.name || 'Product');
+                        const childTotal = child.priceSnapshot?.totalPayable || child.totalPrice || 0;
+                        const designNum = child.designSequence ?? (idx + 1);
+
+                        const statusColor = child.status === 'completed' ? 'bg-green-100 text-green-800 border-green-200' :
+                          child.status === 'processing' ? 'bg-blue-100 text-blue-800 border-blue-200' :
+                          child.status === 'request' ? 'bg-yellow-100 text-yellow-800 border-yellow-200' :
+                          'bg-gray-100 text-gray-700 border-gray-200';
+
+                        return (
+                          <div
+                            key={child._id || idx}
+                            className="group relative bg-gradient-to-br from-gray-50 to-white border border-gray-200 hover:border-indigo-300 hover:shadow-md rounded-xl overflow-hidden transition-all duration-200"
+                          >
+                            {/* Design Number Badge */}
+                            <div className="absolute top-3 left-3 z-10 w-8 h-8 bg-indigo-600 text-white rounded-full flex items-center justify-center text-sm font-bold shadow-md">
+                              {designNum}
+                            </div>
+
+                            {/* Design Preview */}
+                            <div className="h-36 bg-gradient-to-br from-indigo-50 to-purple-50 flex items-center justify-center overflow-hidden border-b border-gray-100">
+                              {designImg ? (
+                                <img
+                                  src={designImg}
+                                  alt={`Design ${designNum}`}
+                                  className="h-full w-full object-contain p-2"
+                                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                                />
+                              ) : (
+                                <div className="flex flex-col items-center gap-2 text-indigo-300">
+                                  <ImageIcon className="w-10 h-10" />
+                                  <span className="text-xs font-medium">Design {designNum}</span>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Card Body */}
+                            <div className="p-4">
+                              <div className="flex items-start justify-between mb-3">
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs text-gray-500 font-semibold uppercase tracking-wide mb-0.5">Order</p>
+                                  <a
+                                    href={`/order/${child._id}`}
+                                    className="text-sm font-bold text-indigo-600 hover:text-indigo-800 font-mono truncate block"
+                                  >
+                                    {child.orderNumber || `—`}
+                                  </a>
+                                </div>
+                                <a
+                                  href={`/order/${child._id}`}
+                                  className="ml-2 p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors flex-shrink-0"
+                                >
+                                  <ExternalLink className="w-4 h-4" />
+                                </a>
+                              </div>
+
+                              <p className="text-sm text-gray-700 font-medium mb-3 truncate">{productName}</p>
+
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-1.5 text-gray-600">
+                                  <Package className="w-3.5 h-3.5" />
+                                  <span className="text-sm font-semibold">{child.quantity?.toLocaleString() || 0} units</span>
+                                </div>
+                                <span className="text-sm font-bold text-gray-900">
+                                  {formatCurrency(childTotal)}
+                                </span>
+                              </div>
+
+                              <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-100">
+                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold border ${statusColor}`}>
+                                  {child.status === 'completed' ? <CheckCircle2 className="w-3 h-3" /> :
+                                   child.status === 'request' ? <Clock className="w-3 h-3" /> :
+                                   <Package className="w-3 h-3" />}
+                                  {(child.status || 'pending').replace(/_/g, ' ')}
+                                </span>
+                                {child.paymentStatus === 'COMPLETED' && (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                    <Check className="w-3 h-3" /> Paid
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    // Child orders not yet created (payment pending or processing)
+                    <div className="text-center py-10 px-4">
+                      <div className="w-16 h-16 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <Layers className="w-8 h-8 text-indigo-400" />
+                      </div>
+                      <h4 className="text-base font-bold text-gray-900 mb-2">Designs Being Processed</h4>
+                      <p className="text-sm text-gray-500 max-w-xs mx-auto">
+                        Individual design orders are created automatically after payment confirmation. 
+                        {order.paymentStatus !== 'COMPLETED' && ' Complete payment to start processing.'}
+                      </p>
+                      {order.bulkOrderRef && (
+                        <a
+                          href={`/bulk-order/${order.bulkOrderRef}`}
+                          className="inline-flex items-center gap-2 mt-4 px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-semibold hover:bg-indigo-700 transition-colors"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                          Track Processing Status
+                        </a>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             )}

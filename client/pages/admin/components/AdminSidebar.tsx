@@ -19,6 +19,7 @@ import {
     X,
     DollarSign,
     AlertCircle,
+    Shield,
 } from 'lucide-react';
 import { useLogo } from '../../../hooks/useSiteSettings';
 
@@ -84,6 +85,23 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ activeTab, onTabChange, isO
                 { id: 'user-segments', label: 'Manage Segments' },
                 { id: 'segment-applications', label: 'Applications' },
                 { id: 'form-builder', label: 'Form Builder' },
+            ],
+        },
+        {
+            id: 'features',
+            label: 'Features',
+            icon: <Shield size={20} />, // Make sure Shield is imported
+            subItems: [
+                { id: 'segment_features', label: 'Segment Features' },
+            ],
+        },
+        {
+            id: 'orders',
+            label: 'Orders',
+            icon: <ShoppingBag size={20} />,
+            subItems: [
+                { id: 'orders', label: 'Manage Orders' },
+                { id: 'bulk-orders-management', label: 'Bulk Orders' },
             ],
         },
         {

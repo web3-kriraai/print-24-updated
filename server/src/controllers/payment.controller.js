@@ -12,6 +12,7 @@ import BulkOrder from '../models/BulkOrder.js'; // BulkOrder ported
 import Product from '../models/productModal.js';
 import Department from '../models/departmentModal.js';
 import { User } from '../models/User.js';
+import { triggerBulkProcessingIfNeeded } from './webhook.controller.js';
 
 /**
  * Helper to automatically assign order to the first production department upon payment
@@ -124,6 +125,11 @@ export const getActiveGateway = async (req, res) => {
  * POST /api/payment/initialize
  */
 export const initializePayment = async (req, res) => {
+    let order = null;
+    let bulkOrder = null;
+    let isBulkOrder = false;
+    let orderDoc = null;
+
     try {
         console.log('🔵 [Payment Init] Request received:', {
             body: req.body,
@@ -134,36 +140,35 @@ export const initializePayment = async (req, res) => {
         const userId = req.user?._id;
 
         // Try to find order or bulk order
-        let order = await Order.findById(orderId).populate('user');
-        let bulkOrder = null;
-        let isBulkOrder = false;
+        order = await Order.findById(orderId).populate('user');
 
-        if (!order) {
-            // Check if it's a bulk order
+        if (order) {
+            orderDoc = order;
+            // Check if it's a bulk parent order
+            if (order.isBulkParent) {
+                isBulkOrder = true;
+                console.log('💼 Order is a bulk parent from Order collection:', order._id);
+            }
+        } else {
+            // Check if it's a bulk order (BulkOrder model - legacy/external)
             bulkOrder = await BulkOrder.findById(orderId).populate('user');
             if (bulkOrder) {
                 isBulkOrder = true;
-                console.log('💼 Bulk order found for payment:', bulkOrder._id);
+                orderDoc = bulkOrder;
+                console.log('💼 Bulk order found from BulkOrder collection:', bulkOrder._id);
             } else {
                 return res.status(404).json({ error: 'Order not found' });
             }
         }
 
-        const orderDoc = isBulkOrder ? bulkOrder : order;
-
         // Verify ownership
-        if (userId && orderDoc.user._id.toString() !== userId.toString()) {
+        if (userId && orderDoc.user?._id?.toString() !== userId.toString()) {
             return res.status(403).json({ error: 'Not authorized to pay for this order' });
         }
 
-        // Check if already paid (only for regular orders)
-        if (!isBulkOrder && order.paymentStatus === 'COMPLETED') {
+        // Check if already paid
+        if (orderDoc.paymentStatus === 'COMPLETED') {
             return res.status(400).json({ error: 'Order already paid' });
-        }
-
-        // For bulk orders, check status
-        if (isBulkOrder && bulkOrder.paymentStatus === 'COMPLETED') {
-            return res.status(400).json({ error: 'Bulk order already paid' });
         }
 
         // Check for existing CREATED transaction for this order
@@ -199,20 +204,20 @@ export const initializePayment = async (req, res) => {
 
         if (isBulkOrder) {
             // For bulk orders, use amount from request body (sent from frontend)
-            paymentAmount = amount || bulkOrder.price?.totalPrice || (bulkOrder.priceSnapshot?.totalPayable);
+            paymentAmount = amount || orderDoc.price?.totalPrice || (orderDoc.priceSnapshot?.totalPayable);
             paymentCurrency = currency || 'INR';
         } else {
             // For regular orders, use price snapshot
-            paymentAmount = order.priceSnapshot.totalPayable;
-            paymentCurrency = order.priceSnapshot.currency || 'INR';
+            paymentAmount = orderDoc.priceSnapshot.totalPayable;
+            paymentCurrency = orderDoc.priceSnapshot.currency || 'INR';
         }
 
         // Prepare customer info
         const customer = {
-            id: orderDoc.user._id,
-            name: customerInfo?.name || orderDoc.user.name || orderDoc.user.firstName,
-            email: customerInfo?.email || orderDoc.user.email,
-            phone: customerInfo?.phone || orderDoc.user.mobileNumber || orderDoc.mobileNumber
+            id: orderDoc.user?._id || userId,
+            name: customerInfo?.name || orderDoc.user?.name || orderDoc.user?.firstName || 'Customer',
+            email: customerInfo?.email || orderDoc.user?.email || 'customer@example.com',
+            phone: customerInfo?.phone || orderDoc.user?.mobileNumber || orderDoc.mobileNumber || ''
         };
 
         console.log('💳 Initializing payment:', {
@@ -245,8 +250,8 @@ export const initializePayment = async (req, res) => {
 
     } catch (error) {
         console.error('Payment initialization error:', error);
-        if (isBulkOrder) {
-            await BulkOrder.findByIdAndUpdate(bulkOrder._id, {
+        if (isBulkOrder && orderDoc && orderDoc.constructor.modelName === 'BulkOrder') {
+            await BulkOrder.findByIdAndUpdate(orderDoc._id, {
                 paymentStatus: 'FAILED',
                 $push: {
                     processingLogs: {
@@ -257,8 +262,8 @@ export const initializePayment = async (req, res) => {
                     }
                 }
             });
-        } else {
-            await Order.findByIdAndUpdate(order._id, {
+        } else if (orderDoc) {
+            await Order.findByIdAndUpdate(orderDoc._id, {
                 paymentStatus: 'FAILED'
             });
         }
@@ -372,9 +377,8 @@ export const verifyPayment = async (req, res) => {
 
                 if (updatedOrder) {
                     await autoApproveOrder(updatedOrder._id);
-                }
-
-                if (!updatedOrder) {
+                    await triggerBulkProcessingIfNeeded(updatedOrder);
+                } else {
                     const updatedBulkOrder = await BulkOrder.findByIdAndUpdate(transaction.order, {
                         paymentStatus: 'COMPLETED'
                     });
@@ -387,7 +391,7 @@ export const verifyPayment = async (req, res) => {
                         const childOrders = await Order.find({
                             $or: [
                                 { bulkOrderRef: updatedBulkOrder._id },
-                                { bulkParentOrderId: updatedBulkOrder._id }
+                                { parentOrderId: updatedBulkOrder._id }
                             ]
                         });
 
@@ -462,13 +466,12 @@ export const verifyPayment = async (req, res) => {
                     'payment_details.payment_method': status.paymentMethod,
                     'payment_details.captured_at': new Date(),
                     'payment_details.amount_paid': transaction.amount
-                });
+                }, { new: true });
 
                 if (updatedOrder) {
                     await autoApproveOrder(updatedOrder._id);
-                }
-
-                if (!updatedOrder) {
+                    await triggerBulkProcessingIfNeeded(updatedOrder);
+                } else {
                     // Try updating BulkOrder
                     const updatedBulkOrder = await BulkOrder.findByIdAndUpdate(transaction.order, {
                         paymentStatus: 'COMPLETED',
@@ -487,8 +490,7 @@ export const verifyPayment = async (req, res) => {
                         const childOrders = await Order.find({
                             $or: [
                                 { bulkOrderRef: updatedBulkOrder._id },
-                                { bulkParentOrderId: updatedBulkOrder._id },
-                                { parentOrderId: updatedBulkOrder.parentOrderId } // In case parent order was created first
+                                { parentOrderId: updatedBulkOrder._id } // Corrected typo
                             ]
                         });
 

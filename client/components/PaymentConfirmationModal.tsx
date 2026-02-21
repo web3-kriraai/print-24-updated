@@ -4,7 +4,7 @@ import {
   X, MapPin, Loader, Truck, AlertCircle, Package,
   Mail, Phone, User, MapPinned, Calendar, Shield,
   CheckCircle2, ChevronRight, Lock, CreditCard,
-  Clock, Award, ArrowRight
+  Clock, Award, ArrowRight, Layers
 } from 'lucide-react';
 import FinalPriceDisplay from './FinalPriceDisplay';
 
@@ -446,12 +446,30 @@ const PaymentConfirmationModal: React.FC<PaymentConfirmationModalProps> = ({
                 {/* Product card */}
                 <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 mb-5">
                   <div className="flex items-start gap-3">
-                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center shrink-0">
+                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center shrink-0 relative">
                       <Package size={24} className="text-blue-700" />
+                      {numberOfDesigns > 1 && (
+                        <div className="absolute -top-1 -right-1 w-5 h-5 bg-blue-600 rounded-full border-2 border-white flex items-center justify-center shadow-sm">
+                          <Layers size={10} className="text-white" />
+                        </div>
+                      )}
                     </div>
                     <div>
-                      <h4 className="font-bold text-gray-900">{productName}</h4>
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-bold text-gray-900">{productName}</h4>
+                        {numberOfDesigns > 1 && (
+                          <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-bold rounded uppercase tracking-wider">
+                            Bulk
+                          </span>
+                        )}
+                      </div>
                       <p className="text-sm text-gray-500 mt-0.5">Quantity: {quantity.toLocaleString()}</p>
+                      {numberOfDesigns > 1 && (
+                        <p className="text-sm font-semibold text-blue-600 mt-1 flex items-center gap-1">
+                          <Layers size={14} />
+                          {numberOfDesigns} Designs Set
+                        </p>
+                      )}
                     </div>
                   </div>
 
@@ -480,6 +498,15 @@ const PaymentConfirmationModal: React.FC<PaymentConfirmationModalProps> = ({
                   <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 mb-5">
                     <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Price details</h4>
                     <div className="space-y-2.5">
+                      {numberOfDesigns > 1 && (
+                        <div className="flex justify-between text-sm py-2 px-3 bg-blue-50/50 rounded-lg border border-blue-100 border-dashed mb-2">
+                          <div className="flex flex-col">
+                            <span className="text-blue-700 font-semibold">Price per Design</span>
+                            <span className="text-xs text-blue-500">(Incl. GST)</span>
+                          </div>
+                          <span className="font-bold text-blue-700">₹{(total / numberOfDesigns).toFixed(2)}</span>
+                        </div>
+                      )}
                       <div className="flex justify-between text-sm">
                         <span className="text-gray-600">Subtotal</span>
                         <span className="font-medium text-gray-900">₹{subtotal.toFixed(2)}</span>

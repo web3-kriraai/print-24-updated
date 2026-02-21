@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Package, Save, X, CheckCircle, XCircle, Search, MapPin, ChevronLeft, ChevronRight } from 'lucide-react';
-import { AdminSearchableDropdown } from '../../AdminSearchableDropdown';
+import { Plus, Edit2, Trash2, Package, Save, X, CheckCircle, XCircle } from 'lucide-react';
 
 interface ProductAvailability {
     _id: string;
@@ -189,251 +188,216 @@ const ProductAvailabilityManager: React.FC = () => {
     };
 
     return (
-        <div className="p-0">
+        <div className="p-6">
+            {/* Header */}
+            <div className="mb-6">
+                <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
+                    <Package className="text-green-600" />
+                    Product Availability Manager
+                </h1>
+                <p className="text-gray-600 mt-2">
+                    Control which products are available in different geographical zones
+                </p>
+            </div>
 
-            {/* Actions Bar */}
-            <div className="mb-6 bg-white border-b border-gray-100 p-6 flex flex-wrap gap-4 justify-between items-center">
+            {/* Create Button */}
+            <div className="mb-6">
                 <button
                     onClick={() => {
                         resetForm();
                         setShowModal(true);
                     }}
-                    className="bg-emerald-600 text-white px-6 py-2.5 rounded-xl hover:bg-emerald-700 flex items-center gap-2 font-bold shadow-lg shadow-emerald-200 transition-all active:scale-[0.98]"
+                    className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2"
                 >
                     <Plus size={20} />
-                    New Availability Rule
+                    Create Availability Rule
                 </button>
-
-                <div className="flex-1 max-w-md hidden md:block">
-                    <div className="relative group">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-emerald-500 transition-colors" size={18} />
-                        <input
-                            type="text"
-                            placeholder="Filter rules by product or zone..."
-                            className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none"
-                        />
-                    </div>
-                </div>
             </div>
 
             {/* Availabilities List */}
-            <div className="p-6">
-                <div className="bg-white rounded-2xl border border-gray-200/60 shadow-sm overflow-hidden flex flex-col">
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left">
-                            <thead className="bg-gray-50/50 border-b border-gray-100">
-                                <tr>
-                                    <th className="px-6 py-4 text-[11px] font-bold text-gray-400 uppercase tracking-widest">Product</th>
-                                    <th className="px-6 py-4 text-[11px] font-bold text-gray-400 uppercase tracking-widest">Geo Zone</th>
-                                    <th className="px-6 py-4 text-[11px] font-bold text-gray-400 uppercase tracking-widest">Status</th>
-                                    <th className="px-6 py-4 text-[11px] font-bold text-gray-400 uppercase tracking-widest">Reason / Notes</th>
-                                    <th className="px-6 py-4 text-[11px] font-bold text-gray-400 uppercase tracking-widest text-center">Actions</th>
+            <div className="bg-white rounded-lg shadow">
+                <table className="w-full">
+                    <thead className="bg-gray-50 border-b">
+                        <tr>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Geo Zone</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reason</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                        {loading ? (
+                            <tr>
+                                <td colSpan={5} className="px-6 py-4 text-center text-gray-500">
+                                    Loading...
+                                </td>
+                            </tr>
+                        ) : availabilities.length === 0 ? (
+                            <tr>
+                                <td colSpan={5} className="px-6 py-4 text-center text-gray-500">
+                                    No availability rules found. Create one to restrict product availability by region.
+                                </td>
+                            </tr>
+                        ) : (
+                            availabilities.map((availability) => (
+                                <tr key={availability._id}>
+                                    <td className="px-6 py-4 font-medium">{availability.product.name}</td>
+                                    <td className="px-6 py-4">{availability.geoZone.name}</td>
+                                    <td className="px-6 py-4">
+                                        <span className={`px-3 py-1 rounded-full text-sm font-medium flex items-center gap-1 w-fit ${availability.isSellable
+                                            ? 'bg-green-100 text-green-800'
+                                            : 'bg-red-100 text-red-800'
+                                            }`}>
+                                            {availability.isSellable ? (
+                                                <>
+                                                    <CheckCircle size={16} />
+                                                    Available
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <XCircle size={16} />
+                                                    Blocked
+                                                </>
+                                            )}
+                                        </span>
+                                    </td>
+                                    <td className="px-6 py-4 text-sm text-gray-600">
+                                        {availability.reason || '-'}
+                                    </td>
+                                    <td className="px-6 py-4">
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => handleEdit(availability)}
+                                                className="text-blue-600 hover:text-blue-800"
+                                            >
+                                                <Edit2 size={18} />
+                                            </button>
+                                            <button
+                                                onClick={() => handleDelete(availability._id)}
+                                                className="text-red-600 hover:text-red-800"
+                                            >
+                                                <Trash2 size={18} />
+                                            </button>
+                                        </div>
+                                    </td>
                                 </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100">
-                                {loading ? (
-                                    <tr>
-                                        <td colSpan={5} className="px-6 py-8 text-center">
-                                            <div className="flex flex-col items-center gap-2">
-                                                <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
-                                                <span className="text-sm text-gray-500 font-medium">Loading rules...</span>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ) : availabilities.length === 0 ? (
-                                    <tr>
-                                        <td colSpan={5} className="px-6 py-12 text-center">
-                                            <div className="flex flex-col items-center gap-3">
-                                                <div className="p-4 bg-gray-50 rounded-full">
-                                                    <Package size={32} className="text-gray-300" />
-                                                </div>
-                                                <div className="max-w-xs mx-auto">
-                                                    <p className="text-gray-900 font-bold">No rules found</p>
-                                                    <p className="text-sm text-gray-500 mt-1">Create availability rules to restrict product sales in specific geographical regions.</p>
-                                                </div>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ) : (
-                                    availabilities.map((availability) => (
-                                        <tr key={availability._id} className="hover:bg-gray-50/50 transition-colors group">
-                                            <td className="px-6 py-4">
-                                                <div className="font-bold text-gray-900">{availability.product.name}</div>
-                                                <div className="text-[10px] text-gray-400 font-mono mt-0.5">{availability.product._id}</div>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <div className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                                                    <MapPin size={14} className="text-gray-400" />
-                                                    {availability.geoZone.name}
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <span className={`px-3 py-1.5 rounded-xl text-[11px] font-bold uppercase tracking-wider flex items-center gap-2 w-fit ${availability.isSellable
-                                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
-                                                    : 'bg-rose-50 text-rose-700 border border-rose-100'
-                                                    }`}>
-                                                    {availability.isSellable ? (
-                                                        <><span className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span> Available</>
-                                                    ) : (
-                                                        <><span className="w-1.5 h-1.5 bg-rose-500 rounded-full"></span> Blocked</>
-                                                    )}
-                                                </span>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <p className="text-sm text-gray-500 italic max-w-xs truncate">
-                                                    {availability.reason || 'No specific reason provided'}
-                                                </p>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <div className="flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    <button
-                                                        onClick={() => handleEdit(availability)}
-                                                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                                        title="Edit Rule"
-                                                    >
-                                                        <Edit2 size={16} />
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleDelete(availability._id)}
-                                                        className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-                                                        title="Delete Rule"
-                                                    >
-                                                        <Trash2 size={16} />
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+                            ))
+                        )}
+                    </tbody>
+                </table>
             </div>
 
             {/* Create/Edit Modal */}
             {showModal && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-3xl w-full max-w-lg overflow-hidden flex flex-col shadow-2xl animate-in zoom-in-95 duration-200">
-                        {/* Modal Header */}
-                        <div className="px-8 py-6 border-b border-gray-100 flex items-center justify-between">
-                            <div>
-                                <h2 className="text-2xl font-bold text-gray-900 tracking-tight">
-                                    {editingAvailability ? 'Edit Availability Rule' : 'New Availability Rule'}
-                                </h2>
-                                <p className="text-sm text-gray-500 mt-1">Configure cross-regional product restrictions.</p>
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+                    <div className="bg-white rounded-lg p-6 w-full max-w-md">
+                        <h2 className="text-2xl font-bold mb-4">
+                            {editingAvailability ? 'Edit Availability Rule' : 'Create Availability Rule'}
+                        </h2>
+
+                        <form onSubmit={handleSubmit}>
+                            {/* Product */}
+                            <div className="mb-4">
+                                <label className="block text-sm font-medium mb-2">Product *</label>
+                                <select
+                                    value={formData.product}
+                                    onChange={(e) => setFormData({ ...formData, product: e.target.value })}
+                                    className="w-full border rounded-lg px-3 py-2"
+                                    required
+                                >
+                                    <option value="">Select Product</option>
+                                    {products.map((product) => (
+                                        <option key={product._id} value={product._id}>
+                                            {product.name}
+                                        </option>
+                                    ))}
+                                </select>
                             </div>
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setShowModal(false);
-                                    resetForm();
-                                }}
-                                className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-all"
-                            >
-                                <X size={20} />
-                            </button>
-                        </div>
 
-                        <form onSubmit={handleSubmit} className="flex flex-col flex-1">
-                            <div className="px-8 py-8 space-y-6 flex-1 overflow-y-auto">
-                                {/* Product Selection */}
-                                <div>
-                                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 block">Target Product *</label>
-                                    <AdminSearchableDropdown
-                                        label="Select Product"
-                                        options={products.map((product) => ({
-                                            value: product._id,
-                                            label: product.name
-                                        }))}
-                                        value={formData.product}
-                                        onChange={(val) => setFormData({ ...formData, product: val as string })}
-                                        searchPlaceholder="Search products by name..."
-                                    />
-                                </div>
+                            {/* Geo Zone */}
+                            <div className="mb-4">
+                                <label className="block text-sm font-medium mb-2">Geo Zone *</label>
+                                <select
+                                    value={formData.geoZone}
+                                    onChange={(e) => setFormData({ ...formData, geoZone: e.target.value })}
+                                    className="w-full border rounded-lg px-3 py-2"
+                                    required
+                                >
+                                    <option value="">Select Geo Zone</option>
+                                    {geoZones.map((zone) => (
+                                        <option key={zone._id} value={zone._id}>
+                                            {zone.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
 
-                                {/* Geo Zone Selection */}
-                                <div>
-                                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 block">Geographical Zone *</label>
-                                    <AdminSearchableDropdown
-                                        label="Select Geo Zone"
-                                        options={geoZones.map((zone) => ({
-                                            value: zone._id,
-                                            label: zone.name
-                                        }))}
-                                        value={formData.geoZone}
-                                        onChange={(val) => setFormData({ ...formData, geoZone: val as string })}
-                                        searchPlaceholder="Search zones..."
-                                    />
-                                </div>
-
-                                {/* Availability Status */}
-                                <div>
-                                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3 block">Publication Status *</label>
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <button
-                                            type="button"
-                                            onClick={() => setFormData({ ...formData, isSellable: true, reason: '' })}
-                                            className={`p-4 rounded-2xl border-2 transition-all flex flex-col items-center gap-2 ${formData.isSellable
-                                                ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
-                                                : 'border-gray-100 bg-gray-50 text-gray-400 hover:border-gray-200'}`}
-                                        >
-                                            <CheckCircle size={24} />
-                                            <span className="text-sm font-bold">Sellable</span>
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setFormData({ ...formData, isSellable: false })}
-                                            className={`p-4 rounded-2xl border-2 transition-all flex flex-col items-center gap-2 ${!formData.isSellable
-                                                ? 'border-rose-500 bg-rose-50 text-rose-700'
-                                                : 'border-gray-100 bg-gray-50 text-gray-400 hover:border-gray-200'}`}
-                                        >
-                                            <XCircle size={24} />
-                                            <span className="text-sm font-bold">Blocked</span>
-                                        </button>
-                                    </div>
-                                </div>
-
-                                {/* Reason (only if blocked) */}
-                                {!formData.isSellable && (
-                                    <div className="animate-in fade-in slide-in-from-top-2">
-                                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 block">Restriction Reason</label>
-                                        <textarea
-                                            value={formData.reason}
-                                            onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
-                                            className="w-full border-2 border-gray-100 rounded-2xl px-4 py-3 focus:ring-2 focus:ring-rose-500 focus:border-rose-500 outline-none transition-all"
-                                            placeholder="Example: This product is not compliant with local regulations in this state."
-                                            rows={3}
+                            {/* Availability Status */}
+                            <div className="mb-4">
+                                <label className="block text-sm font-medium mb-2">Availability Status *</label>
+                                <div className="space-y-2">
+                                    <label className="flex items-center gap-2 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                                        <input
+                                            type="radio"
+                                            name="isSellable"
+                                            checked={formData.isSellable === true}
+                                            onChange={() => setFormData({ ...formData, isSellable: true, reason: '' })}
+                                            className="text-green-600"
                                         />
-                                        <p className="text-[10px] text-gray-400 mt-2 ml-1 italic">
-                                            Tip: This message will be displayed to customers when they try to purchase this item.
-                                        </p>
-                                    </div>
-                                )}
+                                        <CheckCircle size={20} className="text-green-600" />
+                                        <span className="font-medium">Available (Sellable)</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                                        <input
+                                            type="radio"
+                                            name="isSellable"
+                                            checked={formData.isSellable === false}
+                                            onChange={() => setFormData({ ...formData, isSellable: false })}
+                                            className="text-red-600"
+                                        />
+                                        <XCircle size={20} className="text-red-600" />
+                                        <span className="font-medium">Blocked (Not Sellable)</span>
+                                    </label>
+                                </div>
                             </div>
 
-                            {/* Modal Footer */}
-                            <div className="px-8 py-6 border-t border-gray-100 bg-gray-50 flex items-center justify-between">
+                            {/* Reason (only if blocked) */}
+                            {!formData.isSellable && (
+                                <div className="mb-4">
+                                    <label className="block text-sm font-medium mb-2">Reason for Blocking</label>
+                                    <textarea
+                                        value={formData.reason}
+                                        onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
+                                        className="w-full border rounded-lg px-3 py-2"
+                                        placeholder="e.g., Not available in your region, Out of stock in this area"
+                                        rows={3}
+                                    />
+                                    <p className="text-xs text-gray-500 mt-1">
+                                        This message will be shown to customers in this region
+                                    </p>
+                                </div>
+                            )}
+
+                            {/* Actions */}
+                            <div className="flex gap-2 justify-end">
                                 <button
                                     type="button"
                                     onClick={() => {
                                         setShowModal(false);
                                         resetForm();
                                     }}
-                                    className="text-sm font-bold text-gray-400 hover:text-gray-900 transition-colors uppercase tracking-widest"
+                                    className="px-4 py-2 border rounded-lg hover:bg-gray-50"
                                 >
-                                    Discard Changes
+                                    Cancel
                                 </button>
                                 <button
                                     type="submit"
                                     disabled={loading}
-                                    className="px-8 py-2.5 bg-emerald-600 text-white rounded-xl font-bold shadow-lg shadow-emerald-100 hover:bg-emerald-700 transition-all flex items-center gap-2 disabled:opacity-50"
+                                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2"
                                 >
-                                    {loading ? (
-                                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                                    ) : (
-                                        <><Save size={18} /> Update Matrix</>
-                                    )}
+                                    <Save size={18} />
+                                    {loading ? 'Saving...' : 'Save'}
                                 </button>
                             </div>
                         </form>

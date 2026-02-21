@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import toast from 'react-hot-toast';
 
 interface SegmentApplication {
   _id: string;
@@ -91,7 +90,7 @@ const SegmentApplicationManager: React.FC = () => {
       });
       setSelectedApplication(response.data.application);
     } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Failed to load application details');
+      alert(err.response?.data?.message || 'Failed to load application details');
     }
   };
 
@@ -112,9 +111,9 @@ const SegmentApplicationManager: React.FC = () => {
       );
       await fetchApplications();
       setSelectedApplication(null);
-      toast.success('✅ Application approved successfully!');
+      alert('Application approved successfully!');
     } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Failed to approve application');
+      alert(err.response?.data?.message || 'Failed to approve application');
     } finally {
       setLoading(false);
     }
@@ -140,9 +139,9 @@ const SegmentApplicationManager: React.FC = () => {
       );
       await fetchApplications();
       setSelectedApplication(null);
-      toast.success('Application rejected');
+      alert('Application rejected');
     } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Failed to reject application');
+      alert(err.response?.data?.message || 'Failed to reject application');
     } finally {
       setLoading(false);
     }
@@ -266,8 +265,8 @@ const SegmentApplicationManager: React.FC = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
-                        {app.userSegment?.icon && <span className="mr-2">{app.userSegment.icon}</span>}
-                        <span className="text-sm text-gray-900">{app.userSegment?.name || 'N/A'}</span>
+                        {app.userSegment.icon && <span className="mr-2">{app.userSegment.icon}</span>}
+                        <span className="text-sm text-gray-900">{app.userSegment.name}</span>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -342,7 +341,7 @@ const SegmentApplicationManager: React.FC = () => {
                     <div>
                       <div className="text-sm text-gray-500">Segment</div>
                       <div className="font-medium">
-                        {selectedApplication.userSegment?.icon} {selectedApplication.userSegment?.name || 'N/A'}
+                        {selectedApplication.userSegment.icon} {selectedApplication.userSegment.name}
                       </div>
                     </div>
                     <div>
