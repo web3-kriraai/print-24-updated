@@ -245,7 +245,11 @@ class ShiprocketService {
                 };
             }
 
-            throw new Error('Order creation failed - no order_id in response');
+            const apiMessage = response.data?.message || 'no order_id in response';
+            console.warn('[Shiprocket] ⚠️  Order creation response missing order_id:', JSON.stringify(response.data, null, 2));
+            const logicError = new Error(`Order creation failed - ${apiMessage}`);
+            logicError.response = response; // Attach response for fallback detection
+            throw logicError;
         } catch (error) {
             console.error('[Shiprocket] Order creation failed:', error.response?.data || error.message);
             // Preserve original error response for upstream inspection
@@ -606,7 +610,25 @@ class ShiprocketService {
 
             // Step 1: Create order
             console.log('[Shiprocket] Step 1/3: Creating order on Shiprocket...');
-            const orderResult = await this.createOrder(orderData);
+            let orderResult;
+            try {
+                orderResult = await this.createOrder(orderData);
+            } catch (err) {
+                // If the error looks like a pickup location mismatch, fallback to 'Primary'
+                const errorMsg = err.message || '';
+                const isPickupError = errorMsg.toLowerCase().includes('pickup') ||
+                    (err.response?.data?.message && err.response.data.message.toLowerCase().includes('pickup'));
+
+                if (isPickupError && orderData.pickupLocation !== 'Primary') {
+                    console.warn(`[Shiprocket] ⚠️  Initial order creation failed for pickup "${orderData.pickupLocation}". Retrying with "Primary"...`);
+                    orderData.pickupLocation = 'Primary';
+                    orderResult = await this.createOrder(orderData); // Retry with Primary
+                    console.log('[Shiprocket] ✅ Retry successful with "Primary" pickup location.');
+                } else {
+                    // Not a pickup error or already tried Primary, re-throw
+                    throw err;
+                }
+            }
 
             if (!orderResult.success || !orderResult.shiprocketShipmentId) {
                 throw new Error('Order creation failed');

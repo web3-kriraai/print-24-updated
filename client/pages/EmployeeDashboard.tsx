@@ -426,17 +426,6 @@ const EmployeeDashboard: React.FC = () => {
         className={`${sidebarOpen ? "w-64" : "w-20"
           } bg-white border-r border-slate-200 transition-all duration-300 flex flex-col`}
       >
-        {/* Logo */}
-        <div className="p-6 border-b border-slate-200">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
-              <Package className="w-6 h-6 text-white" />
-            </div>
-            {sidebarOpen && (
-              <h1 className="text-xl font-bold text-slate-900">NexusOrder</h1>
-            )}
-          </div>
-        </div>
 
         {/* Navigation */}
         <nav className="flex-1 p-4">

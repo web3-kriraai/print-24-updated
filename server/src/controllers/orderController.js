@@ -434,6 +434,21 @@ export const createOrder = async (req, res) => {
       }
     }
 
+    // Resolve pickup pincode and warehouse from geo zone hierarchy
+    let resolvedPickupPincode = process.env.PICKUP_PINCODE || '395004';
+    let resolvedWarehouseName = '';
+    try {
+      const GeoZone = (await import('../models/GeoZon.js')).default;
+      const warehouseZone = await GeoZone.resolveWarehouseByPincode(pincode);
+      if (warehouseZone) {
+        resolvedPickupPincode = warehouseZone.warehousePincode;
+        resolvedWarehouseName = warehouseZone.warehouseName || '';
+        console.log(`[Order Creation] Resolved warehouse: ${resolvedWarehouseName} (${resolvedPickupPincode}) from zone: ${warehouseZone.name} (Priority: ${warehouseZone.priority})`);
+      }
+    } catch (err) {
+      console.error('[Order Creation] Error resolving warehouse from GeoZone:', err);
+    }
+
     // Create order
     const orderData = {
       user: userId,
@@ -462,6 +477,8 @@ export const createOrder = async (req, res) => {
       laminationType: req.body.laminationType || null,
       specialEffects: req.body.specialEffects || [],
       deliveryDate: deliveryDate ? new Date(deliveryDate) : null,
+      pickupWarehouseName: resolvedWarehouseName || null,
+      pickupWarehousePincode: resolvedPickupPincode || null,
     };
 
     // --- PRICING INTEGRATION START ---
@@ -961,6 +978,21 @@ export const createOrderWithAccount = async (req, res) => {
       }
     }
 
+    // Resolve pickup pincode and warehouse from geo zone hierarchy
+    let resolvedPickupPincode = process.env.PICKUP_PINCODE || '395004';
+    let resolvedWarehouseName = '';
+    try {
+      const GeoZone = (await import('../models/GeoZon.js')).default;
+      const warehouseZone = await GeoZone.resolveWarehouseByPincode(pincode);
+      if (warehouseZone) {
+        resolvedPickupPincode = warehouseZone.warehousePincode;
+        resolvedWarehouseName = warehouseZone.warehouseName || '';
+        console.log(`[Order Creation Account] Resolved warehouse: ${resolvedWarehouseName} (${resolvedPickupPincode}) from zone: ${warehouseZone.name} (Priority: ${warehouseZone.priority})`);
+      }
+    } catch (err) {
+      console.error('[Order Creation Account] Error resolving warehouse from GeoZone:', err);
+    }
+
     // Create order
     const orderData = {
       user: user._id,
@@ -987,6 +1019,8 @@ export const createOrderWithAccount = async (req, res) => {
       laminationType: laminationType || null,
       specialEffects: specialEffects || [],
       deliveryDate: deliveryDate ? new Date(deliveryDate) : null,
+      pickupWarehouseName: resolvedWarehouseName || null,
+      pickupWarehousePincode: resolvedPickupPincode || null,
     };
 
     // --- PRICING INTEGRATION START ---
@@ -1171,6 +1205,20 @@ export const getSingleOrder = async (req, res) => {
     const orderUserId = typeof order.user === 'object' ? order.user._id.toString() : order.user.toString();
     if (orderUserId !== userId && userRole !== "admin" && userRole !== "emp") {
       return res.status(403).json({ error: "Access denied. This order does not belong to you." });
+    }
+
+    // Dynamic warehouse resolution for older orders (backward compatibility for UI)
+    if (!order.pickupWarehouseName || !order.pickupWarehousePincode) {
+      try {
+        const GeoZone = (await import('../models/GeoZon.js')).default;
+        const warehouseZone = await GeoZone.resolveWarehouseByPincode(order.pincode);
+        if (warehouseZone) {
+          order.pickupWarehouseName = warehouseZone.warehouseName || 'Primary';
+          order.pickupWarehousePincode = warehouseZone.warehousePincode || '395004';
+        }
+      } catch (err) {
+        console.error('[GetSingleOrder] Dynamic warehouse resolution failed:', err);
+      }
     }
 
     // Debug: Log selectedOptions and selectedDynamicAttributes to verify they're included

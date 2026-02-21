@@ -147,20 +147,25 @@ export async function triggerShipmentCreation(order) {
 
     order.calculatedWeight = calculatedWeight;
 
-    // Resolve pickup pincode and warehouse from geo zone
-    let COMPANY_PICKUP_PINCODE = process.env.PICKUP_PINCODE || '395004';
-    let warehouseName = 'Primary'; // Default
+    // Resolve pickup pincode and warehouse from geo zone hierarchy
+    let COMPANY_PICKUP_PINCODE = order.pickupWarehousePincode || process.env.PICKUP_PINCODE || '395004';
+    let warehouseName = order.pickupWarehouseName || 'Primary';
 
-    try {
-        const GeoZone = (await import('../models/GeoZon.js')).default;
-        const resolvedZone = await GeoZone.resolveByPincode(order.pincode);
-        if (resolvedZone && resolvedZone.warehousePincode) {
-            COMPANY_PICKUP_PINCODE = resolvedZone.warehousePincode;
-            warehouseName = resolvedZone.warehouseName || 'Primary';
-            console.log(`[Shipment] Resolved warehouse: ${warehouseName} (${COMPANY_PICKUP_PINCODE}) from zone: ${resolvedZone.name}`);
+    // If not already set on order, try to resolve dynamically (for legacy orders or if hierarchy lookup is desired)
+    if (!order.pickupWarehouseName || !order.pickupWarehousePincode) {
+        try {
+            const GeoZone = (await import('../models/GeoZon.js')).default;
+            const warehouseZone = await GeoZone.resolveWarehouseByPincode(order.pincode);
+            if (warehouseZone) {
+                COMPANY_PICKUP_PINCODE = warehouseZone.warehousePincode;
+                warehouseName = warehouseZone.warehouseName || 'Primary';
+                console.log(`[Shipment] Hierarchical lookup: Resolved warehouse: ${warehouseName} (${COMPANY_PICKUP_PINCODE}) from zone: ${warehouseZone.name}`);
+            }
+        } catch (err) {
+            console.error('[Shipment] Error resolving hierarchical warehouse:', err.message);
         }
-    } catch (err) {
-        console.log('[Shipment] Geo zone warehouse resolution failed, using default:', err.message);
+    } else {
+        console.log(`[Shipment] Using associated warehouse from order: ${warehouseName} (${COMPANY_PICKUP_PINCODE})`);
     }
 
     let courierId = null;

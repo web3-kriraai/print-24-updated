@@ -381,16 +381,17 @@ const PaymentConfirmationModal: React.FC<PaymentConfirmationModalProps> = ({
                     <InputField label="Pincode" icon={<MapPin size={14} />} required>
                       <div className="flex gap-2">
                         <input
-                          className={`${inputClass} flex-1`}
+                          className={`${inputClass} flex-1 bg-gray-50 cursor-not-allowed`}
                           maxLength={6}
                           placeholder="400001"
                           value={pincode}
                           onChange={e => { setPincode(e.target.value.replace(/\D/g, '')); clearError(); }}
+                          disabled
                         />
                         <button
                           onClick={onGetLocation}
-                          disabled={isGettingLocation}
-                          className="px-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:border-blue-400 hover:bg-blue-50 transition-all disabled:opacity-50 flex items-center gap-2"
+                          disabled={true}
+                          className="px-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 opacity-50 cursor-not-allowed flex items-center gap-2"
                         >
                           {isGettingLocation ? (
                             <Loader size={16} className="animate-spin" />

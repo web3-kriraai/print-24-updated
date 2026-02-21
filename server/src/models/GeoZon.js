@@ -213,7 +213,7 @@ GeoZoneSchema.statics.resolveByPincode = async function (pincode) {
   // First, try to find exact match in GeoZoneMapping
   const GeoZoneMapping = mongoose.model('GeoZoneMapping');
 
-  const mapping = await GeoZoneMapping.findOne({
+  const mappings = await GeoZoneMapping.find({
     $or: [
       { zipCode: pincode },
       {
@@ -223,8 +223,22 @@ GeoZoneSchema.statics.resolveByPincode = async function (pincode) {
     ]
   }).populate('geoZone');
 
-  if (mapping && mapping.geoZone) {
-    return mapping.geoZone;
+  if (mappings.length > 0) {
+    // Sort by priority (highest first) and then by range specificity (narrowest range first)
+    const sorted = mappings
+      .filter(m => m.geoZone)
+      .sort((a, b) => {
+        // Priority (District > State > Country)
+        const priorityDiff = (b.geoZone.priority || 0) - (a.geoZone.priority || 0);
+        if (priorityDiff !== 0) return priorityDiff;
+
+        // Range specificity (Narrower range is more specific)
+        const rangeA = (a.pincodeEnd || 0) - (a.pincodeStart || 0);
+        const rangeB = (b.pincodeEnd || 0) - (b.pincodeStart || 0);
+        return rangeA - rangeB;
+      });
+
+    if (sorted.length > 0) return sorted[0].geoZone;
   }
 
   // Fallback: Find default zone for country (if pincode pattern matches)
@@ -239,14 +253,22 @@ GeoZoneSchema.statics.resolveByPincode = async function (pincode) {
 };
 
 /**
- * Get most specific zone from a list of zones
+ * Resolve the nearest warehouse zone by pincode traversing up the hierarchy
+ * Priority: Exact match zone -> Parent -> Grandparent...
  */
-GeoZoneSchema.statics.getMostSpecific = function (zones) {
-  if (!zones || zones.length === 0) return null;
+GeoZoneSchema.statics.resolveWarehouseByPincode = async function (pincode) {
+  let zone = await this.resolveByPincode(pincode);
 
-  // Sort by priority (highest first)
-  const sorted = zones.sort((a, b) => b.priority - a.priority);
-  return sorted[0];
+  // Traverse up the hierarchy until we find a zone with a warehouse defined
+  while (zone) {
+    if (zone.warehousePincode) {
+      return zone;
+    }
+    if (!zone.parentZone) break;
+    zone = await this.findById(zone.parentZone);
+  }
+
+  return null;
 };
 
 export default mongoose.model("GeoZone", GeoZoneSchema);
