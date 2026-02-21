@@ -73,6 +73,7 @@ import SegmentApplicationManager from "../components/admin/pricing/SegmentApplic
 import FormBuilder from "../components/admin/pricing/FormBuilder";
 import PricingDashboard from "./admin/PricingDashboard";
 import AdminComplaintManagement from "./admin/AdminComplaintManagement";
+import DesignerDashboardAdmin from "./admin/components/designers/DesignerDashboardAdmin";
 
 import SegmentFeatureAssignment from "../components/admin/SegmentFeatureAssignment";
 import AdminBulkOrdersView from "./admin/components/AdminBulkOrdersView";
@@ -5663,7 +5664,7 @@ const AdminDashboard: React.FC = () => {
     } else if (tab === "attribute-types" && !action) {
       if (editingAttributeTypeId) setEditingAttributeTypeId(null);
     }
-  }, [searchParams, activeTab, editingProductId, editingCategoryId, editingSubCategoryId]);
+  }, [searchParams]);
 
   const handleDeleteSubCategory = async (subCategoryId: string) => {
     const subCategory = subCategories.find(sc => sc._id === subCategoryId);
@@ -7124,1297 +7125,1328 @@ const AdminDashboard: React.FC = () => {
                 </motion.div>
               )}
             </AnimatePresence>
-          </div >
-        </div >
 
-        {/* Order Details Modal */}
-        <AnimatePresence>
-          {
-            showOrderModal && selectedOrder && (
-              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.9 }}
-                  className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto p-6"
-                >
-                  <div className="flex justify-between items-center mb-6 pb-4 border-b border-cream-200">
-                    <div>
-                      <h2 className="text-2xl font-bold text-cream-900">
-                        Order #{selectedOrder.orderNumber}
-                      </h2>
-                      <p className="text-sm text-cream-600 mt-1">
-                        {!isClient
-                          ? 'Loading...'
-                          : new Date(selectedOrder.createdAt).toLocaleString()
-                        }
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => {
-                        setShowOrderModal(false);
-                        setSelectedOrder(null);
-                        setOrderStatusUpdate({ status: "", deliveryDate: "", adminNotes: "" });
-                      }}
-                      className="p-2 hover:bg-cream-100 rounded-lg transition-colors"
+
+            {/* Order Details Modal */}
+            <AnimatePresence>
+              {
+                showOrderModal && selectedOrder && (
+                  <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.9 }}
+                      className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto p-6"
                     >
-                      <X size={24} />
-                    </button>
-                  </div>
-
-                  {/* Complete Order Information */}
-                  <div className="space-y-6 mb-6">
-                    {/* Order Status */}
-                    <div className="flex items-center gap-4">
-                      <span className="text-sm font-medium text-cream-700">Status:</span>
-                      <div className={`px - 4 py - 2 rounded - full border - 2 ${selectedOrder.status === "completed" ? "bg-green-100 text-green-800 border-green-200" :
-                        selectedOrder.status === "processing" ? "bg-blue-100 text-blue-800 border-blue-200" :
-                          selectedOrder.status === "production_ready" ? "bg-orange-100 text-orange-800 border-orange-200" :
-                            selectedOrder.status === "request" ? "bg-yellow-100 text-yellow-800 border-yellow-200" :
-                              selectedOrder.status === "rejected" ? "bg-red-100 text-red-800 border-red-200" :
-                                "bg-gray-100 text-gray-800 border-gray-200"
-                        } `}>
-                        <span className="text-sm font-semibold capitalize">{selectedOrder.status}</span>
-                      </div>
-                    </div>
-
-                    {/* User Information */}
-                    <div className="bg-cream-50 rounded-lg p-4 border border-cream-200">
-                      <h3 className="font-bold text-cream-900 mb-3 flex items-center gap-2">
-                        <Users size={18} />
-                        Customer Information
-                      </h3>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="flex justify-between items-center mb-6 pb-4 border-b border-cream-200">
                         <div>
-                          <p className="text-xs text-cream-600 mb-1 font-medium">Customer Name</p>
-                          <p className="font-semibold text-cream-900 text-base">{selectedOrder.user.name}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-cream-600 mb-1 font-medium">Email Address</p>
-                          <p className="font-semibold text-cream-900 text-base">{selectedOrder.user.email}</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Product Information */}
-                    <div className="bg-cream-50 rounded-lg p-4 border border-cream-200">
-                      <h3 className="font-bold text-cream-900 mb-3 flex items-center gap-2">
-                        <Package size={18} />
-                        Product Information
-                      </h3>
-                      <div className="flex gap-4 mb-3">
-                        <img
-                          src={selectedOrder.product.image || PLACEHOLDER_IMAGE}
-                          alt={selectedOrder.product.name}
-                          className="w-24 h-24 object-cover rounded-lg border border-cream-200"
-                          onError={(e) => {
-                            const target = e.target as HTMLImageElement;
-                            target.src = PLACEHOLDER_IMAGE;
-                          }}
-                        />
-                        <div className="flex-1">
-                          <p className="font-bold text-cream-900 text-lg mb-1">{selectedOrder.product.name}</p>
-                          <p className="text-sm text-cream-600 mb-2">
-                            Category: {selectedOrder.product.category && typeof selectedOrder.product.category === "object" && selectedOrder.product.category !== null && '_id' in selectedOrder.product.category
-                              ? ((selectedOrder.product.category as { _id: string; name: string }).name || "N/A")
-                              : (typeof selectedOrder.product.category === 'string' ? selectedOrder.product.category : "N/A")}
-                          </p>
-                          <p className="text-sm text-cream-600">
-                            Base Price: ₹{selectedOrder.product.basePrice?.toFixed(2) || "0.00"} per unit
+                          <h2 className="text-2xl font-bold text-cream-900">
+                            Order #{selectedOrder.orderNumber}
+                          </h2>
+                          <p className="text-sm text-cream-600 mt-1">
+                            {!isClient
+                              ? 'Loading...'
+                              : new Date(selectedOrder.createdAt).toLocaleString()
+                            }
                           </p>
                         </div>
-                      </div>
-                    </div>
-
-                    {/* Order Customization Details */}
-                    <div className="bg-cream-50 rounded-lg p-4 border border-cream-200">
-                      <h3 className="font-bold text-cream-900 mb-3 flex items-center gap-2">
-                        <Settings size={18} />
-                        Customization Details
-                      </h3>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                        <div>
-                          <p className="text-xs text-cream-600 mb-1">Quantity</p>
-                          <p className="font-bold text-cream-900">{selectedOrder.quantity} units</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-cream-600 mb-1">Finish</p>
-                          <p className="font-bold text-cream-900">{selectedOrder.finish}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-cream-600 mb-1">Shape</p>
-                          <p className="font-bold text-cream-900">{selectedOrder.shape}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-cream-600 mb-1">Total Price</p>
-                          <p className="font-bold text-cream-900">₹{selectedOrder.totalPrice.toFixed(2)}</p>
-                        </div>
-                      </div>
-
-                      {selectedOrder.selectedOptions && selectedOrder.selectedOptions.length > 0 && (
-                        <div className="mt-4 pt-4 border-t border-cream-200">
-                          <p className="text-xs text-cream-600 mb-2 font-semibold">Selected Options</p>
-                          <div className="flex flex-wrap gap-2">
-                            {selectedOrder.selectedOptions.map((option, idx) => (
-                              <span
-                                key={idx}
-                                className="px-3 py-1 bg-cream-200 text-cream-800 rounded-full text-xs font-medium"
-                              >
-                                {typeof option === "string" ? option : (option.optionName || option.name || "Option")}
-                                {typeof option === "object" && option.priceAdd ? ` (+₹${option.priceAdd.toFixed(2)})` : ""}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Selected Dynamic Attributes */}
-                      {selectedOrder.selectedDynamicAttributes && selectedOrder.selectedDynamicAttributes.length > 0 && (
-                        <div className="mt-4 pt-4 border-t border-cream-200">
-                          <p className="text-xs text-cream-600 mb-2 font-semibold">Selected Attributes</p>
-                          <div className="space-y-2">
-                            {selectedOrder.selectedDynamicAttributes.map((attr, idx) => (
-                              <div
-                                key={idx}
-                                className="flex justify-between items-center p-2 rounded-lg bg-cream-100 border border-cream-200"
-                              >
-                                <div className="flex items-center gap-2">
-                                  {attr.image && attr.image.trim() !== "" && (
-                                    <img src={attr.image} alt={attr.attributeName} className="w-8 h-8 object-cover rounded" />
-                                  )}
-                                  <div>
-                                    <p className="text-xs font-medium text-cream-900">{attr.attributeName}</p>
-                                    <p className="text-xs text-cream-600">{attr.label}</p>
-                                    {attr.description && <p className="text-xs text-cream-500 mt-0.5">{attr.description}</p>}
-                                  </div>
-                                </div>
-                                {(attr.priceAdd > 0 || attr.priceMultiplier) && (
-                                  <div className="text-right">
-                                    {attr.priceAdd > 0 && (
-                                      <span className="block text-xs font-bold text-cream-900">
-                                        +₹{attr.priceAdd.toFixed(2)}
-                                      </span>
-                                    )}
-                                    {attr.priceMultiplier && attr.priceMultiplier !== 1 && (
-                                      <span className="block text-xs text-cream-600">
-                                        ×{attr.priceMultiplier.toFixed(2)}
-                                      </span>
-                                    )}
-                                  </div>
-                                )}
-                                {/* Display uploaded images if any */}
-                                {attr.uploadedImages && attr.uploadedImages.length > 0 && (
-                                  <div className="mt-2 pt-2 border-t border-cream-200 w-full">
-                                    <p className="text-xs text-cream-600 mb-2 font-semibold">Uploaded Images:</p>
-                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                                      {attr.uploadedImages.map((img, imgIdx) => {
-                                        // Convert buffer to base64 data URL for display
-                                        let imageUrl = '';
-                                        if (img.data) {
-                                          if (typeof img.data === 'string') {
-                                            imageUrl = `data:${img.contentType || 'image/jpeg'};base64,${img.data}`;
-                                          } else if (Buffer.isBuffer(img.data)) {
-                                            imageUrl = `data:${img.contentType || 'image/jpeg'};base64,${img.data.toString('base64')}`;
-                                          }
-                                        }
-                                        return imageUrl ? (
-                                          <div key={imgIdx} className="relative">
-                                            <img
-                                              src={imageUrl}
-                                              alt={img.filename || `Image ${imgIdx + 1}`}
-                                              className="w-full h-24 object-cover rounded border border-cream-200"
-                                            />
-                                            <p className="text-xs text-cream-500 mt-1 truncate">{img.filename}</p>
-                                          </div>
-                                        ) : null;
-                                      })}
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Price Breakdown */}
-                    {(() => {
-                      const orderForCalc: OrderForCalculation = {
-                        quantity: selectedOrder.quantity,
-                        product: {
-                          basePrice: selectedOrder.product.basePrice || 0,
-                          gstPercentage: selectedOrder.product.gstPercentage || 18,
-                          options: selectedOrder.product.options,
-                          filters: selectedOrder.product.filters,
-                          quantityDiscounts: (selectedOrder.product as any)?.quantityDiscounts || [],
-                        },
-                        finish: selectedOrder.finish,
-                        shape: selectedOrder.shape,
-                        selectedOptions: selectedOrder.selectedOptions?.map((opt) => ({
-                          name: typeof opt === 'string' ? opt : (opt.optionName || opt.name || 'Option'),
-                          optionName: typeof opt === 'string' ? opt : (opt.optionName || opt.name || 'Option'),
-                          priceAdd: typeof opt === 'object' ? (opt.priceAdd || 0) : 0,
-                        })) || [],
-                        selectedDynamicAttributes: selectedOrder.selectedDynamicAttributes?.map((attr) => ({
-                          attributeName: attr.attributeName,
-                          label: attr.label,
-                          priceMultiplier: attr.priceMultiplier,
-                          priceAdd: attr.priceAdd,
-                        })),
-                      };
-
-                      const calculations = calculateOrderBreakdown(orderForCalc);
-
-                      return (
-                        <div className="bg-cream-50 rounded-lg p-4 border border-cream-200">
-                          <h3 className="font-bold text-cream-900 mb-3 flex items-center gap-2">
-                            <CreditCard size={18} />
-                            Price Breakdown
-                          </h3>
-                          <div className="space-y-2 text-sm">
-                            <div className="flex justify-between items-center pb-2 border-b border-cream-200">
-                              <div className="text-cream-600">
-                                <span>
-                                  Base Price ({selectedOrder.quantity.toLocaleString()} ×{' '}
-                                  {formatCurrency(selectedOrder.product.basePrice || 0)})
-                                </span>
-                              </div>
-                              <span className="font-medium text-cream-900">{formatCurrency(calculations.rawBaseTotal)}</span>
-                            </div>
-
-                            {calculations.discountPercentage > 0 && (
-                              <div className="flex justify-between items-center text-green-700 bg-green-50 p-2 rounded-md">
-                                <div>
-                                  <span className="font-semibold">
-                                    Bulk Discount ({calculations.discountPercentage}%)
-                                  </span>
-                                  <p className="text-xs opacity-80">Applied for {selectedOrder.quantity} units</p>
-                                </div>
-                                <span className="font-bold">
-                                  -{formatCurrency(calculations.rawBaseTotal - calculations.discountedBaseTotal)}
-                                </span>
-                              </div>
-                            )}
-
-                            {calculations.optionBreakdowns.map((opt, idx) => (
-                              <div key={idx} className="flex justify-between items-center text-cream-600">
-                                <span>
-                                  {opt.name} {opt.isPerUnit ? `(${selectedOrder.quantity} × ${formatCurrency(opt.priceAdd)})` : ''}
-                                </span>
-                                <span>+{formatCurrency(opt.cost)}</span>
-                              </div>
-                            ))}
-
-                            {/* Show dynamic attributes if they have price impact */}
-                            {selectedOrder.selectedDynamicAttributes && selectedOrder.selectedDynamicAttributes.length > 0 && (
-                              <>
-                                {selectedOrder.selectedDynamicAttributes
-                                  .filter(attr => attr.priceAdd > 0 || (attr.priceMultiplier && attr.priceMultiplier !== 1))
-                                  .map((attr, idx) => {
-                                    // Calculate price impact for this attribute
-                                    const basePrice = selectedOrder.product.basePrice || 0;
-                                    let attributeCost = 0;
-                                    let pricePerUnit = 0;
-                                    if (attr.priceAdd > 0) {
-                                      pricePerUnit = attr.priceAdd;
-                                      attributeCost = attr.priceAdd * selectedOrder.quantity;
-                                    } else if (attr.priceMultiplier && attr.priceMultiplier !== 1) {
-                                      pricePerUnit = basePrice * (attr.priceMultiplier - 1);
-                                      attributeCost = pricePerUnit * selectedOrder.quantity;
-                                    }
-
-                                    if (attributeCost === 0) return null;
-
-                                    return (
-                                      <div key={`attr-${idx}`} className="flex justify-between items-center text-cream-600">
-                                        <span>
-                                          {attr.attributeName} ({attr.label})
-                                        </span>
-                                        <span>+{formatCurrency(pricePerUnit)}/unit × {selectedOrder.quantity.toLocaleString()} = {formatCurrency(attributeCost)}</span>
-                                      </div>
-                                    );
-                                  })}
-                              </>
-                            )}
-
-                            <div className="flex justify-between items-center pt-2 font-medium text-cream-900 border-t border-cream-200">
-                              <span>Subtotal</span>
-                              <span>{formatCurrency(calculations.subtotal)}</span>
-                            </div>
-
-                            <div className="flex justify-between items-center text-cream-600 text-xs">
-                              <span>GST ({selectedOrder.product.gstPercentage || 18}%)</span>
-                              <span>+{formatCurrency(calculations.gstAmount)}</span>
-                            </div>
-
-                            <div className="flex justify-between items-center pt-3 mt-2 border-t-2 border-cream-300">
-                              <span className="text-base font-bold text-cream-900">Total Amount</span>
-                              <span className="text-lg font-bold text-cream-900">{formatCurrency(selectedOrder.totalPrice)}</span>
-                            </div>
-
-                            <div className="mt-3 pt-3 border-t border-cream-200">
-                              <div className="flex justify-between items-center mb-2">
-                                <span className="text-cream-600 text-xs">Advance Paid</span>
-                                <span className="font-medium text-green-700">
-                                  {formatCurrency(selectedOrder.advancePaid || 0)}
-                                </span>
-                              </div>
-                              <div className="flex justify-between items-center">
-                                <span className="text-cream-600 text-xs">Balance Due</span>
-                                <span
-                                  className={`font-bold ${selectedOrder.totalPrice - (selectedOrder.advancePaid || 0) > 0
-                                    ? 'text-red-600'
-                                    : 'text-cream-500'
-                                    }`}
-                                >
-                                  {formatCurrency(selectedOrder.totalPrice - (selectedOrder.advancePaid || 0))}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })()}
-
-                    {/* Delivery Information */}
-                    <div className="bg-cream-50 rounded-lg p-4 border border-cream-200">
-                      <h3 className="font-bold text-cream-900 mb-3 flex items-center gap-2">
-                        <Truck size={18} />
-                        Delivery Information
-                      </h3>
-                      <div className="space-y-3">
-                        <div>
-                          <p className="text-xs text-cream-600 mb-1">Complete Address</p>
-                          <p className="font-semibold text-cream-900 text-sm whitespace-pre-wrap">{selectedOrder.address || "N/A"}</p>
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                          <div>
-                            <p className="text-xs text-cream-600 mb-1">Mobile Number</p>
-                            <p className="font-semibold text-cream-900">{selectedOrder.mobileNumber || "N/A"}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-cream-600 mb-1">Pincode</p>
-                            <p className="font-semibold text-cream-900">{selectedOrder.pincode}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-cream-600 mb-1">Delivery Date</p>
-                            <p className="font-semibold text-cream-900">
-                              {selectedOrder.deliveryDate
-                                ? (!isClient
-                                  ? 'Loading...'
-                                  : new Date(selectedOrder.deliveryDate).toLocaleDateString('en-US', {
-                                    year: 'numeric',
-                                    month: 'long',
-                                    day: 'numeric'
-                                  }))
-                                : "Not set"}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Current Department Status */}
-                    {selectedOrder.currentDepartment && (
-                      <div className="bg-indigo-50 rounded-lg p-4 border border-indigo-200 mb-4">
-                        <h3 className="font-bold text-indigo-900 mb-2 flex items-center gap-2">
-                          <Building2 size={18} />
-                          Current Department
-                        </h3>
-                        <div className="flex items-center gap-3">
-                          <div className="px-4 py-2 bg-white rounded-lg border border-indigo-200">
-                            <p className="text-xs text-indigo-600 mb-1">Currently Working On</p>
-                            <p className="text-lg font-bold text-indigo-900">
-                              {typeof selectedOrder.currentDepartment === "object" && selectedOrder.currentDepartment !== null
-                                ? (selectedOrder.currentDepartment as { _id: string; name: string; sequence: number }).name
-                                : "Department"}
-                            </p>
-                            {selectedOrder.currentDepartmentIndex !== null && selectedOrder.currentDepartmentIndex !== undefined && (
-                              <p className="text-xs text-indigo-500 mt-1">
-                                Position in Sequence: #{selectedOrder.currentDepartmentIndex + 1}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Production Progress - Enhanced */}
-                    {selectedOrder.departmentStatuses && selectedOrder.departmentStatuses.length > 0 && (
-                      <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                        <div className="flex items-center justify-between mb-3">
-                          <h3 className="font-bold text-blue-900 flex items-center gap-2">
-                            <Truck size={18} />
-                            Production Progress
-                          </h3>
-                          {(() => {
-                            const totalStages = selectedOrder.departmentStatuses.length;
-                            const completedStages = selectedOrder.departmentStatuses.filter(ds => ds.status === "completed").length;
-                            const inProgressStages = selectedOrder.departmentStatuses.filter(ds => ds.status === "in_progress").length;
-
-                            return (
-                              <div className="text-xs text-blue-700 font-medium">
-                                {completedStages}/{totalStages} Stages Completed
-                                {inProgressStages > 0 && ` • ${inProgressStages} In Progress`}
-                              </div>
-                            );
-                          })()}
-                        </div>
-
-                        {/* Progress Bar */}
-                        {(() => {
-                          const totalStages = selectedOrder.departmentStatuses.length;
-                          const completedStages = selectedOrder.departmentStatuses.filter(ds => ds.status === "completed").length;
-                          const progressPercent = Math.round((completedStages / totalStages) * 100);
-
-                          return (
-                            <div className="mb-4">
-                              <div className="w-full bg-blue-200 rounded-full h-2.5 mb-1">
-                                <div
-                                  className="bg-blue-600 h-2.5 rounded-full transition-all duration-500"
-                                  style={{ width: `${progressPercent}%` }}
-                                />
-                              </div>
-                              <p className="text-xs text-blue-700 text-right">{progressPercent}% Complete</p>
-                            </div>
-                          );
-                        })()}
-
-                        <div className="space-y-2">
-                          {selectedOrder.departmentStatuses
-                            .sort((a, b) => {
-                              const seqA = typeof a.department === "object" ? a.department.sequence : 0;
-                              const seqB = typeof b.department === "object" ? b.department.sequence : 0;
-                              return seqA - seqB;
-                            })
-                            .map((deptStatus, idx) => {
-                              const deptName = typeof deptStatus.department === "object"
-                                ? deptStatus.department.name
-                                : "Department";
-                              const status = deptStatus.status;
-
-                              // Calculate duration if started and completed
-                              let durationText = "";
-                              if (deptStatus.startedAt && deptStatus.completedAt) {
-                                const start = new Date(deptStatus.startedAt);
-                                const end = new Date(deptStatus.completedAt);
-                                const durationMs = end.getTime() - start.getTime();
-                                const hours = Math.floor(durationMs / (1000 * 60 * 60));
-                                const minutes = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60));
-                                if (hours > 0) {
-                                  durationText = `${hours}h ${minutes}m`;
-                                } else {
-                                  durationText = `${minutes}m`;
-                                }
-                              }
-
-                              return (
-                                <div key={idx} className="flex items-start gap-3 p-3 bg-white rounded-lg border border-blue-100">
-                                  <div className={`w-4 h-4 rounded-full mt-0.5 flex-shrink-0 ${status === "completed" ? "bg-green-500" :
-                                    status === "in_progress" ? "bg-blue-500 animate-pulse" :
-                                      status === "paused" ? "bg-yellow-500" :
-                                        status === "stopped" ? "bg-red-500" :
-                                          "bg-gray-300"
-                                    }`} />
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-center justify-between mb-1">
-                                      <span className="text-sm font-semibold text-blue-900">{deptName}</span>
-                                      <span className={`text-xs px-2 py-1 rounded-full font-medium ${status === "completed" ? "bg-green-100 text-green-800" :
-                                        status === "in_progress" ? "bg-blue-100 text-blue-800" :
-                                          status === "paused" ? "bg-yellow-100 text-yellow-800" :
-                                            status === "stopped" ? "bg-red-100 text-red-800" :
-                                              "bg-gray-100 text-gray-800"
-                                        }`}>
-                                        {status.replace("_", " ").toUpperCase()}
-                                      </span>
-                                    </div>
-
-                                    {/* Timestamps */}
-                                    <div className="space-y-1 mt-2">
-                                      {deptStatus.whenAssigned && (
-                                        <div className="flex items-center gap-2 text-xs">
-                                          <Clock size={12} className="text-purple-600" />
-                                          <span className="text-purple-600">
-                                            Assigned: {new Date(deptStatus.whenAssigned).toLocaleString()}
-                                          </span>
-                                        </div>
-                                      )}
-                                      {deptStatus.startedAt && (
-                                        <div className="flex items-center gap-2 text-xs">
-                                          <Clock size={12} className="text-blue-600" />
-                                          <span className="text-blue-600">
-                                            Started: {new Date(deptStatus.startedAt).toLocaleString()}
-                                          </span>
-                                        </div>
-                                      )}
-                                      {deptStatus.completedAt && (
-                                        <div className="flex items-center gap-2 text-xs">
-                                          <CheckCircle size={12} className="text-green-600" />
-                                          <span className="text-green-600">
-                                            Completed: {new Date(deptStatus.completedAt).toLocaleString()}
-                                            {durationText && ` (Duration: ${durationText})`}
-                                          </span>
-                                        </div>
-                                      )}
-                                      {deptStatus.pausedAt && status === "paused" && (
-                                        <div className="flex items-center gap-2 text-xs">
-                                          <Clock size={12} className="text-yellow-600" />
-                                          <span className="text-yellow-600">
-                                            Paused: {new Date(deptStatus.pausedAt).toLocaleString()}
-                                          </span>
-                                        </div>
-                                      )}
-                                      {deptStatus.stoppedAt && status === "stopped" && (
-                                        <div className="flex items-center gap-2 text-xs">
-                                          <X size={12} className="text-red-600" />
-                                          <span className="text-red-600">
-                                            Stopped: {new Date(deptStatus.stoppedAt).toLocaleString()}
-                                          </span>
-                                        </div>
-                                      )}
-                                      {deptStatus.operator && (
-                                        <div className="flex items-center gap-2 text-xs mt-1">
-                                          <Users size={12} className="text-cream-600" />
-                                          <span className="text-cream-600">
-                                            Operator: {typeof deptStatus.operator === "object" && deptStatus.operator && '_id' in deptStatus.operator
-                                              ? `${deptStatus.operator.name || 'N/A'} (${('email' in deptStatus.operator && typeof deptStatus.operator.email === 'string' ? deptStatus.operator.email : 'N/A')})`
-                                              : 'N/A'}
-                                          </span>
-                                        </div>
-                                      )}
-                                      {deptStatus.notes && (
-                                        <div className="text-xs text-cream-600 mt-1 italic">
-                                          Notes: {deptStatus.notes}
-                                        </div>
-                                      )}
-                                    </div>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Production Timeline - Activity Log */}
-                    {selectedOrder.productionTimeline && selectedOrder.productionTimeline.length > 0 && (
-                      <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-lg p-4 border border-purple-200">
-                        <h3 className="font-bold text-purple-900 mb-3 flex items-center gap-2">
-                          <Clock size={18} />
-                          Production Activity Timeline
-                        </h3>
-                        <div className="space-y-2 max-h-96 overflow-y-auto">
-                          {Array.isArray(selectedOrder.productionTimeline) && selectedOrder.productionTimeline
-                            .sort((a: any, b: any) => (new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime()))
-                            .map((timelineItem: any, idx: number) => {
-                              const deptName = typeof timelineItem.department === "object"
-                                ? timelineItem.department.name
-                                : "Department";
-                              const operatorName = timelineItem.operator
-                                ? (typeof timelineItem.operator === "object"
-                                  ? `${timelineItem.operator.name} (${timelineItem.operator.email})`
-                                  : timelineItem.operator)
-                                : "System";
-
-                              const actionColors: { [key: string]: string } = {
-                                started: "bg-blue-100 text-blue-800 border-blue-300",
-                                paused: "bg-yellow-100 text-yellow-800 border-yellow-300",
-                                resumed: "bg-green-100 text-green-800 border-green-300",
-                                completed: "bg-green-100 text-green-800 border-green-300",
-                                stopped: "bg-red-100 text-red-800 border-red-300",
-                              };
-
-                              return (
-                                <div
-                                  key={idx}
-                                  className="flex items-start gap-3 p-3 bg-white rounded-lg border border-purple-100 shadow-sm hover:shadow-md transition-shadow"
-                                >
-                                  <div className={`w-2 h-2 rounded-full mt-2 flex-shrink-0 ${timelineItem.action === "completed" ? "bg-green-500" :
-                                    timelineItem.action === "started" ? "bg-blue-500" :
-                                      timelineItem.action === "paused" ? "bg-yellow-500" :
-                                        timelineItem.action === "stopped" ? "bg-red-500" :
-                                          "bg-gray-400"
-                                    }`} />
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-center justify-between mb-1 flex-wrap gap-2">
-                                      <span className="text-sm font-semibold text-purple-900">{deptName}</span>
-                                      <span className={`text-xs px-2 py-1 rounded-full font-medium border ${actionColors[timelineItem.action] || "bg-gray-100 text-gray-800 border-gray-300"
-                                        }`}>
-                                        {timelineItem.action.toUpperCase()}
-                                      </span>
-                                    </div>
-                                    <div className="flex items-center gap-2 text-xs text-purple-600 mb-1">
-                                      <Clock size={12} />
-                                      <span>{new Date(timelineItem.timestamp).toLocaleString()}</span>
-                                    </div>
-                                    {operatorName && (
-                                      <div className="flex items-center gap-2 text-xs text-purple-600 mb-1">
-                                        <Users size={12} />
-                                        <span>Operator: {operatorName}</span>
-                                      </div>
-                                    )}
-                                    {timelineItem.notes && (
-                                      <div className="text-xs text-purple-700 mt-1 italic bg-purple-50 p-2 rounded border border-purple-100">
-                                        {timelineItem.notes}
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Customer Notes */}
-                    {selectedOrder.notes && (
-                      <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                        <h3 className="font-bold text-blue-900 mb-2 flex items-center gap-2">
-                          <Info size={18} />
-                          Customer Notes
-                        </h3>
-                        <p className="text-sm text-blue-900 whitespace-pre-wrap">{selectedOrder.notes}</p>
-                      </div>
-                    )}
-
-                    {/* Admin Notes */}
-                    {selectedOrder.adminNotes && (
-                      <div className="bg-amber-50 rounded-lg p-4 border border-amber-200">
-                        <h3 className="font-bold text-amber-900 mb-2 flex items-center gap-2">
-                          <Settings size={18} />
-                          Admin Notes
-                        </h3>
-                        <p className="text-sm text-amber-900 whitespace-pre-wrap">{selectedOrder.adminNotes}</p>
-                      </div>
-                    )}
-
-                    {/* Uploaded Designs */}
-                    {(selectedOrder.uploadedDesign?.frontImage || selectedOrder.uploadedDesign?.backImage) && (
-                      <motion.div
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        transition={{ duration: 0.4 }}
-                        className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-lg p-6 border border-blue-200"
-                      >
-                        <h3 className="font-bold text-blue-900 mb-4 flex items-center gap-2 text-lg">
-                          <ImageIcon size={20} />
-                          Uploaded Customer Designs
-                        </h3>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                          {selectedOrder.uploadedDesign?.frontImage && (
-                            <motion.div
-                              initial={{ opacity: 0, x: -20 }}
-                              animate={{ opacity: 1, x: 0 }}
-                              transition={{ duration: 0.5, delay: 0.1 }}
-                            >
-                              <p className="text-sm font-semibold text-blue-700 mb-3 flex items-center gap-2">
-                                <FileText size={16} />
-                                Front Design
-                              </p>
-                              <div className="relative bg-white rounded-lg border-2 border-blue-200 p-4 shadow-md hover:shadow-lg transition-shadow">
-                                <img
-                                  src={selectedOrder.uploadedDesign.frontImage.data || PLACEHOLDER_IMAGE_LARGE}
-                                  alt="Front design"
-                                  className="w-full h-80 object-contain rounded-lg"
-                                  onError={(e) => {
-                                    const target = e.target as HTMLImageElement;
-                                    target.src = PLACEHOLDER_IMAGE_LARGE;
-                                  }}
-                                />
-                                <div className="mt-3 pt-3 border-t border-blue-100 flex items-center justify-between">
-                                  <div>
-                                    <p className="text-xs text-blue-600 font-medium">
-                                      File: {selectedOrder.uploadedDesign.frontImage.filename || "front-design.png"}
-                                    </p>
-                                    <p className="text-xs text-blue-500 mt-1">
-                                      Type: {selectedOrder.uploadedDesign.frontImage.contentType || "image/png"}
-                                    </p>
-                                  </div>
-                                  <button
-                                    onClick={() => {
-                                      const link = document.createElement('a');
-                                      link.href = selectedOrder.uploadedDesign.frontImage.data || PLACEHOLDER_IMAGE_LARGE;
-                                      link.download = selectedOrder.uploadedDesign.frontImage.filename || "front-design.png";
-                                      document.body.appendChild(link);
-                                      link.click();
-                                      document.body.removeChild(link);
-                                    }}
-                                    className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 text-sm"
-                                    title="Download image"
-                                  >
-                                    <Download size={14} />
-                                    Download
-                                  </button>
-                                </div>
-                              </div>
-                            </motion.div>
-                          )}
-                          {selectedOrder.uploadedDesign?.backImage && (
-                            <motion.div
-                              initial={{ opacity: 0, x: 20 }}
-                              animate={{ opacity: 1, x: 0 }}
-                              transition={{ duration: 0.5, delay: 0.2 }}
-                            >
-                              <p className="text-sm font-semibold text-blue-700 mb-3 flex items-center gap-2">
-                                <FileText size={16} />
-                                Back Design
-                              </p>
-                              <div className="relative bg-white rounded-lg border-2 border-blue-200 p-4 shadow-md hover:shadow-lg transition-shadow">
-                                <img
-                                  src={selectedOrder.uploadedDesign.backImage.data || PLACEHOLDER_IMAGE_LARGE}
-                                  alt="Back design"
-                                  className="w-full h-80 object-contain rounded-lg"
-                                  onError={(e) => {
-                                    const target = e.target as HTMLImageElement;
-                                    target.src = PLACEHOLDER_IMAGE_LARGE;
-                                  }}
-                                />
-                                <div className="mt-3 pt-3 border-t border-blue-100 flex items-center justify-between">
-                                  <div>
-                                    <p className="text-xs text-blue-600 font-medium">
-                                      File: {selectedOrder.uploadedDesign.backImage.filename || "back-design.png"}
-                                    </p>
-                                    <p className="text-xs text-blue-500 mt-1">
-                                      Type: {selectedOrder.uploadedDesign.backImage.contentType || "image/png"}
-                                    </p>
-                                  </div>
-                                  <button
-                                    onClick={() => {
-                                      const link = document.createElement('a');
-                                      link.href = selectedOrder.uploadedDesign.backImage.data || PLACEHOLDER_IMAGE_LARGE;
-                                      link.download = selectedOrder.uploadedDesign.backImage.filename || "back-design.png";
-                                      document.body.appendChild(link);
-                                      link.click();
-                                      document.body.removeChild(link);
-                                    }}
-                                    className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 text-sm"
-                                    title="Download image"
-                                  >
-                                    <Download size={14} />
-                                    Download
-                                  </button>
-                                </div>
-                              </div>
-                            </motion.div>
-                          )}
-                        </div>
-                      </motion.div>
-                    )}
-                  </div>
-
-                  {/* Order Management Section */}
-                  {selectedOrder.status !== "cancelled" && (
-                    <div className="border-t border-cream-200 pt-6">
-                      <h3 className="font-bold text-cream-900 mb-4 flex items-center gap-2">
-                        <Settings size={18} />
-                        Manage Order
-                      </h3>
-                      <div className="space-y-4">
-                        <div>
-                          <label className="block text-sm font-medium text-cream-900 mb-2">
-                            Order Status
-                          </label>
-                          <ReviewFilterDropdown
-                            label="Select Status"
-                            value={orderStatusUpdate.status}
-                            onChange={(value) =>
-                              setOrderStatusUpdate({ ...orderStatusUpdate, status: value as string })
-                            }
-                            options={[
-                              { value: "request", label: "Request" },
-                              { value: "processing", label: "Processing" },
-                              { value: "completed", label: "Completed" },
-                              { value: "rejected", label: "Rejected" },
-                            ]}
-                            className="w-full"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-cream-900 mb-2">
-                            Delivery Date
-                          </label>
-                          <input
-                            type="date"
-                            value={orderStatusUpdate.deliveryDate}
-                            onChange={(e) =>
-                              setOrderStatusUpdate({ ...orderStatusUpdate, deliveryDate: e.target.value })
-                            }
-                            className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-cream-900 mb-2">
-                            Admin Notes
-                          </label>
-                          <textarea
-                            value={orderStatusUpdate.adminNotes}
-                            onChange={(e) =>
-                              setOrderStatusUpdate({ ...orderStatusUpdate, adminNotes: e.target.value })
-                            }
-                            rows={4}
-                            className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
-                            placeholder="Add notes for this order..."
-                          />
-                        </div>
-
-                        <div className="flex gap-3 pt-4">
-                          <button
-                            onClick={() => handleUpdateOrderStatus(selectedOrder._id)}
-                            disabled={loading}
-                            className="flex-1 bg-cream-900 text-white px-6 py-3 rounded-lg font-medium hover:bg-cream-800 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-                          >
-                            {loading ? (
-                              <>
-                                <Loader className="animate-spin" size={20} />
-                                Updating...
-                              </>
-                            ) : (
-                              <>
-                                <Check size={20} />
-                                Update Order
-                              </>
-                            )}
-                          </button>
-                          <button
-                            onClick={() => {
-                              setShowOrderModal(false);
-                              setSelectedOrder(null);
-                              setOrderStatusUpdate({ status: "", deliveryDate: "", adminNotes: "" });
-                            }}
-                            className="px-6 py-3 border border-cream-300 rounded-lg hover:bg-cream-50 transition-colors"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </motion.div>
-              </div>
-            )
-          }
-        </AnimatePresence >
-
-        {/* Upload Modal */}
-        <AnimatePresence>
-          {
-            showUploadModal && selectedUpload && (
-              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.9 }}
-                  className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto"
-                >
-                  <div className="p-6">
-                    <div className="flex justify-between items-center mb-4">
-                      <h2 className="text-2xl font-bold text-cream-900">
-                        Upload Details
-                      </h2>
-                      <div className="flex items-center gap-2">
                         <button
                           onClick={() => {
-                            if (selectedUpload && window.confirm("Are you sure you want to delete this uploaded image?")) {
-                              handleDeleteUpload(selectedUpload._id);
-                              setShowUploadModal(false);
-                              setSelectedUpload(null);
-                            }
-                          }}
-                          disabled={loading}
-                          className="p-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors disabled:opacity-50 flex items-center gap-2"
-                          title="Delete upload"
-                        >
-                          <Trash2 size={20} />
-                          Delete
-                        </button>
-                        <button
-                          onClick={() => {
-                            setShowUploadModal(false);
-                            setSelectedUpload(null);
+                            setShowOrderModal(false);
+                            setSelectedOrder(null);
+                            setOrderStatusUpdate({ status: "", deliveryDate: "", adminNotes: "" });
                           }}
                           className="p-2 hover:bg-cream-100 rounded-lg transition-colors"
                         >
                           <X size={24} />
                         </button>
                       </div>
-                    </div>
 
-                    <div className="space-y-4">
-                      <div>
-                        <p className="text-sm text-cream-600">User</p>
-                        <p className="font-semibold text-cream-900">
-                          {selectedUpload.user.name} ({selectedUpload.user.email})
-                        </p>
-                      </div>
-
-                      <div>
-                        <p className="text-sm text-cream-600">Dimensions</p>
-                        <p className="font-semibold text-cream-900">
-                          {selectedUpload.width} × {selectedUpload.height}px
-                        </p>
-                      </div>
-
-                      {selectedUpload.description && (
-                        <div>
-                          <p className="text-sm text-cream-600">Description</p>
-                          <p className="text-cream-900">{selectedUpload.description}</p>
+                      {/* Complete Order Information */}
+                      <div className="space-y-6 mb-6">
+                        {/* Order Status */}
+                        <div className="flex items-center gap-4">
+                          <span className="text-sm font-medium text-cream-700">Status:</span>
+                          <div className={`px - 4 py - 2 rounded - full border - 2 ${selectedOrder.status === "completed" ? "bg-green-100 text-green-800 border-green-200" :
+                            selectedOrder.status === "processing" ? "bg-blue-100 text-blue-800 border-blue-200" :
+                              selectedOrder.status === "production_ready" ? "bg-orange-100 text-orange-800 border-orange-200" :
+                                selectedOrder.status === "request" ? "bg-yellow-100 text-yellow-800 border-yellow-200" :
+                                  selectedOrder.status === "rejected" ? "bg-red-100 text-red-800 border-red-200" :
+                                    "bg-gray-100 text-gray-800 border-gray-200"
+                            } `}>
+                            <span className="text-sm font-semibold capitalize">{selectedOrder.status}</span>
+                          </div>
                         </div>
-                      )}
 
-                      <div>
-                        <div className="flex items-center justify-between mb-2">
-                          <p className="text-sm text-cream-600">Front Image</p>
-                          {selectedUpload.frontImage && (
-                            <button
-                              onClick={() =>
-                                handleDownloadImage(
-                                  selectedUpload.frontImage!.data,
-                                  selectedUpload.frontImage!.filename ||
-                                  "front-image.jpg"
-                                )
-                              }
-                              className="px-3 py-1 text-xs bg-cream-900 text-white rounded-lg hover:bg-cream-800 transition-colors flex items-center gap-2"
-                            >
-                              <Download size={14} />
-                              Download
-                            </button>
+                        {/* User Information */}
+                        <div className="bg-cream-50 rounded-lg p-4 border border-cream-200">
+                          <h3 className="font-bold text-cream-900 mb-3 flex items-center gap-2">
+                            <Users size={18} />
+                            Customer Information
+                          </h3>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                              <p className="text-xs text-cream-600 mb-1 font-medium">Customer Name</p>
+                              <p className="font-semibold text-cream-900 text-base">{selectedOrder.user.name}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-cream-600 mb-1 font-medium">Email Address</p>
+                              <p className="font-semibold text-cream-900 text-base">{selectedOrder.user.email}</p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Product Information */}
+                        <div className="bg-cream-50 rounded-lg p-4 border border-cream-200">
+                          <h3 className="font-bold text-cream-900 mb-3 flex items-center gap-2">
+                            <Package size={18} />
+                            Product Information
+                          </h3>
+                          <div className="flex gap-4 mb-3">
+                            <img
+                              src={selectedOrder.product.image || PLACEHOLDER_IMAGE}
+                              alt={selectedOrder.product.name}
+                              className="w-24 h-24 object-cover rounded-lg border border-cream-200"
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement;
+                                target.src = PLACEHOLDER_IMAGE;
+                              }}
+                            />
+                            <div className="flex-1">
+                              <p className="font-bold text-cream-900 text-lg mb-1">{selectedOrder.product.name}</p>
+                              <p className="text-sm text-cream-600 mb-2">
+                                Category: {selectedOrder.product.category && typeof selectedOrder.product.category === "object" && selectedOrder.product.category !== null && '_id' in selectedOrder.product.category
+                                  ? ((selectedOrder.product.category as { _id: string; name: string }).name || "N/A")
+                                  : (typeof selectedOrder.product.category === 'string' ? selectedOrder.product.category : "N/A")}
+                              </p>
+                              <p className="text-sm text-cream-600">
+                                Base Price: ₹{selectedOrder.product.basePrice?.toFixed(2) || "0.00"} per unit
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Order Customization Details */}
+                        <div className="bg-cream-50 rounded-lg p-4 border border-cream-200">
+                          <h3 className="font-bold text-cream-900 mb-3 flex items-center gap-2">
+                            <Settings size={18} />
+                            Customization Details
+                          </h3>
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                            <div>
+                              <p className="text-xs text-cream-600 mb-1">Quantity</p>
+                              <p className="font-bold text-cream-900">{selectedOrder.quantity} units</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-cream-600 mb-1">Finish</p>
+                              <p className="font-bold text-cream-900">{selectedOrder.finish}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-cream-600 mb-1">Shape</p>
+                              <p className="font-bold text-cream-900">{selectedOrder.shape}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-cream-600 mb-1">Total Price</p>
+                              <p className="font-bold text-cream-900">₹{selectedOrder.totalPrice.toFixed(2)}</p>
+                            </div>
+                          </div>
+
+                          {selectedOrder.selectedOptions && selectedOrder.selectedOptions.length > 0 && (
+                            <div className="mt-4 pt-4 border-t border-cream-200">
+                              <p className="text-xs text-cream-600 mb-2 font-semibold">Selected Options</p>
+                              <div className="flex flex-wrap gap-2">
+                                {selectedOrder.selectedOptions.map((option, idx) => (
+                                  <span
+                                    key={idx}
+                                    className="px-3 py-1 bg-cream-200 text-cream-800 rounded-full text-xs font-medium"
+                                  >
+                                    {typeof option === "string" ? option : (option.optionName || option.name || "Option")}
+                                    {typeof option === "object" && option.priceAdd ? ` (+₹${option.priceAdd.toFixed(2)})` : ""}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Selected Dynamic Attributes */}
+                          {selectedOrder.selectedDynamicAttributes && selectedOrder.selectedDynamicAttributes.length > 0 && (
+                            <div className="mt-4 pt-4 border-t border-cream-200">
+                              <p className="text-xs text-cream-600 mb-2 font-semibold">Selected Attributes</p>
+                              <div className="space-y-2">
+                                {selectedOrder.selectedDynamicAttributes.map((attr, idx) => (
+                                  <div
+                                    key={idx}
+                                    className="flex justify-between items-center p-2 rounded-lg bg-cream-100 border border-cream-200"
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      {attr.image && attr.image.trim() !== "" && (
+                                        <img src={attr.image} alt={attr.attributeName} className="w-8 h-8 object-cover rounded" />
+                                      )}
+                                      <div>
+                                        <p className="text-xs font-medium text-cream-900">{attr.attributeName}</p>
+                                        <p className="text-xs text-cream-600">{attr.label}</p>
+                                        {attr.description && <p className="text-xs text-cream-500 mt-0.5">{attr.description}</p>}
+                                      </div>
+                                    </div>
+                                    {(attr.priceAdd > 0 || attr.priceMultiplier) && (
+                                      <div className="text-right">
+                                        {attr.priceAdd > 0 && (
+                                          <span className="block text-xs font-bold text-cream-900">
+                                            +₹{attr.priceAdd.toFixed(2)}
+                                          </span>
+                                        )}
+                                        {attr.priceMultiplier && attr.priceMultiplier !== 1 && (
+                                          <span className="block text-xs text-cream-600">
+                                            ×{attr.priceMultiplier.toFixed(2)}
+                                          </span>
+                                        )}
+                                      </div>
+                                    )}
+                                    {/* Display uploaded images if any */}
+                                    {attr.uploadedImages && attr.uploadedImages.length > 0 && (
+                                      <div className="mt-2 pt-2 border-t border-cream-200 w-full">
+                                        <p className="text-xs text-cream-600 mb-2 font-semibold">Uploaded Images:</p>
+                                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                          {attr.uploadedImages.map((img, imgIdx) => {
+                                            // Convert buffer to base64 data URL for display
+                                            let imageUrl = '';
+                                            if (img.data) {
+                                              if (typeof img.data === 'string') {
+                                                imageUrl = `data:${img.contentType || 'image/jpeg'};base64,${img.data}`;
+                                              } else if (Buffer.isBuffer(img.data)) {
+                                                imageUrl = `data:${img.contentType || 'image/jpeg'};base64,${img.data.toString('base64')}`;
+                                              }
+                                            }
+                                            return imageUrl ? (
+                                              <div key={imgIdx} className="relative">
+                                                <img
+                                                  src={imageUrl}
+                                                  alt={img.filename || `Image ${imgIdx + 1}`}
+                                                  className="w-full h-24 object-cover rounded border border-cream-200"
+                                                />
+                                                <p className="text-xs text-cream-500 mt-1 truncate">{img.filename}</p>
+                                              </div>
+                                            ) : null;
+                                          })}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
                           )}
                         </div>
-                        {selectedUpload.frontImage && (
-                          <div className="relative">
-                            {imageLoading[`modal-front-${selectedUpload._id}`] && (
-                              <div className="absolute inset-0 flex items-center justify-center bg-cream-100 rounded-lg">
-                                <Loader className="animate-spin text-cream-600" size={32} />
+
+                        {/* Price Breakdown */}
+                        {(() => {
+                          const orderForCalc: OrderForCalculation = {
+                            quantity: selectedOrder.quantity,
+                            product: {
+                              basePrice: selectedOrder.product.basePrice || 0,
+                              gstPercentage: selectedOrder.product.gstPercentage || 18,
+                              options: selectedOrder.product.options,
+                              filters: selectedOrder.product.filters,
+                              quantityDiscounts: (selectedOrder.product as any)?.quantityDiscounts || [],
+                            },
+                            finish: selectedOrder.finish,
+                            shape: selectedOrder.shape,
+                            selectedOptions: selectedOrder.selectedOptions?.map((opt) => ({
+                              name: typeof opt === 'string' ? opt : (opt.optionName || opt.name || 'Option'),
+                              optionName: typeof opt === 'string' ? opt : (opt.optionName || opt.name || 'Option'),
+                              priceAdd: typeof opt === 'object' ? (opt.priceAdd || 0) : 0,
+                            })) || [],
+                            selectedDynamicAttributes: selectedOrder.selectedDynamicAttributes?.map((attr) => ({
+                              attributeName: attr.attributeName,
+                              label: attr.label,
+                              priceMultiplier: attr.priceMultiplier,
+                              priceAdd: attr.priceAdd,
+                            })),
+                          };
+
+                          const calculations = calculateOrderBreakdown(orderForCalc);
+
+                          return (
+                            <div className="bg-cream-50 rounded-lg p-4 border border-cream-200">
+                              <h3 className="font-bold text-cream-900 mb-3 flex items-center gap-2">
+                                <CreditCard size={18} />
+                                Price Breakdown
+                              </h3>
+                              <div className="space-y-2 text-sm">
+                                <div className="flex justify-between items-center pb-2 border-b border-cream-200">
+                                  <div className="text-cream-600">
+                                    <span>
+                                      Base Price ({selectedOrder.quantity.toLocaleString()} ×{' '}
+                                      {formatCurrency(selectedOrder.product.basePrice || 0)})
+                                    </span>
+                                  </div>
+                                  <span className="font-medium text-cream-900">{formatCurrency(calculations.rawBaseTotal)}</span>
+                                </div>
+
+                                {calculations.discountPercentage > 0 && (
+                                  <div className="flex justify-between items-center text-green-700 bg-green-50 p-2 rounded-md">
+                                    <div>
+                                      <span className="font-semibold">
+                                        Bulk Discount ({calculations.discountPercentage}%)
+                                      </span>
+                                      <p className="text-xs opacity-80">Applied for {selectedOrder.quantity} units</p>
+                                    </div>
+                                    <span className="font-bold">
+                                      -{formatCurrency(calculations.rawBaseTotal - calculations.discountedBaseTotal)}
+                                    </span>
+                                  </div>
+                                )}
+
+                                {calculations.optionBreakdowns.map((opt, idx) => (
+                                  <div key={idx} className="flex justify-between items-center text-cream-600">
+                                    <span>
+                                      {opt.name} {opt.isPerUnit ? `(${selectedOrder.quantity} × ${formatCurrency(opt.priceAdd)})` : ''}
+                                    </span>
+                                    <span>+{formatCurrency(opt.cost)}</span>
+                                  </div>
+                                ))}
+
+                                {/* Show dynamic attributes if they have price impact */}
+                                {selectedOrder.selectedDynamicAttributes && selectedOrder.selectedDynamicAttributes.length > 0 && (
+                                  <>
+                                    {selectedOrder.selectedDynamicAttributes
+                                      .filter(attr => attr.priceAdd > 0 || (attr.priceMultiplier && attr.priceMultiplier !== 1))
+                                      .map((attr, idx) => {
+                                        // Calculate price impact for this attribute
+                                        const basePrice = selectedOrder.product.basePrice || 0;
+                                        let attributeCost = 0;
+                                        let pricePerUnit = 0;
+                                        if (attr.priceAdd > 0) {
+                                          pricePerUnit = attr.priceAdd;
+                                          attributeCost = attr.priceAdd * selectedOrder.quantity;
+                                        } else if (attr.priceMultiplier && attr.priceMultiplier !== 1) {
+                                          pricePerUnit = basePrice * (attr.priceMultiplier - 1);
+                                          attributeCost = pricePerUnit * selectedOrder.quantity;
+                                        }
+
+                                        if (attributeCost === 0) return null;
+
+                                        return (
+                                          <div key={`attr-${idx}`} className="flex justify-between items-center text-cream-600">
+                                            <span>
+                                              {attr.attributeName} ({attr.label})
+                                            </span>
+                                            <span>+{formatCurrency(pricePerUnit)}/unit × {selectedOrder.quantity.toLocaleString()} = {formatCurrency(attributeCost)}</span>
+                                          </div>
+                                        );
+                                      })}
+                                  </>
+                                )}
+
+                                <div className="flex justify-between items-center pt-2 font-medium text-cream-900 border-t border-cream-200">
+                                  <span>Subtotal</span>
+                                  <span>{formatCurrency(calculations.subtotal)}</span>
+                                </div>
+
+                                <div className="flex justify-between items-center text-cream-600 text-xs">
+                                  <span>GST ({selectedOrder.product.gstPercentage || 18}%)</span>
+                                  <span>+{formatCurrency(calculations.gstAmount)}</span>
+                                </div>
+
+                                <div className="flex justify-between items-center pt-3 mt-2 border-t-2 border-cream-300">
+                                  <span className="text-base font-bold text-cream-900">Total Amount</span>
+                                  <span className="text-lg font-bold text-cream-900">{formatCurrency(selectedOrder.totalPrice)}</span>
+                                </div>
+
+                                <div className="mt-3 pt-3 border-t border-cream-200">
+                                  <div className="flex justify-between items-center mb-2">
+                                    <span className="text-cream-600 text-xs">Advance Paid</span>
+                                    <span className="font-medium text-green-700">
+                                      {formatCurrency(selectedOrder.advancePaid || 0)}
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between items-center">
+                                    <span className="text-cream-600 text-xs">Balance Due</span>
+                                    <span
+                                      className={`font-bold ${selectedOrder.totalPrice - (selectedOrder.advancePaid || 0) > 0
+                                        ? 'text-red-600'
+                                        : 'text-cream-500'
+                                        }`}
+                                    >
+                                      {formatCurrency(selectedOrder.totalPrice - (selectedOrder.advancePaid || 0))}
+                                    </span>
+                                  </div>
+                                </div>
                               </div>
-                            )}
-                            <img
-                              src={getImageUrl(selectedUpload.frontImage.data, selectedUpload.frontImage.contentType) || PLACEHOLDER_IMAGE_LARGE}
-                              alt={selectedUpload.frontImage.filename}
-                              className={`w-full rounded-lg border border-cream-300 ${imageLoading[`modal-front-${selectedUpload._id}`] ? "opacity-0" : "opacity-100"} transition-opacity`}
-                              onLoad={() => setImageLoading(prev => ({ ...prev, [`modal-front-${selectedUpload._id}`]: false }))}
-                              onError={() => {
-                                setImageLoading(prev => ({ ...prev, [`modal-front-${selectedUpload._id}`]: false }));
-                                console.error("Failed to load image:", selectedUpload.frontImage?.filename);
-                              }}
-                              onLoadStart={() => setImageLoading(prev => ({ ...prev, [`modal-front-${selectedUpload._id}`]: true }))}
-                            />
+                            </div>
+                          );
+                        })()}
+
+                        {/* Delivery Information */}
+                        <div className="bg-cream-50 rounded-lg p-4 border border-cream-200">
+                          <h3 className="font-bold text-cream-900 mb-3 flex items-center gap-2">
+                            <Truck size={18} />
+                            Delivery Information
+                          </h3>
+                          <div className="space-y-3">
+                            <div>
+                              <p className="text-xs text-cream-600 mb-1">Complete Address</p>
+                              <p className="font-semibold text-cream-900 text-sm whitespace-pre-wrap">{selectedOrder.address || "N/A"}</p>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                              <div>
+                                <p className="text-xs text-cream-600 mb-1">Mobile Number</p>
+                                <p className="font-semibold text-cream-900">{selectedOrder.mobileNumber || "N/A"}</p>
+                              </div>
+                              <div>
+                                <p className="text-xs text-cream-600 mb-1">Pincode</p>
+                                <p className="font-semibold text-cream-900">{selectedOrder.pincode}</p>
+                              </div>
+                              <div>
+                                <p className="text-xs text-cream-600 mb-1">Delivery Date</p>
+                                <p className="font-semibold text-cream-900">
+                                  {selectedOrder.deliveryDate
+                                    ? (!isClient
+                                      ? 'Loading...'
+                                      : new Date(selectedOrder.deliveryDate).toLocaleDateString('en-US', {
+                                        year: 'numeric',
+                                        month: 'long',
+                                        day: 'numeric'
+                                      }))
+                                    : "Not set"}
+                                </p>
+                              </div>
+                            </div>
                           </div>
+                        </div>
+
+                        {/* Current Department Status */}
+                        {selectedOrder.currentDepartment && (
+                          <div className="bg-indigo-50 rounded-lg p-4 border border-indigo-200 mb-4">
+                            <h3 className="font-bold text-indigo-900 mb-2 flex items-center gap-2">
+                              <Building2 size={18} />
+                              Current Department
+                            </h3>
+                            <div className="flex items-center gap-3">
+                              <div className="px-4 py-2 bg-white rounded-lg border border-indigo-200">
+                                <p className="text-xs text-indigo-600 mb-1">Currently Working On</p>
+                                <p className="text-lg font-bold text-indigo-900">
+                                  {typeof selectedOrder.currentDepartment === "object" && selectedOrder.currentDepartment !== null
+                                    ? (selectedOrder.currentDepartment as { _id: string; name: string; sequence: number }).name
+                                    : "Department"}
+                                </p>
+                                {selectedOrder.currentDepartmentIndex !== null && selectedOrder.currentDepartmentIndex !== undefined && (
+                                  <p className="text-xs text-indigo-500 mt-1">
+                                    Position in Sequence: #{selectedOrder.currentDepartmentIndex + 1}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Production Progress - Enhanced */}
+                        {selectedOrder.departmentStatuses && selectedOrder.departmentStatuses.length > 0 && (
+                          <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                            <div className="flex items-center justify-between mb-3">
+                              <h3 className="font-bold text-blue-900 flex items-center gap-2">
+                                <Truck size={18} />
+                                Production Progress
+                              </h3>
+                              {(() => {
+                                const totalStages = selectedOrder.departmentStatuses.length;
+                                const completedStages = selectedOrder.departmentStatuses.filter(ds => ds.status === "completed").length;
+                                const inProgressStages = selectedOrder.departmentStatuses.filter(ds => ds.status === "in_progress").length;
+
+                                return (
+                                  <div className="text-xs text-blue-700 font-medium">
+                                    {completedStages}/{totalStages} Stages Completed
+                                    {inProgressStages > 0 && ` • ${inProgressStages} In Progress`}
+                                  </div>
+                                );
+                              })()}
+                            </div>
+
+                            {/* Progress Bar */}
+                            {(() => {
+                              const totalStages = selectedOrder.departmentStatuses.length;
+                              const completedStages = selectedOrder.departmentStatuses.filter(ds => ds.status === "completed").length;
+                              const progressPercent = Math.round((completedStages / totalStages) * 100);
+
+                              return (
+                                <div className="mb-4">
+                                  <div className="w-full bg-blue-200 rounded-full h-2.5 mb-1">
+                                    <div
+                                      className="bg-blue-600 h-2.5 rounded-full transition-all duration-500"
+                                      style={{ width: `${progressPercent}%` }}
+                                    />
+                                  </div>
+                                  <p className="text-xs text-blue-700 text-right">{progressPercent}% Complete</p>
+                                </div>
+                              );
+                            })()}
+
+                            <div className="space-y-2">
+                              {selectedOrder.departmentStatuses
+                                .sort((a, b) => {
+                                  const seqA = typeof a.department === "object" ? a.department.sequence : 0;
+                                  const seqB = typeof b.department === "object" ? b.department.sequence : 0;
+                                  return seqA - seqB;
+                                })
+                                .map((deptStatus, idx) => {
+                                  const deptName = typeof deptStatus.department === "object"
+                                    ? deptStatus.department.name
+                                    : "Department";
+                                  const status = deptStatus.status;
+
+                                  // Calculate duration if started and completed
+                                  let durationText = "";
+                                  if (deptStatus.startedAt && deptStatus.completedAt) {
+                                    const start = new Date(deptStatus.startedAt);
+                                    const end = new Date(deptStatus.completedAt);
+                                    const durationMs = end.getTime() - start.getTime();
+                                    const hours = Math.floor(durationMs / (1000 * 60 * 60));
+                                    const minutes = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60));
+                                    if (hours > 0) {
+                                      durationText = `${hours}h ${minutes}m`;
+                                    } else {
+                                      durationText = `${minutes}m`;
+                                    }
+                                  }
+
+                                  return (
+                                    <div key={idx} className="flex items-start gap-3 p-3 bg-white rounded-lg border border-blue-100">
+                                      <div className={`w-4 h-4 rounded-full mt-0.5 flex-shrink-0 ${status === "completed" ? "bg-green-500" :
+                                        status === "in_progress" ? "bg-blue-500 animate-pulse" :
+                                          status === "paused" ? "bg-yellow-500" :
+                                            status === "stopped" ? "bg-red-500" :
+                                              "bg-gray-300"
+                                        }`} />
+                                      <div className="flex-1 min-w-0">
+                                        <div className="flex items-center justify-between mb-1">
+                                          <span className="text-sm font-semibold text-blue-900">{deptName}</span>
+                                          <span className={`text-xs px-2 py-1 rounded-full font-medium ${status === "completed" ? "bg-green-100 text-green-800" :
+                                            status === "in_progress" ? "bg-blue-100 text-blue-800" :
+                                              status === "paused" ? "bg-yellow-100 text-yellow-800" :
+                                                status === "stopped" ? "bg-red-100 text-red-800" :
+                                                  "bg-gray-100 text-gray-800"
+                                            }`}>
+                                            {status.replace("_", " ").toUpperCase()}
+                                          </span>
+                                        </div>
+
+                                        {/* Timestamps */}
+                                        <div className="space-y-1 mt-2">
+                                          {deptStatus.whenAssigned && (
+                                            <div className="flex items-center gap-2 text-xs">
+                                              <Clock size={12} className="text-purple-600" />
+                                              <span className="text-purple-600">
+                                                Assigned: {new Date(deptStatus.whenAssigned).toLocaleString()}
+                                              </span>
+                                            </div>
+                                          )}
+                                          {deptStatus.startedAt && (
+                                            <div className="flex items-center gap-2 text-xs">
+                                              <Clock size={12} className="text-blue-600" />
+                                              <span className="text-blue-600">
+                                                Started: {new Date(deptStatus.startedAt).toLocaleString()}
+                                              </span>
+                                            </div>
+                                          )}
+                                          {deptStatus.completedAt && (
+                                            <div className="flex items-center gap-2 text-xs">
+                                              <CheckCircle size={12} className="text-green-600" />
+                                              <span className="text-green-600">
+                                                Completed: {new Date(deptStatus.completedAt).toLocaleString()}
+                                                {durationText && ` (Duration: ${durationText})`}
+                                              </span>
+                                            </div>
+                                          )}
+                                          {deptStatus.pausedAt && status === "paused" && (
+                                            <div className="flex items-center gap-2 text-xs">
+                                              <Clock size={12} className="text-yellow-600" />
+                                              <span className="text-yellow-600">
+                                                Paused: {new Date(deptStatus.pausedAt).toLocaleString()}
+                                              </span>
+                                            </div>
+                                          )}
+                                          {deptStatus.stoppedAt && status === "stopped" && (
+                                            <div className="flex items-center gap-2 text-xs">
+                                              <X size={12} className="text-red-600" />
+                                              <span className="text-red-600">
+                                                Stopped: {new Date(deptStatus.stoppedAt).toLocaleString()}
+                                              </span>
+                                            </div>
+                                          )}
+                                          {deptStatus.operator && (
+                                            <div className="flex items-center gap-2 text-xs mt-1">
+                                              <Users size={12} className="text-cream-600" />
+                                              <span className="text-cream-600">
+                                                Operator: {typeof deptStatus.operator === "object" && deptStatus.operator && '_id' in deptStatus.operator
+                                                  ? `${deptStatus.operator.name || 'N/A'} (${('email' in deptStatus.operator && typeof deptStatus.operator.email === 'string' ? deptStatus.operator.email : 'N/A')})`
+                                                  : 'N/A'}
+                                              </span>
+                                            </div>
+                                          )}
+                                          {deptStatus.notes && (
+                                            <div className="text-xs text-cream-600 mt-1 italic">
+                                              Notes: {deptStatus.notes}
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Production Timeline - Activity Log */}
+                        {selectedOrder.productionTimeline && selectedOrder.productionTimeline.length > 0 && (
+                          <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-lg p-4 border border-purple-200">
+                            <h3 className="font-bold text-purple-900 mb-3 flex items-center gap-2">
+                              <Clock size={18} />
+                              Production Activity Timeline
+                            </h3>
+                            <div className="space-y-2 max-h-96 overflow-y-auto">
+                              {Array.isArray(selectedOrder.productionTimeline) && selectedOrder.productionTimeline
+                                .sort((a: any, b: any) => (new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime()))
+                                .map((timelineItem: any, idx: number) => {
+                                  const deptName = typeof timelineItem.department === "object"
+                                    ? timelineItem.department.name
+                                    : "Department";
+                                  const operatorName = timelineItem.operator
+                                    ? (typeof timelineItem.operator === "object"
+                                      ? `${timelineItem.operator.name} (${timelineItem.operator.email})`
+                                      : timelineItem.operator)
+                                    : "System";
+
+                                  const actionColors: { [key: string]: string } = {
+                                    started: "bg-blue-100 text-blue-800 border-blue-300",
+                                    paused: "bg-yellow-100 text-yellow-800 border-yellow-300",
+                                    resumed: "bg-green-100 text-green-800 border-green-300",
+                                    completed: "bg-green-100 text-green-800 border-green-300",
+                                    stopped: "bg-red-100 text-red-800 border-red-300",
+                                  };
+
+                                  return (
+                                    <div
+                                      key={idx}
+                                      className="flex items-start gap-3 p-3 bg-white rounded-lg border border-purple-100 shadow-sm hover:shadow-md transition-shadow"
+                                    >
+                                      <div className={`w-2 h-2 rounded-full mt-2 flex-shrink-0 ${timelineItem.action === "completed" ? "bg-green-500" :
+                                        timelineItem.action === "started" ? "bg-blue-500" :
+                                          timelineItem.action === "paused" ? "bg-yellow-500" :
+                                            timelineItem.action === "stopped" ? "bg-red-500" :
+                                              "bg-gray-400"
+                                        }`} />
+                                      <div className="flex-1 min-w-0">
+                                        <div className="flex items-center justify-between mb-1 flex-wrap gap-2">
+                                          <span className="text-sm font-semibold text-purple-900">{deptName}</span>
+                                          <span className={`text-xs px-2 py-1 rounded-full font-medium border ${actionColors[timelineItem.action] || "bg-gray-100 text-gray-800 border-gray-300"
+                                            }`}>
+                                            {timelineItem.action.toUpperCase()}
+                                          </span>
+                                        </div>
+                                        <div className="flex items-center gap-2 text-xs text-purple-600 mb-1">
+                                          <Clock size={12} />
+                                          <span>{new Date(timelineItem.timestamp).toLocaleString()}</span>
+                                        </div>
+                                        {operatorName && (
+                                          <div className="flex items-center gap-2 text-xs text-purple-600 mb-1">
+                                            <Users size={12} />
+                                            <span>Operator: {operatorName}</span>
+                                          </div>
+                                        )}
+                                        {timelineItem.notes && (
+                                          <div className="text-xs text-purple-700 mt-1 italic bg-purple-50 p-2 rounded border border-purple-100">
+                                            {timelineItem.notes}
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Customer Notes */}
+                        {selectedOrder.notes && (
+                          <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                            <h3 className="font-bold text-blue-900 mb-2 flex items-center gap-2">
+                              <Info size={18} />
+                              Customer Notes
+                            </h3>
+                            <p className="text-sm text-blue-900 whitespace-pre-wrap">{selectedOrder.notes}</p>
+                          </div>
+                        )}
+
+                        {/* Admin Notes */}
+                        {selectedOrder.adminNotes && (
+                          <div className="bg-amber-50 rounded-lg p-4 border border-amber-200">
+                            <h3 className="font-bold text-amber-900 mb-2 flex items-center gap-2">
+                              <Settings size={18} />
+                              Admin Notes
+                            </h3>
+                            <p className="text-sm text-amber-900 whitespace-pre-wrap">{selectedOrder.adminNotes}</p>
+                          </div>
+                        )}
+
+                        {/* Uploaded Designs */}
+                        {(selectedOrder.uploadedDesign?.frontImage || selectedOrder.uploadedDesign?.backImage) && (
+                          <motion.div
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            transition={{ duration: 0.4 }}
+                            className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-lg p-6 border border-blue-200"
+                          >
+                            <h3 className="font-bold text-blue-900 mb-4 flex items-center gap-2 text-lg">
+                              <ImageIcon size={20} />
+                              Uploaded Customer Designs
+                            </h3>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                              {selectedOrder.uploadedDesign?.frontImage && (
+                                <motion.div
+                                  initial={{ opacity: 0, x: -20 }}
+                                  animate={{ opacity: 1, x: 0 }}
+                                  transition={{ duration: 0.5, delay: 0.1 }}
+                                >
+                                  <p className="text-sm font-semibold text-blue-700 mb-3 flex items-center gap-2">
+                                    <FileText size={16} />
+                                    Front Design
+                                  </p>
+                                  <div className="relative bg-white rounded-lg border-2 border-blue-200 p-4 shadow-md hover:shadow-lg transition-shadow">
+                                    <img
+                                      src={selectedOrder.uploadedDesign.frontImage.data || PLACEHOLDER_IMAGE_LARGE}
+                                      alt="Front design"
+                                      className="w-full h-80 object-contain rounded-lg"
+                                      onError={(e) => {
+                                        const target = e.target as HTMLImageElement;
+                                        target.src = PLACEHOLDER_IMAGE_LARGE;
+                                      }}
+                                    />
+                                    <div className="mt-3 pt-3 border-t border-blue-100 flex items-center justify-between">
+                                      <div>
+                                        <p className="text-xs text-blue-600 font-medium">
+                                          File: {selectedOrder.uploadedDesign.frontImage.filename || "front-design.png"}
+                                        </p>
+                                        <p className="text-xs text-blue-500 mt-1">
+                                          Type: {selectedOrder.uploadedDesign.frontImage.contentType || "image/png"}
+                                        </p>
+                                      </div>
+                                      <button
+                                        onClick={() => {
+                                          const link = document.createElement('a');
+                                          link.href = selectedOrder.uploadedDesign.frontImage.data || PLACEHOLDER_IMAGE_LARGE;
+                                          link.download = selectedOrder.uploadedDesign.frontImage.filename || "front-design.png";
+                                          document.body.appendChild(link);
+                                          link.click();
+                                          document.body.removeChild(link);
+                                        }}
+                                        className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 text-sm"
+                                        title="Download image"
+                                      >
+                                        <Download size={14} />
+                                        Download
+                                      </button>
+                                    </div>
+                                  </div>
+                                </motion.div>
+                              )}
+                              {selectedOrder.uploadedDesign?.backImage && (
+                                <motion.div
+                                  initial={{ opacity: 0, x: 20 }}
+                                  animate={{ opacity: 1, x: 0 }}
+                                  transition={{ duration: 0.5, delay: 0.2 }}
+                                >
+                                  <p className="text-sm font-semibold text-blue-700 mb-3 flex items-center gap-2">
+                                    <FileText size={16} />
+                                    Back Design
+                                  </p>
+                                  <div className="relative bg-white rounded-lg border-2 border-blue-200 p-4 shadow-md hover:shadow-lg transition-shadow">
+                                    <img
+                                      src={selectedOrder.uploadedDesign.backImage.data || PLACEHOLDER_IMAGE_LARGE}
+                                      alt="Back design"
+                                      className="w-full h-80 object-contain rounded-lg"
+                                      onError={(e) => {
+                                        const target = e.target as HTMLImageElement;
+                                        target.src = PLACEHOLDER_IMAGE_LARGE;
+                                      }}
+                                    />
+                                    <div className="mt-3 pt-3 border-t border-blue-100 flex items-center justify-between">
+                                      <div>
+                                        <p className="text-xs text-blue-600 font-medium">
+                                          File: {selectedOrder.uploadedDesign.backImage.filename || "back-design.png"}
+                                        </p>
+                                        <p className="text-xs text-blue-500 mt-1">
+                                          Type: {selectedOrder.uploadedDesign.backImage.contentType || "image/png"}
+                                        </p>
+                                      </div>
+                                      <button
+                                        onClick={() => {
+                                          const link = document.createElement('a');
+                                          link.href = selectedOrder.uploadedDesign.backImage.data || PLACEHOLDER_IMAGE_LARGE;
+                                          link.download = selectedOrder.uploadedDesign.backImage.filename || "back-design.png";
+                                          document.body.appendChild(link);
+                                          link.click();
+                                          document.body.removeChild(link);
+                                        }}
+                                        className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 text-sm"
+                                        title="Download image"
+                                      >
+                                        <Download size={14} />
+                                        Download
+                                      </button>
+                                    </div>
+                                  </div>
+                                </motion.div>
+                              )}
+                            </div>
+                          </motion.div>
                         )}
                       </div>
 
-                      {selectedUpload.backImage && (
-                        <div>
-                          <div className="flex items-center justify-between mb-2">
-                            <p className="text-sm text-cream-600">Back Image</p>
+                      {/* Order Management Section */}
+                      {selectedOrder.status !== "cancelled" && (
+                        <div className="border-t border-cream-200 pt-6">
+                          <h3 className="font-bold text-cream-900 mb-4 flex items-center gap-2">
+                            <Settings size={18} />
+                            Manage Order
+                          </h3>
+                          <div className="space-y-4">
+                            <div>
+                              <label className="block text-sm font-medium text-cream-900 mb-2">
+                                Order Status
+                              </label>
+                              <ReviewFilterDropdown
+                                label="Select Status"
+                                value={orderStatusUpdate.status}
+                                onChange={(value) =>
+                                  setOrderStatusUpdate({ ...orderStatusUpdate, status: value as string })
+                                }
+                                options={[
+                                  { value: "request", label: "Request" },
+                                  { value: "processing", label: "Processing" },
+                                  { value: "completed", label: "Completed" },
+                                  { value: "rejected", label: "Rejected" },
+                                ]}
+                                className="w-full"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-sm font-medium text-cream-900 mb-2">
+                                Delivery Date
+                              </label>
+                              <input
+                                type="date"
+                                value={orderStatusUpdate.deliveryDate}
+                                onChange={(e) =>
+                                  setOrderStatusUpdate({ ...orderStatusUpdate, deliveryDate: e.target.value })
+                                }
+                                className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-sm font-medium text-cream-900 mb-2">
+                                Admin Notes
+                              </label>
+                              <textarea
+                                value={orderStatusUpdate.adminNotes}
+                                onChange={(e) =>
+                                  setOrderStatusUpdate({ ...orderStatusUpdate, adminNotes: e.target.value })
+                                }
+                                rows={4}
+                                className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
+                                placeholder="Add notes for this order..."
+                              />
+                            </div>
+
+                            <div className="flex gap-3 pt-4">
+                              <button
+                                onClick={() => handleUpdateOrderStatus(selectedOrder._id)}
+                                disabled={loading}
+                                className="flex-1 bg-cream-900 text-white px-6 py-3 rounded-lg font-medium hover:bg-cream-800 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                              >
+                                {loading ? (
+                                  <>
+                                    <Loader className="animate-spin" size={20} />
+                                    Updating...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Check size={20} />
+                                    Update Order
+                                  </>
+                                )}
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setShowOrderModal(false);
+                                  setSelectedOrder(null);
+                                  setOrderStatusUpdate({ status: "", deliveryDate: "", adminNotes: "" });
+                                }}
+                                className="px-6 py-3 border border-cream-300 rounded-lg hover:bg-cream-50 transition-colors"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </motion.div>
+                  </div>
+                )
+              }
+            </AnimatePresence >
+
+            {/* Upload Modal */}
+            <AnimatePresence>
+              {
+                showUploadModal && selectedUpload && (
+                  <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.9 }}
+                      className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+                    >
+                      <div className="p-6">
+                        <div className="flex justify-between items-center mb-4">
+                          <h2 className="text-2xl font-bold text-cream-900">
+                            Upload Details
+                          </h2>
+                          <div className="flex items-center gap-2">
                             <button
-                              onClick={() =>
-                                handleDownloadImage(
-                                  selectedUpload.backImage!.data,
-                                  selectedUpload.backImage!.filename ||
-                                  "back-image.jpg"
-                                )
-                              }
-                              className="px-3 py-1 text-xs bg-cream-900 text-white rounded-lg hover:bg-cream-800 transition-colors flex items-center gap-2"
+                              onClick={() => {
+                                if (selectedUpload && window.confirm("Are you sure you want to delete this uploaded image?")) {
+                                  handleDeleteUpload(selectedUpload._id);
+                                  setShowUploadModal(false);
+                                  setSelectedUpload(null);
+                                }
+                              }}
+                              disabled={loading}
+                              className="p-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors disabled:opacity-50 flex items-center gap-2"
+                              title="Delete upload"
                             >
-                              <Download size={14} />
-                              Download
+                              <Trash2 size={20} />
+                              Delete
+                            </button>
+                            <button
+                              onClick={() => {
+                                setShowUploadModal(false);
+                                setSelectedUpload(null);
+                              }}
+                              className="p-2 hover:bg-cream-100 rounded-lg transition-colors"
+                            >
+                              <X size={24} />
                             </button>
                           </div>
-                          <div className="relative">
-                            {imageLoading[`modal-back-${selectedUpload._id}`] && (
-                              <div className="absolute inset-0 flex items-center justify-center bg-cream-100 rounded-lg">
-                                <Loader className="animate-spin text-cream-600" size={32} />
+                        </div>
+
+                        <div className="space-y-4">
+                          <div>
+                            <p className="text-sm text-cream-600">User</p>
+                            <p className="font-semibold text-cream-900">
+                              {selectedUpload.user.name} ({selectedUpload.user.email})
+                            </p>
+                          </div>
+
+                          <div>
+                            <p className="text-sm text-cream-600">Dimensions</p>
+                            <p className="font-semibold text-cream-900">
+                              {selectedUpload.width} × {selectedUpload.height}px
+                            </p>
+                          </div>
+
+                          {selectedUpload.description && (
+                            <div>
+                              <p className="text-sm text-cream-600">Description</p>
+                              <p className="text-cream-900">{selectedUpload.description}</p>
+                            </div>
+                          )}
+
+                          <div>
+                            <div className="flex items-center justify-between mb-2">
+                              <p className="text-sm text-cream-600">Front Image</p>
+                              {selectedUpload.frontImage && (
+                                <button
+                                  onClick={() =>
+                                    handleDownloadImage(
+                                      selectedUpload.frontImage!.data,
+                                      selectedUpload.frontImage!.filename ||
+                                      "front-image.jpg"
+                                    )
+                                  }
+                                  className="px-3 py-1 text-xs bg-cream-900 text-white rounded-lg hover:bg-cream-800 transition-colors flex items-center gap-2"
+                                >
+                                  <Download size={14} />
+                                  Download
+                                </button>
+                              )}
+                            </div>
+                            {selectedUpload.frontImage && (
+                              <div className="relative">
+                                {imageLoading[`modal-front-${selectedUpload._id}`] && (
+                                  <div className="absolute inset-0 flex items-center justify-center bg-cream-100 rounded-lg">
+                                    <Loader className="animate-spin text-cream-600" size={32} />
+                                  </div>
+                                )}
+                                <img
+                                  src={getImageUrl(selectedUpload.frontImage.data, selectedUpload.frontImage.contentType) || PLACEHOLDER_IMAGE_LARGE}
+                                  alt={selectedUpload.frontImage.filename}
+                                  className={`w-full rounded-lg border border-cream-300 ${imageLoading[`modal-front-${selectedUpload._id}`] ? "opacity-0" : "opacity-100"} transition-opacity`}
+                                  onLoad={() => setImageLoading(prev => ({ ...prev, [`modal-front-${selectedUpload._id}`]: false }))}
+                                  onError={() => {
+                                    setImageLoading(prev => ({ ...prev, [`modal-front-${selectedUpload._id}`]: false }));
+                                    console.error("Failed to load image:", selectedUpload.frontImage?.filename);
+                                  }}
+                                  onLoadStart={() => setImageLoading(prev => ({ ...prev, [`modal-front-${selectedUpload._id}`]: true }))}
+                                />
                               </div>
                             )}
-                            <img
-                              src={getImageUrl(selectedUpload.backImage.data, selectedUpload.backImage.contentType) || PLACEHOLDER_IMAGE_LARGE}
-                              alt={selectedUpload.backImage.filename}
-                              className={`w-full rounded-lg border border-cream-300 ${imageLoading[`modal-back-${selectedUpload._id}`] ? "opacity-0" : "opacity-100"} transition-opacity`}
-                              onLoad={() => setImageLoading(prev => ({ ...prev, [`modal-back-${selectedUpload._id}`]: false }))}
-                              onError={() => {
-                                setImageLoading(prev => ({ ...prev, [`modal-back-${selectedUpload._id}`]: false }));
-                                console.error("Failed to load image:", selectedUpload.backImage?.filename);
-                              }}
-                              onLoadStart={() => setImageLoading(prev => ({ ...prev, [`modal-back-${selectedUpload._id}`]: true }))}
-                            />
+                          </div>
+
+                          {selectedUpload.backImage && (
+                            <div>
+                              <div className="flex items-center justify-between mb-2">
+                                <p className="text-sm text-cream-600">Back Image</p>
+                                <button
+                                  onClick={() =>
+                                    handleDownloadImage(
+                                      selectedUpload.backImage!.data,
+                                      selectedUpload.backImage!.filename ||
+                                      "back-image.jpg"
+                                    )
+                                  }
+                                  className="px-3 py-1 text-xs bg-cream-900 text-white rounded-lg hover:bg-cream-800 transition-colors flex items-center gap-2"
+                                >
+                                  <Download size={14} />
+                                  Download
+                                </button>
+                              </div>
+                              <div className="relative">
+                                {imageLoading[`modal-back-${selectedUpload._id}`] && (
+                                  <div className="absolute inset-0 flex items-center justify-center bg-cream-100 rounded-lg">
+                                    <Loader className="animate-spin text-cream-600" size={32} />
+                                  </div>
+                                )}
+                                <img
+                                  src={getImageUrl(selectedUpload.backImage.data, selectedUpload.backImage.contentType) || PLACEHOLDER_IMAGE_LARGE}
+                                  alt={selectedUpload.backImage.filename}
+                                  className={`w-full rounded-lg border border-cream-300 ${imageLoading[`modal-back-${selectedUpload._id}`] ? "opacity-0" : "opacity-100"} transition-opacity`}
+                                  onLoad={() => setImageLoading(prev => ({ ...prev, [`modal-back-${selectedUpload._id}`]: false }))}
+                                  onError={() => {
+                                    setImageLoading(prev => ({ ...prev, [`modal-back-${selectedUpload._id}`]: false }));
+                                    console.error("Failed to load image:", selectedUpload.backImage?.filename);
+                                  }}
+                                  onLoadStart={() => setImageLoading(prev => ({ ...prev, [`modal-back-${selectedUpload._id}`]: true }))}
+                                />
+                              </div>
+                            </div>
+                          )}
+
+                          <div>
+                            <p className="text-sm text-cream-600">Uploaded</p>
+                            <p className="text-cream-900">
+                              {!isClient
+                                ? 'Loading...'
+                                : new Date(selectedUpload.createdAt).toLocaleString()
+                              }
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  </div>
+                )
+              }
+            </AnimatePresence >
+
+            {/* Delete Confirmation Modal */}
+            {
+              deleteConfirmModal.isOpen && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+                  <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
+                    <div className="flex items-center gap-3 mb-4">
+                      <AlertCircle className="text-red-600" size={24} />
+                      <h3 className="text-xl font-bold text-cream-900">
+                        Delete {deleteConfirmModal.type === 'category' ? 'Category' : 'Subcategory'}
+                      </h3>
+                    </div>
+
+                    <div className="mb-4">
+                      <p className="text-cream-700 mb-3">
+                        Are you sure you want to delete <strong>{deleteConfirmModal.name}</strong>?
+                      </p>
+
+                      {deleteConfirmModal.subcategoryCount > 0 && (
+                        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+                          <div className="flex items-start gap-2">
+                            <AlertCircle className="text-red-600 mt-0.5" size={20} />
+                            <div>
+                              <p className="text-red-800 font-semibold mb-1">
+                                ⚠️ Cannot Delete: This category has {deleteConfirmModal.subcategoryCount} subcategor{deleteConfirmModal.subcategoryCount === 1 ? 'y' : 'ies'}!
+                              </p>
+                              <p className="text-red-700 text-sm">
+                                Please delete or reassign all subcategories before deleting this category.
+                              </p>
+                            </div>
                           </div>
                         </div>
                       )}
 
-                      <div>
-                        <p className="text-sm text-cream-600">Uploaded</p>
-                        <p className="text-cream-900">
-                          {!isClient
-                            ? 'Loading...'
-                            : new Date(selectedUpload.createdAt).toLocaleString()
-                          }
-                        </p>
+                      {deleteConfirmModal.productCount > 0 && (
+                        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+                          <div className="flex items-start gap-2">
+                            <AlertCircle className="text-red-600 mt-0.5" size={20} />
+                            <div>
+                              <p className="text-red-800 font-semibold mb-1">
+                                ⚠️ Warning: This will delete {deleteConfirmModal.productCount} product{deleteConfirmModal.productCount !== 1 ? 's' : ''}!
+                              </p>
+                              <p className="text-red-700 text-sm">
+                                All products under this {deleteConfirmModal.type === 'category' ? 'category and its subcategories' : 'subcategory'} will be permanently deleted. This action cannot be undone.
+                              </p>
+                              <p className="text-red-700 text-sm mt-2 font-medium">
+                                Please be careful before proceeding.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="mb-4">
+                        <label className="block text-sm font-medium text-cream-900 mb-2">
+                          Type <strong>"delete"</strong> to confirm:
+                        </label>
+                        <input
+                          type="text"
+                          value={deleteConfirmModal.deleteText}
+                          onChange={(e) => setDeleteConfirmModal({ ...deleteConfirmModal, deleteText: e.target.value })}
+                          className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
+                          placeholder="Type 'delete' to confirm"
+                          autoFocus
+                        />
                       </div>
                     </div>
+
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => setDeleteConfirmModal({ ...deleteConfirmModal, isOpen: false, deleteText: '' })}
+                        className="flex-1 px-4 py-2 border border-cream-300 text-cream-700 rounded-lg hover:bg-cream-50 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (deleteConfirmModal.type === 'category') {
+                            confirmDeleteCategory();
+                          } else {
+                            confirmDeleteSubCategory();
+                          }
+                        }}
+                        disabled={deleteConfirmModal.deleteText.toLowerCase() !== 'delete' || loading || deleteConfirmModal.subcategoryCount > 0}
+                        className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {loading ? (
+                          <>
+                            <Loader className="animate-spin inline mr-2" size={16} />
+                            Deleting...
+                          </>
+                        ) : (
+                          'Delete'
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )
+            }
+
+            {/* Duplicate Confirmation Modal */}
+            {duplicateConfirmModal.isOpen && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6"
+                >
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center">
+                      <Copy className="text-blue-600" size={20} />
+                    </div>
+                    <h3 className="text-xl font-bold text-gray-900">
+                      Duplicate Product
+                    </h3>
+                  </div>
+
+                  <div className="mb-6">
+                    <p className="text-gray-600">
+                      Are you sure you want to duplicate <strong>{duplicateConfirmModal.productName}</strong>?
+                    </p>
+                    <p className="text-gray-500 text-sm mt-2">
+                      This will create a copy of the product with "(Copy)" appended to the name. You can edit the new product details afterwards.
+                    </p>
+                  </div>
+
+                  <div className="flex justify-end gap-3">
+                    <button
+                      onClick={() => setDuplicateConfirmModal({ isOpen: false, productId: '', productName: '' })}
+                      className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={confirmDuplicateProduct}
+                      disabled={loading}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center gap-2"
+                    >
+                      {loading ? (
+                        <>
+                          <Loader className="animate-spin" size={16} />
+                          Duplicating...
+                        </>
+                      ) : (
+                        <>
+                          <Copy size={16} />
+                          Duplicate Product
+                        </>
+                      )}
+                    </button>
                   </div>
                 </motion.div>
               </div>
-            )
-          }
-        </AnimatePresence >
+            )}
 
-        {/* Delete Confirmation Modal */}
-        {
-          deleteConfirmModal.isOpen && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-              <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
-                <div className="flex items-center gap-3 mb-4">
-                  <AlertCircle className="text-red-600" size={24} />
-                  <h3 className="text-xl font-bold text-cream-900">
-                    Delete {deleteConfirmModal.type === 'category' ? 'Category' : 'Subcategory'}
-                  </h3>
-                </div>
+            {/* View Description Modal */}
+            {
+              viewDescriptionModal.isOpen && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+                  <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-3">
+                        <Eye className="text-blue-600" size={24} />
+                        <h3 className="text-xl font-bold text-cream-900">
+                          {viewDescriptionModal.type === 'category' ? 'Category' : 'Subcategory'} Description
+                        </h3>
+                      </div>
+                      <button
+                        onClick={() => setViewDescriptionModal({ ...viewDescriptionModal, isOpen: false })}
+                        className="text-cream-600 hover:text-cream-900 transition-colors"
+                      >
+                        <X size={24} />
+                      </button>
+                    </div>
 
-                <div className="mb-4">
-                  <p className="text-cream-700 mb-3">
-                    Are you sure you want to delete <strong>{deleteConfirmModal.name}</strong>?
-                  </p>
-
-                  {deleteConfirmModal.subcategoryCount > 0 && (
-                    <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
-                      <div className="flex items-start gap-2">
-                        <AlertCircle className="text-red-600 mt-0.5" size={20} />
-                        <div>
-                          <p className="text-red-800 font-semibold mb-1">
-                            ⚠️ Cannot Delete: This category has {deleteConfirmModal.subcategoryCount} subcategor{deleteConfirmModal.subcategoryCount === 1 ? 'y' : 'ies'}!
-                          </p>
-                          <p className="text-red-700 text-sm">
-                            Please delete or reassign all subcategories before deleting this category.
-                          </p>
-                        </div>
+                    <div className="mb-4">
+                      <h4 className="text-lg font-semibold text-cream-900 mb-2">
+                        {viewDescriptionModal.name}
+                      </h4>
+                      <div className="bg-cream-50 border border-cream-200 rounded-lg p-4 max-h-96 overflow-y-auto">
+                        <div
+                          className="text-cream-700 leading-relaxed rich-text-content"
+                          dangerouslySetInnerHTML={{ __html: viewDescriptionModal.description }}
+                        />
                       </div>
                     </div>
-                  )}
 
-                  {deleteConfirmModal.productCount > 0 && (
-                    <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
-                      <div className="flex items-start gap-2">
-                        <AlertCircle className="text-red-600 mt-0.5" size={20} />
-                        <div>
-                          <p className="text-red-800 font-semibold mb-1">
-                            ⚠️ Warning: This will delete {deleteConfirmModal.productCount} product{deleteConfirmModal.productCount !== 1 ? 's' : ''}!
-                          </p>
-                          <p className="text-red-700 text-sm">
-                            All products under this {deleteConfirmModal.type === 'category' ? 'category and its subcategories' : 'subcategory'} will be permanently deleted. This action cannot be undone.
-                          </p>
-                          <p className="text-red-700 text-sm mt-2 font-medium">
-                            Please be careful before proceeding.
-                          </p>
-                        </div>
-                      </div>
+                    <div className="flex justify-end">
+                      <button
+                        onClick={() => setViewDescriptionModal({ ...viewDescriptionModal, isOpen: false })}
+                        className="px-6 py-2 bg-cream-900 text-white rounded-lg hover:bg-cream-800 transition-colors"
+                      >
+                        Close
+                      </button>
                     </div>
-                  )}
-
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-cream-900 mb-2">
-                      Type <strong>"delete"</strong> to confirm:
-                    </label>
-                    <input
-                      type="text"
-                      value={deleteConfirmModal.deleteText}
-                      onChange={(e) => setDeleteConfirmModal({ ...deleteConfirmModal, deleteText: e.target.value })}
-                      className="w-full px-4 py-2 border border-cream-300 rounded-lg focus:ring-2 focus:ring-cream-500 focus:border-cream-500"
-                      placeholder="Type 'delete' to confirm"
-                      autoFocus
-                    />
                   </div>
                 </div>
+              )
+            }
 
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => setDeleteConfirmModal({ ...deleteConfirmModal, isOpen: false, deleteText: '' })}
-                    className="flex-1 px-4 py-2 border border-cream-300 text-cream-700 rounded-lg hover:bg-cream-50 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (deleteConfirmModal.type === 'category') {
-                        confirmDeleteCategory();
-                      } else {
-                        confirmDeleteSubCategory();
-                      }
-                    }}
-                    disabled={deleteConfirmModal.deleteText.toLowerCase() !== 'delete' || loading || deleteConfirmModal.subcategoryCount > 0}
-                    className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {loading ? (
-                      <>
-                        <Loader className="animate-spin inline mr-2" size={16} />
-                        Deleting...
-                      </>
-                    ) : (
-                      'Delete'
-                    )}
-                  </button>
-                </div>
-              </div>
-            </div>
-          )
-        }
+            {/* Services Management */}
+            {activeTab === "services" && (
+              <ServiceManagement />
+            )}
 
-        {/* Duplicate Confirmation Modal */}
-        {duplicateConfirmModal.isOpen && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6"
-            >
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center">
-                  <Copy className="text-blue-600" size={20} />
-                </div>
-                <h3 className="text-xl font-bold text-gray-900">
-                  Duplicate Product
-                </h3>
-              </div>
+            {/* Site Settings Management */}
+            {activeTab === "site-settings" && (
+              <SiteSettingsManagement />
+            )}
 
-              <div className="mb-6">
-                <p className="text-gray-600">
-                  Are you sure you want to duplicate <strong>{duplicateConfirmModal.productName}</strong>?
-                </p>
-                <p className="text-gray-500 text-sm mt-2">
-                  This will create a copy of the product with "(Copy)" appended to the name. You can edit the new product details afterwards.
-                </p>
-              </div>
+            {/* User Segment Management */}
+            {activeTab === "user-segments" && (
+              <UserSegmentManager />
+            )}
 
-              <div className="flex justify-end gap-3">
-                <button
-                  onClick={() => setDuplicateConfirmModal({ isOpen: false, productId: '', productName: '' })}
-                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={confirmDuplicateProduct}
-                  disabled={loading}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center gap-2"
-                >
-                  {loading ? (
-                    <>
-                      <Loader className="animate-spin" size={16} />
-                      Duplicating...
-                    </>
-                  ) : (
-                    <>
-                      <Copy size={16} />
-                      Duplicate Product
-                    </>
-                  )}
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
+            {/* Segment Application Management */}
+            {activeTab === "segment-applications" && (
+              <SegmentApplicationManager />
+            )}
 
-        {/* View Description Modal */}
-        {
-          viewDescriptionModal.isOpen && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-              <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <Eye className="text-blue-600" size={24} />
-                    <h3 className="text-xl font-bold text-cream-900">
-                      {viewDescriptionModal.type === 'category' ? 'Category' : 'Subcategory'} Description
-                    </h3>
-                  </div>
-                  <button
-                    onClick={() => setViewDescriptionModal({ ...viewDescriptionModal, isOpen: false })}
-                    className="text-cream-600 hover:text-cream-900 transition-colors"
-                  >
-                    <X size={24} />
-                  </button>
-                </div>
+            {/* Form Builder Management */}
+            {activeTab === "form-builder" && (
+              <FormBuilder />
+            )}
 
-                <div className="mb-4">
-                  <h4 className="text-lg font-semibold text-cream-900 mb-2">
-                    {viewDescriptionModal.name}
-                  </h4>
-                  <div className="bg-cream-50 border border-cream-200 rounded-lg p-4 max-h-96 overflow-y-auto">
-                    <div
-                      className="text-cream-700 leading-relaxed rich-text-content"
-                      dangerouslySetInnerHTML={{ __html: viewDescriptionModal.description }}
-                    />
-                  </div>
-                </div>
+            {/* Pricing Management */}
+            {(activeTab === "pricing" ||
+              activeTab === "price-books" ||
+              activeTab === "price-modifiers" ||
+              activeTab === "geo-zones" ||
+              activeTab === "product-availability" ||
+              activeTab === "pricing-audit" ||
+              activeTab === "smart-view" ||
+              activeTab === "payment-gateways") && (
+                <PricingDashboard activeTab={activeTab} />
+              )}
 
-                <div className="flex justify-end">
-                  <button
-                    onClick={() => setViewDescriptionModal({ ...viewDescriptionModal, isOpen: false })}
-                    className="px-6 py-2 bg-cream-900 text-white rounded-lg hover:bg-cream-800 transition-colors"
-                  >
-                    Close
-                  </button>
-                </div>
-              </div>
-            </div>
-          )
-        }
+            {/* Complaint Management */}
+            {activeTab === "complaints" && (
+              <AdminComplaintManagement />
+            )}
 
-        {/* Services Management */}
-        {activeTab === "services" && (
-          <ServiceManagement />
-        )}
+            {/* Designer Management */}
+            {activeTab === "designer-dashboard" && (
+              <DesignerDashboardAdmin />
+            )}
 
-        {/* Site Settings Management */}
-        {activeTab === "site-settings" && (
-          <SiteSettingsManagement />
-        )}
+            {/* Create Employee Modal (for Department Section) */}
+            <AnimatePresence>
 
-        {/* User Segment Management */}
-        {activeTab === "user-segments" && (
-          <UserSegmentManager />
-        )}
+              {/* User Segment Management */}
+              {activeTab === "user-segments" && (
+                <UserSegmentManager />
+              )}
 
-        {/* Segment Application Management */}
-        {activeTab === "segment-applications" && (
-          <SegmentApplicationManager />
-        )}
+              {/* Segment Application Management */}
+              {activeTab === "segment-applications" && (
+                <SegmentApplicationManager />
+              )}
 
-        {/* Form Builder Management */}
-        {activeTab === "form-builder" && (
-          <FormBuilder />
-        )}
+              {/* Form Builder Management */}
+              {activeTab === "form-builder" && (
+                <FormBuilder />
+              )}
 
-        {/* Pricing Management */}
-        {(activeTab === "pricing" ||
-          activeTab === "price-books" ||
-          activeTab === "price-modifiers" ||
-          activeTab === "geo-zones" ||
-          activeTab === "product-availability" ||
-          activeTab === "pricing-audit" ||
-          activeTab === "smart-view" ||
-          activeTab === "payment-gateways") && (
-            <PricingDashboard activeTab={activeTab} />
-          )}
+              {/* Pricing Management */}
+              {(activeTab === "pricing" ||
+                activeTab === "price-books" ||
+                activeTab === "price-modifiers" ||
+                activeTab === "geo-zones" ||
+                activeTab === "product-availability" ||
+                activeTab === "pricing-audit" ||
+                activeTab === "smart-view" ||
+                activeTab === "payment-gateways") && (
+                  <PricingDashboard activeTab={activeTab} />
+                )}
 
-        {/* Complaint Management */}
-        {activeTab === "complaints" && (
-          <AdminComplaintManagement />
-        )}
+              {/* Segment Feature Assignment */}
+              {activeTab === "segment_features" && (
+                <SegmentFeatureAssignment />
+              )}
 
-
-        {/* Segment Feature Assignment */}
-        {activeTab === "segment_features" && (
-          <SegmentFeatureAssignment />
-        )}
-
-
-        {/* Create Employee Modal (for Department Section) */}
-        <AnimatePresence>
-
-        </AnimatePresence>
+            </AnimatePresence>
+          </div >
+        </div >
       </div >
     </div >
   );

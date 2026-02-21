@@ -7,8 +7,9 @@ const userSchema = new mongoose.Schema(
     lastName: { type: String, required: false },
     email: { type: String, required: true, unique: true },
     mobileNumber: { type: String, required: false },
+    address: { type: String, required: false },
     countryCode: { type: String, required: false },
-    role: { type: String, enum: ["user", "admin", "emp"], default: "user" },
+    role: { type: String, enum: ["user", "admin", "emp", "designer"], default: "user" },
     password: { type: String, required: false }, // Optional - set later in signup flow
     userSegment: { type: mongoose.Schema.Types.ObjectId, ref: "UserSegment" },
     approvalStatus: { type: String, enum: ["pending", "approved", "rejected"], default: "pending" },
@@ -209,7 +210,55 @@ const userSchema = new mongoose.Schema(
         type: String,
         // Admin notes about why this override was added
       }
-    }]
+    }],
+
+    /* =====================
+       DESIGNER SESSION SETTINGS
+    ====================== */
+    sessionSettings: {
+      baseDuration: { type: Number, default: 900 }, // default 15 mins (900s)
+      basePrice: { type: Number, default: 500 },    // default ₹500
+      extensionDuration: { type: Number, default: 900 }, // default 15 mins (900s)
+      extensionPrice: { type: Number, default: 300 }     // default ₹300
+    },
+
+    /* =====================
+       PHYSICAL DESIGNER VISIT FIELDS
+    ====================== */
+    hourlyRate: {
+      type: Number,
+      default: 500,
+      min: 0
+    },
+    homeVisitCharge: {
+      type: Number,
+      default: 500,
+      min: 0
+    },
+    totalHoursWorked: {
+      type: Number,
+      default: 0,
+      min: 0
+    },
+    totalEarnings: {
+      type: Number,
+      default: 0,
+      min: 0
+    },
+    isOnline: {
+      type: Boolean,
+      default: false
+    },
+    rating: {
+      type: Number,
+      default: 5,
+      min: 0,
+      max: 5
+    },
+    termsAndConditions: {
+      type: String,
+      default: "Standard service terms apply."
+    }
   },
   { timestamps: true }
 

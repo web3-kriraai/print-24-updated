@@ -398,6 +398,59 @@ export const createEmployee = async (req, res) => {
   }
 };
 
+// Create designer user
+export const createDesigner = async (req, res) => {
+  try {
+    const { name, email, password } = req.body;
+
+    // Validate fields
+    if (!name || !email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "Name, email, and password are required.",
+      });
+    }
+
+    // Check existing user
+    const existing = await User.findOne({ email });
+    if (existing) {
+      return res.status(409).json({
+        success: false,
+        message: "Email already registered.",
+      });
+    }
+
+    // Hash password
+    const hashed = await bcrypt.hash(password, 10);
+
+    // Create designer user
+    const newDesigner = await User.create({
+      name,
+      email,
+      password: hashed,
+      role: "designer",
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: "Designer created successfully",
+      user: {
+        id: newDesigner._id,
+        name: newDesigner.name,
+        email: newDesigner.email,
+        role: newDesigner.role,
+      },
+    });
+  } catch (error) {
+    console.error("Create designer error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
 // Get all admins
 export const getAllAdmins = async (req, res) => {
   try {
@@ -437,6 +490,19 @@ export const getAllEmployees = async (req, res) => {
   }
 };
 
+// Get all designers (users with role = "designer")
+export const getAllDesigners = async (req, res) => {
+  try {
+    const designers = await User.find({ role: "designer" })
+      .select("-password")
+      .sort({ createdAt: -1 });
+
+    res.json(designers);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
 // Update user role by userId or username
 export const updateUserRole = async (req, res) => {
   try {
@@ -449,10 +515,10 @@ export const updateUserRole = async (req, res) => {
       });
     }
 
-    if (!["user", "admin", "emp"].includes(role)) {
+    if (!["user", "admin", "emp", "designer"].includes(role)) {
       return res.status(400).json({
         success: false,
-        message: "Role must be either 'user', 'admin', or 'emp'.",
+        message: "Role must be either 'user', 'admin', 'emp', or 'designer'.",
       });
     }
 

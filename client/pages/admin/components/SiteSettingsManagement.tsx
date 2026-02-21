@@ -31,6 +31,11 @@ interface NavbarSettings {
     itemGap: string;
 }
 
+interface DesignerSettings {
+    visualDesignerEnabled: boolean;
+    physicalDesignerEnabled: boolean;
+}
+
 interface SiteSettings {
     _id?: string;
     logo: string;
@@ -39,6 +44,7 @@ interface SiteSettings {
     scrollSettings?: ScrollSettings;
     fontSettings?: FontSettings;
     navbarSettings?: NavbarSettings;
+    designerSettings?: DesignerSettings;
 }
 
 const SiteSettingsManagement: React.FC = () => {
@@ -74,6 +80,7 @@ const SiteSettingsManagement: React.FC = () => {
     const [savingScroll, setSavingScroll] = useState(false);
     const [savingFonts, setSavingFonts] = useState(false);
     const [savingNavbar, setSavingNavbar] = useState(false);
+    const [savingDesigner, setSavingDesigner] = useState(false);
     const [uploading, setUploading] = useState(false);
     const [previewLogo, setPreviewLogo] = useState<string>('');
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -270,8 +277,8 @@ const SiteSettingsManagement: React.FC = () => {
                                     <label
                                         htmlFor="logo-upload"
                                         className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg font-medium cursor-pointer transition-all ${uploading
-                                                ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                                                : 'bg-purple-600 text-white hover:bg-purple-700'
+                                            ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                                            : 'bg-purple-600 text-white hover:bg-purple-700'
                                             }`}
                                     >
                                         {uploading ? (
@@ -359,8 +366,8 @@ const SiteSettingsManagement: React.FC = () => {
                             onClick={handleSave}
                             disabled={saving}
                             className={`flex items-center gap-2 px-6 py-2 rounded-lg font-medium transition-all ${saving
-                                    ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                                    : 'bg-purple-600 text-white hover:bg-purple-700'
+                                ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                                : 'bg-purple-600 text-white hover:bg-purple-700'
                                 }`}
                         >
                             {saving ? (
@@ -405,8 +412,8 @@ const SiteSettingsManagement: React.FC = () => {
                                     }
                                 }))}
                                 className={`p-2 rounded-full transition-colors ${settings.scrollSettings?.pageAutoScrollEnabled !== false
-                                        ? 'bg-purple-600 text-white'
-                                        : 'bg-gray-300 text-gray-600'
+                                    ? 'bg-purple-600 text-white'
+                                    : 'bg-gray-300 text-gray-600'
                                     }`}
                             >
                                 {settings.scrollSettings?.pageAutoScrollEnabled !== false ? (
@@ -477,8 +484,8 @@ const SiteSettingsManagement: React.FC = () => {
                                     }
                                 }))}
                                 className={`p-2 rounded-full transition-colors ${settings.scrollSettings?.smoothScrollEnabled
-                                        ? 'bg-purple-600 text-white'
-                                        : 'bg-gray-300 text-gray-600'
+                                    ? 'bg-purple-600 text-white'
+                                    : 'bg-gray-300 text-gray-600'
                                     }`}
                             >
                                 {settings.scrollSettings?.smoothScrollEnabled ? (
@@ -504,8 +511,8 @@ const SiteSettingsManagement: React.FC = () => {
                                     }
                                 }))}
                                 className={`p-2 rounded-full transition-colors ${settings.scrollSettings?.stickyNavEnabled
-                                        ? 'bg-purple-600 text-white'
-                                        : 'bg-gray-300 text-gray-600'
+                                    ? 'bg-purple-600 text-white'
+                                    : 'bg-gray-300 text-gray-600'
                                     }`}
                             >
                                 {settings.scrollSettings?.stickyNavEnabled ? (
@@ -531,8 +538,8 @@ const SiteSettingsManagement: React.FC = () => {
                                     }
                                 }))}
                                 className={`p-2 rounded-full transition-colors ${settings.scrollSettings?.scrollToTopOnNavClick
-                                        ? 'bg-purple-600 text-white'
-                                        : 'bg-gray-300 text-gray-600'
+                                    ? 'bg-purple-600 text-white'
+                                    : 'bg-gray-300 text-gray-600'
                                     }`}
                             >
                                 {settings.scrollSettings?.scrollToTopOnNavClick ? (
@@ -573,8 +580,8 @@ const SiteSettingsManagement: React.FC = () => {
                             }}
                             disabled={savingScroll}
                             className={`flex items-center gap-2 px-6 py-2 rounded-lg font-medium transition-all ${savingScroll
-                                    ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                                    : 'bg-green-600 text-white hover:bg-green-700'
+                                ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                                : 'bg-green-600 text-white hover:bg-green-700'
                                 }`}
                         >
                             {savingScroll ? (
@@ -825,8 +832,8 @@ const SiteSettingsManagement: React.FC = () => {
                             }}
                             disabled={savingFonts}
                             className={`flex items-center gap-2 px-6 py-2 rounded-lg font-medium transition-all ${savingFonts
-                                    ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                                ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                                : 'bg-blue-600 text-white hover:bg-blue-700'
                                 }`}
                         >
                             {savingFonts ? (
@@ -929,8 +936,8 @@ const SiteSettingsManagement: React.FC = () => {
                             }}
                             disabled={savingNavbar}
                             className={`flex items-center gap-2 px-6 py-2 rounded-lg font-medium transition-all ${savingNavbar
-                                    ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                                    : 'bg-orange-600 text-white hover:bg-orange-700'
+                                ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                                : 'bg-orange-600 text-white hover:bg-orange-700'
                                 }`}
                         >
                             {savingNavbar ? (
@@ -942,6 +949,120 @@ const SiteSettingsManagement: React.FC = () => {
                                 <>
                                     <Save className="w-4 h-4" />
                                     Save Navbar Settings
+                                </>
+                            )}
+                        </button>
+                    </div>
+                </div>
+
+                {/* Designer Services Settings Section */}
+                <div className="p-6 border-t border-gray-200">
+                    <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                        <Settings className="w-5 h-5" />
+                        Designer Services
+                    </h2>
+                    <p className="text-sm text-gray-500 mb-6">
+                        Control which designer options are available to customers on the product page
+                    </p>
+
+                    <div className="space-y-6">
+                        {/* Visual Designer Toggle */}
+                        <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                            <div>
+                                <label className="font-medium text-gray-900">Visual Designer</label>
+                                <p className="text-sm text-gray-500">Allow customers to submit design requirements online</p>
+                            </div>
+                            <button
+                                onClick={() => setSettings(prev => ({
+                                    ...prev,
+                                    designerSettings: {
+                                        ...prev.designerSettings!,
+                                        visualDesignerEnabled: !(prev.designerSettings?.visualDesignerEnabled !== false)
+                                    }
+                                }))}
+                                className={`p-2 rounded-full transition-colors ${settings.designerSettings?.visualDesignerEnabled !== false
+                                    ? 'bg-purple-600 text-white'
+                                    : 'bg-gray-300 text-gray-600'
+                                    }`}
+                            >
+                                {settings.designerSettings?.visualDesignerEnabled !== false ? (
+                                    <ToggleRight className="w-6 h-6" />
+                                ) : (
+                                    <ToggleLeft className="w-6 h-6" />
+                                )}
+                            </button>
+                        </div>
+
+                        {/* Physical Designer Toggle */}
+                        <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                            <div>
+                                <label className="font-medium text-gray-900">Physical Designer</label>
+                                <p className="text-sm text-gray-500">Allow customers to book a physical visit with a designer</p>
+                            </div>
+                            <button
+                                onClick={() => setSettings(prev => ({
+                                    ...prev,
+                                    designerSettings: {
+                                        ...prev.designerSettings!,
+                                        physicalDesignerEnabled: !(prev.designerSettings?.physicalDesignerEnabled !== false)
+                                    }
+                                }))}
+                                className={`p-2 rounded-full transition-colors ${settings.designerSettings?.physicalDesignerEnabled !== false
+                                    ? 'bg-purple-600 text-white'
+                                    : 'bg-gray-300 text-gray-600'
+                                    }`}
+                            >
+                                {settings.designerSettings?.physicalDesignerEnabled !== false ? (
+                                    <ToggleRight className="w-6 h-6" />
+                                ) : (
+                                    <ToggleLeft className="w-6 h-6" />
+                                )}
+                            </button>
+                        </div>
+
+                        {/* Save Designer Settings Button */}
+                        <button
+                            onClick={async () => {
+                                try {
+                                    setSavingDesigner(true);
+                                    const response = await fetch(`${API_BASE_URL_WITH_API}/site-settings`, {
+                                        method: 'PUT',
+                                        headers: {
+                                            'Content-Type': 'application/json',
+                                            'Authorization': `Bearer ${getToken()}`
+                                        },
+                                        body: JSON.stringify({
+                                            designerSettings: settings.designerSettings
+                                        })
+                                    });
+
+                                    if (response.ok) {
+                                        toast.success('Designer settings saved successfully!');
+                                    } else {
+                                        throw new Error('Failed to save designer settings');
+                                    }
+                                } catch (error) {
+                                    console.error('Error saving designer settings:', error);
+                                    toast.error('Failed to save designer settings');
+                                } finally {
+                                    setSavingDesigner(false);
+                                }
+                            }}
+                            disabled={savingDesigner}
+                            className={`flex items-center gap-2 px-6 py-2 rounded-lg font-medium transition-all ${savingDesigner
+                                ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                                : 'bg-purple-600 text-white hover:bg-purple-700'
+                                }`}
+                        >
+                            {savingDesigner ? (
+                                <>
+                                    <Loader className="w-4 h-4 animate-spin" />
+                                    Saving...
+                                </>
+                            ) : (
+                                <>
+                                    <Save className="w-4 h-4" />
+                                    Save Designer Settings
                                 </>
                             )}
                         </button>

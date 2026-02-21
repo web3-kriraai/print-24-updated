@@ -36,7 +36,18 @@ interface SiteSettings {
     scrollSettings?: ScrollSettings;
     fontSettings?: FontSettings;
     navbarSettings?: NavbarSettings;
+    designerSettings?: DesignerSettings;
 }
+
+interface DesignerSettings {
+    visualDesignerEnabled: boolean;
+    physicalDesignerEnabled: boolean;
+}
+
+const DEFAULT_DESIGNER_SETTINGS: DesignerSettings = {
+    visualDesignerEnabled: true,
+    physicalDesignerEnabled: true
+};
 
 const DEFAULT_SCROLL_SETTINGS: ScrollSettings = {
     autoScrollEnabled: true,
@@ -69,7 +80,8 @@ const DEFAULT_SETTINGS: SiteSettings = {
     tagline: 'Premium Gifting, Printing & Packaging Solutions',
     scrollSettings: DEFAULT_SCROLL_SETTINGS,
     fontSettings: DEFAULT_FONT_SETTINGS,
-    navbarSettings: DEFAULT_NAVBAR_SETTINGS
+    navbarSettings: DEFAULT_NAVBAR_SETTINGS,
+    designerSettings: DEFAULT_DESIGNER_SETTINGS
 };
 
 export const useSiteSettings = () => {
@@ -98,6 +110,10 @@ export const useSiteSettings = () => {
                     navbarSettings: {
                         ...DEFAULT_NAVBAR_SETTINGS,
                         ...data.navbarSettings
+                    },
+                    designerSettings: {
+                        ...DEFAULT_DESIGNER_SETTINGS,
+                        ...data.designerSettings
                     }
                 });
             }
@@ -154,6 +170,15 @@ export const useNavbarSettings = () => {
     const { settings, loading } = useSiteSettings();
     return {
         navbarSettings: settings.navbarSettings || DEFAULT_NAVBAR_SETTINGS,
+        loading
+    };
+};
+
+// Hook to get designer settings
+export const useDesignerSettings = () => {
+    const { settings, loading } = useSiteSettings();
+    return {
+        designerSettings: settings.designerSettings || DEFAULT_DESIGNER_SETTINGS,
         loading
     };
 };

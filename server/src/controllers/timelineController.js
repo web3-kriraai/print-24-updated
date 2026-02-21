@@ -358,7 +358,7 @@ export const getMyOrders = async (req, res) => {
 
         // Fetch orders with minimal data for list view
         const orders = await Order.find({ user: userId })
-            .select('orderNumber product quantity totalPrice status createdAt updatedAt')
+            .select('orderNumber product quantity totalPrice status createdAt updatedAt needDesigner designerType designStatus designForm finalPdfUrl')
             .populate('product', 'name image')
             .sort({ createdAt: -1 }) // Newest first
             .limit(limit)

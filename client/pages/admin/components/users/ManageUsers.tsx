@@ -141,12 +141,15 @@ const ManageUsers: React.FC<ManageUsersProps> = ({ setError }) => {
         e.preventDefault();
         setLoading(true);
         try {
-            let endpoint = `${API_BASE_URL}/auth/register`;
-            if (createUserForm.role === 'emp') {
-                endpoint = `${API_BASE_URL}/admin/create-employee`;
-            } else if (createUserForm.role === 'admin') {
-                endpoint = `${API_BASE_URL}/admin/create-admin`;
-            }
+            // Use the correct endpoint based on the selected role
+            const roleEndpoints: Record<string, string> = {
+                admin: `${API_BASE_URL}/admin/create-admin`,
+                employee: `${API_BASE_URL}/admin/create-employee`,
+                designer: `${API_BASE_URL}/admin/create-designer`,
+                user: `${API_BASE_URL}/auth/register`,
+            };
+
+            const endpoint = roleEndpoints[createUserForm.role] || `${API_BASE_URL}/auth/register`;
 
             const response = await fetch(endpoint, {
                 method: "POST",
@@ -168,7 +171,7 @@ const ManageUsers: React.FC<ManageUsersProps> = ({ setError }) => {
             // Adjust based on your actual auth/register response structure
             const userData = newUser.user || newUser;
 
-            toast.success("User created successfully");
+            toast.success(`${createUserForm.role.charAt(0).toUpperCase() + createUserForm.role.slice(1)} created successfully`);
             setShowCreateUserModal(false);
             setCreateUserForm({ name: "", email: "", password: "", role: "user" });
             fetchUsers();
@@ -183,7 +186,8 @@ const ManageUsers: React.FC<ManageUsersProps> = ({ setError }) => {
     const roleColors: Record<string, string> = {
         admin: "bg-purple-100 text-purple-800",
         user: "bg-blue-100 text-blue-800",
-        emp: "bg-amber-100 text-amber-800"
+        employee: "bg-amber-100 text-amber-800",
+        designer: "bg-teal-100 text-teal-800"
     };
 
     return (
@@ -278,6 +282,19 @@ const ManageUsers: React.FC<ManageUsersProps> = ({ setError }) => {
                     </h3>
                     <p className="text-gray-500 text-sm">Regular Users</p>
                 </div>
+
+                <div className="bg-gradient-to-br from-white to-gray-50 p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="p-3 bg-gradient-to-br from-teal-100 to-cyan-100 rounded-xl">
+                            <UserCheck className="text-teal-600" size={24} />
+                        </div>
+                        <span className="text-sm text-gray-500">Designers</span>
+                    </div>
+                    <h3 className="text-3xl font-bold text-gray-800 mb-1">
+                        {users.filter(u => u.role === 'designer').length}
+                    </h3>
+                    <p className="text-gray-500 text-sm">Active Designers</p>
+                </div>
             </div>
 
             {/* Controls Bar */}
@@ -306,7 +323,8 @@ const ManageUsers: React.FC<ManageUsersProps> = ({ setError }) => {
                                     { value: 'all', label: 'All Roles' },
                                     { value: 'admin', label: 'Administrator' },
                                     { value: 'user', label: 'Customer' },
-                                    { value: 'emp', label: 'Employee' }
+                                    { value: 'employee', label: 'Employee' },
+                                    { value: 'designer', label: 'Designer' }
                                 ]}
                                 className="w-full"
                                 enableSearch={false}
@@ -415,7 +433,8 @@ const ManageUsers: React.FC<ManageUsersProps> = ({ setError }) => {
                                                 >
                                                     <option value="admin">Administrator</option>
                                                     <option value="user">Customer</option>
-                                                    <option value="emp">Employee</option>
+                                                    <option value="employee">Employee</option>
+                                                    <option value="designer">Designer</option>
                                                 </select>
                                                 <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none opacity-60 group-hover:opacity-100 transition-opacity" size={12} />
                                             </div>
@@ -564,18 +583,16 @@ const ManageUsers: React.FC<ManageUsersProps> = ({ setError }) => {
                                 <div className="grid grid-cols-1 gap-4">
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
-                                        <SearchableDropdown
-                                            label="User"
+                                        <select
                                             value={createUserForm.role}
-                                            onChange={(val) => setCreateUserForm({ ...createUserForm, role: val as string })}
-                                            options={[
-                                                { value: 'user', label: 'User' },
-                                                { value: 'admin', label: 'Admin' },
-                                                { value: 'emp', label: 'Employee' }
-                                            ]}
-                                            className="w-full"
-                                            enableSearch={false}
-                                        />
+                                            onChange={(e) => setCreateUserForm({ ...createUserForm, role: e.target.value })}
+                                            className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all text-sm font-medium cursor-pointer"
+                                        >
+                                            <option value="user">User</option>
+                                            <option value="admin">Admin</option>
+                                            <option value="employee">Employee</option>
+                                            <option value="designer">Designer</option>
+                                        </select>
                                     </div>
                                 </div>
 

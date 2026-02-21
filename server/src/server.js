@@ -1,10 +1,12 @@
 import express from "express";
+import http from "http";
 import mongoose from "mongoose";
 import dotenv from "dotenv";
 import cors from "cors";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 import { existsSync } from "fs";
+import { initializeSocket } from "./designer/config/socket.js";
 import authRoutes from "./routes/authRoutes.js";
 import apiRoutes from "./routes/index.js";
 import uploadRoutes from "./routes/uploadRoutes.js";
@@ -193,12 +195,22 @@ mongoose
     retryWrites: true,
     w: 'majority'
   })
-  .then(() => {
+  .then(async () => {
     console.log("✅ MongoDB connected successfully");
     const port = process.env.PORT || 5000;
-    app.listen(port, () => {
+
+    // Create HTTP server for Socket.io compatibility
+    const server = http.createServer(app);
+    initializeSocket(server);
+
+    // Import workers (they auto-start via setInterval)
+    await import("./designer/workers/queue.worker.js");
+    await import("./designer/workers/timer.worker.js");
+
+    server.listen(port, () => {
       console.log(`========================================`);
       console.log(`🚀 Backend Server running on port ${port}`);
+      console.log(`🔌 Socket.io initialized`);
       console.log(`📦 API Mode - Access: http://localhost:${port}/api`);
       console.log(`========================================`);
     });

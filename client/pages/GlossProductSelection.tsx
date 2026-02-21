@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useParams, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowRight, Check, Truck, Upload as UploadIcon, FileImage, CreditCard, X, Info, Lock, AlertCircle, MapPin, Zap, Square, Circle, FileText, UploadCloud, Image as ImageIcon, AlertTriangle, Database, CheckCircle } from 'lucide-react';
+import { ArrowRight, Check, Truck, Upload as UploadIcon, FileImage, CreditCard, X, Info, Lock, AlertCircle, MapPin, Zap, Square, Circle, FileText, UploadCloud, Image as ImageIcon, AlertTriangle, Database, CheckCircle, Star, Smartphone, Video, Palette } from 'lucide-react';
 import { Select, SelectOption } from '@/components/ui/select';
 import { ProductImageSkeleton, AttributeCardSkeleton, Skeleton } from '@/components/ui/Skeleton';
 import { LazyImage, CloudinaryLazyImage } from '@/components/ui/LazyImage';
@@ -14,6 +14,26 @@ import BulkOrderWizard from '../components/BulkOrderWizard';
 import BulkOrderToggle from '../components/BulkOrderToggle';
 import { useBulkOrderPermission } from '../hooks/useBulkOrder';
 import ShippingEstimate from '../components/ShippingEstimate';
+
+import { toast } from 'react-hot-toast';
+import { getAuthHeaders } from '../lib/apiConfig';
+import { getSocketId, joinSlotRoom, onSessionEvent, offSessionEvent } from '../lib/socketClient';
+import { useDesignerSettings } from '../hooks/useSiteSettings';
+
+// IST Time Helpers
+const IST_OFFSET = 5.5 * 60 * 60 * 1000;
+const getISTTime = (input?: string | number | Date) => {
+  const date = input ? new Date(input) : new Date();
+  return new Date(date.getTime() + IST_OFFSET);
+};
+
+const formatISTDate = (input?: string | number | Date) => {
+  const istDate = getISTTime(input);
+  const year = istDate.getUTCFullYear();
+  const month = String(istDate.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(istDate.getUTCDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
 // Configure PDF.js worker - use local file for reliability
 pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
@@ -139,10 +159,45 @@ interface GlossProductSelectionProps {
 const MAX_PDF_SIZE_MB = 50;
 const MAX_PDF_SIZE_BYTES = MAX_PDF_SIZE_MB * 1024 * 1024;
 
+const DESIGN_FOR_OPTIONS = ['Buisness Card', 'Logo', 'Social Media Post', 'Flyer/Poster', 'Other'];
+const DESIGN_STYLE_OPTIONS = ['Minimalist', 'Professional', 'Creative/Playful', 'Luxury/Elegant', 'Bold/Modern'];
+const COLOR_PREFERENCE_OPTIONS = ['Based on Logo', 'Bright & Vibrant', 'Pastel & Soft', 'Dark & Professional', 'Monochrome'];
+const LANGUAGE_OPTIONS = ['English', 'Marathi', 'Marathi with English', 'Hindi', 'Hindi with English'];
+
+interface TimeSlot {
+  time: string;
+  start: string;
+  isBooked: boolean;
+  isPast: boolean;
+}
+
+interface PhysicalBookingPayload {
+  orderId: string;
+  designerId: string;
+  visitDate: string;
+  timeSlot?: string;
+  visitLocation: 'HOME' | 'OFFICE';
+  visitAddress: string;
+  customerPhone: string;
+  advancePaid?: number;
+  socketId?: string;
+  productSnapshot?: {
+    productId?: string;
+    productName?: string;
+    quantity?: number;
+    printingType?: string;
+    selectedOptions?: Record<string, any>;
+    selectedDynamicAttributes?: Record<string, any>;
+    totalOrderAmount?: number;
+    specialInstructions?: string;
+  };
+}
+
 const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedProductId }) => {
   const params = useParams<{ categoryId: string; subCategoryId?: string; nestedSubCategoryId?: string; productId?: string }>();
   const navigate = useNavigate();
   const location = useLocation();
+  const { designerSettings } = useDesignerSettings();
   const { categoryId, subCategoryId, nestedSubCategoryId } = params;
   // Use forcedProductId if provided, otherwise fallback to params.productId
   const productId = forcedProductId || params.productId;
@@ -258,6 +313,51 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
   const [deliverySpeedCharge, setDeliverySpeedCharge] = useState(0);
   const [textureTypeCharge, setTextureTypeCharge] = useState(0);
   const [productOptionsCharge, setProductOptionsCharge] = useState(0);
+
+  // --- DESIGNER STATES ---
+  const [designMethod, setDesignMethod] = useState<'upload' | 'hire'>('upload');
+  const [showDesignerSelectionModal, setShowDesignerSelectionModal] = useState(false);
+  const [showVisualDesignerForm, setShowVisualDesignerForm] = useState(false);
+  const [showPhysicalDesignerList, setShowPhysicalDesignerList] = useState(false);
+  const [selectedDesignerType, setSelectedDesignerType] = useState<'visual' | 'physical' | null>(null);
+  const [isSubmittingDesignerOrder, setIsSubmittingDesignerOrder] = useState(false);
+  const [isDesignerConfirmed, setIsDesignerConfirmed] = useState(false);
+
+  // Visual Designer Form State
+  const [visualFormData, setVisualFormData] = useState({
+    designFor: 'Buisness Card',
+    otherDesignFor: '',
+    designStyle: 'Professional',
+    colorPreference: 'Based on Logo',
+    language: 'English',
+    specialInstructions: '',
+    logoAvailable: 'No',
+    photoOnCard: 'No',
+  });
+  const [visualLogoFile, setVisualLogoFile] = useState<File | null>(null);
+  const [visualPhotoFile, setVisualPhotoFile] = useState<File | null>(null);
+
+  // Reset designer confirmation if switching back to upload mode or selecting a Different Product
+  useEffect(() => {
+    if (designMethod === 'upload') {
+      setIsDesignerConfirmed(false);
+    }
+  }, [designMethod, selectedProduct?._id]);
+
+  // Physical Designer Selection State
+  const [designers, setDesigners] = useState<any[]>([]);
+  const [isLoadingDesigners, setIsLoadingDesigners] = useState(false);
+  const [selectedDesigner, setSelectedDesigner] = useState<any | null>(null);
+  const [availableSlots, setAvailableSlots] = useState<TimeSlot[]>([]);
+  const [isLoadingSlots, setIsLoadingSlots] = useState(false);
+  const [selectedSlot, setSelectedSlot] = useState<string>('');
+  // Physical Visit Details
+  const [selectedDate, setSelectedDate] = useState<string>('');
+  const [visitType, setVisitType] = useState<'Home' | 'Office'>('Office');
+  const [physicalVisitAddress, setPhysicalVisitAddress] = useState<string>('At Prints24 Office');
+  const [customerPhone, setCustomerPhone] = useState<string>('');
+  const [bookingStep, setBookingStep] = useState<1 | 2 | 3>(1);
+  const [officeConfig, setOfficeConfig] = useState<any>(null);
   const [dynamicAttributesCharges, setDynamicAttributesCharges] = useState<Array<{ name: string; label: string; charge: number; perUnitCharge?: number; isSubAttribute?: boolean }>>([]);
   const [baseSubtotalBeforeDiscount, setBaseSubtotalBeforeDiscount] = useState(0);
   const [perUnitPriceExcludingGst, setPerUnitPriceExcludingGst] = useState(0); // Store per unit price excluding GST
@@ -279,6 +379,96 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
   } | null>(null);
   const [showStickyBar, setShowStickyBar] = useState(false);
   const stickyAnchorRef = useRef<HTMLDivElement>(null);
+
+  const selectedSlotRef = useRef(selectedSlot);
+
+  // Sync ref with state
+  useEffect(() => {
+    selectedSlotRef.current = selectedSlot;
+  }, [selectedSlot]);
+
+  // Real-time Slot Updates
+  useEffect(() => {
+    if (selectedDesigner?._id && selectedDate) {
+      // 1. Join the room for this designer and date
+      joinSlotRoom(selectedDesigner._id, selectedDate);
+
+      // 2. Listen for slotBooked events
+      const handleSlotBooked = (data: { designerId: string; visitDate: string; timeSlot: string; socketId?: string }) => {
+        console.log('[Socket] Received slotBooked event:', data);
+        console.log('[Socket] Current context:', { selectedDesignerId: selectedDesigner?._id, selectedDate });
+
+        // Ignore if it's OUR own booking notification
+        const myId = getSocketId();
+        if (data.socketId && myId && data.socketId === myId) {
+          console.log('[Socket] Ignoring self-booking notification (ID matches)');
+          return;
+        }
+
+        if (data.designerId === selectedDesigner._id && data.visitDate === selectedDate) {
+          console.log(`[Socket] Updating status for slot ${data.timeSlot} to BOOKED`);
+          setAvailableSlots(prev => {
+            const index = prev.findIndex(s => s.time === data.timeSlot);
+            if (index === -1) {
+              console.warn(`[Socket] Received slotBooked for unknown slot: ${data.timeSlot}`);
+              return prev;
+            }
+            return prev.map(slot =>
+              slot.time === data.timeSlot ? { ...slot, isBooked: true } : slot
+            );
+          });
+
+          // Clear selection if it was just booked by someone else
+          if (selectedSlotRef.current === data.timeSlot) {
+            console.log('[Socket] clearing selected slot due to conflict');
+            setSelectedSlot('');
+            toast.error("The slot you selected was just booked by someone else.", { id: 'slot-conflict' });
+          }
+        } else {
+          console.log('[Socket] Event mismatch (different designer or date), ignoring.');
+        }
+      };
+
+      onSessionEvent('slotBooked', handleSlotBooked);
+
+      return () => {
+        offSessionEvent('slotBooked', handleSlotBooked);
+      };
+    }
+  }, [selectedDesigner?._id, selectedDate]);
+
+  // Fetch slots on date/designer change
+  useEffect(() => {
+    if (selectedDesigner?._id && selectedDate) {
+      fetchSlots(selectedDesigner._id, selectedDate);
+      setSelectedSlot('');
+    }
+  }, [selectedDesigner?._id, selectedDate]);
+
+  // Real-time "isPast" update timer (Runs every minute)
+  useEffect(() => {
+    if (availableSlots.length === 0 || !selectedDate) return;
+
+    const updateIsPast = () => {
+      const todayStr = formatISTDate();
+      const isToday = selectedDate === todayStr;
+      const isPastDate = selectedDate < todayStr;
+      const currentIST = getISTTime();
+      const currentHourMin = `${String(currentIST.getUTCHours()).padStart(2, '0')}:${String(currentIST.getUTCMinutes()).padStart(2, '0')}`;
+
+      setAvailableSlots(prev => prev.map(slot => ({
+        ...slot,
+        isPast: isPastDate || (isToday && slot.start < currentHourMin)
+      })));
+    };
+
+    // Run once immediately
+    updateIsPast();
+
+    // Then run every 60 seconds
+    const interval = setInterval(updateIsPast, 60000);
+    return () => clearInterval(interval);
+  }, [selectedDate, availableSlots.length]);
 
   // RADIO attribute modal state
   const [radioModalOpen, setRadioModalOpen] = useState(false);
@@ -596,6 +786,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
   useEffect(() => { backendSubtotalRef.current = backendSubtotal; }, [backendSubtotal]);
 
   // Keep selectedDynamicAttributesRef in sync so auto-select effect can read it without being a dependency
+  // useEffect to recalculate price when dynamicAttributesCharges or designMethod change
   useEffect(() => {
     selectedDynamicAttributesRef.current = selectedDynamicAttributes;
   }, [selectedDynamicAttributes]);
@@ -607,12 +798,28 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
   useEffect(() => {
     if (backendSubtotalRef.current <= 0) return;
     const totalAttrCharges = dynamicAttributesCharges.reduce((sum, c) => sum + (c.charge || 0), 0);
-    const finalSubtotal = backendSubtotalRef.current + totalAttrCharges;
+    // Add additional design charge if user wants to hire a designer
+    // Default to 500 if product doesn't have a specific charge defined
+    let designerFee = 0;
+    let visitFee = 0;
+    if (designMethod === 'hire' && isDesignerConfirmed) {
+      if (selectedDesignerType === 'visual') {
+        designerFee = additionalDesignCharge || 500;
+      } else if (selectedDesignerType === 'physical') {
+        designerFee = selectedDesigner?.hourlyRate || 500;
+        visitFee = (visitType === 'Home' && selectedDesigner?.homeVisitCharge) ? selectedDesigner.homeVisitCharge :
+          (visitType === 'Home' ? 500 : 0);
+      } else {
+        designerFee = 500;
+      }
+    }
+
+    const finalSubtotal = backendSubtotalRef.current + totalAttrCharges + designerFee + visitFee;
     const finalGst = Math.round((finalSubtotal * gstPercentageRef.current / 100 + Number.EPSILON) * 100) / 100;
     setPrice(finalSubtotal);
     setGstAmount(finalGst);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dynamicAttributesCharges]); // refs used for other values to avoid triggering on their changes
+  }, [dynamicAttributesCharges, designMethod, isDesignerConfirmed, selectedDesigner, selectedDesignerType, visitType, additionalDesignCharge]);
 
   // Set isPricingLoading to true when dependencies change to show skeleton immediately
   // useEffect(() => {
@@ -2193,26 +2400,41 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
       setDeliverySpeedCharge(deliverySpeedImpact);
       setTextureTypeCharge(textureTypeImpact);
       setDynamicAttributesCharges(dynamicAttributesChargesList);
+      dynamicAttributesChargesRef.current = dynamicAttributesChargesList;
 
       // Add additional design charge if applicable
       const designCharge = selectedProduct.additionalDesignCharge || 0;
       setAdditionalDesignCharge(designCharge);
 
-      // Calculate GST on (subtotal + design charge)
-      const gstPercent = selectedProduct.gstPercentage || 0;
-      const calculatedGst = (subtotalWithCharges + designCharge) * (gstPercent / 100);
-      // setGstAmount(calculatedGst);
+      // Determine designer fee if hired
+      let designerFee = 0;
+      if (designMethod === 'hire') {
+        if (selectedDesignerType === 'visual') {
+          designerFee = additionalDesignCharge || 500;
+        } else if (selectedDesignerType === 'physical') {
+          designerFee = visitType === 'Home' ? 1000 : 500;
+        } else {
+          designerFee = 500;
+        }
+      }
 
-      // Store price excluding GST (for product page display)
-      // GST will only be added at checkout
-      const priceExcludingGst = subtotalWithCharges + designCharge;
-      // setPrice(priceExcludingGst);
+      // Calculate price excluding GST (for product page display)
+      // Including attribute charges and designer fee
+      const subtotalWithChargesAndDesigner = subtotalWithCharges + designCharge + designerFee;
+
+      // Calculate GST on (subtotal + design charge + designer fee)
+      const gstPercent = selectedProduct.gstPercentage || 18;
+      const calculatedGst = Math.round((subtotalWithChargesAndDesigner * (gstPercent / 100) + Number.EPSILON) * 100) / 100;
+
+      setGstAmount(calculatedGst);
+      setGstPercentage(gstPercent);
+      setPrice(subtotalWithChargesAndDesigner);
 
       // Calculate and store per unit price excluding GST (base price + all per-unit charges, after discount)
-      const perUnitExcludingGst = quantity > 0 ? priceExcludingGst / quantity : basePrice;
+      const perUnitExcludingGst = quantity > 0 ? (subtotalWithCharges + designCharge) / quantity : basePrice;
       setPerUnitPriceExcludingGst(perUnitExcludingGst);
     }
-  }, [selectedProduct, selectedPrintingOption, selectedDeliverySpeed, selectedTextureType, quantity, selectedDynamicAttributes, selectedProductOptions, pdpAttributes, pdpRules, isInitialized]);
+  }, [selectedProduct, selectedPrintingOption, selectedDeliverySpeed, selectedTextureType, quantity, selectedDynamicAttributes, selectedProductOptions, pdpAttributes, pdpRules, isInitialized, designMethod, selectedDesignerType, visitType, additionalDesignCharge]);
 
   // Update quantity when attribute with step/range quantity is selected
   React.useEffect(() => {
@@ -2446,7 +2668,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
     return rules;
   };
 
-  // Handle design file upload with product-specific validation
+  // Handle design file change
   const handleDesignFileChange = (e: React.ChangeEvent<HTMLInputElement>, side: "front" | "back") => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -2580,15 +2802,6 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
         reader.readAsDataURL(file);
       }
     }
-  };
-
-  // Get auth token from localStorage
-  const getAuthHeaders = () => {
-    const token = localStorage.getItem("token");
-    return {
-      "Content-Type": "application/json",
-      ...(token && { Authorization: `Bearer ${token}` }),
-    };
   };
 
   // Calculate required page count for PDF upload
@@ -3352,8 +3565,8 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
         firstErrorField.current = document.querySelector('[data-product-select]') as HTMLElement;
       }
     }
-    // Accept either a PDF/CDR design file OR a reference image upload (for single mode)
-    // In bulk mode, validate composite PDF instead
+    // Accept either a PDF/CDR design file OR a reference image upload
+    // In bulk mode, validate composite PDF instead; skip if hiring a designer
     if (orderMode === 'bulk') {
       if (!bulkCompositePdf) {
         validationErrors.push('Please upload a composite PDF file for your bulk order');
@@ -3362,11 +3575,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
           if (uploadSection) firstErrorField.current = uploadSection;
         }
       }
-      const numDesigns = parseInt(numberOfDesigns);
-      if (!numDesigns || numDesigns < 1) {
-        validationErrors.push('Please enter the number of designs (minimum 1)');
-      }
-    } else {
+    } else if (designMethod === 'upload') {
       const hasDesignFile = !!frontDesignFile || !!pdfFile;
       if (!hasDesignFile) {
         validationErrors.push('Please upload a design file (PDF/CDR) or a reference image');
@@ -3568,6 +3777,12 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
       shippingCost: shippingCost || 0
     });
 
+    // If hiring a designer and not yet confirmed, show the designer selection modal
+    if (designMethod === 'hire' && !isDesignerConfirmed) {
+      setShowDesignerSelectionModal(true);
+      return;
+    }
+
     // All product/design validations passed - show payment modal with customer information form
     setShowPaymentModal(true);
     setPaymentError(null);
@@ -3599,8 +3814,8 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
         throw new Error("Please enter a valid number of designs (minimum 1).");
       }
     } else {
-      // Accept either a PDF/CDR design file OR a reference image upload
-      if (!frontDesignFile && !pdfFile) {
+      // Accept either a PDF/CDR design file OR a reference image upload — skip if hiring a designer
+      if (designMethod !== 'hire' && !frontDesignFile && !pdfFile) {
         throw new Error("Please upload a design file (PDF/CDR) or a reference image.");
       }
     }
@@ -3715,6 +3930,8 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
         }
       } else if (!pdfFile && orderMode !== 'bulk') {
         // No design file at all (single mode only) - this should have been caught by validation
+      } else if (!pdfFile && designMethod !== 'hire') {
+        // No design file at all - this should have been caught by validation (skip for hired designer)
         throw new Error("Please upload a design file (PDF/CDR) or a reference image.");
       }
 
@@ -4071,6 +4288,10 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
         paperQuality: orderDynamicAttributes.paperQuality || null,
         laminationType: orderDynamicAttributes.laminationType || null,
         specialEffects: orderDynamicAttributes.specialEffects ? [orderDynamicAttributes.specialEffects] : [],
+        needDesigner: designMethod === 'hire',
+        designerType: selectedDesignerType,
+        designStatus: designMethod === 'hire' ? "PendingDesign" : null,
+        visitType: selectedDesignerType === 'physical' ? visitType : null,
       };
 
       // For bulk mode: mark the order as bulk and set correct total price
@@ -4151,8 +4372,93 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
               }
               // Continue with success flow
               const order = retryData.order;
+              const orderId = order._id || order.order?._id;
+
               setShowPaymentModal(false);
               setIsProcessingPayment(false);
+
+              // Step 4: Handle Designer Specific Logic even in retry flow
+              if (designMethod === 'hire' && orderId) {
+                if (selectedDesignerType === 'visual') {
+                  // Upload files if any
+                  if (visualLogoFile || visualPhotoFile) {
+                    const formData = new FormData();
+                    if (visualLogoFile) formData.append('logo', visualLogoFile);
+                    if (visualPhotoFile) formData.append('photo', visualPhotoFile);
+
+                    const designFormData = {
+                      designFor: visualFormData.designFor === 'Other' ? visualFormData.otherDesignFor : visualFormData.designFor,
+                      designStyle: visualFormData.designStyle,
+                      colorPreference: visualFormData.colorPreference,
+                      language: visualFormData.language,
+                      specialInstructions: visualFormData.specialInstructions,
+                      logoAvailable: visualFormData.logoAvailable,
+                      photoOnCard: visualFormData.photoOnCard,
+                    };
+
+                    Object.keys(designFormData).forEach(key => {
+                      formData.append(key, (designFormData as any)[key]);
+                    });
+
+                    await fetch(`${API_BASE_URL}/designer-orders/${orderId}/design-form`, {
+                      method: "POST",
+                      headers: getAuthHeaders(),
+                      body: formData,
+                    });
+                  }
+                } else if (selectedDesignerType === 'physical' && selectedDesigner?._id) {
+                  try {
+                    await createPhysicalBooking({
+                      orderId,
+                      designerId: selectedDesigner._id,
+                      visitDate: selectedDate,
+                      timeSlot: visitType === 'Home' ? undefined : selectedSlot,
+                      visitLocation: visitType === 'Home' ? 'HOME' : 'OFFICE',
+                      visitAddress: physicalVisitAddress,
+                      customerPhone: (customerPhone || pMobile || mobileNumber).replace(/[\s\-]/g, ''),
+                      advancePaid: 0,
+                      socketId: getSocketId() || undefined,
+                      productSnapshot: {
+                        productId: selectedProduct?._id,
+                        productName: selectedProduct?.name,
+                        quantity: quantity,
+                        printingType: selectedPrintingOption || 'Standard',
+                        selectedOptions: selectedOptions || {},
+                        selectedDynamicAttributes: (() => {
+                          const readable: Record<string, any> = {};
+                          if (selectedProduct?.dynamicAttributes) {
+                            selectedProduct.dynamicAttributes.forEach((attr: any) => {
+                              const attrType = typeof attr.attributeType === 'object' ? attr.attributeType : null;
+                              if (attrType) {
+                                const val = selectedDynamicAttributes[attrType._id];
+                                if (val && !(val instanceof File) && !String(attrType._id).endsWith('_images')) {
+                                  readable[attrType.attributeName] = val;
+                                }
+                              }
+                            });
+                          }
+                          return readable;
+                        })(),
+                        totalOrderAmount: price + gstAmount,
+                        specialInstructions: orderNotes || ""
+                      }
+                    });
+                  } catch (bookingErr: any) {
+                    console.error("Physical booking error during payment retry flow:", bookingErr);
+                    // If slot was already booked (409 conflict), immediately disable it in UI
+                    if (bookingErr.status === 409 && selectedSlot) {
+                      setAvailableSlots(prev => prev.map(slot =>
+                        slot.time === selectedSlot ? { ...slot, isBooked: true } : slot
+                      ));
+                      setSelectedSlot('');
+                      if (selectedDesigner?._id && selectedDate) {
+                        fetchSlots(selectedDesigner._id, selectedDate);
+                      }
+                    }
+                    toast.error(`Order placed, but designer booking failed: ${bookingErr.message}. Please contact support.`);
+                  }
+                }
+              }
 
               if (retryData.isNewUser && retryData.tempPassword) {
                 // Email service temporarily disabled - show password in alert instead
@@ -4161,12 +4467,18 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                 alert(`Order placed successfully! Order Number: ${order.orderNumber || order.order?.orderNumber || "N/A"}`);
               }
 
-              if (order._id || order.order?._id) {
-                navigate(`/order/${order._id || order.order._id}`);
+              // Return order data so the modal or caller can proceed
+              const orderNumber = order.orderNumber || order.order?.orderNumber || null;
+              const totalAmount = price + gstAmount;
+
+              // We'll navigate after the alert, but returning the data is better for consistency
+              if (orderId) {
+                navigate(`/order/${orderId}`);
               } else {
                 navigate("/my-orders");
               }
-              return;
+
+              return { orderId, totalAmount, orderNumber };
             }
           }
 
@@ -4186,13 +4498,117 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
       }
 
       const responseData = await response.json();
+      console.log("[Payment] Order created response:", responseData);
       const order = responseData.order || responseData;
+      const orderId = order._id || order.order?._id || responseData.orderId || responseData._id;
 
-      // If account was created, store token and user info
+      // If account was created or token returned, store it immediately
+      // This MUST happen before Step 4 so that physical booking API gets the token
       if (responseData.token) {
+        console.log("[Payment] New token received and stored");
         localStorage.setItem("token", responseData.token);
         if (responseData.user) {
           localStorage.setItem("user", JSON.stringify(responseData.user));
+        }
+      }
+
+      // Step 4: Handle Designer Specific Logic (if any)
+      if (designMethod === 'hire') {
+        if (selectedDesignerType === 'visual') {
+          // Upload files if any
+          if (visualLogoFile || visualPhotoFile) {
+            const formData = new FormData();
+            if (visualLogoFile) formData.append('logo', visualLogoFile);
+            if (visualPhotoFile) formData.append('photo', visualPhotoFile);
+
+            const designFormData = {
+              designFor: visualFormData.designFor === 'Other' ? visualFormData.otherDesignFor : visualFormData.designFor,
+              designStyle: visualFormData.designStyle,
+              colorPreference: visualFormData.colorPreference,
+              language: visualFormData.language,
+              specialInstructions: visualFormData.specialInstructions,
+              logoAvailable: visualFormData.logoAvailable,
+              photoOnCard: visualFormData.photoOnCard,
+            };
+
+            Object.keys(designFormData).forEach(key => {
+              formData.append(key, (designFormData as any)[key]);
+            });
+
+            await fetch(`${API_BASE_URL}/designer-orders/${orderId}/design-form`, {
+              method: "POST",
+              headers: getAuthHeaders(),
+              body: formData,
+            });
+          }
+        } else if (selectedDesignerType === 'physical') {
+          if (!selectedDesigner?._id) {
+            console.error("[PhysicalBooking] No designer selected for physical booking");
+            toast.error("Please select a designer again.");
+          } else if (!selectedDate) {
+            console.error("[PhysicalBooking] No date selected for physical booking");
+            toast.error("Please select a visit date.");
+          } else {
+            console.log("[PhysicalBooking] Attempting to create booking for order:", orderId);
+            try {
+              await createPhysicalBooking({
+                orderId,
+                designerId: selectedDesigner._id,
+                visitDate: selectedDate,
+                timeSlot: visitType === 'Home' ? undefined : selectedSlot,
+                visitLocation: visitType === 'Home' ? 'HOME' : 'OFFICE',
+                visitAddress: physicalVisitAddress,
+                customerPhone: (customerPhone || pMobile || mobileNumber).replace(/[\s\-]/g, ''),
+                advancePaid: 0,
+                socketId: getSocketId() || undefined,
+                productSnapshot: {
+                  productId: selectedProduct?._id,
+                  productName: selectedProduct?.name,
+                  quantity: quantity,
+                  printingType: selectedPrintingOption || 'Standard',
+                  selectedOptions: selectedOptions || {},
+                  selectedDynamicAttributes: (() => {
+                    const readable: Record<string, any> = {};
+                    if (selectedProduct?.dynamicAttributes) {
+                      selectedProduct.dynamicAttributes.forEach((attr: any) => {
+                        const attrType = typeof attr.attributeType === 'object' ? attr.attributeType : null;
+                        if (attrType) {
+                          const val = selectedDynamicAttributes[attrType._id];
+                          if (val && !(val instanceof File) && !String(attrType._id).endsWith('_images')) {
+                            readable[attrType.attributeName] = val;
+                          }
+                        }
+                      });
+                    }
+                    return readable;
+                  })(),
+                  totalOrderAmount: price + gstAmount,
+                  specialInstructions: orderNotes || ""
+                }
+              });
+              console.log("[PhysicalBooking] Booking successful");
+            } catch (bookingErr: any) {
+              console.error("[PhysicalBooking] Booking failed:", bookingErr);
+
+              // If slot was already booked (409 conflict), immediately disable it in UI
+              if (bookingErr.status === 409 && selectedSlot) {
+                setAvailableSlots(prev => prev.map(slot =>
+                  slot.time === selectedSlot ? { ...slot, isBooked: true } : slot
+                ));
+                setSelectedSlot('');
+                // Re-fetch all slots for latest state
+                if (selectedDesigner?._id && selectedDate) {
+                  fetchSlots(selectedDesigner._id, selectedDate);
+                }
+              }
+
+              // CRITICAL: We throw the error here so that handlePaymentAndOrder fails
+              // correctly and DOES NOT proceed to payment initialization.
+              const finalErrMsg = bookingErr.message || "Order placed, but physical booking failed. Please contact support.";
+              toast.error(finalErrMsg);
+              throw new Error(finalErrMsg);
+            }
+          }
         }
       }
 
@@ -4204,7 +4620,6 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
       setIsProcessingPayment(false);
 
       // Return order data so the modal can proceed to payment step
-      const orderId = order._id || order.order?._id;
       const orderNumber = order.orderNumber || order.order?.orderNumber || null;
       // For bulk mode: multiply by number of designs so payment gateway gets full amount
       const numDesignsForPayment = orderMode === 'bulk' ? (parseInt(numberOfDesigns) || 1) : 1;
@@ -4253,8 +4668,113 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
     }
   };
 
-  return (
+  const fetchDesigners = async (date?: string) => {
+    try {
+      setIsLoadingDesigners(true);
+      // If date is provided, use the physical designers endpoint which might eventually filter by availability
+      const url = date
+        ? `${API_BASE_URL}/physical/designers?date=${date}`
+        : `${API_BASE_URL}/session/settings/designers`;
 
+      const response = await fetch(url, {
+        headers: getAuthHeaders()
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setDesigners(data.designers || []);
+        if (data.officeInfo) {
+          setOfficeConfig(data.officeInfo);
+        }
+      }
+    } catch (err) {
+      console.error("Fetch designers error:", err);
+    } finally {
+      setIsLoadingDesigners(false);
+    }
+  };
+
+  const fetchSlots = async (designerId: string, date: string) => {
+    try {
+      setIsLoadingSlots(true);
+      const response = await fetch(`${API_BASE_URL}/physical/${designerId}/slots?date=${date}`, {
+        headers: getAuthHeaders()
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setAvailableSlots(data.slots || []);
+      }
+    } catch (err) {
+      console.error("Fetch slots error:", err);
+    } finally {
+      setIsLoadingSlots(false);
+    }
+  };
+
+  const createPhysicalBooking = async (payload: PhysicalBookingPayload) => {
+    console.log("[PhysicalBooking] Sending booking request:", payload);
+    try {
+      const response = await fetch(`${API_BASE_URL}/physical/book`, {
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: JSON.stringify(payload),
+      });
+
+      console.log("[PhysicalBooking] Response status:", response.status);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
+        console.error("[PhysicalBooking] Server error details:", errorData);
+        const error: any = new Error(errorData.error || "Failed to create physical booking");
+        error.status = response.status;
+        throw error;
+      }
+
+      const result = await response.json();
+      console.log("[PhysicalBooking] Success result:", result);
+      return result;
+    } catch (err) {
+      console.error("[PhysicalBooking] Fetch/Process error:", err);
+      throw err;
+    }
+  };
+
+  const createDesignerOrder = async (type: 'visual' | 'physical', designerId?: string) => {
+    try {
+      // Pre-validation (optional but good for UX)
+      if (type === 'physical') {
+        if (!selectedDate) {
+          toast.error("Please select a date");
+          return;
+        }
+        if (visitType === 'Office' && !selectedSlot) {
+          toast.error("Please select a time slot");
+          return;
+        }
+        if (visitType === 'Home' && !physicalVisitAddress.trim()) {
+          toast.error("Please enter a visit address");
+          return;
+        }
+        if (!customerPhone) {
+          toast.error("Please enter your mobile number");
+          return;
+        }
+      } else if (type === 'visual') {
+        // Any visual form validation can go here
+      }
+
+      // Close designer modals
+      setShowVisualDesignerForm(false);
+      setShowPhysicalDesignerList(false);
+      setShowDesignerSelectionModal(false);
+      setIsDesignerConfirmed(true);
+      toast.success(`${type === 'visual' ? 'Designer requirements saved!' : 'Visit details saved!'}`);
+    } catch (err: any) {
+      console.error("Designer Order Error:", err);
+      toast.error(err.message || "Something went wrong. Please try again.");
+    }
+  };
+
+  return (
     <div className="min-h-screen bg-gray-50 py-4 sm:py-8">
       {/* Preview Effect Styles */}
       <style>{`
@@ -4705,31 +5225,12 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
           </motion.div>
         )}
 
-
-        {/* Loading State */}
-
-
-        {/* Loading State - Removed blocking loader */}
-        {/* {loading && (
-          <div className="py-8">
-            <ProductDetailSkeleton />
-          </div>
-        )} */}
-
-
         {/* Error State */}
         {error && !loading && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
             <p className="text-red-800">{error}</p>
           </div>
         )}
-
-        {/* Loading state for PDP
-        {pdpLoading && productId && (
-          <div className="py-8">
-            <ProductDetailSkeleton />
-          </div>
-        )} */}
 
         {/* Error state for PDP */}
         {pdpError && productId && (
@@ -4748,8 +5249,8 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
           </div>
         )}
 
-        {/* Main Content - Show even during loading for granular skeletons */}
-        {/* !loading && */ !error && (
+        {/* Main Content */}
+        {!error && (
           <>
             {/* Main Layout: 50/50 Split - Left Image + Summary, Right Config / Products */}
             <div className="flex flex-col lg:flex-row gap-6 sm:gap-8 lg:gap-12 min-h-[600px]">
@@ -4994,15 +5495,43 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                         attributeCharges={dynamicAttributesCharges}
                         pincode={pincode}
                         shippingCharge={shippingCost}
+                        designerFee={(() => {
+                          if (designMethod !== 'hire' || !isDesignerConfirmed) return 0;
+                          if (selectedDesignerType === 'visual') return additionalDesignCharge || 500;
+                          if (selectedDesignerType === 'physical') return selectedDesigner?.hourlyRate || 500;
+                          return 500;
+                        })()}
+                        visitFee={(() => {
+                          if (designMethod === 'hire' && isDesignerConfirmed && selectedDesignerType === 'physical' && visitType === 'Home') {
+                            return selectedDesigner?.homeVisitCharge || 500;
+                          }
+                          return 0;
+                        })()}
                         onLoadingChange={(loading) => setIsPricingLoading(loading)}
                         onPriceChange={(pricing) => {
                           if (pricing) {
                             setBackendSubtotal(pricing.subtotal);
                             setGstPercentage(pricing.gstPercentage || 18);
-                            // Immediately sync price and gstAmount using current attribute charges
+                            // Immediately sync price and gstAmount using current attribute charges and designer fee
                             // This ensures sticky footer matches Order Summary without waiting for a stale useEffect
                             const currentAttrCharges = dynamicAttributesChargesRef.current.reduce((sum, c) => sum + (c.charge || 0), 0);
-                            const syncedSubtotal = pricing.subtotal + currentAttrCharges;
+
+                            // Include designer fee if hired and confirmed
+                            let designerFee = 0;
+                            let visitFee = 0;
+                            if (designMethod === 'hire' && isDesignerConfirmed) {
+                              if (selectedDesignerType === 'visual') {
+                                designerFee = additionalDesignCharge || 500;
+                              } else if (selectedDesignerType === 'physical') {
+                                designerFee = selectedDesigner?.hourlyRate || 500;
+                                visitFee = (visitType === 'Home' && selectedDesigner?.homeVisitCharge) ? selectedDesigner.homeVisitCharge :
+                                  (visitType === 'Home' ? 500 : 0);
+                              } else {
+                                designerFee = 500;
+                              }
+                            }
+
+                            const syncedSubtotal = pricing.subtotal + currentAttrCharges + designerFee + visitFee;
                             const syncedGst = Math.round((syncedSubtotal * (pricing.gstPercentage || 18) / 100 + Number.EPSILON) * 100) / 100;
                             setPrice(syncedSubtotal);
                             setGstAmount(syncedGst);
@@ -5600,7 +6129,6 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                           const hasDeliverySpeed = selectedProduct.filters?.deliverySpeed && selectedProduct.filters.deliverySpeed.length > 0;
 
                           return (
-
                             <>
                               {/* Product Options (from options table) */}
                               {hasOptions && (
@@ -6238,7 +6766,6 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                                   showSkeleton={true}
                                                                   skeletonVariant="image"
                                                                 />
-
                                                               )}
                                                               {/* Label */}
                                                               <div className="text-[11px] font-medium text-gray-900 leading-tight line-clamp-2 text-center w-full">
@@ -6479,651 +7006,692 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                 ) : null;
                               })()}
 
-                            </>
-                          );
-                        })()}
 
 
 
-
-                        {/* Bulk Order Toggle - Properly placed above the upload part */}
-                        {hasBulkPermission && !loading && (
-                          <div className="space-y-4 mb-6 mt-6 pt-6 border-t border-gray-100">
-                            <div className="flex items-center justify-between mb-2">
-                              <h4 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-                                <div className="w-1.5 h-6 bg-blue-600 rounded-full"></div>
-                                Order Mode
-                              </h4>
-                              <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Select your order style</span>
-                            </div>
-                            <BulkOrderToggle
-                              orderMode={orderMode}
-                              setOrderMode={setOrderMode}
-                            />
-
-                            {orderMode === 'bulk' && (
-                              <motion.div
-                                initial={{ opacity: 0, height: 0 }}
-                                animate={{ opacity: 1, height: 'auto' }}
-                                className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 rounded-2xl p-4 shadow-sm"
-                              >
-                                <div className="flex gap-3">
-                                  <div className="bg-blue-600 p-2 rounded-xl text-white h-fit shadow-md shadow-blue-200">
-                                    <Database size={20} />
-                                  </div>
-                                  <div className="space-y-1">
-                                    <h4 className="text-sm font-bold text-blue-900">Bulk Order Mode Active</h4>
-                                    <p className="text-xs text-blue-700 leading-relaxed">
-                                      Upload a single composite PDF containing all your designs. We'll automatically split them and create individual orders for you.
-                                    </p>
-                                  </div>
-                                </div>
-                              </motion.div>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Unified PDF Upload Section - Replaces Both Image Upload Sections */}
-                        {(() => {
-                          if (loading) {
-                            return (
-                              <div className="mb-3 sm:mb-4 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden h-[200px] flex flex-col">
-                                <div className="bg-gray-50 px-5 py-4 border-b">
-                                  <div className="flex gap-3">
-                                    <Skeleton variant="rectangular" className="w-8 h-8 rounded-lg" />
-                                    <div className="space-y-2">
-                                      <Skeleton variant="text" className="w-32 h-4" />
-                                      <Skeleton variant="text" className="w-24 h-3" />
+                              {/* Bulk Order Toggle - Properly placed above the upload part */}
+                              {
+                                hasBulkPermission && !loading && (
+                                  <div className="space-y-4 mb-6 mt-6 pt-6 border-t border-gray-100">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <h4 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                                        <div className="w-1.5 h-6 bg-blue-600 rounded-full"></div>
+                                        Order Mode
+                                      </h4>
+                                      <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Select your order style</span>
                                     </div>
-                                  </div>
-                                </div>
-                                <div className="p-5 flex-1 flex items-center justify-center">
-                                  <Skeleton variant="rectangular" className="w-full h-full rounded-xl" />
-                                </div>
-                              </div>
-                            )
-                          }
-
-                          // BULK ORDER MODE - New Composite PDF Upload UI
-                          if (orderMode === 'bulk') {
-                            const numberOfDesignsNum = parseInt(numberOfDesigns) || 0;
-                            const pagesPerDesign = calculateRequiredPageCount();
-                            const expectedPages = numberOfDesignsNum * pagesPerDesign;
-
-                            return (
-                              <div className="mb-3 sm:mb-4 bg-white rounded-2xl border border-gray-200 shadow-lg shadow-gray-200/50 overflow-hidden hover:shadow-xl hover:shadow-gray-200/50 transition-all duration-300">
-                                {/* Header Section */}
-                                <div className="bg-gradient-to-r from-orange-50 via-amber-50 to-yellow-50 px-4 sm:px-5 py-3 sm:py-4 border-b border-gray-200">
-                                  <div className="flex items-center gap-3">
-                                    <div className="w-9 h-9 rounded-xl bg-white shadow-md flex items-center justify-center ring-1 ring-orange-100">
-                                      <UploadIcon className="w-5 h-5 text-orange-600" />
-                                    </div>
-                                    <div className="flex-1">
-                                      <h3 className="font-bold text-sm sm:text-base text-gray-900">
-                                        Bulk Order Upload
-                                      </h3>
-                                      <p className="text-xs text-gray-600 mt-0.5 font-medium">
-                                        Upload composite PDF with multiple designs
-                                      </p>
-                                    </div>
-                                    {bulkCompositePdf && !bulkPdfError && (
-                                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-green-100 to-emerald-100 text-green-700 text-xs font-bold shadow-sm">
-                                        <Check size={14} strokeWidth={3} />
-                                        Ready
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-
-                                <div className="p-4 sm:p-5 space-y-4">
-                                  {/* Number of Designs Input */}
-                                  <div>
-                                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                                      Number of Designs *
-                                    </label>
-                                    <input
-                                      type="number"
-                                      min={bulkConfig?.minDesigns || 1}
-                                      max={bulkConfig?.maxDesigns || 50}
-                                      value={numberOfDesigns}
-                                      onChange={(e) => setNumberOfDesigns(e.target.value)}
-                                      placeholder={`e.g., ${bulkConfig?.minDesigns || 10}`}
-                                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent text-lg font-semibold"
-                                    />
-                                    <p className="text-xs text-gray-600 mt-1">
-                                      How many distinct designs are in your PDF? (Min: {bulkConfig?.minDesigns || 1}, Max: {bulkConfig?.maxDesigns || 50})
-                                    </p>
-
-                                    {numberOfDesignsNum > 0 && (
-                                      <div className="mt-3 p-3 bg-orange-50 border border-orange-200 rounded-lg animate-in fade-in slide-in-from-top-1 duration-300">
-                                        <p className="text-sm font-bold text-orange-900 flex items-center gap-2">
-                                          <Info className="w-4 h-4 text-orange-600" />
-                                          Required Page Count: {expectedPages} Pages
-                                        </p>
-                                        <p className="text-xs text-orange-700 mt-1">
-                                          Your PDF/CDR must have exactly {expectedPages} pages ({numberOfDesignsNum} designs × {pagesPerDesign} pages per design)
-                                        </p>
-                                      </div>
-                                    )}
-                                  </div>
-
-                                  {/* Composite PDF Upload */}
-                                  <div data-bulk-upload-section>
-                                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                                      Upload Composite PDF *
-                                    </label>
-                                    <input
-                                      type="file"
-                                      id="bulk-pdf-upload-input"
-                                      accept=".pdf,.cdr,application/pdf,application/x-coreldraw,application/coreldraw"
-                                      onChange={handleBulkPdfUpload}
-                                      className="hidden"
+                                    <BulkOrderToggle
+                                      orderMode={orderMode}
+                                      setOrderMode={setOrderMode}
                                     />
 
-                                    <label
-                                      htmlFor="bulk-pdf-upload-input"
-                                      className={`block cursor-pointer border-2 border-dashed rounded-xl p-6 sm:p-8 text-center transition-all ${bulkPdfError
-                                        ? 'border-red-400 bg-red-50/50'
-                                        : bulkCompositePdf
-                                          ? 'border-green-400 bg-green-50/30 shadow-inner'
-                                          : 'border-orange-300 bg-orange-50/30 hover:border-orange-500 hover:bg-orange-50/50 hover:shadow-md'
-                                        }`}
-                                    >
-                                      {isBulkPdfProcessing ? (
-                                        <div className="flex flex-col items-center py-4">
-                                          <div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mb-3"></div>
-                                          <p className="text-sm font-bold text-gray-700">Analyzing Bulk File...</p>
-                                          <p className="text-xs text-gray-500 mt-1">Extracting {expectedPages} design pages</p>
-                                        </div>
-                                      ) : bulkCompositePdf ? (
-                                        <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-                                          <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-md">
-                                            <FileText className="w-6 h-6 text-white" />
+                                    {orderMode === 'bulk' && (
+                                      <motion.div
+                                        initial={{ opacity: 0, height: 0 }}
+                                        animate={{ opacity: 1, height: 'auto' }}
+                                        className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 rounded-2xl p-4 shadow-sm"
+                                      >
+                                        <div className="flex gap-3">
+                                          <div className="bg-blue-600 p-2 rounded-xl text-white h-fit shadow-md shadow-blue-200">
+                                            <Database size={20} />
                                           </div>
-                                          <div className="text-center sm:text-left flex-1 min-w-0">
-                                            <p className="font-bold text-gray-900 text-sm sm:text-base truncate">{bulkCompositePdf.name}</p>
-                                            <p className="text-xs sm:text-sm text-gray-600 font-medium">
-                                              {(bulkCompositePdf.size / (1024 * 1024)).toFixed(2)} MB • {bulkPdfPreviewPages.length > 0 ? `${bulkPdfPreviewPages.length} Pages Extracted` : 'Ready'}
+                                          <div className="space-y-1">
+                                            <h4 className="text-sm font-bold text-blue-900">Bulk Order Mode Active</h4>
+                                            <p className="text-xs text-blue-700 leading-relaxed">
+                                              Upload a single composite PDF containing all your designs. We'll automatically split them and create individual orders for you.
                                             </p>
                                           </div>
-                                          <button
-                                            type="button"
-                                            onClick={(e) => {
-                                              e.preventDefault();
-                                              setBulkCompositePdf(null);
-                                              setBulkPdfPreviewPages([]);
-                                              setBulkPdfExtractedPages([]);
-                                              const fileInput = document.getElementById('bulk-pdf-upload-input') as HTMLInputElement;
-                                              if (fileInput) fileInput.value = '';
-                                            }}
-                                            className="px-4 py-2 text-xs font-bold text-red-700 bg-red-100 hover:bg-red-200 rounded-xl transition-all hover:shadow-md"
-                                          >
-                                            Remove
-                                          </button>
                                         </div>
-                                      ) : (
-                                        <div className="py-2">
-                                          <div className="w-14 h-14 rounded-full bg-orange-100 flex items-center justify-center mx-auto mb-4">
-                                            <UploadCloud className="w-8 h-8 text-orange-600" />
-                                          </div>
-                                          <p className="text-base font-bold text-gray-800 mb-1">
-                                            Upload your bulk design file
-                                          </p>
-                                          <p className="text-sm text-gray-600 mb-3 font-medium">
-                                            PDF or CDR • Max {bulkConfig?.maxFileSizeMB || 10}MB
-                                          </p>
-                                          <div className="inline-flex items-center gap-2 px-5 py-2.5 bg-orange-600 text-white rounded-xl text-sm font-bold hover:bg-orange-700 transition-all hover:shadow-lg hover:scale-105">
-                                            <FileText size={16} />
-                                            Select Bulk File
+                                      </motion.div>
+                                    )}
+                                  </div>
+                                )
+                              }
+
+                              {/* Unified PDF Upload Section - Replaces Both Image Upload Sections */}
+                              {
+                                (() => {
+                                  if (loading) {
+                                    return (
+                                      <div className="mb-3 sm:mb-4 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden h-[200px] flex flex-col">
+                                        <div className="bg-gray-50 px-5 py-4 border-b">
+                                          <div className="flex gap-3">
+                                            <Skeleton variant="rectangular" className="w-8 h-8 rounded-lg" />
+                                            <div className="space-y-2">
+                                              <Skeleton variant="text" className="w-32 h-4" />
+                                              <Skeleton variant="text" className="w-24 h-3" />
+                                            </div>
                                           </div>
                                         </div>
-                                      )}
-                                    </label>
+                                        <div className="p-5 flex-1 flex items-center justify-center">
+                                          <Skeleton variant="rectangular" className="w-full h-full rounded-xl" />
+                                        </div>
+                                      </div>
+                                    )
+                                  }
 
-                                    {/* Scrollable Preview Window for Bulk PDF */}
-                                    {bulkPdfPreviewPages.length > 0 && (
-                                      <div className="mt-4 animate-in fade-in slide-in-from-top-4 duration-500">
-                                        <div className="flex items-center justify-between mb-3 px-1">
-                                          <h4 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-                                            <div className="w-2 h-6 bg-orange-500 rounded-full"></div>
-                                            Design Preview ({bulkPdfPreviewPages.length} Pages)
-                                          </h4>
-                                          <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Scroll to view all designs</span>
+                                  // BULK ORDER MODE - New Composite PDF Upload UI
+                                  if (orderMode === 'bulk') {
+                                    const numberOfDesignsNum = parseInt(numberOfDesigns) || 0;
+                                    const pagesPerDesign = calculateRequiredPageCount();
+                                    const expectedPages = numberOfDesignsNum * pagesPerDesign;
+
+                                    return (
+                                      <div className="mb-3 sm:mb-4 bg-white rounded-2xl border border-gray-200 shadow-lg shadow-gray-200/50 overflow-hidden hover:shadow-xl hover:shadow-gray-200/50 transition-all duration-300">
+                                        {/* Header Section */}
+                                        <div className="bg-gradient-to-r from-orange-50 via-amber-50 to-yellow-50 px-4 sm:px-5 py-3 sm:py-4 border-b border-gray-200">
+                                          <div className="flex items-center gap-3">
+                                            <div className="w-9 h-9 rounded-xl bg-white shadow-md flex items-center justify-center ring-1 ring-orange-100">
+                                              <UploadIcon className="w-5 h-5 text-orange-600" />
+                                            </div>
+                                            <div className="flex-1">
+                                              <h3 className="font-bold text-sm sm:text-base text-gray-900">
+                                                Bulk Order Upload
+                                              </h3>
+                                              <p className="text-xs text-gray-600 mt-0.5 font-medium">
+                                                Upload composite PDF with multiple designs
+                                              </p>
+                                            </div>
+                                            {bulkCompositePdf && !bulkPdfError && (
+                                              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-green-100 to-emerald-100 text-green-700 text-xs font-bold shadow-sm">
+                                                <Check size={14} strokeWidth={3} />
+                                                Ready
+                                              </span>
+                                            )}
+                                          </div>
                                         </div>
 
-                                        <div className="relative group">
-                                          <div className="flex gap-4 overflow-x-auto pb-4 pt-1 snap-x px-1 scrollbar-thin">
-                                            {bulkPdfPreviewPages.map((preview, index) => (
-                                              <div
-                                                key={index}
-                                                className="flex-shrink-0 w-[180px] sm:w-[220px] snap-start"
-                                              >
-                                                <div className="relative aspect-[3/4] bg-white rounded-xl border-2 border-orange-100 shadow-md group/item overflow-hidden hover:border-orange-400 transition-all duration-300">
-                                                  <img
-                                                    src={preview}
-                                                    alt={`Design ${index + 1}`}
-                                                    className="w-full h-full object-contain"
-                                                  />
-                                                  <div className="absolute top-2 left-2 w-7 h-7 bg-orange-600 text-white rounded-full flex items-center justify-center text-[10px] font-black shadow-lg border-2 border-white ring-1 ring-orange-200">
-                                                    {index + 1}
+                                        <div className="p-4 sm:p-5 space-y-4">
+                                          {/* Number of Designs Input */}
+                                          <div>
+                                            <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                              Number of Designs *
+                                            </label>
+                                            <input
+                                              type="number"
+                                              min={bulkConfig?.minDesigns || 1}
+                                              max={bulkConfig?.maxDesigns || 50}
+                                              value={numberOfDesigns}
+                                              onChange={(e) => setNumberOfDesigns(e.target.value)}
+                                              placeholder={`e.g., ${bulkConfig?.minDesigns || 10}`}
+                                              className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent text-lg font-semibold"
+                                            />
+                                            <p className="text-xs text-gray-600 mt-1">
+                                              How many distinct designs are in your PDF? (Min: {bulkConfig?.minDesigns || 1}, Max: {bulkConfig?.maxDesigns || 50})
+                                            </p>
+
+                                            {numberOfDesignsNum > 0 && (
+                                              <div className="mt-3 p-3 bg-orange-50 border border-orange-200 rounded-lg animate-in fade-in slide-in-from-top-1 duration-300">
+                                                <p className="text-sm font-bold text-orange-900 flex items-center gap-2">
+                                                  <Info className="w-4 h-4 text-orange-600" />
+                                                  Required Page Count: {expectedPages} Pages
+                                                </p>
+                                                <p className="text-xs text-orange-700 mt-1">
+                                                  Your PDF/CDR must have exactly {expectedPages} pages ({numberOfDesignsNum} designs × {pagesPerDesign} pages per design)
+                                                </p>
+                                              </div>
+                                            )}
+                                          </div>
+
+                                          {/* Composite PDF Upload */}
+                                          <div data-bulk-upload-section>
+                                            <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                              Upload Composite PDF *
+                                            </label>
+                                            <input
+                                              type="file"
+                                              id="bulk-pdf-upload-input"
+                                              accept=".pdf,.cdr,application/pdf,application/x-coreldraw,application/coreldraw"
+                                              onChange={handleBulkPdfUpload}
+                                              className="hidden"
+                                            />
+
+                                            <label
+                                              htmlFor="bulk-pdf-upload-input"
+                                              className={`block cursor-pointer border-2 border-dashed rounded-xl p-6 sm:p-8 text-center transition-all ${bulkPdfError
+                                                ? 'border-red-400 bg-red-50/50'
+                                                : bulkCompositePdf
+                                                  ? 'border-green-400 bg-green-50/30 shadow-inner'
+                                                  : 'border-orange-300 bg-orange-50/30 hover:border-orange-500 hover:bg-orange-50/50 hover:shadow-md'
+                                                }`}
+                                            >
+                                              {isBulkPdfProcessing ? (
+                                                <div className="flex flex-col items-center py-4">
+                                                  <div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mb-3"></div>
+                                                  <p className="text-sm font-bold text-gray-700">Analyzing Bulk File...</p>
+                                                  <p className="text-xs text-gray-500 mt-1">Extracting {expectedPages} design pages</p>
+                                                </div>
+                                              ) : bulkCompositePdf ? (
+                                                <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+                                                  <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-md">
+                                                    <FileText className="w-6 h-6 text-white" />
+                                                  </div>
+                                                  <div className="text-center sm:text-left flex-1 min-w-0">
+                                                    <p className="font-bold text-gray-900 text-sm sm:text-base truncate">{bulkCompositePdf.name}</p>
+                                                    <p className="text-xs sm:text-sm text-gray-600 font-medium">
+                                                      {(bulkCompositePdf.size / (1024 * 1024)).toFixed(2)} MB • {bulkPdfPreviewPages.length > 0 ? `${bulkPdfPreviewPages.length} Pages Extracted` : 'Ready'}
+                                                    </p>
+                                                  </div>
+                                                  <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                      e.preventDefault();
+                                                      setBulkCompositePdf(null);
+                                                      setBulkPdfPreviewPages([]);
+                                                      setBulkPdfExtractedPages([]);
+                                                      const fileInput = document.getElementById('bulk-pdf-upload-input') as HTMLInputElement;
+                                                      if (fileInput) fileInput.value = '';
+                                                    }}
+                                                    className="px-4 py-2 text-xs font-bold text-red-700 bg-red-100 hover:bg-red-200 rounded-xl transition-all hover:shadow-md"
+                                                  >
+                                                    Remove
+                                                  </button>
+                                                </div>
+                                              ) : (
+                                                <div className="py-2">
+                                                  <div className="w-14 h-14 rounded-full bg-orange-100 flex items-center justify-center mx-auto mb-4">
+                                                    <UploadCloud className="w-8 h-8 text-orange-600" />
+                                                  </div>
+                                                  <p className="text-base font-bold text-gray-800 mb-1">
+                                                    Upload your bulk design file
+                                                  </p>
+                                                  <p className="text-sm text-gray-600 mb-3 font-medium">
+                                                    PDF or CDR • Max {bulkConfig?.maxFileSizeMB || 10}MB
+                                                  </p>
+                                                  <div className="inline-flex items-center gap-2 px-5 py-2.5 bg-orange-600 text-white rounded-xl text-sm font-bold hover:bg-orange-700 transition-all hover:shadow-lg hover:scale-105">
+                                                    <FileText size={16} />
+                                                    Select Bulk File
+                                                  </div>
+                                                </div>
+                                              )}
+                                            </label>
+
+                                            {/* Scrollable Preview Window for Bulk PDF */}
+                                            {bulkPdfPreviewPages.length > 0 && (
+                                              <div className="mt-4 animate-in fade-in slide-in-from-top-4 duration-500">
+                                                <div className="flex items-center justify-between mb-3 px-1">
+                                                  <h4 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                                                    <div className="w-2 h-6 bg-orange-500 rounded-full"></div>
+                                                    Design Preview ({bulkPdfPreviewPages.length} Pages)
+                                                  </h4>
+                                                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Scroll to view all designs</span>
+                                                </div>
+
+                                                <div className="relative group">
+                                                  <div className="flex gap-4 overflow-x-auto pb-4 pt-1 snap-x px-1 scrollbar-thin">
+                                                    {bulkPdfPreviewPages.map((preview, index) => (
+                                                      <div
+                                                        key={index}
+                                                        className="flex-shrink-0 w-[180px] sm:w-[220px] snap-start"
+                                                      >
+                                                        <div className="relative aspect-[3/4] bg-white rounded-xl border-2 border-orange-100 shadow-md group/item overflow-hidden hover:border-orange-400 transition-all duration-300">
+                                                          <img
+                                                            src={preview}
+                                                            alt={`Design ${index + 1}`}
+                                                            className="w-full h-full object-contain"
+                                                          />
+                                                          <div className="absolute top-2 left-2 w-7 h-7 bg-orange-600 text-white rounded-full flex items-center justify-center text-[10px] font-black shadow-lg border-2 border-white ring-1 ring-orange-200">
+                                                            {index + 1}
+                                                          </div>
+                                                        </div>
+                                                      </div>
+                                                    ))}
                                                   </div>
                                                 </div>
                                               </div>
-                                            ))}
+                                            )}
+
+                                            {bulkPdfError && (
+                                              <div className="mt-4 p-4 bg-red-50 border-2 border-red-200 rounded-xl">
+                                                <div className="flex items-start gap-2">
+                                                  <AlertCircle className="text-red-600 flex-shrink-0 mt-0.5" size={18} />
+                                                  <div>
+                                                    <p className="text-sm font-semibold text-red-900 mb-1">Upload Error</p>
+                                                    <p className="text-sm text-red-700">{bulkPdfError}</p>
+                                                  </div>
+                                                </div>
+                                              </div>
+                                            )}
                                           </div>
                                         </div>
                                       </div>
-                                    )}
+                                    );
+                                  }
 
-                                    {bulkPdfError && (
-                                      <div className="mt-4 p-4 bg-red-50 border-2 border-red-200 rounded-xl">
-                                        <div className="flex items-start gap-2">
-                                          <AlertCircle className="text-red-600 flex-shrink-0 mt-0.5" size={18} />
-                                          <div>
-                                            <p className="text-sm font-semibold text-red-900 mb-1">Upload Error</p>
-                                            <p className="text-sm text-red-700">{bulkPdfError}</p>
-                                          </div>
-                                        </div>
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          }
+                                  // SINGLE ORDER MODE
+                                  if (orderMode === 'single') {
+                                    // Calculate required pages dynamically
+                                    const calculatedPages = calculateRequiredPageCount();
 
-                          // SINGLE ORDER MODE
-                          if (orderMode === 'single') {
-                            // Calculate required pages dynamically
-                            const calculatedPages = calculateRequiredPageCount();
+                                    // Only show PDF upload section when pages are required
+                                    if (calculatedPages === 0) return null;
 
-                            // Only show PDF upload section when pages are required
-                            if (calculatedPages === 0) return null;
-
-                            return (
-                              <div className="mb-3 sm:mb-4 bg-white rounded-2xl border border-gray-200 shadow-lg shadow-gray-200/50 overflow-hidden hover:shadow-xl hover:shadow-gray-200/50 transition-all duration-300">
-                                {/* Header Section */}
-                                <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 px-4 sm:px-5 py-3 sm:py-4 border-b border-gray-200">
-                                  <div className="flex items-center gap-3">
-                                    <div className="w-9 h-9 rounded-xl bg-white shadow-md flex items-center justify-center ring-1 ring-blue-100">
-                                      <FileText className="w-5 h-5 text-blue-600" />
-                                    </div>
-                                    <div className="flex-1">
-                                      <h3 className="font-bold text-sm sm:text-base text-gray-900">
-                                        Upload Design File
-                                      </h3>
-                                      <p className="text-xs text-gray-600 mt-0.5 font-medium">
-                                        {calculatedPages} page{calculatedPages !== 1 ? 's' : ''} required • PDF or CDR • Max: {MAX_PDF_SIZE_MB}MB
-                                      </p>
-                                    </div>
-                                    {pdfFile && !pdfValidationError && (
-                                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-green-100 to-emerald-100 text-green-700 text-xs font-bold shadow-sm">
-                                        <Check size={14} strokeWidth={3} />
-                                        Complete
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-
-                                {/* Upload Area */}
-                                <div className="p-4 sm:p-5">
-                                  {/* Upload Input */}
-                                  <input
-                                    type="file"
-                                    id="pdf-upload-input"
-                                    accept=".pdf,.cdr,application/pdf,application/x-coreldraw,application/coreldraw"
-                                    onChange={handlePdfUpload}
-                                    className="hidden"
-                                    data-required-field
-                                  />
-
-                                  {!pdfFile ? (
-                                    /* Upload Prompt */
-                                    <label
-                                      htmlFor="pdf-upload-input"
-                                      className={`block cursor-pointer border-2 border-dashed rounded-xl transition-all duration-300 hover:scale-[1.01] ${pdfValidationError
-                                        ? 'border-red-400 bg-red-50/50 shadow-inner'
-                                        : 'border-gray-300 bg-gradient-to-br from-gray-50 to-slate-50 hover:border-blue-500 hover:bg-gradient-to-br hover:from-blue-50 hover:to-indigo-50 hover:shadow-md'
-                                        }`}
-                                    >
-                                      <div className="p-8 text-center">
-                                        {isPdfProcessing ? (
-                                          <div className="flex flex-col items-center">
-                                            <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-3"></div>
-                                            <p className="text-sm font-semibold text-gray-700">Processing Design File...</p>
-                                            <p className="text-xs text-gray-500 mt-1">Extracting pages as images</p>
-                                          </div>
-                                        ) : (
-                                          <>
-                                            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center mx-auto mb-4">
-                                              <UploadCloud className="w-7 h-7 text-blue-600" />
-                                            </div>
-                                            <p className="text-base font-bold text-gray-800 mb-1">
-                                              Click to upload design file
-                                            </p>
-                                            <p className="text-sm text-gray-600 mb-2 font-medium">
-                                              {calculatedPages} page{calculatedPages !== 1 ? 's' : ''} required
-                                            </p>
-                                            <p className="text-xs text-gray-500 mb-4">
-                                              Supports PDF & CDR • Max: {MAX_PDF_SIZE_MB}MB
-                                            </p>
-                                            <div className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg text-sm font-bold hover:from-blue-700 hover:to-indigo-700 transition-all hover:shadow-lg hover:scale-105">
-                                              <FileImage size={16} />
-                                              Select Design File
-                                            </div>
-                                          </>
-                                        )}
-                                      </div>
-                                    </label>
-                                  ) : (
-                                    <>
-                                      {/* PDF Upload Success & Preview */}
-                                      <div className="space-y-4">
-                                        {/* PDF File Info */}
-                                        <div className="flex items-center justify-between p-4 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-300 rounded-xl shadow-md hover:shadow-lg transition-all">
+                                    return (
+                                      <div className="mb-3 sm:mb-4 bg-white rounded-2xl border border-gray-200 shadow-lg shadow-gray-200/50 overflow-hidden hover:shadow-xl hover:shadow-gray-200/50 transition-all duration-300">
+                                        {/* Header Section */}
+                                        <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 px-4 sm:px-5 py-3 sm:py-4 border-b border-gray-200">
                                           <div className="flex items-center gap-3">
-                                            <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-md">
-                                              <FileText className="w-6 h-6 text-white" />
+                                            <div className="w-9 h-9 rounded-xl bg-white shadow-md flex items-center justify-center ring-1 ring-blue-100">
+                                              <FileText className="w-5 h-5 text-blue-600" />
                                             </div>
-                                            <div>
-                                              <p className="text-sm font-semibold text-gray-900">
-                                                {pdfFile.name}
-                                              </p>
-                                              <p className="text-xs text-gray-600">
-                                                {pdfFile.name.toLowerCase().endsWith('.cdr')
-                                                  ? `CDR file ready (will be processed server-side)`
-                                                  : `${extractedPdfPages.length} page${extractedPdfPages.length !== 1 ? 's' : ''} extracted`
-                                                }
+                                            <div className="flex-1">
+                                              <h3 className="font-bold text-sm sm:text-base text-gray-900">
+                                                Upload Design File
+                                              </h3>
+                                              <p className="text-xs text-gray-600 mt-0.5 font-medium">
+                                                {calculatedPages} page{calculatedPages !== 1 ? 's' : ''} required • PDF or CDR • Max: {MAX_PDF_SIZE_MB}MB
                                               </p>
                                             </div>
+                                            {pdfFile && !pdfValidationError && (
+                                              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-green-100 to-emerald-100 text-green-700 text-xs font-bold shadow-sm">
+                                                <Check size={14} strokeWidth={3} />
+                                                Complete
+                                              </span>
+                                            )}
                                           </div>
-                                          <button
-                                            type="button"
-                                            onClick={() => {
-                                              setPdfFile(null);
-                                              setExtractedPdfPages([]);
-                                              setPdfPreviewPages([]);
-                                              setPdfValidationError(null);
-                                              // Clear mapped images
-                                              setFrontDesignFile(null);
-                                              setBackDesignFile(null);
-                                              setFrontDesignPreview("");
-                                              setBackDesignPreview("");
-                                              const fileInput = document.getElementById('pdf-upload-input') as HTMLInputElement;
-                                              if (fileInput) fileInput.value = '';
-                                            }}
-                                            className="px-3 py-1.5 text-xs font-bold text-red-700 bg-red-100 hover:bg-red-200 rounded-lg transition-all hover:shadow-md hover:scale-105"
-                                          >
-                                            Remove
-                                          </button>
                                         </div>
 
-                                        {/* Extracted Pages with Purpose Labels - Enhanced UI */}
-                                        {pdfPreviewPages.length > 0 && pdfPageMapping.length > 0 && (
-                                          <div>
-                                            <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                                              <FileText size={16} className="text-blue-600" />
-                                              Page Assignments
-                                            </h4>
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                                              {pdfPreviewPages.map((preview, index) => {
-                                                const mapping = pdfPageMapping[index];
-                                                if (!mapping) return null;
+                                        {/* Upload Area */}
+                                        <div className="p-4 sm:p-5">
+                                          {/* Upload Input */}
+                                          <input
+                                            type="file"
+                                            id="pdf-upload-input"
+                                            accept=".pdf,.cdr,application/pdf,application/x-coreldraw,application/coreldraw"
+                                            onChange={handlePdfUpload}
+                                            className="hidden"
+                                            data-required-field
+                                          />
 
-                                                // Color coding based on type
-                                                const colorClasses = {
-                                                  border: 'border-blue-400',
-                                                  badge: 'bg-gradient-to-br from-blue-500 to-indigo-600',
-                                                  labelBg: 'bg-gradient-to-r from-blue-600 to-indigo-700'
-                                                };
+                                          {!pdfFile ? (
+                                            /* Upload Prompt */
+                                            <label
+                                              htmlFor="pdf-upload-input"
+                                              className={`block cursor-pointer border-2 border-dashed rounded-xl transition-all duration-300 hover:scale-[1.01] ${pdfValidationError
+                                                ? 'border-red-400 bg-red-50/50 shadow-inner'
+                                                : 'border-gray-300 bg-gradient-to-br from-gray-50 to-slate-50 hover:border-blue-500 hover:bg-gradient-to-br hover:from-blue-50 hover:to-indigo-50 hover:shadow-md'
+                                                }`}
+                                            >
+                                              <div className="p-8 text-center">
+                                                {isPdfProcessing ? (
+                                                  <div className="flex flex-col items-center">
+                                                    <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-3"></div>
+                                                    <p className="text-sm font-semibold text-gray-700">Processing Design File...</p>
+                                                    <p className="text-xs text-gray-500 mt-1">Extracting pages as images</p>
+                                                  </div>
+                                                ) : (
+                                                  <>
+                                                    <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center mx-auto mb-4">
+                                                      <UploadCloud className="w-7 h-7 text-blue-600" />
+                                                    </div>
+                                                    <p className="text-base font-bold text-gray-800 mb-1">
+                                                      Click to upload design file
+                                                    </p>
+                                                    <p className="text-sm text-gray-600 mb-2 font-medium">
+                                                      {calculatedPages} page{calculatedPages !== 1 ? 's' : ''} required
+                                                    </p>
+                                                    <p className="text-xs text-gray-500 mb-4">
+                                                      Supports PDF & CDR • Max: {MAX_PDF_SIZE_MB}MB
+                                                    </p>
+                                                    <div className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg text-sm font-bold hover:from-blue-700 hover:to-indigo-700 transition-all hover:shadow-lg hover:scale-105">
+                                                      <FileImage size={16} />
+                                                      Select Design File
+                                                    </div>
+                                                  </>
+                                                )}
+                                              </div>
+                                            </label>
+                                          ) : (
+                                            <>
+                                              {/* PDF Upload Success & Preview */}
+                                              <div className="space-y-4">
+                                                {/* PDF File Info */}
+                                                <div className="flex items-center justify-between p-4 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-300 rounded-xl shadow-md hover:shadow-lg transition-all">
+                                                  <div className="flex items-center gap-3">
+                                                    <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-md">
+                                                      <FileText className="w-6 h-6 text-white" />
+                                                    </div>
+                                                    <div>
+                                                      <p className="text-sm font-semibold text-gray-900">
+                                                        {pdfFile.name}
+                                                      </p>
+                                                      <p className="text-xs text-gray-600">
+                                                        {pdfFile.name.toLowerCase().endsWith('.cdr')
+                                                          ? `CDR file ready (will be processed server-side)`
+                                                          : `${extractedPdfPages.length} page${extractedPdfPages.length !== 1 ? 's' : ''} extracted`
+                                                        }
+                                                      </p>
+                                                    </div>
+                                                  </div>
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                      setPdfFile(null);
+                                                      setExtractedPdfPages([]);
+                                                      setPdfPreviewPages([]);
+                                                      setPdfValidationError(null);
+                                                      // Clear mapped images
+                                                      setFrontDesignFile(null);
+                                                      setBackDesignFile(null);
+                                                      setFrontDesignPreview("");
+                                                      setBackDesignPreview("");
+                                                      const fileInput = document.getElementById('pdf-upload-input') as HTMLInputElement;
+                                                      if (fileInput) fileInput.value = '';
+                                                    }}
+                                                    className="px-3 py-1.5 text-xs font-bold text-red-700 bg-red-100 hover:bg-red-200 rounded-lg transition-all hover:shadow-md hover:scale-105"
+                                                  >
+                                                    Remove
+                                                  </button>
+                                                </div>
 
-                                                return (
-                                                  <div key={index} className="relative group">
-                                                    {/* Image Container with dynamic aspect ratio */}
-                                                    <div className="w-full relative overflow-hidden rounded-xl ring-2 ring-blue-400 ring-offset-0 shadow-lg hover:shadow-2xl hover:ring-blue-500 transition-all duration-300 hover:scale-[1.02]">
-                                                      <img
-                                                        src={preview}
-                                                        alt={`Page ${index + 1}`}
-                                                        className="w-full bg-white object-contain"
-                                                        style={{ aspectRatio: 'auto' }}
-                                                      />
+                                                {/* Extracted Pages with Purpose Labels - Enhanced UI */}
+                                                {pdfPreviewPages.length > 0 && pdfPageMapping.length > 0 && (
+                                                  <div>
+                                                    <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                                                      <FileText size={16} className="text-blue-600" />
+                                                      Page Assignments
+                                                    </h4>
+                                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                                      {pdfPreviewPages.map((preview, index) => {
+                                                        const mapping = pdfPageMapping[index];
+                                                        if (!mapping) return null;
+
+                                                        // Color coding based on type
+                                                        const colorClasses = {
+                                                          border: 'border-blue-400',
+                                                          badge: 'bg-gradient-to-br from-blue-500 to-indigo-600',
+                                                          labelBg: 'bg-gradient-to-r from-blue-600 to-indigo-700'
+                                                        };
+
+                                                        return (
+                                                          <div key={index} className="relative group">
+                                                            {/* Image Container with dynamic aspect ratio */}
+                                                            <div className="w-full relative overflow-hidden rounded-xl ring-2 ring-blue-400 ring-offset-0 shadow-lg hover:shadow-2xl hover:ring-blue-500 transition-all duration-300 hover:scale-[1.02]">
+                                                              <img
+                                                                src={preview}
+                                                                alt={`Page ${index + 1}`}
+                                                                className="w-full bg-white object-contain"
+                                                                style={{ aspectRatio: 'auto' }}
+                                                              />
+                                                            </div>
+
+                                                            {/* Page Number Badge */}
+                                                            <div className={`absolute -top-2 -left-2 w-8 h-8 ${colorClasses.badge} rounded-full flex items-center justify-center shadow-xl border-2 border-white ring-1 ring-blue-200`}>
+                                                              <span className="text-white text-xs font-black">{mapping.pageNumber}</span>
+                                                            </div>
+
+                                                            {/* Required Badge */}
+                                                            {mapping.isRequired && (
+                                                              <div className="absolute -top-2 -right-2 w-7 h-7 bg-gradient-to-br from-red-500 to-rose-600 rounded-full flex items-center justify-center shadow-xl border-2 border-white ring-1 ring-red-200">
+                                                                <span className="text-white text-xs font-black">!</span>
+                                                              </div>
+                                                            )}
+
+                                                            {/* Purpose Label - Always Visible */}
+                                                            <div className={`absolute bottom-0 left-0 right-0 ${colorClasses.labelBg} text-white px-2 py-2.5 rounded-b-xl shadow-md`}>
+                                                              <div className="flex items-center gap-1.5">
+                                                                <ImageIcon size={15} className="flex-shrink-0" />
+                                                                <div className="flex-1 min-w-0">
+                                                                  <p className="text-[11px] font-bold truncate leading-tight">
+                                                                    {mapping.purpose}
+                                                                  </p>
+                                                                  {mapping.type === 'attribute' && (
+                                                                    <p className="text-[9px] opacity-95 truncate font-medium">
+                                                                      {mapping.isRequired ? 'Required' : 'Optional'}
+                                                                    </p>
+                                                                  )}
+                                                                </div>
+                                                              </div>
+                                                            </div>
+
+                                                            {/* Hover Tooltip with Full Details */}
+                                                            <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300 rounded-xl pointer-events-none"></div>
+                                                          </div>
+                                                        );
+                                                      })}
                                                     </div>
 
-                                                    {/* Page Number Badge */}
-                                                    <div className={`absolute -top-2 -left-2 w-8 h-8 ${colorClasses.badge} rounded-full flex items-center justify-center shadow-xl border-2 border-white ring-1 ring-blue-200`}>
-                                                      <span className="text-white text-xs font-black">{mapping.pageNumber}</span>
-                                                    </div>
-
-                                                    {/* Required Badge */}
-                                                    {mapping.isRequired && (
-                                                      <div className="absolute -top-2 -right-2 w-7 h-7 bg-gradient-to-br from-red-500 to-rose-600 rounded-full flex items-center justify-center shadow-xl border-2 border-white ring-1 ring-red-200">
-                                                        <span className="text-white text-xs font-black">!</span>
+                                                    {/* Legend */}
+                                                    <div className="mt-4 p-3.5 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 border border-blue-200 rounded-xl shadow-sm">
+                                                      <div className="text-xs font-bold text-gray-800 mb-2.5 flex items-center gap-2">
+                                                        <div className="w-5 h-5 rounded-md bg-blue-100 flex items-center justify-center">
+                                                          <Info size={13} className="text-blue-600" />
+                                                        </div>
+                                                        Legend
                                                       </div>
-                                                    )}
-
-                                                    {/* Purpose Label - Always Visible */}
-                                                    <div className={`absolute bottom-0 left-0 right-0 ${colorClasses.labelBg} text-white px-2 py-2.5 rounded-b-xl shadow-md`}>
-                                                      <div className="flex items-center gap-1.5">
-                                                        <ImageIcon size={15} className="flex-shrink-0" />
-                                                        <div className="flex-1 min-w-0">
-                                                          <p className="text-[11px] font-bold truncate leading-tight">
-                                                            {mapping.purpose}
-                                                          </p>
-                                                          {mapping.type === 'attribute' && (
-                                                            <p className="text-[9px] opacity-95 truncate font-medium">
-                                                              {mapping.isRequired ? 'Required' : 'Optional'}
-                                                            </p>
-                                                          )}
+                                                      <div className="flex flex-wrap gap-4">
+                                                        <div className="flex items-center gap-2">
+                                                          <div className="w-6 h-6 rounded-lg bg-white shadow-sm flex items-center justify-center">
+                                                            <ImageIcon size={15} className="text-blue-600" />
+                                                          </div>
+                                                          <span className="text-xs text-gray-700 font-medium">Attribute Images</span>
+                                                        </div>
+                                                        <div className="flex items-center gap-2">
+                                                          <div className="w-6 h-6 rounded-lg bg-white shadow-sm flex items-center justify-center">
+                                                            <AlertTriangle size={15} className="text-red-600" />
+                                                          </div>
+                                                          <span className="text-xs text-gray-700 font-medium">Required</span>
                                                         </div>
                                                       </div>
                                                     </div>
+                                                  </div>
+                                                )}
 
-                                                    {/* Hover Tooltip with Full Details */}
-                                                    <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300 rounded-xl pointer-events-none"></div>
+                                                {/* CDR File Information Message */}
+                                                {pdfFile && pdfFile.name.toLowerCase().endsWith('.cdr') && pdfPreviewPages.length === 0 && (
+                                                  <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                                                    <div className="flex items-start gap-2">
+                                                      <Info size={16} className="text-blue-600 mt-0.5 flex-shrink-0" />
+                                                      <div className="text-xs text-blue-900">
+                                                        <p className="font-semibold mb-1">CDR File Uploaded Successfully</p>
+                                                        <p>Your CorelDRAW file will be processed on the server. Page previews are not available for CDR files, but your design will be processed according to the required page count ({requiredPageCount} page{requiredPageCount !== 1 ? 's' : ''}).</p>
+                                                      </div>
+                                                    </div>
                                                   </div>
-                                                );
-                                              })}
-                                            </div>
+                                                )}
+                                              </div>
+                                            </>
+                                          )}
 
-                                            {/* Legend */}
-                                            <div className="mt-4 p-3.5 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 border border-blue-200 rounded-xl shadow-sm">
-                                              <div className="text-xs font-bold text-gray-800 mb-2.5 flex items-center gap-2">
-                                                <div className="w-5 h-5 rounded-md bg-blue-100 flex items-center justify-center">
-                                                  <Info size={13} className="text-blue-600" />
-                                                </div>
-                                                Legend
-                                              </div>
-                                              <div className="flex flex-wrap gap-4">
-                                                <div className="flex items-center gap-2">
-                                                  <div className="w-6 h-6 rounded-lg bg-white shadow-sm flex items-center justify-center">
-                                                    <ImageIcon size={15} className="text-blue-600" />
-                                                  </div>
-                                                  <span className="text-xs text-gray-700 font-medium">Attribute Images</span>
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                  <div className="w-6 h-6 rounded-lg bg-white shadow-sm flex items-center justify-center">
-                                                    <AlertTriangle size={15} className="text-red-600" />
-                                                  </div>
-                                                  <span className="text-xs text-gray-700 font-medium">Required</span>
+                                          {/* Validation Error */}
+                                          {pdfValidationError && (
+                                            <div className="mt-4 p-4 bg-red-50 border-2 border-red-200 rounded-xl">
+                                              <div className="flex items-start gap-2">
+                                                <AlertCircle className="text-red-600 flex-shrink-0 mt-0.5" size={18} />
+                                                <div>
+                                                  <p className="text-sm font-semibold text-red-900 mb-1">Upload Error</p>
+                                                  <p className="text-sm text-red-700">{pdfValidationError}</p>
                                                 </div>
                                               </div>
                                             </div>
+                                          )}
+
+                                          {/* Additional Notes Section */}
+                                          <div className="mt-4 p-4 rounded-lg border-2 border-gray-200 bg-gray-50">
+                                            <div className="flex items-center gap-2 mb-3">
+                                              <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-purple-100 text-purple-700 text-xs font-bold">
+                                                <Info size={12} />
+                                              </span>
+                                              <h4 className="text-sm font-bold text-gray-900">
+                                                Additional Notes
+                                              </h4>
+                                              <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-200 text-gray-600 text-[10px] font-semibold">
+                                                Optional
+                                              </span>
+                                            </div>
+                                            <textarea
+                                              value={orderNotes}
+                                              onChange={(e) => setOrderNotes(e.target.value)}
+                                              placeholder="Any special instructions or notes for your order..."
+                                              className="w-full p-3 rounded-lg border-2 border-gray-200 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none text-sm resize-none bg-white transition-all"
+                                              rows={3}
+                                            />
                                           </div>
-                                        )}
-
-                                        {/* CDR File Information Message */}
-                                        {pdfFile && pdfFile.name.toLowerCase().endsWith('.cdr') && pdfPreviewPages.length === 0 && (
-                                          <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                                            <div className="flex items-start gap-2">
-                                              <Info size={16} className="text-blue-600 mt-0.5 flex-shrink-0" />
-                                              <div className="text-xs text-blue-900">
-                                                <p className="font-semibold mb-1">CDR File Uploaded Successfully</p>
-                                                <p>Your CorelDRAW file will be processed on the server. Page previews are not available for CDR files, but your design will be processed according to the required page count ({requiredPageCount} page{requiredPageCount !== 1 ? 's' : ''}).</p>
-                                              </div>
-                                            </div>
-                                          </div>
-                                        )}
-                                      </div>
-                                    </>
-                                  )}
-
-                                  {/* Validation Error */}
-                                  {pdfValidationError && (
-                                    <div className="mt-4 p-4 bg-red-50 border-2 border-red-200 rounded-xl">
-                                      <div className="flex items-start gap-2">
-                                        <AlertCircle className="text-red-600 flex-shrink-0 mt-0.5" size={18} />
-                                        <div>
-                                          <p className="text-sm font-semibold text-red-900 mb-1">Upload Error</p>
-                                          <p className="text-sm text-red-700">{pdfValidationError}</p>
                                         </div>
                                       </div>
-                                    </div>
-                                  )}
+                                    );
+                                  }
+                                  return null;
+                                })()
+                              }
 
-                                  {/* Additional Notes Section */}
-                                  <div className="mt-4 p-4 rounded-lg border-2 border-gray-200 bg-gray-50">
-                                    <div className="flex items-center gap-2 mb-3">
-                                      <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-purple-100 text-purple-700 text-xs font-bold">
-                                        <Info size={12} />
-                                      </span>
-                                      <h4 className="text-sm font-bold text-gray-900">
-                                        Additional Notes
-                                      </h4>
-                                      <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-200 text-gray-600 text-[10px] font-semibold">
-                                        Optional
-                                      </span>
+                              {/* Design Method Selection */}
+                              <div className="mb-6">
+                                <label className="block text-xs sm:text-sm font-bold text-gray-900 mb-3 uppercase tracking-wider">
+                                  {sectionNum++}. How would you like to design?
+                                </label>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                  <button
+                                    type="button"
+                                    onClick={() => setDesignMethod('upload')}
+                                    className={`flex flex-col items-center p-1 sm:p-2 rounded-xl border-2 transition-all duration-200 ${designMethod === 'upload'
+                                      ? "border-gray-900 bg-gray-50 text-gray-900 shadow-md"
+                                      : "border-gray-200 text-gray-700 hover:border-gray-400 hover:bg-white"
+                                      }`}
+                                  >
+                                    <div className={`w-8 h-8 sm:w-12 sm:h-12 rounded-full flex items-center justify-center mb-1.5 sm:mb-3 ${designMethod === 'upload' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600'}`}>
+                                      <UploadIcon size={16} className="sm:w-5 sm:h-5" />
                                     </div>
-                                    <textarea
-                                      value={orderNotes}
-                                      onChange={(e) => setOrderNotes(e.target.value)}
-                                      placeholder="Any special instructions or notes for your order..."
-                                      className="w-full p-3 rounded-lg border-2 border-gray-200 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none text-sm resize-none bg-white transition-all"
-                                      rows={3}
-                                    />
-                                  </div>
+                                    <span className="font-bold text-[13px] sm:text-sm">Upload My Design</span>
+                                    <p className="text-[9px] sm:text-[10px] text-gray-500 mt-0.5 sm:mt-1 text-center font-medium">I have a print-ready file (PDF, CDR)</p>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => setDesignMethod('hire')}
+                                    className={`flex flex-col items-center p-1 sm:p-2 rounded-xl border-2 transition-all duration-200 ${designMethod === 'hire'
+                                      ? "border-gray-900 bg-gray-50 text-gray-900 shadow-md"
+                                      : "border-gray-200 text-gray-700 hover:border-gray-400 hover:bg-white"
+                                      }`}
+                                  >
+                                    <div className={`w-8 h-8 sm:w-12 sm:h-12 rounded-full flex items-center justify-center mb-1.5 sm:mb-3 ${designMethod === 'hire' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600'}`}>
+                                      <Zap size={16} className="sm:w-6 sm:h-6" />
+                                    </div>
+                                    <span className="font-bold text-[13px] sm:text-sm">Hire a Professional</span>
+                                    <p className="text-[9px] sm:text-[10px] text-gray-500 mt-0.5 sm:mt-1 text-center font-medium">Get it designed by our expert designers</p>
+                                  </button>
                                 </div>
                               </div>
-                            );
-                          }
-                          return null;
+                            </>
+                          );
                         })()}
-
-
                       </div>
 
                       {/* Premium Sticky Footer with Total Price + CTA */}
-                      {(loading || isPricingLoading || pdpLoading) ? (
-                        <div className="sticky top-0 z-20 mt-auto pt-6 border-t border-gray-100 bg-white shadow-[0_-10px_20px_-5px_rgba(0,0,0,0.05)] px-2 pb-2">
-                          <div className="flex justify-between items-end mb-4">
-                            <div className="space-y-2">
-                              <Skeleton variant="text" className="w-24 h-3" />
-                              <Skeleton variant="text" className="w-32 h-8" />
-                            </div>
-                            <Skeleton variant="text" className="w-24 h-4" />
-                          </div>
-                          <Skeleton variant="rectangular" className="w-full h-14 rounded-xl" />
-                        </div>
-                      ) : (
-                        <div ref={stickyAnchorRef} className="sticky bottom-0 z-20 mt-auto pt-6 border-t border-gray-100 bg-white shadow-[0_-10px_20px_-5px_rgba(0,0,0,0.05)] px-2 pb-2">
-                          <div className="flex justify-between items-end mb-4">
-                            {(price + gstAmount) > 0 ? (
-                              <div>
-                                <p className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-1">
-                                  {orderMode === 'bulk'
-                                    ? `Estimated Total Value (${parseInt(numberOfDesigns) || 1} ${(parseInt(numberOfDesigns) || 1) === 1 ? 'Design' : 'Designs'})`
-                                    : 'Estimated Total Value'}
-                                </p>
-                                <div className="flex items-baseline gap-1">
-                                  <span className="text-3xl font-bold text-gray-900">
-                                    ₹{(() => {
-                                      const numDesigns = parseInt(numberOfDesigns) || 1;
-                                      const totalPrice = orderMode === 'bulk'
-                                        ? (price + gstAmount) * numDesigns
-                                        : (price + gstAmount);
-                                      const [integerPart, decimalPart] = totalPrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).split('.');
-                                      return (
-                                        <>
-                                          {integerPart}
-                                          <span className="text-xl">.{decimalPart}</span>
-                                        </>
-                                      );
-                                    })()}
-                                  </span>
-                                  <span className="text-xs text-gray-500 font-medium">incl. taxes</span>
-                                </div>
-                                {orderMode === 'bulk' && (parseInt(numberOfDesigns) || 1) > 1 && (
-                                  <p className="text-[10px] text-gray-400 mt-0.5">
-                                    ₹{(price + gstAmount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} × {parseInt(numberOfDesigns) || 1} designs
-                                  </p>
-                                )}
+                      {
+                        (loading || isPricingLoading || pdpLoading) ? (
+                          <div className="sticky bottom-0 z-20 mt-auto pt-6 border-t border-gray-100 bg-white shadow-[0_-10px_20px_-5px_rgba(0,0,0,0.05)] px-2 pb-2">
+                            <div className="flex justify-between items-end mb-4">
+                              <div className="space-y-2">
+                                <Skeleton variant="text" className="w-24 h-3" />
+                                <Skeleton variant="text" className="w-32 h-8" />
                               </div>
-                            ) : (
-                              <div className="flex flex-col gap-1">
-                                <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">Estimated Total Value</p>
-                                <span className="text-sm font-medium text-amber-600 italic">Price to be updated</span>
+                              <Skeleton variant="text" className="w-24 h-4" />
+                            </div>
+                            <Skeleton variant="rectangular" className="w-full h-14 rounded-xl" />
+                          </div>
+                        ) : (
+                          <div ref={stickyAnchorRef} className="sticky bottom-0 z-20 mt-auto pt-6 border-t border-gray-100 bg-white shadow-[0_-10px_20px_-5px_rgba(0,0,0,0.05)] px-2 pb-2">
+                            <div className="flex justify-between items-end mb-4">
+                              {(price + gstAmount) > 0 ? (
+                                <div>
+                                  <p className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-1">
+                                    {orderMode === 'bulk'
+                                      ? `Estimated Total Value (${parseInt(numberOfDesigns) || 1} ${(parseInt(numberOfDesigns) || 1) === 1 ? 'Design' : 'Designs'})`
+                                      : 'Estimated Total Value'}
+                                  </p>
+                                  <div className="flex items-baseline gap-1">
+                                    <span className="text-3xl font-bold text-gray-900">
+                                      ₹{(() => {
+                                        const numDesigns = parseInt(numberOfDesigns) || 1;
+                                        const totalPrice = orderMode === 'bulk'
+                                          ? (price + gstAmount) * numDesigns
+                                          : (price + gstAmount);
+                                        const [integerPart, decimalPart] = totalPrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).split('.');
+                                        return (
+                                          <>
+                                            {integerPart}
+                                            <span className="text-xl">.{decimalPart}</span>
+                                          </>
+                                        );
+                                      })()}
+                                    </span>
+                                    <span className="text-xs text-gray-500 font-medium">incl. taxes</span>
+                                  </div>
+                                  {orderMode === 'bulk' && (parseInt(numberOfDesigns) || 1) > 1 && (
+                                    <p className="text-[10px] text-gray-400 mt-0.5">
+                                      ₹{(price + gstAmount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} × {parseInt(numberOfDesigns) || 1} designs
+                                    </p>
+                                  )}
+                                </div>
+                              ) : (
+                                <div className="flex flex-col gap-1">
+                                  <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">Estimated Total Value</p>
+                                  <span className="text-sm font-medium text-amber-600 italic">Price to be updated</span>
+                                </div>
+                              )}
+                              <div className="text-right flex flex-col items-end gap-1">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-semibold">
+                                  <Zap size={12} className="text-green-600" />
+                                  Fast Production
+                                </span>
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[10px] font-semibold">
+                                  <Lock size={12} />
+                                  Secure Checkout
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Validation Error */}
+                            {validationError && (
+                              <div className="mb-2.5 p-2.5 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2" role="alert">
+                                <AlertCircle size={14} className="text-red-500 flex-shrink-0 mt-0.5" />
+                                <div>
+                                  {validationError.split('\n').map((err, i) => (
+                                    <p key={i} className="text-xs text-red-600 font-medium">{err}</p>
+                                  ))}
+                                </div>
                               </div>
                             )}
-                            <div className="text-right flex flex-col items-end gap-1">
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-semibold">
-                                <Zap size={12} className="text-green-600" />
-                                Fast Production
-                              </span>
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[10px] font-semibold">
-                                <Lock size={12} />
-                                Secure Checkout
-                              </span>
-                            </div>
+
+                            {/* CTA Button */}
+                            {(() => {
+                              const noPriceAvailable = !isPricingLoading && (price === 0 && gstAmount === 0);
+                              const isDisabled = isProcessingPayment || noPriceAvailable;
+                              return (
+                                <button
+                                  onClick={isDisabled ? undefined : handlePlaceOrder}
+                                  disabled={isDisabled}
+                                  title={noPriceAvailable ? 'Price not available — this product cannot be ordered' : undefined}
+                                  className={`w-full py-3.5 rounded-xl font-bold text-[15px] tracking-wide transition-all duration-200 flex items-center justify-center gap-2 group relative overflow-hidden
+                                    ${isProcessingPayment
+                                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                      : noPriceAvailable
+                                        ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                                        : 'bg-gray-900 text-white hover:bg-gray-800 active:scale-[0.98] shadow-md hover:shadow-lg'
+                                    }`}
+                                >
+                                  {/* shimmer effect on hover */}
+                                  {!isDisabled && (
+                                    <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-in-out" />
+                                  )}
+                                  {isProcessingPayment ? (
+                                    <>
+                                      <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                                      <span>Processing…</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <span>{noPriceAvailable ? 'Price Unavailable' : 'Place Order'}</span>
+                                      {!noPriceAvailable && <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform duration-200" />}
+                                    </>
+                                  )}
+                                </button>
+                              );
+                            })()}
                           </div>
-
-                          {/* Validation Error */}
-                          {validationError && (
-                            <div className="mb-2.5 p-2.5 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2" role="alert">
-                              <AlertCircle size={14} className="text-red-500 flex-shrink-0 mt-0.5" />
-                              <div>
-                                {validationError.split('\n').map((err, i) => (
-                                  <p key={i} className="text-xs text-red-600 font-medium">{err}</p>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-
-                          {/* CTA Button */}
-                          {(() => {
-                            const noPriceAvailable = !isPricingLoading && (price === 0 && gstAmount === 0);
-                            const isDisabled = isProcessingPayment || noPriceAvailable;
-                            return (
-                              <button
-                                onClick={isDisabled ? undefined : handlePlaceOrder}
-                                disabled={isDisabled}
-                                title={noPriceAvailable ? 'Price not available — this product cannot be ordered' : undefined}
-                                className={`w-full py-3.5 rounded-xl font-bold text-[15px] tracking-wide transition-all duration-200 flex items-center justify-center gap-2 group relative overflow-hidden
-                                  ${isProcessingPayment
-                                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                                    : noPriceAvailable
-                                      ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                                      : 'bg-gray-900 text-white hover:bg-gray-800 active:scale-[0.98] shadow-md hover:shadow-lg'
-                                  }`}
-                              >
-                                {/* shimmer effect on hover */}
-                                {!isDisabled && (
-                                  <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-in-out" />
-                                )}
-                                {isProcessingPayment ? (
-                                  <>
-                                    <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
-                                    <span>Processing…</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <span>{noPriceAvailable ? 'Price Unavailable' : 'Place Order'}</span>
-                                    {!noPriceAvailable && <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform duration-200" />}
-                                  </>
-                                )}
-                              </button>
-                            );
-                          })()}
-                        </div>
-                      )}
+                        )
+                      }
                     </motion.div>
                   </AnimatePresence>
                 </div>
@@ -7273,255 +7841,656 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
         }}
       />
 
-      {/* REMOVED: old inline payment modal replaced by PaymentConfirmationModal above */}
-      {false && (
-        <AnimatePresence>
-          {showPaymentModal && (
+      {/* Designer Selection Modal */}
+      <AnimatePresence>
+        {showDesignerSelectionModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
+          >
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
-              onClick={() => !isProcessingPayment && setShowPaymentModal(false)}
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
             >
-              <motion.div
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.9, opacity: 0 }}
-                onClick={(e) => e.stopPropagation()}
-                className="bg-white rounded-xl shadow-2xl max-w-md w-full p-4 sm:p-6 max-h-[90vh] overflow-y-auto"
-                data-payment-modal
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg sm:text-xl font-bold text-gray-900 flex items-center gap-2">
-                    <CreditCard size={20} className="sm:w-6 sm:h-6" />
-                    <span className="text-base sm:text-xl">Payment Confirmation</span>
-                  </h3>
-                  {!isProcessingPayment && (
-                    <button
-                      onClick={() => setShowPaymentModal(false)}
-                      className="text-gray-600 hover:text-gray-900"
+              <div className="p-6 border-b border-gray-100 flex justify-between items-center">
+                <h3 className="text-xl font-bold text-gray-900">Hire a Professional Designer</h3>
+                <button onClick={() => setShowDesignerSelectionModal(false)} className="text-gray-400 hover:text-gray-600">
+                  <X size={24} />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-4">
+                {designerSettings.visualDesignerEnabled && (
+                  <div
+                    onClick={() => {
+                      setShowDesignerSelectionModal(false);
+                      setSelectedDesignerType('visual');
+                      setShowVisualDesignerForm(true);
+                    }}
+                    className="group p-4 border-2 border-gray-100 rounded-xl hover:border-blue-500 hover:bg-blue-50/50 transition-all cursor-pointer flex gap-4"
+                  >
+                    <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center text-blue-600 shrink-0 group-hover:scale-110 transition-transform">
+                      <Video size={24} />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-gray-900">Visual Designer</h4>
+                      <p className="text-sm text-gray-500">Submit requirements online and our team will design it for you. Perfect for standard layouts.</p>
+                    </div>
+                  </div>
+                )}
+
+                {designerSettings.physicalDesignerEnabled && (
+                  <div
+                    onClick={() => {
+                      setShowDesignerSelectionModal(false);
+                      setSelectedDesignerType('physical');
+                      setShowPhysicalDesignerList(true);
+                      fetchDesigners();
+                    }}
+                    className="group p-4 border-2 border-gray-100 rounded-xl hover:border-purple-500 hover:bg-purple-50/50 transition-all cursor-pointer flex gap-4"
+                  >
+                    <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center text-purple-600 shrink-0 group-hover:scale-110 transition-transform">
+                      <MapPin size={24} />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-gray-900">Physical Designer</h4>
+                      <p className="text-sm text-gray-500">Book a designer for a physical visit or office meeting. Best for complex branding and direct coordination.</p>
+                    </div>
+                  </div>
+                )}
+
+                {!designerSettings.visualDesignerEnabled && !designerSettings.physicalDesignerEnabled && (
+                  <p className="text-center text-gray-500 py-4">Designer services are currently unavailable. Please check back later.</p>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Visual Designer Requirement Form Modal */}
+      <AnimatePresence>
+        {showVisualDesignerForm && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-6 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white z-10">
+                <h3 className="text-xl font-bold text-gray-900">Design Requirement Form</h3>
+                <button onClick={() => setShowVisualDesignerForm(false)} className="text-gray-400 hover:text-gray-600">
+                  <X size={24} />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Design For */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-gray-700">Card / Design For</label>
+                    <select
+                      value={visualFormData.designFor}
+                      onChange={(e) => setVisualFormData({ ...visualFormData, designFor: e.target.value })}
+                      className="w-full p-2.5 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none"
                     >
-                      <X size={24} />
-                    </button>
-                  )}
+                      {DESIGN_FOR_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                    </select>
+                    {visualFormData.designFor === 'Other' && (
+                      <input
+                        type="text"
+                        placeholder="Specify category..."
+                        value={visualFormData.otherDesignFor}
+                        onChange={(e) => setVisualFormData({ ...visualFormData, otherDesignFor: e.target.value })}
+                        className="w-full mt-2 p-2.5 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none"
+                      />
+                    )}
+                  </div>
+
+                  {/* Design Style */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-gray-700">Design Style</label>
+                    <div className="flex flex-wrap gap-2">
+                      {DESIGN_STYLE_OPTIONS.map(opt => (
+                        <button
+                          key={opt}
+                          onClick={() => setVisualFormData({ ...visualFormData, designStyle: opt })}
+                          className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${visualFormData.designStyle === opt ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                        >
+                          {opt}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Color Preference */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-gray-700">Color Preference</label>
+                    <select
+                      value={visualFormData.colorPreference}
+                      onChange={(e) => setVisualFormData({ ...visualFormData, colorPreference: e.target.value })}
+                      className="w-full p-2.5 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none"
+                    >
+                      {COLOR_PREFERENCE_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                    </select>
+                  </div>
+
+                  {/* Language */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-gray-700">Language</label>
+                    <div className="flex flex-wrap gap-2">
+                      {LANGUAGE_OPTIONS.map(opt => (
+                        <button
+                          key={opt}
+                          onClick={() => setVisualFormData({ ...visualFormData, language: opt })}
+                          className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${visualFormData.language === opt ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                        >
+                          {opt}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
 
-                <div className="mb-6">
-                  <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-700 font-medium">Subtotal (Excluding GST):</span>
-                        <span className="text-lg font-bold text-gray-900">₹{price.toFixed(2)}</span>
-                      </div>
-                      {gstAmount > 0 && (
-                        <>
-                          <div className="flex justify-between items-center text-sm">
-                            <span className="text-gray-600">GST ({selectedProduct?.gstPercentage || 18}%):</span>
-                            <span className="text-gray-700">+₹{gstAmount.toFixed(2)}</span>
-                          </div>
-                          <div className="flex justify-between items-center pt-2 border-t border-gray-300">
-                            <span className="text-gray-700 font-medium">Total Amount (Including GST):</span>
-                            <span className="text-2xl font-bold text-gray-900">₹{(price + gstAmount).toFixed(2)}</span>
-                          </div>
-                        </>
-                      )}
+                {/* Uploads */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-3">
+                    <label className="text-sm font-bold text-gray-700">Logo Available?</label>
+                    <div className="flex gap-4">
+                      {['Yes', 'No'].map(opt => (
+                        <label key={opt} className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="logoAvailable"
+                            checked={visualFormData.logoAvailable === opt}
+                            onChange={() => setVisualFormData({ ...visualFormData, logoAvailable: opt })}
+                          />
+                          <span className="text-sm">{opt}</span>
+                        </label>
+                      ))}
                     </div>
-                    <p className="text-xs text-gray-600 mt-2">
-                      Your order will be placed and you can pay later.
-                    </p>
-                  </div>
-
-                  {paymentError && (
-                    <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 flex items-start gap-2">
-                      <AlertCircle size={20} className="text-red-600 flex-shrink-0 mt-0.5" />
-                      <p className="text-sm text-red-800">{paymentError}</p>
-                    </div>
-                  )}
-
-                  {/* Delivery Information Form */}
-                  <div className="mb-6 space-y-4">
-                    <h4 className="font-semibold text-gray-900 text-sm mb-3 flex items-center gap-2">
-                      <Truck size={18} />
-                      Delivery Information
-                    </h4>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Full Name <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        name="customerName"
-                        id="customerName"
-                        value={customerName}
-                        onChange={(e) => {
-                          setCustomerName(e.target.value);
-                          if (paymentError) setPaymentError(null);
-                        }}
-                        placeholder="Enter your full name"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none text-sm"
-                        required
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Email <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="email"
-                        name="customerEmail"
-                        id="customerEmail"
-                        value={customerEmail}
-                        onChange={(e) => {
-                          setCustomerEmail(e.target.value);
-                          if (paymentError) setPaymentError(null);
-                        }}
-                        placeholder="Enter your email address"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none text-sm"
-                        required
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Pincode <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        name="pincode"
-                        id="pincode"
-                        value={pincode}
-                        onChange={(e) => {
-                          const value = e.target.value.replace(/\D/g, '').slice(0, 6);
-                          setPincode(value);
-                          if (paymentError) setPaymentError(null);
-                        }}
-                        placeholder="Enter 6-digit pincode"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none text-sm"
-                        maxLength={6}
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Complete Address <span className="text-red-500">*</span>
-                      </label>
-                      <div className="flex gap-2">
-                        <textarea
-                          name="address"
-                          id="address"
-                          value={address}
-                          onChange={(e) => {
-                            setAddress(e.target.value);
-                            if (paymentError) setPaymentError(null);
-                          }}
-                          placeholder="Enter your complete delivery address"
-                          rows={3}
-                          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none text-sm resize-none"
+                    {visualFormData.logoAvailable === 'Yes' && (
+                      <div className="relative group border-2 border-dashed border-gray-200 rounded-xl p-4 hover:border-blue-400 transition-all">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => setVisualLogoFile(e.target.files?.[0] || null)}
+                          className="absolute inset-0 opacity-0 cursor-pointer"
                         />
-                        <button
-                          type="button"
-                          onClick={handleGetLocation}
-                          disabled={isGettingLocation}
-                          className="px-3 py-2 bg-purple-200 text-gray-900 rounded-lg hover:bg-indigo-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-                          title="Get location automatically"
-                        >
-                          {isGettingLocation ? (
-                            <div className="w-4 h-4 border-2 border-gray-900 border-t-transparent rounded-full animate-spin" />
-                          ) : (
-                            <MapPin size={18} />
-                          )}
-                        </button>
+                        <div className="flex flex-col items-center justify-center gap-1 text-gray-500">
+                          <UploadCloud size={20} />
+                          <span className="text-xs">{visualLogoFile ? visualLogoFile.name : 'Upload Logo'}</span>
+                        </div>
                       </div>
-                      <p className="text-xs text-gray-400 mt-1">You can enter address manually or use location button</p>
-                    </div>
+                    )}
+                  </div>
 
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Mobile Number <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        name="mobileNumber"
-                        id="mobileNumber"
-                        value={mobileNumber}
-                        onChange={(e) => {
-                          const value = e.target.value.replace(/\D/g, '').slice(0, 10);
-                          setMobileNumber(value);
-                          if (paymentError) setPaymentError(null);
+                  <div className="space-y-3">
+                    <label className="text-sm font-bold text-gray-700">Photo on Card?</label>
+                    <div className="flex gap-4">
+                      {['Yes', 'No'].map(opt => (
+                        <label key={opt} className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="photoOnCard"
+                            checked={visualFormData.photoOnCard === opt}
+                            onChange={() => setVisualFormData({ ...visualFormData, photoOnCard: opt })}
+                          />
+                          <span className="text-sm">{opt}</span>
+                        </label>
+                      ))}
+                    </div>
+                    {visualFormData.photoOnCard === 'Yes' && (
+                      <div className="relative group border-2 border-dashed border-gray-200 rounded-xl p-4 hover:border-blue-400 transition-all">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => setVisualPhotoFile(e.target.files?.[0] || null)}
+                          className="absolute inset-0 opacity-0 cursor-pointer"
+                        />
+                        <div className="flex flex-col items-center justify-center gap-1 text-gray-500">
+                          <ImageIcon size={20} />
+                          <span className="text-xs">{visualPhotoFile ? visualPhotoFile.name : 'Upload Photo'}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-bold text-gray-700">Any Special Instructions</label>
+                  <textarea
+                    value={visualFormData.specialInstructions}
+                    onChange={(e) => setVisualFormData({ ...visualFormData, specialInstructions: e.target.value })}
+                    placeholder="E.g. Font preferences, social media icons, back side details..."
+                    className="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm min-h-[100px]"
+                  />
+                </div>
+
+                <button
+                  onClick={() => createDesignerOrder('visual')}
+                  disabled={isSubmittingDesignerOrder}
+                  className="w-full py-4 bg-gray-900 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-black transition-all disabled:opacity-50"
+                >
+                  {isSubmittingDesignerOrder ? 'Submitting...' : 'Submit Requirements & Continue'}
+                  <ArrowRight size={20} />
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Physical Designer List Modal */}
+      <AnimatePresence>
+        {showPhysicalDesignerList && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-white z-10">
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 mb-1">
+                    <h3 className="text-xl font-bold text-gray-900">
+                      {bookingStep === 1 && "Choose Visit Type"}
+                      {bookingStep === 2 && "Select Date & Location"}
+                      {bookingStep === 3 && "Pick Your Designer & Time"}
+                    </h3>
+                    <div className="flex gap-1">
+                      {[1, 2, 3].map(step => (
+                        <div key={step} className={`w-6 h-1 rounded-full transition-all ${bookingStep >= step ? 'bg-blue-600' : 'bg-gray-200'}`} />
+                      ))}
+                    </div>
+                  </div>
+                  <p className="text-sm text-gray-500 font-medium">
+                    {bookingStep === 1 && "Select how you would like to consult"}
+                    {bookingStep === 2 && "When and where should the consultation happen?"}
+                    {bookingStep === 3 && "Select from our expert designers available on your date"}
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowPhysicalDesignerList(false);
+                    setBookingStep(1);
+                  }}
+                  className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                >
+                  <X size={24} className="text-gray-400" />
+                </button>
+              </div>
+
+              <div className="p-6 overflow-y-auto flex-1">
+                {bookingStep === 1 && (
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <button
+                        onClick={() => {
+                          setVisitType('Office');
+                          setPhysicalVisitAddress('At Prints24 Office');
                         }}
-                        placeholder="Enter 10-digit mobile number"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none text-sm"
-                        maxLength={10}
-                      />
-                    </div>
-                  </div>
+                        className={`p-5 rounded-2xl border-2 transition-all text-left flex flex-col gap-2 ${visitType === 'Office' ? 'border-blue-600 bg-blue-50 shadow-md' : 'border-gray-100 hover:border-blue-200'}`}
+                      >
+                        <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center">
+                          <MapPin size={24} />
+                        </div>
+                        <div>
+                          <span className="font-bold text-gray-900 block text-lg">Office Visit</span>
+                          <span className="text-sm text-gray-500">Meet our designers at our store for free consultation.</span>
+                        </div>
+                        {visitType === 'Office' && <div className="mt-auto pt-2 text-blue-600 flex items-center gap-1 text-xs font-bold uppercase tracking-wider"><Check size={14} /> Selected</div>}
+                      </button>
 
-                  <div className="space-y-2 text-sm text-gray-700">
-                    <p className="font-semibold mb-2">Order Summary:</p>
-                    <div className="space-y-1 ml-4">
-                      <p>• Product: <strong>{selectedProduct?.name}</strong></p>
-                      <p>• Quantity: <strong>{quantity.toLocaleString()}</strong></p>
-                      <p>• Printing Option: <strong>{selectedPrintingOption}</strong></p>
-                      <p>• Delivery Speed: <strong>{selectedDeliverySpeed}</strong></p>
-                      {selectedTextureType && (
-                        <p>• Texture Type: <strong>{selectedTextureType}</strong></p>
-                      )}
+                      <button
+                        onClick={() => {
+                          setVisitType('Home');
+                          setPhysicalVisitAddress('');
+                        }}
+                        className={`p-5 rounded-2xl border-2 transition-all text-left flex flex-col gap-2 ${visitType === 'Home' ? 'border-blue-600 bg-blue-50 shadow-md' : 'border-gray-100 hover:border-blue-200'}`}
+                      >
+                        <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center">
+                          <Truck size={24} />
+                        </div>
+                        <div>
+                          <span className="font-bold text-gray-900 block text-lg">Home Visit</span>
+                          <span className="text-sm text-gray-500">Get a professional designer to visit your location.</span>
+                        </div>
+                        {visitType === 'Home' && <div className="mt-auto pt-2 text-blue-600 flex items-center gap-1 text-xs font-bold uppercase tracking-wider"><Check size={14} /> Selected</div>}
+                      </button>
                     </div>
-                  </div>
 
-                  {/* Estimated Delivery Information - Show at checkout */}
-                  {estimatedDeliveryDate && (
-                    <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-                      <h3 className="font-bold text-sm text-gray-900 mb-2 flex items-center gap-2">
-                        <Truck size={16} /> Estimated Delivery
-                      </h3>
-                      <div className="text-green-700 text-sm">
-                        <div className="font-semibold mb-1">Estimated Delivery by <strong>{estimatedDeliveryDate}</strong></div>
-                        {deliveryLocationSource && (
-                          <div className="text-xs text-green-600 mt-1">
-                            {deliveryLocationSource}
+                    <button
+                      onClick={() => setBookingStep(2)}
+                      className="w-full py-4 bg-gray-900 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-black shadow-lg transition-all"
+                    >
+                      Next Step
+                      <ArrowRight size={20} />
+                    </button>
+                  </div>
+                )}
+
+                {bookingStep === 2 && (
+                  <div className="space-y-6">
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <label className="text-sm font-bold text-gray-700 flex items-center gap-2">
+                          <Zap size={16} className="text-blue-500" /> Select Consultation Date
+                        </label>
+                        <input
+                          type="date"
+                          value={selectedDate}
+                          min={new Date().toISOString().split('T')[0]}
+                          onChange={(e) => {
+                            setSelectedDate(e.target.value);
+                            setSelectedDesigner(null);
+                            setSelectedSlot('');
+                          }}
+                          className="w-full p-4 rounded-xl border-2 border-gray-100 focus:border-blue-500 outline-none text-base font-medium transition-all bg-gray-50 focus:bg-white"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        {visitType === 'Home' ? (
+                          <>
+                            <label className="text-sm font-bold text-gray-700 flex items-center gap-2">
+                              <MapPin size={16} className="text-blue-500" /> Your Visit Address
+                            </label>
+                            <textarea
+                              value={physicalVisitAddress}
+                              onChange={(e) => setPhysicalVisitAddress(e.target.value)}
+                              placeholder="Enter the full address where the designer should visit..."
+                              className="w-full p-4 rounded-xl border-2 border-gray-100 focus:border-blue-500 outline-none text-sm min-h-[100px] transition-all bg-gray-50 focus:bg-white"
+                            />
+                          </>
+                        ) : (
+                          <div className="p-4 rounded-xl bg-blue-50 border border-blue-100 space-y-2">
+                            <label className="text-sm font-bold text-blue-800 flex items-center gap-2">
+                              <MapPin size={16} /> Office Visit Information
+                            </label>
+                            {officeConfig?.officeAddress ? (
+                              <div className="space-y-1 mt-2">
+                                <p className="text-sm text-blue-700 font-medium">
+                                  📍 {officeConfig.officeAddress}
+                                </p>
+                                {officeConfig?.officePhone && (
+                                  <p className="text-sm text-blue-700">
+                                    📞 {officeConfig.officePhone}
+                                  </p>
+                                )}
+                              </div>
+                            ) : (
+                              <p className="text-sm text-blue-700 leading-relaxed mt-2">
+                                You're welcome to visit our design studio at your selected date and time.
+                                Our team will be ready to assist you during your scheduled slot.
+                              </p>
+                            )}
                           </div>
                         )}
                       </div>
-                    </div>
-                  )}
-                </div>
 
-                <div className="flex gap-3">
-                  {!isProcessingPayment && (
-                    <button
-                      onClick={() => setShowPaymentModal(false)}
-                      className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                    >
-                      Cancel
-                    </button>
-                  )}
-                  <button
-                    onClick={() => handlePaymentAndOrder()}
-                    disabled={isProcessingPayment}
-                    className="flex-1 px-4 py-3 bg-gray-900 text-white rounded-lg font-semibold hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                  >
-                    {isProcessingPayment ? (
-                      <>
-                        <div className="w-4 h-4 border-2 border-gray-600 border-t-transparent rounded-full animate-spin" />
-                        Processing...
-                      </>
+                      {/* Customer Mobile Number */}
+                      <div className="space-y-2">
+                        <label className="text-sm font-bold text-gray-700 flex items-center gap-2">
+                          📱 Your Mobile Number <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="tel"
+                          value={customerPhone}
+                          onChange={(e) => {
+                            const val = e.target.value.replace(/\D/g, '').slice(0, 10);
+                            setCustomerPhone(val);
+                          }}
+                          placeholder="Enter 10-digit mobile number"
+                          maxLength={10}
+                          className={`w-full p-4 rounded-xl border-2 outline-none text-base font-medium transition-all bg-gray-50 focus:bg-white ${customerPhone && customerPhone.length !== 10
+                            ? 'border-red-300 focus:border-red-500'
+                            : 'border-gray-100 focus:border-blue-500'
+                            }`}
+                        />
+                        {customerPhone && customerPhone.length !== 10 && (
+                          <p className="text-xs text-red-500 mt-1">Please enter a valid 10-digit mobile number</p>
+                        )}
+                      </div>
+
+                      <div className="flex gap-4">
+                        <button
+                          onClick={() => setBookingStep(1)}
+                          className="flex-1 py-4 border-2 border-gray-100 text-gray-700 rounded-xl font-bold hover:bg-gray-50 transition-all"
+                        >
+                          Back
+                        </button>
+                        <button
+                          disabled={
+                            !selectedDate ||
+                            (visitType === 'Home' && !physicalVisitAddress.trim()) ||
+                            !customerPhone ||
+                            customerPhone.length !== 10
+                          }
+                          onClick={() => {
+                            fetchDesigners(selectedDate);
+                            setBookingStep(3);
+                          }}
+                          className="flex-[2] py-4 bg-gray-900 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-black shadow-lg transition-all disabled:opacity-50"
+                        >
+                          Find Available Designers
+                          <ArrowRight size={20} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {bookingStep === 3 && (
+                  <div className="space-y-6">
+                    {isLoadingDesigners ? (
+                      <div className="py-20 flex flex-col items-center justify-center gap-4">
+                        <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin shadow-lg" />
+                        <p className="text-gray-500 font-bold animate-pulse">Finding available experts...</p>
+                      </div>
+                    ) : designers.length === 0 ? (
+                      <div className="text-center py-20 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200">
+                        <AlertCircle size={40} className="mx-auto text-gray-300 mb-2" />
+                        <p className="text-gray-500 font-medium">No designers available on this date.</p>
+                        <button onClick={() => setBookingStep(2)} className="text-blue-600 font-bold text-sm hover:underline mt-2">Try another date</button>
+                      </div>
                     ) : (
-                      <>
-                        <Check size={18} />
-                        Confirm Order ₹{(price + gstAmount).toFixed(2)}
-                      </>
+                      <div className="space-y-6">
+                        {/* Designer List */}
+                        <div className="space-y-3">
+                          <label className="text-xs font-bold  uppercase tracking-widest px-1">Select Designer</label>
+                          <div className="grid grid-cols-1 gap-3">
+                            {designers.map((designer) => (
+                              <button
+                                key={designer._id}
+                                onClick={() => {
+                                  setSelectedDesigner(designer);
+                                  setSelectedSlot('');
+                                  fetchSlots(designer._id, selectedDate);
+                                }}
+                                className={`group p-4 rounded-2xl border-2 transition-all text-left flex items-start gap-4 relative overflow-hidden ${selectedDesigner?._id === designer._id ? 'border-blue-600 bg-blue-50/50 shadow-lg shadow-blue-100' : 'border-gray-50 hover:border-gray-200 hover:bg-white hover:shadow-md'}`}
+                              >
+                                <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center font-black text-xl shrink-0 shadow-inner group-hover:scale-105 transition-transform duration-300 uppercase">
+                                  {designer.name.charAt(0)}
+                                </div>
+                                <div className="flex-1 space-y-1.5">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                      <div className="font-black text-gray-900 text-lg leading-tight">{designer.name}</div>
+                                      <div className="flex items-center gap-0.5 bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded-md border border-amber-100">
+                                        <Star size={10} className="fill-amber-600" />
+                                        <span className="text-[10px] font-black">{designer.rating || 5}</span>
+                                      </div>
+                                    </div>
+                                    <div className="bg-blue-100 text-blue-700 text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">Expert</div>
+                                  </div>
+
+                                  <div className="flex items-center gap-1.5 text-blue-600">
+                                    <span className="text-sm font-black">₹{designer.hourlyRate || 500}</span>
+                                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">/ per hour</span>
+                                  </div>
+
+                                  <div className="space-y-1">
+                                    {designer.address && (
+                                      <div className="flex items-start gap-1.5 text-[11px] text-gray-500 leading-tight">
+                                        <MapPin size={12} className="mt-0.5 text-blue-400 shrink-0" />
+                                        <span className="font-medium">{designer.address}</span>
+                                      </div>
+                                    )}
+                                    {designer.mobileNumber && (
+                                      <div className="flex items-center gap-1.5 text-[11px] text-gray-500">
+                                        <Smartphone size={12} className="text-blue-400 shrink-0" />
+                                        <span className="font-medium">{designer.mobileNumber}</span>
+                                      </div>
+                                    )}
+                                    {designer.termsAndConditions && (
+                                      <div className="pt-1.5 mt-1.5 border-t border-gray-100/50">
+                                        <div className="text-[10px] text-gray-400 font-bold uppercase tracking-tight flex items-center gap-1 mb-0.5">
+                                          <FileText size={10} /> Terms & Conditions
+                                        </div>
+                                        <p className="text-[10px] text-gray-500 leading-tight italic">
+                                          "{designer.termsAndConditions}"
+                                        </p>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                                {selectedDesigner?._id === designer._id && (
+                                  <div className="absolute top-0 right-0 p-2">
+                                    <div className="w-6 h-6 rounded-bl-xl bg-blue-600 text-white flex items-center justify-center absolute top-0 right-0 shadow-sm animate-in fade-in zoom-in duration-300">
+                                      <Check size={14} strokeWidth={3} />
+                                    </div>
+                                  </div>
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Slot Selection (Only for Office Visit) */}
+                        {selectedDesigner && visitType === 'Office' && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            className="space-y-3 pt-4 border-t border-gray-100"
+                          >
+                            <label className="text-xs font-bold uppercase tracking-widest px-1">Select Time Slot</label>
+                            {isLoadingSlots ? (
+                              <div className="p-8 flex justify-center"><div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div></div>
+                            ) : availableSlots.length === 0 ? (
+                              <p className="text-xs text-red-500 font-medium bg-red-50 p-3 rounded-lg">All slots booked for this designer on this date. Please try another designer or date.</p>
+                            ) : (
+                              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                                {availableSlots.map(slot => {
+                                  const isDisabled = slot.isBooked || slot.isPast;
+                                  let btnClass = '';
+                                  if (slot.isBooked) {
+                                    btnClass = 'bg-red-50 border-red-200 text-red-400 cursor-not-allowed';
+                                  } else if (slot.isPast) {
+                                    btnClass = 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed';
+                                  } else if (selectedSlot === slot.time) {
+                                    btnClass = 'border-blue-600/20 shadow-lg';
+                                  } else {
+                                    btnClass = 'border-blue-100 text-blue-700 bg-blue-50/30 hover:border-blue-500 hover:bg-blue-50';
+                                  }
+                                  return (
+                                    <button
+                                      key={slot.time}
+                                      disabled={isDisabled}
+                                      onClick={() => setSelectedSlot(slot.time)}
+                                      className={`group relative py-3 px-1 rounded-xl border-2 text-[10px] sm:text-xs font-black transition-all overflow-hidden ${btnClass}`}
+                                    >
+                                      <span className={`relative z-10 ${selectedSlot === slot.time ? 'text-white' : ''}`}>{slot.time}</span>
+                                      {slot.isBooked && (
+                                        <span className="relative z-10 block text-[8px] uppercase tracking-tighter mt-0.5 opacity-80 font-bold">Booked</span>
+                                      )}
+                                      {slot.isPast && !slot.isBooked && (
+                                        <span className="relative z-10 block text-[8px] uppercase tracking-tighter mt-0.5 opacity-80 font-bold">Past</span>
+                                      )}
+                                      {selectedSlot === slot.time && !isDisabled && (
+                                        <motion.div
+                                          layoutId="activeSlot"
+                                          className="absolute inset-0 bg-blue-600 z-0"
+                                          transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                                        />
+                                      )}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </motion.div>
+                        )}
+
+                        {/* Home Visit Message */}
+                        {selectedDesigner && visitType === 'Home' && (
+                          <motion.div
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-2"
+                          >
+                            <div className="flex items-start gap-3">
+                              <div className="p-2 bg-amber-100 rounded-lg text-amber-600">
+                                <Truck size={20} />
+                              </div>
+                              <div>
+                                <h4 className="font-bold text-gray-900 text-sm">Home Visit Selected</h4>
+                                <p className="text-xs text-gray-600 mt-1 leading-relaxed">
+                                  The designer will visit your provided address between <span className="font-bold text-gray-900">10:00 AM - 6:00 PM</span> on {new Date(selectedDate).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}.
+                                </p>
+                                <div className="mt-3 flex items-center gap-2 text-xs font-bold text-amber-700 bg-amber-100/50 px-3 py-2 rounded-lg">
+                                  <span className="text-lg">₹{selectedDesigner?.homeVisitCharge || 500}</span>
+                                  <span>Home Visit Charge will be added to your final bill.</span>
+                                </div>
+                              </div>
+                            </div>
+                          </motion.div>
+                        )}
+
+                        <div className="flex gap-4 pt-4">
+                          <button
+                            onClick={() => setBookingStep(2)}
+                            className="flex-1 py-4 border-2 border-gray-100 text-gray-700 rounded-xl font-bold hover:bg-gray-50 transition-all"
+                          >
+                            Back
+                          </button>
+                          <button
+                            disabled={!selectedDesigner || (visitType === 'Office' && !selectedSlot) || isSubmittingDesignerOrder}
+                            onClick={() => createDesignerOrder('physical')}
+                            className="flex-[2] py-4 bg-blue-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-blue-700 shadow-lg transition-all disabled:opacity-50"
+                          >
+                            {isSubmittingDesignerOrder ? 'Booking...' : 'Confirm Booking'}
+                            {!isSubmittingDesignerOrder && <ArrowRight size={20} />}
+                          </button>
+                        </div>
+                      </div>
                     )}
-                  </button>
-                </div>
-              </motion.div>
+                  </div>
+                )}
+              </div>
             </motion.div>
-          )}
-        </AnimatePresence>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Full Size Image Modal */}
       <AnimatePresence>
@@ -7902,7 +8871,6 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
         )}
       </AnimatePresence>
 
-
       {/* Scroll-Triggered Sticky Top Bar */}
       <AnimatePresence>
         {showStickyBar && selectedProduct && (
@@ -7960,7 +8928,6 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
               <div className="flex items-center gap-3 flex-shrink-0">
                 {(price + gstAmount) > 0 && (
                   <div className="text-right block">
-                    {/* <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Total Payable</p> */}
                     <div className="flex items-baseline gap-0.5">
                       <span className="text-xl font-bold text-gray-900">
                         ₹{(() => {
@@ -7969,24 +8936,9 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                           return <>{integerPart}<span className="text-sm">.{decimalPart}</span></>;
                         })()}
                       </span>
-                      {/* <span className="text-[10px] text-gray-500 ml-0.5">incl. taxes</span> */}
                     </div>
                   </div>
                 )}
-                {/* <button
-                  onClick={handlePlaceOrder}
-                  disabled={isProcessingPayment || (!isPricingLoading && price === 0 && gstAmount === 0)}
-                  className="px-5 py-2.5 bg-gray-900 text-white rounded-xl text-sm font-bold hover:bg-black transition-all shadow flex items-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  {isProcessingPayment ? (
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    <>
-                      Buy Now
-                      <ArrowRight size={14} />
-                    </>
-                  )}
-                </button> */}
               </div>
             </div>
           </motion.div>

@@ -48,9 +48,11 @@ import {
   getUploadById,
   createAdmin,
   createEmployee,
+  createDesigner,
   getAllAdmins,
   getAllUsers,
   getAllEmployees,
+  getAllDesigners,
   updateUserRole,
   deleteUpload,
 } from "../controllers/adminController.js";
@@ -408,11 +410,15 @@ router.post("/admin/create-admin", authMiddleware, adminAuth, createAdmin);
 
 router.post("/admin/create-employee", authMiddleware, adminAuth, createEmployee);
 
+router.post("/admin/create-designer", authMiddleware, adminAuth, createDesigner);
+
 router.get("/admin/admins", authMiddleware, adminAuth, getAllAdmins);
 
 router.get("/admin/users", authMiddleware, adminAuth, getAllUsers);
 
 router.get("/admin/employees", authMiddleware, adminAuth, getAllEmployees);
+
+router.get("/admin/designers", authMiddleware, adminAuth, getAllDesigners);
 
 router.put(
   "/admin/update-user-role",
@@ -704,12 +710,34 @@ router.use("/bulk-orders", bulkOrderRoutes);
 
 /* =====================================
    COMPLAINT ROUTES
-===================================== */
+=====================================*/
 router.use("/complaints", complaintRoutes);
 
 /* =====================================
    COURIER WEBHOOK (No Auth - called by 3PL)
 ===================================== */
 router.post("/webhooks/courier-update", handleCourierWebhook);
+/* ADMIN DESIGNER ROUTES */
+import designerAdminRoutes from "./admin/designerAdmin.routes.js";
+router.use("/admin/designers", designerAdminRoutes);
+
+/* =====================================
+   DESIGNER MODULE ROUTES
+===================================== */
+import designerOrderRoutes from "../designer/routes/designerOrder.routes.js";
+import designerRequestRoutes from "../designer/routes/designerRequest.routes.js";
+import physicalBookingRoutes from "../designer/routes/physicalBooking.routes.js";
+import queueRoutes from "../designer/routes/queue.routes.js";
+import sessionRoutes from "../designer/routes/session.routes.js";
+import settingsRoutes from "../designer/routes/settings.routes.js";
+import webhookRoutes from "../designer/routes/webhook.routes.js";
+
+router.use("/designer-orders", designerOrderRoutes);
+router.use("/designer-requests", designerRequestRoutes);
+router.use("/physical", physicalBookingRoutes);
+router.use("/queue", queueRoutes);
+router.use("/session/settings", settingsRoutes);
+router.use("/session", sessionRoutes);
+router.use("/webhooks", webhookRoutes);
 
 export default router;

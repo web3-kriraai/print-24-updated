@@ -34,6 +34,9 @@ import {
   Image as ImageIcon,
   ChevronDown,
   ChevronUp,
+  User as UserIcon,
+  Phone,
+  MapPinned,
 } from 'lucide-react';
 import { formatCurrency, calculateOrderBreakdown, OrderForCalculation } from '../utils/pricing';
 import { API_BASE_URL_WITH_API as API_BASE_URL } from '../lib/apiConfig';
@@ -53,6 +56,26 @@ interface DepartmentStatus {
   status: 'completed' | 'in_progress' | 'pending';
   startedAt?: string;
   completedAt?: string;
+}
+
+interface DesignerBooking {
+  _id: string;
+  designerId: {
+    _id: string;
+    name: string;
+    email: string;
+    mobileNumber?: string;
+    address?: string;
+  };
+  visitDate: string;
+  timeSlot?: string;
+  visitLocation: 'HOME' | 'OFFICE';
+  visitAddress?: string;
+  visitNotes?: string;
+  visitStatus: string;
+  paymentStatus: string;
+  totalAmount: number;
+  advancePaid: number;
 }
 
 interface Order {
@@ -231,6 +254,7 @@ interface Order {
   isBulkChild?: boolean;
   parentOrderId?: string | { _id: string, orderNumber: string };
   distinctDesigns?: number;
+  designerBooking?: DesignerBooking;
 }
 
 // Status Badge Component
@@ -342,6 +366,125 @@ const TimelineStep: React.FC<{
               In Progress
             </span>
           )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Designer Booking Panel Component
+const DesignerBookingPanel: React.FC<{ booking: DesignerBooking }> = ({ booking }) => {
+  return (
+    <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden mb-8">
+      <div className="bg-gradient-to-r from-blue-600 to-indigo-700 px-6 py-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
+              <UserIcon className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-white">Designer Appointment</h3>
+              <p className="text-blue-100 text-sm">Physical visit details</p>
+            </div>
+          </div>
+          <div className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${booking.visitStatus === 'Scheduled' ? 'bg-blue-100 text-blue-700' :
+            booking.visitStatus === 'Accepted' ? 'bg-green-100 text-green-700' :
+              booking.visitStatus === 'Completed' ? 'bg-gray-100 text-gray-700' :
+                'bg-yellow-100 text-yellow-700'
+            }`}>
+            {booking.visitStatus}
+          </div>
+        </div>
+      </div>
+
+      <div className="p-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          {/* Designer Info */}
+          <div className="space-y-6">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center flex-shrink-0 border border-blue-100">
+                <UserIcon className="w-6 h-6 text-blue-600" />
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 uppercase tracking-wider font-bold mb-1">Assigned Designer</p>
+                <h4 className="text-lg font-bold text-gray-900">{booking.designerId.name}</h4>
+                <div className="flex items-center gap-2 mt-1 text-gray-600">
+                  <Phone className="w-3.5 h-3.5" />
+                  <span className="text-sm">{booking.designerId.mobileNumber || 'Contact info pending'}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
+              <div className="flex items-center gap-2 mb-3">
+                <Calendar className="w-4 h-4 text-gray-400" />
+                <span className="text-sm font-bold text-gray-700">Schedule</span>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-[10px] text-gray-500 uppercase font-bold">Date</p>
+                  <p className="text-sm font-semibold text-gray-900">
+                    {new Date(booking.visitDate).toLocaleDateString('en-US', {
+                      weekday: 'short',
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric'
+                    })}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-gray-500 uppercase font-bold">Time Slot</p>
+                  <p className="text-sm font-semibold text-gray-900">{booking.timeSlot || 'Not specified'}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Location Info */}
+          <div className="space-y-6">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 bg-indigo-50 rounded-full flex items-center justify-center flex-shrink-0 border border-indigo-100">
+                <MapPinned className="w-6 h-6 text-indigo-600" />
+              </div>
+              <div className="flex-1">
+                <p className="text-xs text-gray-500 uppercase tracking-wider font-bold mb-1">Visit Location</p>
+                <h4 className="text-lg font-bold text-gray-900">
+                  {booking.visitLocation === 'HOME' ? 'Home Visit' : 'Office Visit'}
+                </h4>
+                {booking.visitLocation === 'HOME' ? (
+                  <p className="text-sm text-gray-600 mt-1 leading-relaxed">
+                    {booking.visitAddress || 'Address not provided'}
+                  </p>
+                ) : (
+                  <p className="text-sm text-gray-600 mt-1">Visit at our regional office</p>
+                )}
+              </div>
+            </div>
+
+            {booking.visitNotes && (
+              <div className="bg-amber-50 rounded-xl p-4 border border-amber-100">
+                <div className="flex items-center gap-2 mb-2">
+                  <Info className="w-4 h-4 text-amber-500" />
+                  <span className="text-sm font-bold text-amber-800">Visit Notes</span>
+                </div>
+                <p className="text-sm text-amber-900 italic">"{booking.visitNotes}"</p>
+              </div>
+            )}
+
+            {/* Payment Summary inside booking */}
+            {/* <div className="pt-4 border-t border-gray-100">
+              <div className="flex justify-between items-center bg-blue-50/50 p-3 rounded-lg">
+                <div>
+                  <p className="text-[10px] text-gray-500 uppercase font-bold">Booking Fee</p>
+                  <p className="text-lg font-bold text-blue-700">{formatCurrency(booking.totalAmount)}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[10px] text-gray-500 uppercase font-bold">Advance Paid</p>
+                  <p className="text-lg font-bold text-green-600">{formatCurrency(booking.advancePaid)}</p>
+                </div>
+              </div>
+            </div> */}
+          </div>
         </div>
       </div>
     </div>
@@ -1360,7 +1503,7 @@ const OrderDetails: React.FC = () => {
                         <p className="text-sm">Main order: <span className="font-mono font-bold">{(order.parentOrderId as any).orderNumber || 'Parent Order'}</span></p>
                       </div>
                     </div>
-                    <a 
+                    <a
                       href={`/order/${typeof order.parentOrderId === 'object' ? order.parentOrderId._id : order.parentOrderId}`}
                       className="text-xs font-bold bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 transition-all flex items-center gap-1"
                     >
@@ -1786,6 +1929,11 @@ const OrderDetails: React.FC = () => {
           </div>
         )}
 
+        {/* Designer Booking Information */}
+        {order.designerBooking && (
+          <DesignerBookingPanel booking={order.designerBooking} />
+        )}
+
         {/* Main Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Left Column */}
@@ -1852,8 +2000,8 @@ const OrderDetails: React.FC = () => {
 
                         const statusColor = child.status === 'completed' ? 'bg-green-100 text-green-800 border-green-200' :
                           child.status === 'processing' ? 'bg-blue-100 text-blue-800 border-blue-200' :
-                          child.status === 'request' ? 'bg-yellow-100 text-yellow-800 border-yellow-200' :
-                          'bg-gray-100 text-gray-700 border-gray-200';
+                            child.status === 'request' ? 'bg-yellow-100 text-yellow-800 border-yellow-200' :
+                              'bg-gray-100 text-gray-700 border-gray-200';
 
                         return (
                           <div
@@ -1917,8 +2065,8 @@ const OrderDetails: React.FC = () => {
                               <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-100">
                                 <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold border ${statusColor}`}>
                                   {child.status === 'completed' ? <CheckCircle2 className="w-3 h-3" /> :
-                                   child.status === 'request' ? <Clock className="w-3 h-3" /> :
-                                   <Package className="w-3 h-3" />}
+                                    child.status === 'request' ? <Clock className="w-3 h-3" /> :
+                                      <Package className="w-3 h-3" />}
                                   {(child.status || 'pending').replace(/_/g, ' ')}
                                 </span>
                                 {child.paymentStatus === 'COMPLETED' && (
@@ -1940,7 +2088,7 @@ const OrderDetails: React.FC = () => {
                       </div>
                       <h4 className="text-base font-bold text-gray-900 mb-2">Designs Being Processed</h4>
                       <p className="text-sm text-gray-500 max-w-xs mx-auto">
-                        Individual design orders are created automatically after payment confirmation. 
+                        Individual design orders are created automatically after payment confirmation.
                         {order.paymentStatus !== 'COMPLETED' && ' Complete payment to start processing.'}
                       </p>
                       {order.bulkOrderRef && (

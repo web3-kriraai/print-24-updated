@@ -28,6 +28,9 @@ import ComplaintDetails from './pages/ComplaintDetails';
 import AdminComplaintManagement from './pages/admin/AdminComplaintManagement';
 import BulkOrderStatus from './pages/BulkOrderStatus';
 import BulkOrdersPage from './pages/BulkOrdersPage';
+import ClientDashboard from './pages/ClientDashboard';
+import DesignerDashboard from './pages/designer/DesignerDashboard';
+import ActiveSession from './pages/designer/ActiveSession';
 
 // Shared routes configuration for both SSR and client
 export const routes = [
@@ -80,6 +83,9 @@ export const routes = [
       { path: 'bulk-order/:id/status', element: <BulkOrderStatus />, errorElement: <ErrorBoundary /> },
       { path: 'bulk-orders', element: <BulkOrdersPage />, errorElement: <ErrorBoundary /> },
       { path: 'bulk-orders/:id', element: <BulkOrdersPage />, errorElement: <ErrorBoundary /> },
+      { path: 'client-dashboard', element: <ClientDashboard />, errorElement: <ErrorBoundary /> },
+      { path: 'designer', element: <DesignerDashboard />, errorElement: <ErrorBoundary /> },
+      { path: 'session/:sessionId', element: <ActiveSession />, errorElement: <ErrorBoundary /> },
 
       { path: 'reviews', element: <Reviews />, errorElement: <ErrorBoundary /> },
       // 404 catch-all route - must be last

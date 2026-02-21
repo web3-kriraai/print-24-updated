@@ -16,10 +16,11 @@ import {
     LayoutDashboard,
     Star,
     Layers,
-    X,
     DollarSign,
     AlertCircle,
     Shield,
+    X,
+    Palette
 } from 'lucide-react';
 import { useLogo } from '../../../hooks/useSiteSettings';
 
@@ -124,6 +125,14 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ activeTab, onTabChange, isO
             icon: <AlertCircle size={20} />, // Make sure AlertCircle is imported
             subItems: [
                 { id: 'complaints', label: 'Manage Complaints' },
+            ],
+        },
+        {
+            id: 'designers',
+            label: 'Designers',
+            icon: <Palette size={20} />,
+            subItems: [
+                { id: 'designer-dashboard', label: 'Management' },
             ],
         },
         {

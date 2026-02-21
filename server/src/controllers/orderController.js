@@ -11,6 +11,7 @@ import UserContextService from "../services/UserContextService.js";
 // import { sendAccountCreationEmail, sendOrderConfirmationEmail } from "../utils/emailService.js";
 import PricingService from "../services/pricing/PricingService.js";
 import bulkOrderService from "../services/bulkOrderService.js"; // Create child orders synchronously
+import PhysicalDesignerBooking from "../designer/models/PhysicalDesignerBooking.js";
 
 // Create a new order
 export const createOrder = async (req, res) => {
@@ -43,9 +44,9 @@ export const createOrder = async (req, res) => {
     if (!productId) missingFields.push('productId');
     if (!quantity) missingFields.push('quantity');
     if (!totalPrice) missingFields.push('totalPrice');
-    if (!pincode) missingFields.push('pincode');
-    if (!address) missingFields.push('address');
-    if (!mobileNumber) missingFields.push('mobileNumber');
+    // if (!pincode) missingFields.push('pincode');
+    // if (!address) missingFields.push('address');
+    // if (!mobileNumber) missingFields.push('mobileNumber');
     if (missingFields.length > 0) {
       console.log('[Order Validation] Missing fields:', missingFields.join(', '));
       console.log('[Order Validation] Received body keys:', Object.keys(req.body));
@@ -128,8 +129,10 @@ export const createOrder = async (req, res) => {
           });
         }
       } else if (!uploadedDesign.pdfFile || !uploadedDesign.pdfFile.data) {
-        // Front image is required only if no PDF is provided
-        return res.status(400).json({ error: "Front image or PDF file is required." });
+        // Front image is required only if no PDF is provided AND not a designer order
+        if (!req.body.needDesigner) {
+          return res.status(400).json({ error: "Front image or PDF file is required." });
+        }
       }
 
       if (uploadedDesign.backImage && uploadedDesign.backImage.data) {
@@ -186,7 +189,7 @@ export const createOrder = async (req, res) => {
           // Validate PDF size dynamically based on user segment
           const userContext = await UserContextService.buildContextFromRequest(req);
           const bulkFeature = userContext.userSegment?.features?.find(f => f.featureKey === 'bulk_upload');
-          
+
           // Use segment-specific limit (maxFileSizeMB), fallback to global MAX_PDF_SIZE_BYTES
           const maxFileSizeMB = bulkFeature?.config?.maxFileSizeMB;
           const currentLimitBytes = maxFileSizeMB ? (maxFileSizeMB * 1024 * 1024) : MAX_PDF_SIZE_BYTES;
@@ -224,7 +227,10 @@ export const createOrder = async (req, res) => {
         }
       }
     } else {
-      return res.status(400).json({ error: "Uploaded design (image or PDF) is required." });
+      // Uploaded design is optional for designer orders
+      if (!req.body.needDesigner) {
+        return res.status(400).json({ error: "Uploaded design (image or PDF) is required." });
+      }
     }
 
     // DO NOT initialize department statuses at order creation
@@ -477,8 +483,8 @@ export const createOrder = async (req, res) => {
       user: userId,
       orderNumber: orderNumber, // Set orderNumber explicitly
       product: productId,
-      quantity: (isBulkOrder === true || isBulkOrder === "true") 
-        ? (parseInt(req.body.perDesignQuantity) || parseInt(quantity)) * (parseInt(numberOfDesigns) || 1) 
+      quantity: (isBulkOrder === true || isBulkOrder === "true")
+        ? (parseInt(req.body.perDesignQuantity) || parseInt(quantity)) * (parseInt(numberOfDesigns) || 1)
         : parseInt(quantity),
       finish: orderFinish,
       shape: orderShape,
@@ -507,6 +513,11 @@ export const createOrder = async (req, res) => {
       // Bulk order fields
       isBulkParent: isBulkOrder === true || isBulkOrder === "true",
       distinctDesigns: isBulkOrder ? parseInt(numberOfDesigns) || 1 : 1,
+      // Designer fields
+      needDesigner: req.body.needDesigner || false,
+      designerType: req.body.designerType || null,
+      visitType: req.body.visitType || null,
+      designStatus: req.body.designStatus || null,
     };
 
     // --- PRICING INTEGRATION START ---
@@ -522,6 +533,9 @@ export const createOrder = async (req, res) => {
         pincode: pincode,
         selectedDynamicAttributes: processedDynamicAttributes,
         quantity: parseInt(quantity),
+        needDesigner: req.body.needDesigner,
+        designerType: req.body.designerType,
+        visitType: req.body.visitType,
       });
 
       const snapshot = pricingSnapshotResult.priceSnapshot;
@@ -865,7 +879,7 @@ export const createOrderWithAccount = async (req, res) => {
           // Validate PDF size dynamically based on user segment
           const userContext = await UserContextService.buildContextFromRequest(req);
           const bulkFeature = userContext.userSegment?.features?.find(f => f.featureKey === 'bulk_upload');
-          
+
           // Use segment-specific limit (maxFileSizeMB), fallback to global MAX_PDF_SIZE_BYTES
           const maxFileSizeMB = bulkFeature?.config?.maxFileSizeMB;
           const currentLimitBytes = maxFileSizeMB ? (maxFileSizeMB * 1024 * 1024) : MAX_PDF_SIZE_BYTES;
@@ -1077,8 +1091,8 @@ export const createOrderWithAccount = async (req, res) => {
       user: user._id,
       orderNumber: orderNumber,
       product: productId,
-      quantity: (isBulkOrder === true || isBulkOrder === "true") 
-        ? (parseInt(req.body.perDesignQuantity) || parseInt(quantity)) * (parseInt(numberOfDesigns) || 1) 
+      quantity: (isBulkOrder === true || isBulkOrder === "true")
+        ? (parseInt(req.body.perDesignQuantity) || parseInt(quantity)) * (parseInt(numberOfDesigns) || 1)
         : parseInt(quantity),
       finish: orderFinish,
       shape: orderShape,
@@ -1124,7 +1138,7 @@ export const createOrderWithAccount = async (req, res) => {
       if (orderData.isBulkParent) {
         const designs = orderData.distinctDesigns || 1;
         console.log(`📦 Scaling price for bulk order (GUEST, ${designs} designs)`);
-        
+
         orderData.totalPrice = snapshot.totalPayable * designs;
         orderData.priceSnapshot = {
           ...snapshot,
@@ -1379,6 +1393,17 @@ export const getSingleOrder = async (req, res) => {
         ? order.uploadedDesign.backImage.data
         : Buffer.from(order.uploadedDesign.backImage.data);
       order.uploadedDesign.backImage.data = `data:${order.uploadedDesign.backImage.contentType || 'image/png'};base64,${buffer.toString("base64")}`;
+    }
+
+    // Fetch designer booking if it's a physical designer visit
+    if (order.designerType === 'physical') {
+      const booking = await PhysicalDesignerBooking.findOne({ orderId: order._id })
+        .populate("designerId", "name email mobileNumber address")
+        .lean();
+
+      if (booking) {
+        order.designerBooking = booking;
+      }
     }
 
     res.status(200).json(order);

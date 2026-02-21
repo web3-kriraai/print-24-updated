@@ -55,6 +55,9 @@ class PricingService {
         cacheResults = true,
         promoCodes = [],
         userPreferredCurrency = null, // NEW: Optional currency conversion
+        needDesigner = false,
+        designerType = null,
+        visitType = 'Office',
     }) {
         try {
             // Step 1: Resolve User Segment
@@ -167,7 +170,29 @@ class PricingService {
                     )
                 )
                 : 0;
-            const subtotal = this.roundPrice(baseSubtotal + attrChargesTotal);
+            let subtotal = this.roundPrice(baseSubtotal + attrChargesTotal);
+
+            // Step 6.6: Add Designer Fee if requested
+            if (needDesigner) {
+                let designerFee = 0;
+
+                if (designerType === 'visual') {
+                    designerFee = product.additionalDesignCharge || 500;
+                } else if (designerType === 'physical') {
+                    // Physical Visit Pricing
+                    const baseVisitCharge = 500;
+                    const homeVisitTravelCharge = 500;
+
+                    if (visitType === 'Home') {
+                        designerFee = baseVisitCharge + homeVisitTravelCharge; // ₹1000
+                    } else {
+                        designerFee = baseVisitCharge; // ₹500
+                    }
+                }
+
+                subtotal = this.roundPrice(subtotal + designerFee);
+                console.log(`🎨 Added Designer Fee: ${designerFee} (Type: ${designerType}, Visit: ${visitType})`);
+            }
 
             // Step 7: Calculate GST
             const gstAmount = this.roundPrice((subtotal * gstPercentage) / 100);
@@ -308,6 +333,9 @@ class PricingService {
         pincode,
         selectedDynamicAttributes,
         quantity,
+        needDesigner = false,
+        designerType = null,
+        visitType = 'Office',
     }) {
         const pricingResult = await this.resolvePrice({
             userId,
@@ -315,6 +343,9 @@ class PricingService {
             pincode,
             selectedDynamicAttributes,
             quantity,
+            needDesigner,
+            designerType,
+            visitType,
             cacheResults: false, // Don't cache snapshots
         });
 

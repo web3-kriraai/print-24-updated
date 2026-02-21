@@ -134,7 +134,8 @@ const OrderSchema = new mongoose.Schema(
     },
     pincode: {
       type: String,
-      required: true,
+      required: false,
+      default: "",
     },
     city: {
       type: String,
@@ -150,11 +151,13 @@ const OrderSchema = new mongoose.Schema(
     },
     address: {
       type: String,
-      required: true,
+      required: false,
+      default: "",
     },
     mobileNumber: {
       type: String,
-      required: true,
+      required: false,
+      default: "",
     },
     uploadedDesign: {
       frontImage: {
@@ -192,6 +195,34 @@ const OrderSchema = new mongoose.Schema(
           isRequired: Boolean,
         }],
       },
+    },
+    // Designer Integration Fields
+    needDesigner: {
+      type: Boolean,
+      default: false,
+    },
+    designerType: {
+      type: String,
+      enum: ["visual", "physical", null],
+      default: null,
+    },
+    designStatus: {
+      type: String,
+      enum: ["PendingDesign", "InDesign", "FinalReady", null],
+      default: null,
+    },
+    visitType: {
+      type: String,
+      enum: ["Home", "Office", null],
+      default: null,
+    },
+    designForm: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null,
+    },
+    finalPdfUrl: {
+      type: String,
+      default: null,
     },
     notes: {
       type: String,

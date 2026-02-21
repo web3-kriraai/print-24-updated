@@ -30,6 +30,8 @@ interface ProductPriceBoxProps {
   attributeCharges?: Array<{ name: string; label: string; charge: number; perUnitCharge?: number; isSubAttribute?: boolean }>;
   pincode?: string; // Explicit pincode override (from shipping/delivery selection)
   shippingCharge?: number; // Shipping charge to add to summary
+  designerFee?: number; // Fee for hiring a designer
+  visitFee?: number; // Fee for physical visit
 }
 
 interface PricingData {
@@ -76,6 +78,8 @@ export default function ProductPriceBox({
   attributeCharges = [],
   pincode: explicitPincode,
   shippingCharge,
+  designerFee = 0,
+  visitFee = 0,
 }: ProductPriceBoxProps) {
   const onPriceChangeRef = useRef(onPriceChange);
   const onLoadingChangeRef = useRef(onLoadingChange);
@@ -355,12 +359,13 @@ export default function ProductPriceBox({
       <div className="space-y-4 mb-6">
         {(() => {
           // Calculate total attribute charges from frontend-computed attribute pricing
-          const totalAttrCharges = attributeCharges.reduce((sum, c) => sum + c.charge, 0);
+          const totalAttrCharges = attributeCharges.reduce((sum, c) => sum + (c.charge || 0), 0);
           // Per-design subtotal = API subtotal (for selected qty) + attribute charges
           // Then multiply by numberOfDesigns so BOTH base price AND attribute costs scale correctly
+          // Finally add designerFee + visitFee (one-time charges, not per-design)
           const perDesignSubtotal = pricing.subtotal + totalAttrCharges;
-          const adjustedSubtotal = perDesignSubtotal * numberOfDesigns;
-          const adjustedGst = Math.round((adjustedSubtotal * pricing.gstPercentage / 100 + Number.EPSILON) * 100) / 100;
+          const adjustedSubtotal = (perDesignSubtotal * numberOfDesigns) + designerFee + visitFee;
+          const adjustedGst = Math.round((adjustedSubtotal * (pricing.gstPercentage || 18) / 100 + Number.EPSILON) * 100) / 100;
           const adjustedTotal = Math.round((adjustedSubtotal + adjustedGst + Number.EPSILON) * 100) / 100;
 
           return (
@@ -414,6 +419,26 @@ export default function ProductPriceBox({
                   );
                 })}
 
+              {/* Designer Fee */}
+              {designerFee > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500 font-medium">Designer Fee</span>
+                  <span className="text-gray-900 font-semibold">
+                    +{formatPrice(designerFee)}
+                  </span>
+                </div>
+              )}
+
+              {/* Visit Fee */}
+              {visitFee > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500 font-medium">Visit Fee</span>
+                  <span className="text-gray-900 font-semibold">
+                    +{formatPrice(visitFee)}
+                  </span>
+                </div>
+              )}
+
               {/* Subtotal (API base × qty + attribute charges) */}
               <div className="flex justify-between text-sm pt-2 border-t border-gray-50">
                 <span className="text-gray-600 font-semibold">Subtotal</span>
@@ -443,10 +468,10 @@ export default function ProductPriceBox({
       {/* Separator */}
       <div className="border-t border-gray-100 pt-6">
         {(() => {
-          const totalAttrCharges = attributeCharges.reduce((sum, c) => sum + c.charge, 0);
+          const totalAttrCharges = attributeCharges.reduce((sum, c) => sum + (c.charge || 0), 0);
           const perDesignSubtotal = pricing.subtotal + totalAttrCharges;
-          const adjustedSubtotal = perDesignSubtotal * numberOfDesigns;
-          const adjustedGst = Math.round((adjustedSubtotal * pricing.gstPercentage / 100 + Number.EPSILON) * 100) / 100;
+          const adjustedSubtotal = (perDesignSubtotal * numberOfDesigns) + designerFee + visitFee;
+          const adjustedGst = Math.round((adjustedSubtotal * (pricing.gstPercentage || 18) / 100 + Number.EPSILON) * 100) / 100;
           const adjustedTotal = Math.round((adjustedSubtotal + adjustedGst + (shippingCharge || 0) + Number.EPSILON) * 100) / 100;
           return (
             <div className="flex justify-between items-center mb-4">
@@ -461,7 +486,7 @@ export default function ProductPriceBox({
           Final price may adjust slightly based on selected options and taxes at checkout.
         </p>
       </div>
-    </div>
+    </div >
   );
 }
 
