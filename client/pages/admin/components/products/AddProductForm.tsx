@@ -279,6 +279,28 @@ const AddProductForm: React.FC<AddProductFormProps> = ({
         fetchSubAttributes();
     }, [fetchSubAttributes]);
 
+    // Sequences state
+    const [sequences, setSequences] = useState<any[]>([]);
+
+    // Fetch sequences
+    const fetchSequences = useCallback(async () => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/sequences`, {
+                headers: getAuthHeaders(),
+            });
+            if (response.ok) {
+                const data = await response.json();
+                setSequences(Array.isArray(data.data) ? data.data : (Array.isArray(data) ? data : []));
+            }
+        } catch (error) {
+            console.error("Error fetching sequences:", error);
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchSequences();
+    }, [fetchSequences]);
+
     // Drag-and-drop state for configured attributes reordering
     const [dragIndex, setDragIndex] = useState<number | null>(null);
     const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
@@ -983,6 +1005,22 @@ const AddProductForm: React.FC<AddProductFormProps> = ({
             }
             formData.append("blockCDRandJPG", productForm.blockCDRandJPG ? "true" : "false");
 
+            // Append production time ranges
+            if (productForm.productionTimeRanges && productForm.productionTimeRanges.length > 0) {
+                const timeRangesToSend = productForm.productionTimeRanges
+                    .filter((r: any) => r.minQuantity > 0 && (r.days > 0 || r.hours > 0))
+                    .map((r: any) => ({
+                        minQuantity: r.minQuantity,
+                        maxQuantity: r.maxQuantity || null,
+                        days: r.days || 0,
+                        hours: r.hours || 0,
+                        weightKg: parseFloat(r.weightKg) || 0.5,
+                    }));
+                if (timeRangesToSend.length > 0) {
+                    formData.append("productionTimeRanges", JSON.stringify(timeRangesToSend));
+                }
+            }
+
             // Append additional charges and taxes
             if (productForm.additionalDesignCharge) {
                 formData.append("additionalDesignCharge", productForm.additionalDesignCharge);
@@ -1115,6 +1153,7 @@ const AddProductForm: React.FC<AddProductFormProps> = ({
                 instructions: "",
                 specialization: "",
                 productionSequence: [] as string[],
+                productionTimeRanges: [] as Array<{ minQuantity: number; maxQuantity: number | null; days: number; hours: number }>,
             });
             setOptionsTable([]);
             setFilterPricesEnabled(false);
@@ -2042,6 +2081,239 @@ const AddProductForm: React.FC<AddProductFormProps> = ({
                             <p className="text-slate-400 text-xs font-medium italic">No discount tiers added.</p>
                         </div>
                     )}
+                </div>
+
+                {/* Production Time Ranges */}
+                <div className="border border-slate-200/60 rounded-xl p-6 bg-white/70 backdrop-blur-md shadow-sm">
+                    <div className="flex items-center justify-between mb-6">
+                        <h3 className="text-lg font-bold text-slate-800 flex items-center gap-3">
+                            <div className="w-10 h-10 bg-sky-50 rounded-xl flex items-center justify-center text-sky-500 shadow-sm border border-sky-100/50">
+                                <Clock size={20} />
+                            </div>
+                            Quantity-Based Production Time
+                        </h3>
+                        <div className="text-xs font-medium text-slate-500 flex items-center gap-1.5 bg-white/50 px-3 py-1.5 rounded-full border border-slate-200/50">
+                            <Info size={14} className="text-sky-500" />
+                            Used to calculate estimated delivery dates based on order size.
+                        </div>
+                    </div>
+
+                    <div className="mb-6">
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setProductForm({
+                                    ...productForm,
+                                    productionTimeRanges: [
+                                        ...(productForm.productionTimeRanges || []),
+                                        { minQuantity: 0, maxQuantity: null, days: 0, hours: 0, weightKg: 0.5 }
+                                    ]
+                                });
+                            }}
+                            className="px-4 py-2 bg-sky-500/90 text-white text-xs font-bold rounded-xl hover:bg-sky-600 transition-all flex items-center gap-2 shadow-sm shadow-sky-200"
+                        >
+                            <Plus size={14} />
+                            Add Time Range
+                        </button>
+                    </div>
+
+                    {productForm.productionTimeRanges && productForm.productionTimeRanges.length > 0 ? (
+                        <div className="overflow-x-auto border border-slate-200/60 rounded-xl bg-white/50 backdrop-blur-sm">
+                            <table className="w-full border-collapse">
+                                <thead>
+                                    <tr className="bg-slate-50/80">
+                                        <th className="px-4 py-3 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest border-b border-slate-100">Min Qty</th>
+                                        <th className="px-4 py-3 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest border-b border-slate-100">Max Qty (Optional)</th>
+                                        <th className="px-4 py-3 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest border-b border-slate-100">Days</th>
+                                        <th className="px-4 py-3 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest border-b border-slate-100">Hours</th>
+                                        <th className="px-4 py-3 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest border-b border-slate-100">Weight (kg)</th>
+                                        <th className="px-4 py-3 text-center text-[10px] font-bold text-slate-500 uppercase tracking-widest border-b border-slate-100 w-20">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {productForm.productionTimeRanges.map((range: any, index: number) => (
+                                        <tr key={index} className="hover:bg-slate-50/30 transition-colors group">
+                                            <td className="px-4 py-3 border-b border-slate-100">
+                                                <input
+                                                    type="number"
+                                                    value={range.minQuantity}
+                                                    onChange={(e) => {
+                                                        const updated = [...productForm.productionTimeRanges];
+                                                        updated[index] = { ...updated[index], minQuantity: parseInt(e.target.value) || 0 };
+                                                        setProductForm({ ...productForm, productionTimeRanges: updated });
+                                                    }}
+                                                    className="w-full px-3 py-2 bg-transparent border border-slate-200/60 rounded-lg text-sm focus:ring-4 focus:ring-sky-500/10 focus:border-sky-400 outline-none transition-all"
+                                                    min="0"
+                                                />
+                                            </td>
+                                            <td className="px-4 py-3 border-b border-slate-100">
+                                                <input
+                                                    type="number"
+                                                    value={range.maxQuantity === null ? '' : range.maxQuantity}
+                                                    onChange={(e) => {
+                                                        const val = e.target.value === '' ? null : parseInt(e.target.value);
+                                                        const updated = [...productForm.productionTimeRanges];
+                                                        updated[index] = { ...updated[index], maxQuantity: val };
+                                                        setProductForm({ ...productForm, productionTimeRanges: updated });
+                                                    }}
+                                                    className="w-full px-3 py-2 bg-transparent border border-slate-200/60 rounded-lg text-sm focus:ring-4 focus:ring-sky-500/10 focus:border-sky-400 outline-none transition-all"
+                                                    placeholder="No limit"
+                                                    min="0"
+                                                />
+                                            </td>
+                                            <td className="px-4 py-3 border-b border-slate-100">
+                                                <input
+                                                    type="number"
+                                                    value={range.days}
+                                                    onChange={(e) => {
+                                                        const updated = [...productForm.productionTimeRanges];
+                                                        updated[index] = { ...updated[index], days: parseInt(e.target.value) || 0 };
+                                                        setProductForm({ ...productForm, productionTimeRanges: updated });
+                                                    }}
+                                                    className="w-full px-3 py-2 bg-transparent border border-slate-200/60 rounded-lg text-sm focus:ring-4 focus:ring-sky-500/10 focus:border-sky-400 outline-none transition-all"
+                                                    min="0"
+                                                />
+                                            </td>
+                                            <td className="px-4 py-3 border-b border-slate-100">
+                                                <input
+                                                    type="number"
+                                                    value={range.hours}
+                                                    onChange={(e) => {
+                                                        const updated = [...productForm.productionTimeRanges];
+                                                        updated[index] = { ...updated[index], hours: parseInt(e.target.value) || 0 };
+                                                        setProductForm({ ...productForm, productionTimeRanges: updated });
+                                                    }}
+                                                    className="w-full px-3 py-2 bg-transparent border border-slate-200/60 rounded-lg text-sm focus:ring-4 focus:ring-sky-500/10 focus:border-sky-400 outline-none transition-all"
+                                                    min="0"
+                                                    max="23"
+                                                />
+                                            </td>
+                                            <td className="px-4 py-3 border-b border-slate-100">
+                                                <div className="relative">
+                                                    <input
+                                                        type="number"
+                                                        step="0.1"
+                                                        value={range.weightKg ?? 0.5}
+                                                        onChange={(e) => {
+                                                            const updated = [...productForm.productionTimeRanges];
+                                                            updated[index] = { ...updated[index], weightKg: parseFloat(e.target.value) || 0 };
+                                                            setProductForm({ ...productForm, productionTimeRanges: updated });
+                                                        }}
+                                                        className="w-full px-3 py-2 bg-transparent border border-slate-200/60 rounded-lg text-sm focus:ring-4 focus:ring-sky-500/10 focus:border-sky-400 outline-none transition-all"
+                                                        min="0"
+                                                        placeholder="0.5"
+                                                    />
+                                                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] font-bold">kg</span>
+                                                </div>
+                                            </td>
+                                            <td className="px-4 py-3 border-b border-slate-100 text-center">
+                                                <button
+                                                    onClick={() => {
+                                                        const updated = productForm.productionTimeRanges.filter((_: any, i: number) => i !== index);
+                                                        setProductForm({ ...productForm, productionTimeRanges: updated });
+                                                    }}
+                                                    className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                                                >
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            </td>
+                                            {index < productForm.productionTimeRanges.length - 1 && (
+                                                <div className="absolute left-1/2 -translate-x-1/2 h-4 w-px bg-slate-100 z-10" />
+                                            )}
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    ) : (
+                        <div className="p-10 text-center border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
+                            <p className="text-slate-400 text-xs font-medium italic">No production time ranges defined. Delivery time will be calculated using default settings.</p>
+                        </div>
+                    )}
+                </div>
+
+                {/* Production Sequence */}
+                <div className="border border-slate-200/60 rounded-xl p-6 bg-white/70 backdrop-blur-md shadow-sm relative z-30">
+                    <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-3">
+                        <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-500 shadow-sm border border-indigo-100/50">
+                            <Layers size={20} />
+                        </div>
+                        Production Sequence
+                    </h3>
+                    <div className="mb-6">
+                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                            Assign Sequence <span className="text-slate-400 font-medium normal-case">(optional)</span>
+                        </label>
+                        <select
+                            value={
+                                sequences.find((seq: any) => {
+                                    if (!productForm.productionSequence || productForm.productionSequence.length === 0) return false;
+                                    // Check if the actual department sequence matches this sequence's departments
+                                    const seqDeptIds = seq.departments.map((d: any) => (d.department ? d.department._id : d._id));
+                                    if (seqDeptIds.length !== productForm.productionSequence.length) return false;
+                                    return seqDeptIds.every((id: string, index: number) => {
+                                        const prodId = typeof productForm.productionSequence[index] === 'object' ? productForm.productionSequence[index]._id : productForm.productionSequence[index];
+                                        return id === prodId;
+                                    });
+                                })?._id || ""
+                            }
+                            onChange={(e) => {
+                                const selectedSequenceId = e.target.value;
+                                if (!selectedSequenceId) {
+                                    setProductForm({ ...productForm, productionSequence: [] });
+                                    return;
+                                }
+                                const selectedSequence = sequences.find(s => s._id === selectedSequenceId);
+                                if (selectedSequence && selectedSequence.departments) {
+                                    // Map department order exactly
+                                    const departmentIds = [...selectedSequence.departments]
+                                        .sort((a, b) => a.order - b.order)
+                                        .map((d: any) => d.department ? d.department._id : d._id);
+                                    setProductForm({ ...productForm, productionSequence: departmentIds });
+                                }
+                            }}
+                            className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-400 transition-all outline-none"
+                        >
+                            <option value="">No Sequence (Manual / All Departments)</option>
+                            {sequences.map((seq: any) => (
+                                <option key={seq._id} value={seq._id}>
+                                    {seq.name} ({seq.departments?.length || 0} stages)
+                                </option>
+                            ))}
+                        </select>
+                        <p className="mt-2 text-xs text-slate-500">
+                            Select a predefined sequence of departments this product will go through during production.
+                        </p>
+
+                        {/* Display the sequence stages */}
+                        {productForm.productionSequence && productForm.productionSequence.length > 0 && (
+                            <div className="mt-4 flex flex-wrap gap-2 items-center">
+                                {productForm.productionSequence.map((deptId: any, index: number) => {
+                                    // Try to find name inside sequences or just show ID segment
+                                    let deptName = "Department";
+                                    for (const seq of sequences) {
+                                        for (const d of seq.departments || []) {
+                                            const dId = d.department ? d.department._id : d._id;
+                                            if (dId === deptId) {
+                                                deptName = d.department ? d.department.name : (d.name || "Department");
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    return (
+                                        <React.Fragment key={index}>
+                                            <span className="px-3 py-1 bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg border border-slate-200">
+                                                {deptName}
+                                            </span>
+                                            {index < productForm.productionSequence.length - 1 && (
+                                                <ChevronRight size={14} className="text-slate-400" />
+                                            )}
+                                        </React.Fragment>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 {/* Pricing & Category */}

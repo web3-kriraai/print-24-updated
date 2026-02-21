@@ -21,6 +21,8 @@ interface GeoZone {
     currency_code: string;
     pincodeRanges: PincodeRange[];
     isActive: boolean;
+    warehouseName?: string;
+    warehousePincode?: string;
 }
 
 const GeoZoneManager: React.FC = () => {
@@ -37,6 +39,8 @@ const GeoZoneManager: React.FC = () => {
         level: 'COUNTRY',
         pincodeRanges: [{ start: 0, end: 0 }],
         isActive: true,
+        warehouseName: '',
+        warehousePincode: '',
     });
 
     // Pagination state
@@ -205,6 +209,8 @@ const GeoZoneManager: React.FC = () => {
                 ? zone.pincodeRanges.map(r => ({ ...r }))
                 : [{ start: 0, end: 0 }],
             isActive: zone.isActive,
+            warehouseName: zone.warehouseName || '',
+            warehousePincode: zone.warehousePincode || '',
         });
         setCurrentStep(3); // Jump directly to validation step for edits
         setShowModal(true);
@@ -220,6 +226,8 @@ const GeoZoneManager: React.FC = () => {
             // Deep copy pincode ranges
             pincodeRanges: zone.pincodeRanges.map(r => ({ ...r })),
             isActive: true,
+            warehouseName: zone.warehouseName || '',
+            warehousePincode: zone.warehousePincode || '',
         });
         setShowModal(true);
     };
@@ -306,6 +314,8 @@ const GeoZoneManager: React.FC = () => {
             level: 'COUNTRY',
             pincodeRanges: [{ start: 0, end: 0 }],
             isActive: true,
+            warehouseName: '',
+            warehousePincode: '',
         });
         setLocationValue({
             country: '',
@@ -430,19 +440,20 @@ const GeoZoneManager: React.FC = () => {
                                     <th className="px-6 py-4 text-left text-[11px] font-bold text-gray-400 uppercase tracking-widest">Currency</th>
                                     <th className="px-6 py-4 text-left text-[11px] font-bold text-gray-400 uppercase tracking-widest">Level</th>
                                     <th className="px-6 py-4 text-left text-[11px] font-bold text-gray-400 uppercase tracking-widest">Pincodes</th>
+                                    <th className="px-6 py-4 text-left text-[11px] font-bold text-gray-400 uppercase tracking-widest">Warehouse</th>
                                     <th className="px-6 py-4 text-left text-[11px] font-bold text-gray-400 uppercase tracking-widest text-center">Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-200">
                                 {loading ? (
                                     <tr>
-                                        <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
+                                        <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
                                             Loading...
                                         </td>
                                     </tr>
                                 ) : geoZones.length === 0 ? (
                                     <tr>
-                                        <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
+                                        <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
                                             No geo zones found. Create one to get started.
                                         </td>
                                     </tr>
@@ -470,6 +481,18 @@ const GeoZoneManager: React.FC = () => {
                                                     </div>
                                                 ) : (
                                                     <span className="text-gray-400 text-[10px]">No ranges</span>
+                                                )}
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                {zone.warehouseName ? (
+                                                    <div>
+                                                        <span className="text-xs font-semibold text-gray-700">{zone.warehouseName}</span>
+                                                        {zone.warehousePincode && (
+                                                            <span className="ml-1 text-[10px] text-gray-400">({zone.warehousePincode})</span>
+                                                        )}
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-gray-400 text-[10px]">Not set</span>
                                                 )}
                                             </td>
                                             <td className="px-6 py-4">
@@ -748,6 +771,38 @@ const GeoZoneManager: React.FC = () => {
                                                             )}
                                                         </div>
                                                     ))}
+                                                </div>
+                                            </div>
+
+                                            {/* Warehouse / Pickup Location */}
+                                            <div className="p-6 bg-gray-50 rounded-2xl border border-gray-100">
+                                                <h4 className="text-xs font-bold text-gray-900 uppercase tracking-widest flex items-center gap-2 mb-4">
+                                                    <MapPin size={14} className="text-emerald-600" />
+                                                    Warehouse / Pickup Location
+                                                </h4>
+                                                <p className="text-xs text-gray-500 mb-4">Assign a warehouse for shipment pickup from this zone.</p>
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <div>
+                                                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 block">Warehouse Name</label>
+                                                        <input
+                                                            type="text"
+                                                            value={formData.warehouseName}
+                                                            onChange={(e) => setFormData({ ...formData, warehouseName: e.target.value })}
+                                                            className="w-full border-gray-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-indigo-500 bg-white text-sm"
+                                                            placeholder="e.g. Delhi Warehouse"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 block">Warehouse Pincode</label>
+                                                        <input
+                                                            type="text"
+                                                            value={formData.warehousePincode}
+                                                            onChange={(e) => setFormData({ ...formData, warehousePincode: e.target.value })}
+                                                            className="w-full border-gray-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-indigo-500 bg-white text-sm font-mono"
+                                                            placeholder="e.g. 110001"
+                                                            maxLength={6}
+                                                        />
+                                                    </div>
                                                 </div>
                                             </div>
 

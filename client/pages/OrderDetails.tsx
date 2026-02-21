@@ -29,6 +29,8 @@ import {
   Sparkles,
   AlertCircle,
   Plus,
+  ExternalLink,
+  Copy,
 } from 'lucide-react';
 import { formatCurrency, calculateOrderBreakdown, OrderForCalculation } from '../utils/pricing';
 import { API_BASE_URL_WITH_API as API_BASE_URL } from '../lib/apiConfig';
@@ -73,6 +75,7 @@ interface Order {
       filterPricesEnabled?: boolean;
       printingOptionPrices?: Array<{ name: string; priceAdd: number }>;
     };
+    productionSequence?: any[];
   };
   quantity: number;
   finish: string;
@@ -111,7 +114,22 @@ interface Order {
   dispatchedAt?: string | null;
   handedOverToCourierAt?: string | null;
   courierPartner?: string | null;
+  pickupWarehouseName?: string | null;   // Warehouse used for courier pickup (from geo zone)
+  pickupWarehousePincode?: string | null;
   trackingId?: string | null;
+  awbCode?: string | null;
+  shiprocketOrderId?: string | null;
+  courierStatus?: 'shipment_created' | 'pickup_scheduled' | 'pickup_completed' | 'in_transit' | 'out_for_delivery' | 'delivered' | 'return_to_origin' | 'cancelled' | null;
+  courierTrackingUrl?: string | null;
+  estimatedDeliveryDate?: string | null;
+  pickupScheduledDate?: string | null;
+  isMockShipment?: boolean;
+  courierTimeline?: Array<{
+    status: string;
+    location?: string;
+    timestamp: string;
+    notes?: string;
+  }>;
   uploadedDesign?: {
     frontImage?: {
       data: string;
@@ -987,32 +1005,7 @@ const OrderDetails: React.FC = () => {
   const getProductionTimeline = (): TimelineEvent[] => {
     if (!order) return [];
 
-    const getFirstDepartmentStart = () => {
-      const firstDept = order.departmentStatuses?.find((ds) => {
-        const status = typeof ds === 'object' ? ds.status : null;
-        return status === 'in_progress' || status === 'completed';
-      });
-      return (typeof firstDept === 'object' ? firstDept.startedAt : undefined) ?? undefined;
-    };
-
-    const getLastDepartmentComplete = () => {
-      const completedDepts = order.departmentStatuses?.filter((ds) => {
-        const status = typeof ds === 'object' ? ds.status : null;
-        return status === 'completed';
-      });
-      if (!completedDepts || completedDepts.length === 0) return undefined;
-
-      const lastCompleted = completedDepts.reduce((latest, ds) => {
-        const dsObj = typeof ds === 'object' ? ds : null;
-        const latestObj = typeof latest === 'object' ? latest : null;
-        if (!dsObj?.completedAt) return latest;
-        if (!latestObj?.completedAt) return ds;
-        return new Date(dsObj.completedAt) > new Date(latestObj.completedAt) ? ds : latest;
-      });
-
-      return (typeof lastCompleted === 'object' ? lastCompleted.completedAt : undefined) ?? undefined;
-    };
-
+    // ── 1. Order Placed ──────────────────────────────────
     const stages: TimelineEvent[] = [
       {
         stage: 'Order Placed',
@@ -1023,55 +1016,33 @@ const OrderDetails: React.FC = () => {
       },
     ];
 
-    // Design & File Prep
-    const fileUploadedAt = order.uploadedDesign?.frontImage || order.uploadedDesign?.backImage
-      ? order.createdAt
-      : undefined;
+    // ── 2. Design & File Prep ────────────────────────────
+    // Removed as per request
 
-    if (fileUploadedAt) {
-      stages.push({
-        stage: 'Design & File Prep',
-        status: 'completed',
-        timestamp: fileUploadedAt,
-        startedAt: order.createdAt,
-        completedAt: fileUploadedAt,
+
+    // ── 3. Individual Department Steps ───────────────────
+    const departmentStatuses = getDepartmentStatuses();
+
+    if (departmentStatuses.length > 0) {
+      // Show each department as its own timeline step
+      departmentStatuses.forEach((dept) => {
+        stages.push({
+          stage: dept.departmentName,
+          status: dept.status,
+          timestamp: dept.startedAt || dept.completedAt,
+          startedAt: dept.startedAt,
+          completedAt: dept.completedAt,
+        });
       });
     } else {
-      stages.push({
-        stage: 'Design & File Prep',
-        status: 'pending',
-      });
-    }
-
-    // Production
-    const hasProductionStarted = order.departmentStatuses?.some(
-      (ds) => {
-        const status = typeof ds === 'object' ? ds.status : null;
-        return status === 'in_progress' || status === 'completed';
-      }
-    );
-
-    if (hasProductionStarted) {
-      const allCompleted = order.departmentStatuses?.every((ds) => {
-        const status = typeof ds === 'object' ? ds.status : null;
-        return status === 'completed';
-      });
-
-      stages.push({
-        stage: 'Production',
-        status: allCompleted ? 'completed' : 'in_progress',
-        timestamp: getFirstDepartmentStart(),
-        startedAt: getFirstDepartmentStart(),
-        completedAt: allCompleted ? getLastDepartmentComplete() : undefined,
-      });
-    } else {
+      // No department data yet — show generic "Production" as pending
       stages.push({
         stage: 'Production',
         status: 'pending',
       });
     }
 
-    // Packing
+    // ── 4. Packing ───────────────────────────────────────
     const packedAt = order.packedAt || (order.status === 'completed' ? order.updatedAt : undefined);
     if (packedAt) {
       stages.push({
@@ -1088,19 +1059,40 @@ const OrderDetails: React.FC = () => {
       });
     }
 
-    // Courier
-    const dispatchedAt = order.dispatchedAt || order.handedOverToCourierAt;
-    if (order.courierPartner || order.trackingId || dispatchedAt) {
+    // ── 5. Shipped / In Transit ──────────────────────────
+    const hasShipment = order.awbCode || order.courierPartner || order.trackingId;
+    const dispatchedAt = order.dispatchedAt || order.handedOverToCourierAt || order.pickupScheduledDate;
+    const isShipped = order.courierStatus && ['in_transit', 'out_for_delivery', 'delivered', 'pickup_completed', 'pickup_scheduled', 'shipment_created'].includes(order.courierStatus);
+
+    if (hasShipment || isShipped) {
+      const isDelivered = order.courierStatus === 'delivered';
+      const isInTransit = order.courierStatus === 'in_transit' || order.courierStatus === 'out_for_delivery';
       stages.push({
-        stage: 'Courier',
-        status: 'completed',
+        stage: order.courierStatus === 'out_for_delivery' ? 'Out for Delivery' : 'Shipped',
+        status: isDelivered ? 'completed' : isInTransit ? 'completed' : hasShipment ? 'in_progress' : 'pending',
         timestamp: dispatchedAt || order.updatedAt,
-        startedAt: dispatchedAt || order.handedOverToCourierAt || order.updatedAt,
-        completedAt: order.deliveredAt || undefined,
+        startedAt: dispatchedAt || order.updatedAt,
+        completedAt: isDelivered ? order.deliveredAt || undefined : undefined,
       });
     } else {
       stages.push({
-        stage: 'Courier',
+        stage: 'Shipped',
+        status: 'pending',
+      });
+    }
+
+    // ── 6. Delivered ─────────────────────────────────────
+    if (order.courierStatus === 'delivered' || order.deliveredAt) {
+      stages.push({
+        stage: 'Delivered',
+        status: 'completed',
+        timestamp: order.deliveredAt || order.updatedAt,
+        startedAt: order.deliveredAt || order.updatedAt,
+        completedAt: order.deliveredAt || order.updatedAt,
+      });
+    } else {
+      stages.push({
+        stage: 'Delivered',
         status: 'pending',
       });
     }
@@ -1109,12 +1101,47 @@ const OrderDetails: React.FC = () => {
   };
 
   const getDepartmentStatuses = (): DepartmentStatus[] => {
-    if (!order?.departmentStatuses) return [];
+    if (!order) return [];
+
+    // If the product has a specific production sequence defined and it's populated
+    const sequence = order.product?.productionSequence;
+
+    if (sequence && Array.isArray(sequence) && sequence.length > 0 && typeof sequence[0] === 'object') {
+      return sequence.map((seqDept: any) => {
+        const deptId = seqDept._id || seqDept;
+        const deptName = seqDept.name || 'Unknown';
+
+        // Find if this order actually has a status entry for this sequence department
+        const ds = order.departmentStatuses?.find(d => {
+          const id = typeof d.department === 'object' ? d.department._id : d.department;
+          return id === deptId;
+        });
+
+        // Translate paused/stopped back to in_progress for timeline UI purposes
+        let statusValue = ds ? ds.status : 'pending';
+        if (statusValue === 'paused' || statusValue === 'stopped') {
+          statusValue = 'in_progress';
+        }
+
+        return {
+          departmentName: deptName,
+          status: statusValue as 'completed' | 'in_progress' | 'pending',
+          startedAt: (typeof ds === 'object' ? ds.startedAt : undefined) || undefined,
+          completedAt: (typeof ds === 'object' ? ds.completedAt : undefined) || undefined,
+        };
+      });
+    }
+
+    // Fallback if productionSequence isn't populated or available
+    if (!order.departmentStatuses) return [];
 
     return order.departmentStatuses
       .map((ds) => {
         const dept = typeof ds.department === 'object' ? ds.department : null;
-        const status = typeof ds === 'object' ? ds.status : 'pending';
+        let status = typeof ds === 'object' ? ds.status : 'pending';
+        if (status === 'paused' || status === 'stopped') {
+          status = 'in_progress';
+        }
         return {
           departmentName: dept?.name || 'Unknown',
           status: status as 'completed' | 'in_progress' | 'pending',
@@ -1249,12 +1276,33 @@ const OrderDetails: React.FC = () => {
                   <div className="flex items-center gap-3">
                     <Clock className="w-5 h-5 text-gray-400" />
                     <div>
-                      <p className="text-sm text-gray-500">Delivery</p>
+                      <p className="text-sm text-gray-500">Estimated Delivery</p>
                       <p className="font-medium text-gray-900">
-                        {order.deliveryDate
-                          ? new Date(order.deliveryDate).toLocaleDateString()
-                          : 'Not scheduled'}
+                        {(() => {
+                          const isProdCompleted = order.status === 'completed' || order.packedAt || order.dispatchedAt || order.courierStatus;
+                          const showFinalDate = isProdCompleted && order.estimatedDeliveryDate;
+                          const dateToShow = showFinalDate ? order.estimatedDeliveryDate : (order.deliveryDate || order.estimatedDeliveryDate);
+
+                          return dateToShow
+                            ? new Date(dateToShow).toLocaleDateString('en-US', {
+                              weekday: 'short',
+                              month: 'short',
+                              day: 'numeric',
+                            })
+                            : 'Calculating...';
+                        })()}
                       </p>
+                      {order.courierStatus && (
+                        <span className={`inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${order.courierStatus === 'delivered' ? 'bg-green-100 text-green-700' :
+                          order.courierStatus === 'in_transit' ? 'bg-blue-100 text-blue-700' :
+                            order.courierStatus === 'out_for_delivery' ? 'bg-orange-100 text-orange-700' :
+                              order.courierStatus === 'return_to_origin' ? 'bg-red-100 text-red-700' :
+                                'bg-gray-100 text-gray-600'
+                          }`}>
+                          <Truck className="w-3 h-3" />
+                          {order.courierStatus.replace(/_/g, ' ')}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1481,13 +1529,13 @@ const OrderDetails: React.FC = () => {
           </div>
         )}
 
-        {/* Production Timeline */}
+        {/* Unified Order Progress */}
         {!isPaymentPending && (
           <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6 mb-8">
             <div className="flex items-center justify-between mb-6">
               <div>
-                <h3 className="text-lg font-bold text-gray-900">Production Status</h3>
-                <p className="text-sm text-gray-600">Track your order progress</p>
+                <h3 className="text-lg font-bold text-gray-900">Order Progress</h3>
+                <p className="text-sm text-gray-600">Track your order from production to delivery</p>
               </div>
               <div className="text-right">
                 <p className="text-sm text-gray-500">Last Updated</p>
@@ -1500,8 +1548,8 @@ const OrderDetails: React.FC = () => {
               </div>
             </div>
 
-            {/* Timeline */}
-            <div className="mb-8">
+            {/* Unified Timeline */}
+            <div className="mb-6">
               <div className="relative">
                 <div className="flex flex-col md:flex-row justify-between items-start">
                   {productionTimeline.map((event, idx) => (
@@ -1516,18 +1564,170 @@ const OrderDetails: React.FC = () => {
               </div>
             </div>
 
-            {/* Department Status */}
-            {departmentStatuses.length > 0 && (
-              <div className="border-t border-gray-200 pt-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h4 className="text-sm font-semibold text-gray-900">Production Departments</h4>
-                  <span className="text-xs text-blue-600 font-medium">Live Tracking</span>
+            {/* Inline Shipment Info (AWB, Courier, EDD) */}
+            {(order.awbCode || order.courierPartner || order.trackingId || order.courierStatus) && (
+              <div className="border-t border-gray-200 pt-6 space-y-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Truck className="w-4 h-4 text-green-600" />
+                  <h4 className="text-sm font-bold text-gray-900">Shipment Info</h4>
+                  {order.isMockShipment && (
+                    <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full font-semibold">TEST</span>
+                  )}
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {departmentStatuses.map((dept, idx) => (
-                    <DepartmentChip key={idx} status={dept} />
-                  ))}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {/* AWB Code */}
+                  <div className="bg-gradient-to-r from-green-50 to-white p-3 rounded-lg border border-green-100">
+                    <p className="text-[10px] text-gray-500 uppercase tracking-wide font-semibold mb-1">AWB / Tracking #</p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-mono text-sm font-bold text-gray-900">
+                        {order.awbCode || order.trackingId || 'Generating...'}
+                      </p>
+                      {(order.awbCode || order.trackingId) && (
+                        <button
+                          onClick={() => navigator.clipboard.writeText(order.awbCode || order.trackingId || '')}
+                          className="p-1 text-gray-400 hover:text-green-600 rounded transition-colors"
+                          title="Copy"
+                        >
+                          <Copy className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Courier Partner + Status */}
+                  <div className="bg-gradient-to-r from-blue-50 to-white p-3 rounded-lg border border-blue-100">
+                    <p className="text-[10px] text-gray-500 uppercase tracking-wide font-semibold mb-1">Courier Partner</p>
+                    <p className="text-sm font-semibold text-gray-900">{order.courierPartner || 'Assigning...'}</p>
+                    {order.courierStatus && (
+                      <span className={`inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${order.courierStatus === 'delivered' ? 'bg-green-100 text-green-700' :
+                        order.courierStatus === 'in_transit' ? 'bg-blue-100 text-blue-700' :
+                          order.courierStatus === 'out_for_delivery' ? 'bg-amber-100 text-amber-700' :
+                            order.courierStatus === 'return_to_origin' ? 'bg-red-100 text-red-700' :
+                              order.courierStatus === 'shipment_created' ? 'bg-purple-100 text-purple-700' :
+                                order.courierStatus === 'pickup_scheduled' ? 'bg-indigo-100 text-indigo-700' :
+                                  'bg-gray-100 text-gray-600'
+                        }`}>
+                        {order.courierStatus.replace(/_/g, ' ')}
+                      </span>
+                    )}
+                  </div>
                 </div>
+
+                {/* EDD & Pickup dates */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {order.estimatedDeliveryDate && (
+                    <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-100">
+                      <Calendar className="w-4 h-4 text-blue-500 flex-shrink-0" />
+                      <div>
+                        <p className="text-[10px] text-gray-500 font-medium">Estimated Delivery</p>
+                        <p className="text-sm font-bold text-gray-900">
+                          {new Date(order.estimatedDeliveryDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })},{' '}
+                          {new Date(order.estimatedDeliveryDate).toLocaleDateString('en-GB', { weekday: 'short' })}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                  {order.pickupScheduledDate && (
+                    <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-100">
+                      <Package className="w-4 h-4 text-purple-500 flex-shrink-0" />
+                      <div>
+                        <p className="text-[10px] text-gray-500 font-medium">Pickup Scheduled</p>
+                        <p className="text-sm font-bold text-gray-900">
+                          {new Date(order.pickupScheduledDate).toLocaleDateString('en-US', {
+                            weekday: 'short', month: 'short', day: 'numeric'
+                          })}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Pickup / Dispatch Location (from GeoZone warehouse) */}
+                {order.pickupWarehouseName && (
+                  <div className="flex items-start gap-3 p-3 bg-orange-50 rounded-lg border border-orange-100">
+                    <MapPin className="w-4 h-4 text-orange-500 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[10px] text-gray-500 uppercase tracking-wide font-semibold mb-0.5">Dispatching Warehouse</p>
+                      <p className="text-sm font-bold text-gray-900">{order.pickupWarehouseName}</p>
+                      {order.pickupWarehousePincode && (
+                        <p className="text-xs text-gray-500 mt-0.5">Pincode: {order.pickupWarehousePincode}</p>
+                      )}
+                    </div>
+                    <span className="text-[10px] bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full font-semibold whitespace-nowrap">PICKUP POINT</span>
+                  </div>
+                )}
+
+                {/* Delivered Banner */}
+                {order.deliveredAt && (
+                  <div className="p-3 bg-green-50 rounded-lg border border-green-200">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-5 h-5 text-green-500" />
+                      <p className="text-gray-900 font-bold">
+                        Delivered
+                      </p>
+                      <p className="text-green-700 font-bold text-sm">
+                        Delivered on {new Date(order.deliveredAt).toLocaleDateString('en-US', {
+                          weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'
+                        })}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Track on courier website */}
+                {order.courierTrackingUrl && (
+                  <a
+                    href={order.courierTrackingUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-2 w-full px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium text-sm transition-colors"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    Track on Courier Website
+                  </a>
+                )}
+
+                {/* Courier Timeline / Activity Log */}
+                {order.courierTimeline && order.courierTimeline.length > 0 && (
+                  <div className="border-t border-gray-100 pt-4">
+                    <h4 className="text-xs font-bold text-gray-900 mb-3 flex items-center gap-2">
+                      <Clock className="w-3.5 h-3.5 text-gray-500" />
+                      Shipment Activity
+                    </h4>
+                    <div className="space-y-3 max-h-48 overflow-y-auto">
+                      {[...order.courierTimeline].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).map((event, idx) => (
+                        <div key={idx} className="flex gap-3">
+                          <div className="flex flex-col items-center">
+                            <div className={`w-2 h-2 rounded-full mt-1.5 ${idx === 0 ? 'bg-blue-500 ring-2 ring-blue-200' : 'bg-gray-300'
+                              }`} />
+                            {idx < order.courierTimeline!.length - 1 && (
+                              <div className="w-0.5 h-full bg-gray-200 mt-1" />
+                            )}
+                          </div>
+                          <div className="flex-1 pb-3">
+                            <p className={`text-sm font-medium capitalize ${idx === 0 ? 'text-gray-900' : 'text-gray-600'}`}>
+                              {event.status ? event.status.replace(/_/g, ' ') : 'Unknown'}
+                            </p>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              {event.location && (
+                                <span className="text-xs text-gray-500 flex items-center gap-1">
+                                  <MapPin className="w-3 h-3" />
+                                  {event.location}
+                                </span>
+                              )}
+                              <span className="text-xs text-gray-400">
+                                {new Date(event.timestamp).toLocaleString('en-US', {
+                                  month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+                                })}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1680,50 +1880,8 @@ const OrderDetails: React.FC = () => {
               </div>
             )}
 
-            {/* Tracking Information */}
-            {order.status === 'completed' && (order.courierPartner || order.trackingId) && (
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <div className="border-b border-gray-200 px-6 py-4 bg-gradient-to-r from-gray-50 to-white">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-green-100 rounded-lg">
-                      <Truck className="w-5 h-5 text-green-600" />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-bold text-gray-900">Tracking Information</h3>
-                      <p className="text-sm text-gray-600">Delivery updates</p>
-                    </div>
-                  </div>
-                </div>
-                <div className="p-6">
-                  <div className="bg-gradient-to-r from-green-50 to-white p-4 rounded-lg border border-green-100">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <p className="text-sm text-gray-600 mb-1">Tracking Number</p>
-                        <p className="font-mono text-lg font-bold text-gray-900 bg-white px-3 py-2 rounded border border-gray-200">
-                          {order.trackingId || 'TRK-99887766'}
-                        </p>
-                      </div>
-                      {order.courierPartner && (
-                        <div>
-                          <p className="text-sm text-gray-600 mb-1">Courier Partner</p>
-                          <p className="text-lg font-semibold text-gray-900">{order.courierPartner}</p>
-                        </div>
-                      )}
-                    </div>
-                    {order.deliveredAt && (
-                      <div className="mt-4 pt-4 border-t border-green-100">
-                        <div className="flex items-center gap-2">
-                          <CheckCircle2 className="w-5 h-5 text-green-500" />
-                          <p className="text-green-700 font-medium">
-                            Delivered on {new Date(order.deliveredAt).toLocaleDateString()}
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
+
+
           </div>
 
           {/* Right Column */}
@@ -1755,7 +1913,18 @@ const OrderDetails: React.FC = () => {
                   <span className="font-medium text-gray-700">Contact Support</span>
                   <HelpCircle className="w-4 h-4 text-gray-400" />
                 </button>
-                <button className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 transition-colors">
+                <button
+                  onClick={() => {
+                    if (order.courierTrackingUrl) {
+                      window.open(order.courierTrackingUrl, '_blank');
+                    }
+                  }}
+                  className={`w-full flex items-center justify-between p-3 rounded-lg border border-gray-200 transition-colors ${order.courierTrackingUrl
+                    ? 'bg-gray-50 hover:bg-gray-100 cursor-pointer'
+                    : 'bg-gray-100 cursor-not-allowed opacity-50'
+                    }`}
+                  disabled={!order.courierTrackingUrl}
+                >
                   <span className="font-medium text-gray-700">Track Order</span>
                   <Truck className="w-4 h-4 text-gray-400" />
                 </button>

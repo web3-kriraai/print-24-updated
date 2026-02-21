@@ -136,6 +136,18 @@ const OrderSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    city: {
+      type: String,
+      default: "",
+    },
+    state: {
+      type: String,
+      default: "",
+    },
+    country: {
+      type: String,
+      default: "India",
+    },
     address: {
       type: String,
       required: true,
@@ -360,10 +372,45 @@ const OrderSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    // Shiprocket Integration
+    shiprocketOrderId: {
+      type: String,
+      default: null,
+    },
+    shiprocketShipmentId: {
+      type: String,
+      default: null,
+    },
+    awbCode: {
+      type: String,
+      default: null,
+    },
+    isMockShipment: {
+      type: Boolean,
+      default: false,
+    },
+    estimatedDeliveryDate: {
+      type: Date,
+      default: null,
+    },
+    pickupScheduledDate: {
+      type: Date,
+      default: null,
+    },
     // Courier & Delivery
     courierPartner: {
       type: String,
       default: null,
+    },
+    pickupWarehouseName: {
+      type: String,
+      default: null,
+      // Name of the warehouse used for pickup (resolved from GeoZone by admin)
+    },
+    pickupWarehousePincode: {
+      type: String,
+      default: null,
+      // Pincode of the pickup warehouse
     },
     trackingId: {
       type: String,
@@ -375,7 +422,11 @@ const OrderSchema = new mongoose.Schema(
     },
     courierStatus: {
       type: String,
-      enum: ["in_transit", "out_for_delivery", "delivered"],
+      enum: [
+        "shipment_created", "pickup_scheduled", "pickup_completed",
+        "in_transit", "out_for_delivery", "delivered",
+        "return_to_origin", "cancelled"
+      ],
       default: null,
     },
     deliveredAt: {
@@ -388,7 +439,7 @@ const OrderSchema = new mongoose.Schema(
     },
     courierTimeline: [
       {
-        status: String, // e.g., "received_at_origin", "in_transit", "out_for_delivery", "delivered"
+        status: String,
         location: String,
         timestamp: {
           type: Date,
@@ -404,7 +455,7 @@ const OrderSchema = new mongoose.Schema(
     },
     paymentStatus: {
       type: String,
-      enum: ["pending", "partial", "completed"],
+      enum: ["pending", "partial", "completed", "COMPLETED", "FAILED"],
       default: "pending",
     },
     paymentGatewayInvoiceId: {

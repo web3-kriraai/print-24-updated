@@ -10,6 +10,7 @@ import { API_BASE_URL_WITH_API as API_BASE_URL } from '../lib/apiConfig';
 import { applyAttributeRules, type AttributeRule, type Attribute } from '../utils/attributeRuleEngine';
 import * as pdfjsLib from 'pdfjs-dist';
 import PaymentConfirmationModal from '../components/PaymentConfirmationModal';
+import ShippingEstimate from '../components/ShippingEstimate';
 
 // Configure PDF.js worker - use local file for reliability
 pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
@@ -207,6 +208,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
   // Order form states
   const [estimatedDeliveryDate, setEstimatedDeliveryDate] = useState<string | null>(null);
+  const [shippingCost, setShippingCost] = useState<number>(0);
   const [deliveryLocationSource, setDeliveryLocationSource] = useState<string>("");
   const [validationError, setValidationError] = useState<string | null>(null);
   // Delivery information states
@@ -3447,7 +3449,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
     if (!quantity || quantity <= 0) {
       throw new Error("Please enter a valid quantity (must be greater than 0).");
     }
-    const finalTotalPrice = price + gstAmount;
+    const finalTotalPrice = price + gstAmount + (shippingCost || 0);
     if (!finalTotalPrice || finalTotalPrice <= 0) {
       throw new Error("Invalid order total. Please refresh and try again.");
     }
@@ -3845,7 +3847,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
         quantity,
         finish: selectedPrintingOption,
         shape: selectedDeliverySpeed,
-        totalPrice: price + gstAmount,
+        totalPrice: price + gstAmount + (shippingCost || 0),
         pincode: pPincode,
         address: pAddress,
         mobileNumber: pMobile,
@@ -3857,7 +3859,8 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
         shape: selectedDeliverySpeed || 'Standard',
         selectedOptions: selectedOptions,
         selectedDynamicAttributes: selectedDynamicAttributesArray, // Send complete attribute information
-        totalPrice: price + gstAmount, // Store total including GST for order
+        totalPrice: price + gstAmount + (shippingCost || 0), // Store total including GST and shipping for order
+        shippingCost: shippingCost || 0, // Include explicit shipping cost
         // Delivery information collected at checkout
         pincode: pPincode.trim(),
         address: pAddress.trim(),
@@ -3868,6 +3871,8 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
         advancePaid: 0, // No advance payment
         paymentStatus: "pending", // Payment pending
         paymentGatewayInvoiceId: null, // No payment gateway invoice
+        // Delivery Date calculated on frontend
+        deliveryDate: estimatedDeliveryDate,
         // Legacy product specifications (kept for backward compatibility)
         paperGSM: orderDynamicAttributes.paperGSM || null,
         paperQuality: orderDynamicAttributes.paperQuality || null,
@@ -4779,6 +4784,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                         numberOfDesigns={1}
                         attributeCharges={dynamicAttributesCharges}
                         pincode={pincode}
+                        shippingCharge={shippingCost}
                         onLoadingChange={(loading) => setIsPricingLoading(loading)}
                         onPriceChange={(pricing) => {
                           if (pricing) {
@@ -5749,6 +5755,26 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                     </div>
                                   </div>
                                 )}
+                              </div>
+
+                              {/* Shipping Estimate Section */}
+                              <div className="mb-3 sm:mb-4">
+                                <ShippingEstimate
+                                  productId={selectedProduct._id}
+                                  quantity={quantity}
+                                  initialPincode={pincode}
+                                  onPincodeChange={(newPin) => setPincode(newPin)}
+                                  onEstimateChange={(est) => {
+                                    if (est && est.eta_range_end) {
+                                      // The backend returns an ISO string or similar.
+                                      setEstimatedDeliveryDate(new Date(est.eta_range_end).toISOString());
+                                      setShippingCost(est.shipping_cost || 0);
+                                    } else {
+                                      setEstimatedDeliveryDate(null);
+                                      setShippingCost(0);
+                                    }
+                                  }}
+                                />
                               </div>
 
                               {/* Dynamic Attributes */}
@@ -6777,7 +6803,8 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
         preCalculatedPricing={{
           subtotal: price,
           gstAmount: gstAmount,
-          total: price + gstAmount
+          shippingCost: shippingCost,
+          total: price + gstAmount + (shippingCost || 0)
         }}
         onPaymentSuccess={(result) => {
           setShowPaymentModal(false);

@@ -145,6 +145,17 @@ const ProductSchema = new mongoose.Schema(
       },
     ],
 
+    // Quantity-based production time
+    productionTimeRanges: [
+      {
+        minQuantity: { type: Number, required: true },
+        maxQuantity: { type: Number, required: true }, // null for no upper limit (though infinity usually on max)
+        days: { type: Number, default: 0 },
+        hours: { type: Number, default: 0 },
+        weightKg: { type: Number, default: 0.5 }, // Shipping weight in kg for this quantity range
+      },
+    ],
+
     // File upload constraints
     maxFileSizeMB: { type: Number }, // Maximum file size in MB for staff-uploaded files
     minFileWidth: { type: Number }, // Minimum file width in pixels

@@ -42,6 +42,7 @@ interface PaymentConfirmationModalProps {
   preCalculatedPricing?: {
     subtotal: number;
     gstAmount: number;
+    shippingCost?: number;
     total: number;
     unitPrice?: number;
   };
@@ -486,6 +487,14 @@ const PaymentConfirmationModal: React.FC<PaymentConfirmationModalProps> = ({
                         <span className="text-gray-600">GST ({gstPercentage}%)</span>
                         <span className="font-medium text-gray-900">₹{gst.toFixed(2)}</span>
                       </div>
+                      {preCalculatedPricing?.shippingCost !== undefined && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-600">Shipping</span>
+                          <span className="font-medium text-gray-900">
+                            {preCalculatedPricing.shippingCost === 0 ? 'Free' : `₹${preCalculatedPricing.shippingCost.toFixed(2)}`}
+                          </span>
+                        </div>
+                      )}
                       <div className="border-t border-gray-200 my-2 pt-2 flex justify-between font-bold">
                         <span>Total</span>
                         <span className="text-lg text-blue-700">₹{total.toFixed(2)}</span>

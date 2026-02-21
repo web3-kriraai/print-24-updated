@@ -138,6 +138,13 @@ interface Order {
   pincode?: string;
   mobileNumber?: string;
   notes?: string;
+  estimatedDeliveryDate?: string;
+  pickupScheduledDate?: string;
+  dispatchedAt?: string;
+  courierPartner?: string;
+  trackingId?: string;
+  courierTrackingUrl?: string;
+  isMockShipment?: boolean;
 }
 
 const EmployeeDashboard: React.FC = () => {
@@ -219,18 +226,8 @@ const EmployeeDashboard: React.FC = () => {
         return;
       }
 
-      const ALL_EMPLOYEES_DEPARTMENT_ID = "69327f9850162220fa7bff29";
-
       const myDepts = allDepts.filter((dept: any) => {
-        if (dept._id === ALL_EMPLOYEES_DEPARTMENT_ID) {
-          return true;
-        }
-
-        if (!dept.operators || dept.operators.length === 0) {
-          return true;
-        }
-
-        const isAssigned = dept.operators.some((op: any) => {
+        const isAssigned = dept.operators?.some((op: any) => {
           const opId = typeof op === 'object' ? (op._id || op.id || String(op)) : String(op);
           const matches = String(opId) === String(currentUserId);
           return matches;
@@ -450,39 +447,6 @@ const EmployeeDashboard: React.FC = () => {
               <Package className="w-5 h-5" />
               {sidebarOpen && <span>Dashboard</span>}
             </button>
-            <button className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-slate-600 hover:bg-slate-50 font-medium">
-              <Clock className="w-5 h-5" />
-              {sidebarOpen && (
-                <span className="flex items-center justify-between w-full">
-                  <span>My Orders</span>
-                  <span className="bg-blue-500 text-white text-xs px-2 py-0.5 rounded-full">
-                    {orders.length}
-                  </span>
-                </span>
-              )}
-            </button>
-            <button className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-slate-600 hover:bg-slate-50 font-medium">
-              <User className="w-5 h-5" />
-              {sidebarOpen && <span>Team</span>}
-            </button>
-            <button className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-slate-600 hover:bg-slate-50 font-medium">
-              <TrendingUp className="w-5 h-5" />
-              {sidebarOpen && <span>Reports</span>}
-            </button>
-          </div>
-
-          <div className="mt-8 pt-4 border-t border-slate-200">
-            <p className={`text-xs font-semibold text-slate-400 uppercase mb-2 ${!sidebarOpen && "hidden"}`}>
-              System
-            </p>
-            <button className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-slate-600 hover:bg-slate-50 font-medium">
-              <Settings className="w-5 h-5" />
-              {sidebarOpen && <span>Settings</span>}
-            </button>
-            <button className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-slate-600 hover:bg-slate-50 font-medium">
-              <HelpCircle className="w-5 h-5" />
-              {sidebarOpen && <span>Support</span>}
-            </button>
           </div>
         </nav>
 
@@ -512,22 +476,10 @@ const EmployeeDashboard: React.FC = () => {
         <header className="bg-white border-b border-slate-200 px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex-1 max-w-2xl">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
-                <input
-                  type="text"
-                  placeholder="Search orders, customers, or SKUs..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
+              {/* Searchbar removed */}
             </div>
             <div className="flex items-center gap-4 ml-6">
-              <button className="relative p-2 hover:bg-slate-50 rounded-lg">
-                <Bell className="w-5 h-5 text-slate-600" />
-                <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-              </button>
+              {/* Notification bell removed */}
               <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-semibold">
                 {userData ? getInitials(userData.name) : "U"}
               </div>
@@ -575,18 +527,7 @@ const EmployeeDashboard: React.FC = () => {
               <p className="text-sm text-slate-600">In Progress</p>
             </div>
 
-            <div className="bg-white rounded-xl border border-slate-200 p-6 hover:shadow-md transition-shadow">
-              <div className="flex items-center justify-between mb-2">
-                <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
-                  <AlertTriangle className="w-6 h-6 text-red-600" />
-                </div>
-                <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full font-medium">
-                  -1 from yesterday
-                </span>
-              </div>
-              <p className="text-3xl font-bold text-slate-900 mb-1">{dashboardStats.urgent}</p>
-              <p className="text-sm text-slate-600">Urgent Attention</p>
-            </div>
+            {/* Urgent Attention Card Removed */}
 
             <div className="bg-white rounded-xl border border-slate-200 p-6 hover:shadow-md transition-shadow">
               <div className="flex items-center justify-between mb-2">
@@ -1199,185 +1140,285 @@ const EmployeeDashboard: React.FC = () => {
                   );
                 })()}
 
-                {/* Customer Instructions */}
+                {/* Shipping & Delivery */}
                 {(() => {
                   const order = fullOrderDetails || selectedOrder;
-                  return order.notes ? (
+                  const hasShippingInfo = order.estimatedDeliveryDate || order.pickupScheduledDate || order.dispatchedAt || order.courierPartner || order.trackingId;
+
+                  // Calculate if product is fully ready
+                  let productionCompletedDate = null;
+                  if (order.departmentStatuses && order.departmentStatuses.length > 0) {
+                    let allCompleted = true;
+                    let latestCompletion = new Date(0); // Epoch
+
+                    for (const ds of order.departmentStatuses) {
+                      if (ds.status !== 'completed' || !ds.completedAt) {
+                        allCompleted = false;
+                        break;
+                      }
+                      const mCompletedAt = new Date(ds.completedAt);
+                      if (mCompletedAt > latestCompletion) {
+                        latestCompletion = mCompletedAt;
+                      }
+                    }
+                    if (allCompleted) {
+                      productionCompletedDate = latestCompletion;
+                    }
+                  }
+
+                  if (!hasShippingInfo && !productionCompletedDate) return null;
+
+                  return (
                     <div className="bg-slate-50 rounded-xl p-6 border border-slate-200">
                       <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wide mb-4">
-                        Customer Instructions
+                        Shipping & Delivery
                       </h3>
-                      <div className="space-y-2">
-                        {order.notes.split("\n").map((note, idx) => (
-                          <div key={idx} className="flex items-start gap-2">
-                            <span className="text-blue-600 mt-1">•</span>
-                            <p className="text-slate-700">{note}</p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {productionCompletedDate && (
+                          <div>
+                            <p className="text-sm text-slate-600 mb-1">Production Ready</p>
+                            <p className="font-semibold text-green-600">
+                              {productionCompletedDate.toLocaleString()}
+                            </p>
                           </div>
-                        ))}
+                        )}
+                        {order.pickupScheduledDate && (
+                          <div>
+                            <p className="text-sm text-slate-600 mb-1">Shipment Date (Pickup)</p>
+                            <p className="font-semibold text-slate-900">
+                              {new Date(order.pickupScheduledDate).toLocaleDateString()}
+                            </p>
+                          </div>
+                        )}
+                        {order.dispatchedAt && (
+                          <div>
+                            <p className="text-sm text-slate-600 mb-1">Dispatched On</p>
+                            <p className="font-semibold text-slate-900">
+                              {new Date(order.dispatchedAt).toLocaleString()}
+                            </p>
+                          </div>
+                        )}
+                        {order.estimatedDeliveryDate && (
+                          <div>
+                            <p className="text-sm text-slate-600 mb-1">Estimated Delivery Date</p>
+                            <p className="font-semibold text-blue-600">
+                              {new Date(order.estimatedDeliveryDate).toLocaleDateString()}
+                            </p>
+                          </div>
+                        )}
+                        {order.courierPartner && (
+                          <div>
+                            <p className="text-sm text-slate-600 mb-1">Courier Partner</p>
+                            <p className="font-semibold text-slate-900">
+                              {order.courierPartner} {order.isMockShipment && <span className="text-xs text-orange-500 ml-1">(Mock)</span>}
+                            </p>
+                          </div>
+                        )}
+                        {order.trackingId && (
+                          <div>
+                            <p className="text-sm text-slate-600 mb-1">Tracking ID</p>
+                            <p className="font-semibold text-slate-900">
+                              {order.courierTrackingUrl ? (
+                                <a href={order.courierTrackingUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                                  {order.trackingId}
+                                </a>
+                              ) : (
+                                order.trackingId
+                              )}
+                            </p>
+                          </div>
+                        )}
                       </div>
                     </div>
-                  ) : null;
-                })()}
+                  );
+                })()
+                }
+
+                {/* Customer Instructions */}
+                {
+                  (() => {
+                    const order = fullOrderDetails || selectedOrder;
+                    return order.notes ? (
+                      <div className="bg-slate-50 rounded-xl p-6 border border-slate-200">
+                        <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wide mb-4">
+                          Customer Instructions
+                        </h3>
+                        <div className="space-y-2">
+                          {order.notes.split("\n").map((note, idx) => (
+                            <div key={idx} className="flex items-start gap-2">
+                              <span className="text-blue-600 mt-1">•</span>
+                              <p className="text-slate-700">{note}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null;
+                  })()
+                }
 
                 {/* Production Timeline */}
-                {(() => {
-                  const order = fullOrderDetails || selectedOrder;
-                  return order.departmentStatuses && order.departmentStatuses.length > 0 ? (
-                    <div className="bg-slate-50 rounded-xl p-6 border border-slate-200">
-                      <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wide mb-4">
-                        Production Timeline
-                      </h3>
-                      <div className="space-y-4">
-                        {order.departmentStatuses
-                          .sort((a, b) => {
-                            const seqA = typeof a.department === "object" ? a.department.sequence : 0;
-                            const seqB = typeof b.department === "object" ? b.department.sequence : 0;
-                            return seqA - seqB;
-                          })
-                          .map((deptStatus, idx) => {
-                            const deptName = typeof deptStatus.department === "object"
-                              ? deptStatus.department.name
-                              : "Department";
-                            const status = deptStatus.status;
-                            const isCompleted = status === "completed";
-                            const isInProgress = status === "in_progress";
-                            const isPending = status === "pending";
+                {
+                  (() => {
+                    const order = fullOrderDetails || selectedOrder;
+                    return order.departmentStatuses && order.departmentStatuses.length > 0 ? (
+                      <div className="bg-slate-50 rounded-xl p-6 border border-slate-200">
+                        <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wide mb-4">
+                          Production Timeline
+                        </h3>
+                        <div className="space-y-4">
+                          {order.departmentStatuses
+                            .sort((a, b) => {
+                              const seqA = typeof a.department === "object" ? a.department.sequence : 0;
+                              const seqB = typeof b.department === "object" ? b.department.sequence : 0;
+                              return seqA - seqB;
+                            })
+                            .map((deptStatus, idx) => {
+                              const deptName = typeof deptStatus.department === "object"
+                                ? deptStatus.department.name
+                                : "Department";
+                              const status = deptStatus.status;
+                              const isCompleted = status === "completed";
+                              const isInProgress = status === "in_progress";
+                              const isPending = status === "pending";
 
-                            return (
-                              <div key={idx} className="flex items-start gap-4">
-                                <div className="flex flex-col items-center">
-                                  <div
-                                    className={`w-3 h-3 rounded-full ${isCompleted
-                                      ? "bg-green-500"
-                                      : isInProgress
-                                        ? "bg-blue-500 animate-pulse"
-                                        : isPending
-                                          ? "bg-yellow-500"
-                                          : "bg-slate-300"
-                                      }`}
-                                  />
-                                  {idx < order.departmentStatuses!.length - 1 && (
+                              return (
+                                <div key={idx} className="flex items-start gap-4">
+                                  <div className="flex flex-col items-center">
                                     <div
-                                      className={`w-0.5 h-12 ${isCompleted ? "bg-green-500" : "bg-slate-200"
+                                      className={`w-3 h-3 rounded-full ${isCompleted
+                                        ? "bg-green-500"
+                                        : isInProgress
+                                          ? "bg-blue-500 animate-pulse"
+                                          : isPending
+                                            ? "bg-yellow-500"
+                                            : "bg-slate-300"
                                         }`}
                                     />
-                                  )}
-                                </div>
-                                <div className="flex-1">
-                                  <div className="flex items-center justify-between mb-1">
-                                    <p className="font-medium text-slate-900">{deptName}</p>
-                                    <span className={`text-xs px-2 py-1 rounded-full ${getStatusColor(status)}`}>
-                                      {status.replace("_", " ").toUpperCase()}
-                                    </span>
+                                    {idx < order.departmentStatuses!.length - 1 && (
+                                      <div
+                                        className={`w-0.5 h-12 ${isCompleted ? "bg-green-500" : "bg-slate-200"
+                                          }`}
+                                      />
+                                    )}
                                   </div>
-                                  {deptStatus.startedAt && (
-                                    <p className="text-xs text-slate-500">
-                                      Started: {new Date(deptStatus.startedAt).toLocaleString()}
-                                    </p>
-                                  )}
-                                  {deptStatus.completedAt && (
-                                    <p className="text-xs text-green-600">
-                                      Completed: {new Date(deptStatus.completedAt).toLocaleString()}
-                                    </p>
-                                  )}
+                                  <div className="flex-1">
+                                    <div className="flex items-center justify-between mb-1">
+                                      <p className="font-medium text-slate-900">{deptName}</p>
+                                      <span className={`text-xs px-2 py-1 rounded-full ${getStatusColor(status)}`}>
+                                        {status.replace("_", " ").toUpperCase()}
+                                      </span>
+                                    </div>
+                                    {deptStatus.startedAt && (
+                                      <p className="text-xs text-slate-500">
+                                        Started: {new Date(deptStatus.startedAt).toLocaleString()}
+                                      </p>
+                                    )}
+                                    {deptStatus.completedAt && (
+                                      <p className="text-xs text-green-600">
+                                        Completed: {new Date(deptStatus.completedAt).toLocaleString()}
+                                      </p>
+                                    )}
+                                  </div>
                                 </div>
-                              </div>
-                            );
-                          })}
+                              );
+                            })}
+                        </div>
                       </div>
-                    </div>
-                  ) : null;
-                })()}
+                    ) : null;
+                  })()
+                }
 
                 {/* User Uploaded Images */}
-                {(() => {
-                  const order = fullOrderDetails || selectedOrder;
-                  const hasAttachments = order.uploadedDesign?.frontImage || order.uploadedDesign?.backImage;
+                {
+                  (() => {
+                    const order = fullOrderDetails || selectedOrder;
+                    const hasAttachments = order.uploadedDesign?.frontImage || order.uploadedDesign?.backImage;
 
-                  return hasAttachments ? (
-                    <div className="bg-slate-50 rounded-xl p-6 border border-slate-200">
-                      <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wide mb-4">
-                        User Uploaded Designs (CMYK Format)
-                      </h3>
-                      <div className="space-y-4">
-                        {order.uploadedDesign?.frontImage && (
-                          <div className="bg-white rounded-lg border border-slate-200 p-4">
-                            <div className="flex items-center justify-between mb-3">
-                              <div className="flex items-center gap-3">
-                                <ImageIcon className="w-5 h-5 text-slate-400" />
-                                <div>
-                                  <p className="text-sm font-medium text-slate-900">
-                                    {order.uploadedDesign.frontImage.filename || "Front Image"}
-                                  </p>
-                                  <p className="text-xs text-slate-500">Front design file (CMYK JPEG)</p>
+                    return hasAttachments ? (
+                      <div className="bg-slate-50 rounded-xl p-6 border border-slate-200">
+                        <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wide mb-4">
+                          User Uploaded Designs (CMYK Format)
+                        </h3>
+                        <div className="space-y-4">
+                          {order.uploadedDesign?.frontImage && (
+                            <div className="bg-white rounded-lg border border-slate-200 p-4">
+                              <div className="flex items-center justify-between mb-3">
+                                <div className="flex items-center gap-3">
+                                  <ImageIcon className="w-5 h-5 text-slate-400" />
+                                  <div>
+                                    <p className="text-sm font-medium text-slate-900">
+                                      {order.uploadedDesign.frontImage.filename || "Front Image"}
+                                    </p>
+                                    <p className="text-xs text-slate-500">Front design file (CMYK JPEG)</p>
+                                  </div>
                                 </div>
+                                {order.uploadedDesign.frontImage.data && (
+                                  <a
+                                    href={order.uploadedDesign.frontImage.data}
+                                    download={order.uploadedDesign.frontImage.filename}
+                                    className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                                    title="Download image"
+                                  >
+                                    <Download className="w-4 h-4 text-slate-600" />
+                                  </a>
+                                )}
                               </div>
                               {order.uploadedDesign.frontImage.data && (
-                                <a
-                                  href={order.uploadedDesign.frontImage.data}
-                                  download={order.uploadedDesign.frontImage.filename}
-                                  className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
-                                  title="Download image"
-                                >
-                                  <Download className="w-4 h-4 text-slate-600" />
-                                </a>
+                                <div className="mt-3 border border-slate-200 rounded-lg overflow-hidden bg-slate-50">
+                                  <img
+                                    src={order.uploadedDesign.frontImage.data}
+                                    alt="Front design preview"
+                                    className="w-full h-auto max-h-64 object-contain"
+                                    onError={(e) => {
+                                      e.currentTarget.style.display = 'none';
+                                    }}
+                                  />
+                                </div>
                               )}
                             </div>
-                            {order.uploadedDesign.frontImage.data && (
-                              <div className="mt-3 border border-slate-200 rounded-lg overflow-hidden bg-slate-50">
-                                <img
-                                  src={order.uploadedDesign.frontImage.data}
-                                  alt="Front design preview"
-                                  className="w-full h-auto max-h-64 object-contain"
-                                  onError={(e) => {
-                                    e.currentTarget.style.display = 'none';
-                                  }}
-                                />
-                              </div>
-                            )}
-                          </div>
-                        )}
-                        {order.uploadedDesign?.backImage && (
-                          <div className="bg-white rounded-lg border border-slate-200 p-4">
-                            <div className="flex items-center justify-between mb-3">
-                              <div className="flex items-center gap-3">
-                                <ImageIcon className="w-5 h-5 text-slate-400" />
-                                <div>
-                                  <p className="text-sm font-medium text-slate-900">
-                                    {order.uploadedDesign.backImage.filename || "Back Image"}
-                                  </p>
-                                  <p className="text-xs text-slate-500">Back design file (CMYK JPEG)</p>
+                          )}
+                          {order.uploadedDesign?.backImage && (
+                            <div className="bg-white rounded-lg border border-slate-200 p-4">
+                              <div className="flex items-center justify-between mb-3">
+                                <div className="flex items-center gap-3">
+                                  <ImageIcon className="w-5 h-5 text-slate-400" />
+                                  <div>
+                                    <p className="text-sm font-medium text-slate-900">
+                                      {order.uploadedDesign.backImage.filename || "Back Image"}
+                                    </p>
+                                    <p className="text-xs text-slate-500">Back design file (CMYK JPEG)</p>
+                                  </div>
                                 </div>
+                                {order.uploadedDesign.backImage.data && (
+                                  <a
+                                    href={order.uploadedDesign.backImage.data}
+                                    download={order.uploadedDesign.backImage.filename}
+                                    className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                                    title="Download image"
+                                  >
+                                    <Download className="w-4 h-4 text-slate-600" />
+                                  </a>
+                                )}
                               </div>
                               {order.uploadedDesign.backImage.data && (
-                                <a
-                                  href={order.uploadedDesign.backImage.data}
-                                  download={order.uploadedDesign.backImage.filename}
-                                  className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
-                                  title="Download image"
-                                >
-                                  <Download className="w-4 h-4 text-slate-600" />
-                                </a>
+                                <div className="mt-3 border border-slate-200 rounded-lg overflow-hidden bg-slate-50">
+                                  <img
+                                    src={order.uploadedDesign.backImage.data}
+                                    alt="Back design preview"
+                                    className="w-full h-auto max-h-64 object-contain"
+                                    onError={(e) => {
+                                      e.currentTarget.style.display = 'none';
+                                    }}
+                                  />
+                                </div>
                               )}
                             </div>
-                            {order.uploadedDesign.backImage.data && (
-                              <div className="mt-3 border border-slate-200 rounded-lg overflow-hidden bg-slate-50">
-                                <img
-                                  src={order.uploadedDesign.backImage.data}
-                                  alt="Back design preview"
-                                  className="w-full h-auto max-h-64 object-contain"
-                                  onError={(e) => {
-                                    e.currentTarget.style.display = 'none';
-                                  }}
-                                />
-                              </div>
-                            )}
-                          </div>
-                        )}
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ) : null;
-                })()}
+                    ) : null;
+                  })()
+                }
               </div>
             </motion.div>
           </div>

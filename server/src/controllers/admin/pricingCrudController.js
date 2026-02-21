@@ -13,7 +13,7 @@ export const createGeoZone = async (req, res) => {
     try {
         const GeoZone = (await import('../../models/GeoZon.js')).default;
         const GeoZoneMapping = (await import('../../models/GeoZonMapping.js')).default;
-        const { name, code, description, currency_code, pincodeRanges, isActive, level } = req.body;
+        const { name, code, description, currency_code, pincodeRanges, isActive, level, warehouseName, warehousePincode } = req.body;
 
         if (!name) {
             return res.status(400).json({ success: false, message: 'Geo zone name is required' });
@@ -37,7 +37,9 @@ export const createGeoZone = async (req, res) => {
             description: description || '',
             currency_code: currency_code || 'INR', // Default to INR if not provided
             level: level || 'COUNTRY', // Default to COUNTRY if not specified
-            isActive: isActive !== false
+            isActive: isActive !== false,
+            warehouseName: warehouseName || '',
+            warehousePincode: warehousePincode || '',
         });
 
         // Create pincode range mappings
@@ -72,7 +74,7 @@ export const updateGeoZone = async (req, res) => {
         const GeoZone = (await import('../../models/GeoZon.js')).default;
         const GeoZoneMapping = (await import('../../models/GeoZonMapping.js')).default;
         const { id } = req.params;
-        const { name, code, description, currency_code, pincodeRanges, isActive, level } = req.body;
+        const { name, code, description, currency_code, pincodeRanges, isActive, level, warehouseName, warehousePincode } = req.body;
 
         // Check for duplicate name (exclude current zone, case‑insensitive)
         if (name) {
@@ -91,7 +93,7 @@ export const updateGeoZone = async (req, res) => {
         // Update the geo zone
         const geoZone = await GeoZone.findByIdAndUpdate(
             id,
-            { name, code, description, currency_code, isActive, level },
+            { name, code, description, currency_code, isActive, level, warehouseName, warehousePincode },
             { new: true }
         );
 
@@ -313,15 +315,17 @@ export const updateUserSegment = async (req, res) => {
         const UserSegment = (await import('../../models/UserSegment.js')).default;
         const { id } = req.params;
         const { name, code, description, priority, isDefault, isActive,
-                signupForm, requiresApproval, isPubliclyVisible, icon, color } = req.body;
+            signupForm, requiresApproval, isPubliclyVisible, icon, color } = req.body;
 
         // If setting as default, unset others
         if (isDefault) {
             await UserSegment.updateMany({}, { isDefault: false });
         }
 
-        const updateData = { name, code, description, priority, isDefault, isActive,
-                             requiresApproval, isPubliclyVisible, icon, color };
+        const updateData = {
+            name, code, description, priority, isDefault, isActive,
+            requiresApproval, isPubliclyVisible, icon, color
+        };
 
         // Handle signupForm - set to null if empty string, otherwise set the ObjectId
         if (signupForm && signupForm !== '') {

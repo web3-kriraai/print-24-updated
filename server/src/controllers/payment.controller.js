@@ -10,7 +10,80 @@ import PaymentGateway from '../models/PaymentGateway.js';
 import Order from '../models/orderModal.js';
 import BulkOrder from '../models/BulkOrder.js'; // BulkOrder ported
 import Product from '../models/productModal.js';
+import Department from '../models/departmentModal.js';
 import { User } from '../models/User.js';
+
+/**
+ * Helper to automatically assign order to the first production department upon payment
+ */
+const autoApproveOrder = async (orderId) => {
+    try {
+        const order = await Order.findById(orderId).populate('product');
+        if (!order) return;
+
+        // If already has departmentStatuses, skip
+        if (order.departmentStatuses && order.departmentStatuses.length > 0) return;
+
+        const productId = order.product._id || order.product;
+        const product = await Product.findById(productId).populate('productionSequence');
+
+        if (!product || !product.productionSequence || product.productionSequence.length === 0) {
+            console.log(`[Payment Auto-Approve] Product ${productId} has no production sequence. Skipping assignment.`);
+            return;
+        }
+
+        const deptIds = product.productionSequence.map(dept => typeof dept === 'object' ? dept._id : dept);
+        const departments = await Department.find({ _id: { $in: deptIds }, isEnabled: true });
+
+        if (departments.length === 0) return;
+
+        const deptMap = new Map(departments.map(d => [d._id.toString(), d]));
+        const departmentsInOrder = deptIds
+            .map(id => {
+                const idStr = typeof id === 'object' ? id.toString() : id?.toString();
+                return idStr ? deptMap.get(idStr) : null;
+            })
+            .filter(d => d !== null && d !== undefined);
+
+        if (departmentsInOrder.length === 0) return;
+
+        const firstDept = departmentsInOrder[0];
+        const now = new Date();
+
+        order.departmentStatuses = [{
+            department: firstDept._id,
+            status: 'pending',
+            whenAssigned: now,
+            startedAt: null,
+            pausedAt: null,
+            completedAt: null,
+            stoppedAt: null,
+            operator: null,
+            notes: '',
+        }];
+
+        order.currentDepartment = firstDept._id;
+        order.currentDepartmentIndex = 0;
+        order.status = 'approved';
+
+        order.productionTimeline = order.productionTimeline || [];
+        order.productionTimeline.push({
+            department: firstDept._id,
+            action: 'requested',
+            timestamp: now,
+            operator: null,
+            notes: `Auto-approved upon payment success and assigned to ${firstDept.name}`,
+        });
+
+        order.markModified('departmentStatuses');
+        order.markModified('productionTimeline');
+
+        await order.save();
+        console.log(`[Payment Auto-Approve] Order ${orderId} assigned to ${firstDept.name}`);
+    } catch (err) {
+        console.error('[Payment Auto-Approve] Error auto-approving order:', err);
+    }
+};
 
 /**
  * Get the active payment gateway for checkout (non-admin)
@@ -289,13 +362,17 @@ export const verifyPayment = async (req, res) => {
                 // Update order or bulk order
                 let updatedOrder = await Order.findByIdAndUpdate(transaction.order, {
                     paymentStatus: 'COMPLETED',
-                    status: 'confirmed', // Confirmed after successful payment
+                    status: 'approved', // Confirmed after successful payment, change to approved for auto-production
                     'payment_details.transaction_id': transaction._id,
                     'payment_details.gateway_used': 'PAYU',
                     'payment_details.payment_method': payuResponse.mode || 'PAYU',
                     'payment_details.captured_at': new Date(),
                     'payment_details.amount_paid': transaction.amount
                 });
+
+                if (updatedOrder) {
+                    await autoApproveOrder(updatedOrder._id);
+                }
 
                 if (!updatedOrder) {
                     const updatedBulkOrder = await BulkOrder.findByIdAndUpdate(transaction.order, {
@@ -307,25 +384,29 @@ export const verifyPayment = async (req, res) => {
                         await updatedBulkOrder.save();
 
                         // 🔄 Cascade Payment Status to Child Orders
-                        const childOrdersUpdate = await Order.updateMany(
-                            {
-                                $or: [
-                                    { bulkOrderRef: updatedBulkOrder._id },
-                                    { bulkParentOrderId: updatedBulkOrder._id }
-                                ]
-                            },
-                            {
-                                $set: {
-                                    paymentStatus: 'COMPLETED',
-                                    'payment_details.transaction_id': transaction._id,
-                                    'payment_details.gateway_used': 'PAYU',
-                                    'payment_details.payment_method': payuResponse.mode || 'PAYU',
-                                    'payment_details.captured_at': new Date(),
-                                    'payment_details.amount_paid': transaction.amount
-                                }
-                            }
-                        );
-                        console.log(`[Payment Verify] Updated ${childOrdersUpdate.modifiedCount} child orders to COMPLETED (PayU)`);
+                        const childOrders = await Order.find({
+                            $or: [
+                                { bulkOrderRef: updatedBulkOrder._id },
+                                { bulkParentOrderId: updatedBulkOrder._id }
+                            ]
+                        });
+
+                        let modifiedCount = 0;
+                        for (const child of childOrders) {
+                            child.paymentStatus = 'COMPLETED';
+                            child.status = 'approved';
+                            child.payment_details = {
+                                transaction_id: transaction._id,
+                                gateway_used: 'PAYU',
+                                payment_method: payuResponse.mode || 'PAYU',
+                                captured_at: new Date(),
+                                amount_paid: transaction.amount
+                            };
+                            await child.save();
+                            await autoApproveOrder(child._id);
+                            modifiedCount++;
+                        }
+                        console.log(`[Payment Verify] Updated ${modifiedCount} child orders to COMPLETED and auto-approved (PayU)`);
                     }
                 }
             } else {
@@ -372,17 +453,20 @@ export const verifyPayment = async (req, res) => {
                 raw_response: status
             });
 
-            // Update order or bulk order if exists (skip for test payments)
             if (transaction.order) {
                 let updatedOrder = await Order.findByIdAndUpdate(transaction.order, {
                     paymentStatus: 'COMPLETED',
-                    status: 'confirmed', // Confirmed after successful payment
+                    status: 'approved', // Confirmed after successful payment, change to approved for auto-production
                     'payment_details.transaction_id': transaction._id,
                     'payment_details.gateway_used': transaction.gateway_name,
                     'payment_details.payment_method': status.paymentMethod,
                     'payment_details.captured_at': new Date(),
                     'payment_details.amount_paid': transaction.amount
                 });
+
+                if (updatedOrder) {
+                    await autoApproveOrder(updatedOrder._id);
+                }
 
                 if (!updatedOrder) {
                     // Try updating BulkOrder
@@ -400,27 +484,31 @@ export const verifyPayment = async (req, res) => {
                         await updatedBulkOrder.save();
 
                         // 🔄 Cascade Payment Status to Child Orders
-                        const childOrdersUpdate = await Order.updateMany(
-                            {
-                                $or: [
-                                    { bulkOrderRef: updatedBulkOrder._id },
-                                    { bulkParentOrderId: updatedBulkOrder._id },
-                                    { parentOrderId: updatedBulkOrder.parentOrderId } // In case parent order was created first
-                                ]
-                            },
-                            {
-                                $set: {
-                                    paymentStatus: 'COMPLETED',
-                                    'payment_details.transaction_id': transaction._id,
-                                    'payment_details.gateway_used': transaction.gateway_name,
-                                    'payment_details.payment_method': status.paymentMethod,
-                                    'payment_details.captured_at': new Date(),
-                                    'payment_details.amount_paid': transaction.amount
-                                }
-                            }
-                        );
+                        const childOrders = await Order.find({
+                            $or: [
+                                { bulkOrderRef: updatedBulkOrder._id },
+                                { bulkParentOrderId: updatedBulkOrder._id },
+                                { parentOrderId: updatedBulkOrder.parentOrderId } // In case parent order was created first
+                            ]
+                        });
 
-                        console.log(`[Payment Verify] Updated ${childOrdersUpdate.modifiedCount} child orders to COMPLETED`);
+                        let modifiedCount = 0;
+                        for (const child of childOrders) {
+                            child.paymentStatus = 'COMPLETED';
+                            child.status = 'approved';
+                            child.payment_details = {
+                                transaction_id: transaction._id,
+                                gateway_used: transaction.gateway_name,
+                                payment_method: status.paymentMethod,
+                                captured_at: new Date(),
+                                amount_paid: transaction.amount
+                            };
+                            await child.save();
+                            await autoApproveOrder(child._id);
+                            modifiedCount++;
+                        }
+
+                        console.log(`[Payment Verify] Updated ${modifiedCount} child orders to COMPLETED and auto-approved`);
 
                     } else {
                         console.warn(`[Payment Verify] Order/BulkOrder not found for transaction ${transaction._id}`);

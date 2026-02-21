@@ -29,6 +29,7 @@ interface ProductPriceBoxProps {
   hideDetails?: boolean;
   attributeCharges?: Array<{ name: string; label: string; charge: number; perUnitCharge?: number; isSubAttribute?: boolean }>;
   pincode?: string; // Explicit pincode override (from shipping/delivery selection)
+  shippingCharge?: number; // Shipping charge to add to summary
 }
 
 interface PricingData {
@@ -74,6 +75,7 @@ export default function ProductPriceBox({
   hideDetails = false,
   attributeCharges = [],
   pincode: explicitPincode,
+  shippingCharge,
 }: ProductPriceBoxProps) {
   const onPriceChangeRef = useRef(onPriceChange);
   const onLoadingChangeRef = useRef(onLoadingChange);
@@ -419,6 +421,16 @@ export default function ProductPriceBox({
                 <span className="text-gray-500 font-medium">GST ({pricing.gstPercentage}%)</span>
                 <span className="text-gray-900 font-semibold">{formatPrice(adjustedGst)}</span>
               </div>
+
+              {/* Shipment Charges */}
+              {shippingCharge !== undefined && shippingCharge !== null && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500 font-medium">Shipment Charges</span>
+                  <span className="text-gray-900 font-semibold">
+                    {shippingCharge === 0 ? 'Free' : `+${formatPrice(shippingCharge)}`}
+                  </span>
+                </div>
+              )}
             </>
           );
         })()}
@@ -430,7 +442,7 @@ export default function ProductPriceBox({
           const totalAttrCharges = attributeCharges.reduce((sum, c) => sum + c.charge, 0);
           const adjustedSubtotal = (pricing.subtotal * numberOfDesigns) + totalAttrCharges;
           const adjustedGst = Math.round((adjustedSubtotal * pricing.gstPercentage / 100 + Number.EPSILON) * 100) / 100;
-          const adjustedTotal = Math.round((adjustedSubtotal + adjustedGst + Number.EPSILON) * 100) / 100;
+          const adjustedTotal = Math.round((adjustedSubtotal + adjustedGst + (shippingCharge || 0) + Number.EPSILON) * 100) / 100;
           return (
             <div className="flex justify-between items-center mb-4">
               <span className="text-lg font-bold text-gray-900">Estimated Total Value</span>

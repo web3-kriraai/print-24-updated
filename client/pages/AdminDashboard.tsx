@@ -360,6 +360,8 @@ const AdminDashboard: React.FC = () => {
     },
     // Quantity discounts
     quantityDiscounts: [] as Array<{ minQuantity: number; maxQuantity: number | null; discountPercentage: number }>,
+    // Production time ranges
+    productionTimeRanges: [] as Array<{ minQuantity: number; maxQuantity: number | null; days: number; hours: number; weightKg: number }>,
     // File upload constraints
     maxFileSizeMB: "",
     minFileWidth: "",
@@ -4397,6 +4399,7 @@ const AdminDashboard: React.FC = () => {
           textureType: [],
         },
         quantityDiscounts: [],
+        productionTimeRanges: [],
         maxFileSizeMB: "",
         minFileWidth: "",
         maxFileWidth: "",
@@ -4612,6 +4615,15 @@ const AdminDashboard: React.FC = () => {
             minQuantity: qd.minQuantity || 0,
             maxQuantity: qd.maxQuantity || null,
             discountPercentage: qd.discountPercentage || 0,
+          }))
+          : [],
+        productionTimeRanges: product.productionTimeRanges && Array.isArray(product.productionTimeRanges)
+          ? product.productionTimeRanges.map((ptr: any) => ({
+            minQuantity: ptr.minQuantity || 0,
+            maxQuantity: ptr.maxQuantity || null,
+            days: ptr.days || 0,
+            hours: ptr.hours || 0,
+            weightKg: ptr.weightKg ?? 0.5,
           }))
           : [],
         maxFileSizeMB: product.maxFileSizeMB?.toString() || "",
@@ -4907,6 +4919,7 @@ const AdminDashboard: React.FC = () => {
       instructions: "",
       specialization: "",
       quantityDiscounts: [],
+      productionTimeRanges: [],
       minFileWidth: "",
       maxFileWidth: "",
       minFileHeight: "",

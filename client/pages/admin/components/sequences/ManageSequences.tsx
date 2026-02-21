@@ -38,8 +38,6 @@ const ManageSequences: React.FC<ManageSequencesProps> = ({
 
     const [sequenceForm, setSequenceForm] = useState({
         name: "",
-        categoryId: "",
-        subCategoryId: "",
         attributeTypeIds: [] as string[],
         selectedDepartments: [] as string[], // Ordered array of department IDs
     });
@@ -52,8 +50,6 @@ const ManageSequences: React.FC<ManageSequencesProps> = ({
 
     // Dependencies
     const [departments, setDepartments] = useState<any[]>([]);
-    const [categories, setCategories] = useState<any[]>([]);
-    const [subCategories, setSubCategories] = useState<any[]>([]);
     const [attributeTypes, setAttributeTypes] = useState<any[]>([]);
 
     // Drag and drop state
@@ -75,19 +71,15 @@ const ManageSequences: React.FC<ManageSequencesProps> = ({
 
     const fetchDependencies = async () => {
         try {
-            const [deptRes, catRes, subCatRes, attrRes] = await Promise.all([
+            const [deptRes, attrRes] = await Promise.all([
                 fetch(`${API_BASE_URL}/departments`, { headers: getAuthHeaders() }),
-                fetch(`${API_BASE_URL}/categories`, { headers: getAuthHeaders() }),
-                fetch(`${API_BASE_URL}/subcategories`, { headers: getAuthHeaders() }),
-                fetch(`${API_BASE_URL}/admin/attribute-types`, { headers: getAuthHeaders() })
+                fetch(`${API_BASE_URL}/attribute-types`, { headers: getAuthHeaders() })
             ]);
 
             if (deptRes.ok) {
                 const data = await deptRes.json();
                 setDepartments(data.data || data || []);
             }
-            if (catRes.ok) setCategories(await catRes.json());
-            if (subCatRes.ok) setSubCategories(await subCatRes.json());
             if (attrRes.ok) setAttributeTypes(await attrRes.json());
 
         } catch (err) {
@@ -98,7 +90,7 @@ const ManageSequences: React.FC<ManageSequencesProps> = ({
     const fetchSequences = async () => {
         setLoadingSequences(true);
         try {
-            const response = await fetch(`${API_BASE_URL}/admin/sequences`, {
+            const response = await fetch(`${API_BASE_URL}/sequences`, {
                 headers: getAuthHeaders(),
             });
             if (response.ok) {
@@ -132,19 +124,14 @@ const ManageSequences: React.FC<ManageSequencesProps> = ({
             }
 
             const url = editingSequenceId
-                ? `${API_BASE_URL}/admin/sequences/${editingSequenceId}`
-                : `${API_BASE_URL}/admin/sequences`;
+                ? `${API_BASE_URL}/sequences/${editingSequenceId}`
+                : `${API_BASE_URL}/sequences`;
             const method = editingSequenceId ? "PUT" : "POST";
 
             const payload = {
                 name: sequenceForm.name,
-                categoryId: sequenceForm.categoryId || null,
-                subCategoryId: sequenceForm.subCategoryId || null,
                 attributeTypeIds: sequenceForm.attributeTypeIds,
-                departments: sequenceForm.selectedDepartments.map((deptId, index) => ({
-                    department: deptId,
-                    order: index + 1
-                }))
+                departments: sequenceForm.selectedDepartments
             };
 
             const response = await fetch(url, {
@@ -168,8 +155,6 @@ const ManageSequences: React.FC<ManageSequencesProps> = ({
             // Reset form
             setSequenceForm({
                 name: "",
-                categoryId: "",
-                subCategoryId: "",
                 attributeTypeIds: [],
                 selectedDepartments: [],
             });
@@ -200,8 +185,6 @@ const ManageSequences: React.FC<ManageSequencesProps> = ({
 
             setSequenceForm({
                 name: sequence.name,
-                categoryId: sequence.category ? (typeof sequence.category === 'object' ? sequence.category._id : sequence.category) : "",
-                subCategoryId: sequence.subcategory ? (typeof sequence.subcategory === 'object' ? sequence.subcategory._id : sequence.subcategory) : "",
                 attributeTypeIds: sequence.attributeTypes ? sequence.attributeTypes.map((a: any) => typeof a === 'object' ? a._id : a) : [],
                 selectedDepartments: deptIds,
             });
@@ -214,7 +197,7 @@ const ManageSequences: React.FC<ManageSequencesProps> = ({
 
         setLoading(true);
         try {
-            const response = await fetch(`${API_BASE_URL}/admin/sequences/${sequenceId}`, {
+            const response = await fetch(`${API_BASE_URL}/sequences/${sequenceId}`, {
                 method: "DELETE",
                 headers: getAuthHeaders(),
             });
@@ -370,37 +353,7 @@ const ManageSequences: React.FC<ManageSequencesProps> = ({
                         )}
                     </div>
 
-                    {/* Category/Subcategory */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="space-y-2">
-                            <label className="block text-sm font-semibold text-gray-700">Category</label>
-                            <select
-                                value={sequenceForm.categoryId}
-                                onChange={(e) => setSequenceForm({ ...sequenceForm, categoryId: e.target.value, subCategoryId: "" })}
-                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-4 focus:ring-gray-200 transition-all bg-white"
-                            >
-                                <option value="">Select Category (Optional)</option>
-                                {categories.map(cat => (
-                                    <option key={cat._id} value={cat._id}>{cat.name}</option>
-                                ))}
-                            </select>
-                        </div>
-                        <div className="space-y-2">
-                            <label className="block text-sm font-semibold text-gray-700">Subcategory</label>
-                            <select
-                                value={sequenceForm.subCategoryId}
-                                onChange={(e) => setSequenceForm({ ...sequenceForm, subCategoryId: e.target.value })}
-                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-4 focus:ring-gray-200 transition-all bg-white"
-                            >
-                                <option value="">Select Subcategory (Optional)</option>
-                                {subCategories
-                                    .filter(sub => !sequenceForm.categoryId || sub.parentCategory === sequenceForm.categoryId || (sub.parentCategory && sub.parentCategory._id === sequenceForm.categoryId))
-                                    .map(sub => (
-                                        <option key={sub._id} value={sub._id}>{sub.name}</option>
-                                    ))}
-                            </select>
-                        </div>
-                    </div>
+
 
                     {/* Departments Selection */}
                     <div className="space-y-3">
@@ -515,8 +468,6 @@ const ManageSequences: React.FC<ManageSequencesProps> = ({
                                 setEditingSequenceId(null);
                                 setSequenceForm({
                                     name: "",
-                                    categoryId: "",
-                                    subCategoryId: "",
                                     attributeTypeIds: [],
                                     selectedDepartments: [],
                                 });
@@ -561,16 +512,6 @@ const ManageSequences: React.FC<ManageSequencesProps> = ({
                                         <div className="flex-1">
                                             <div className="flex items-center gap-3 mb-2">
                                                 <h3 className="font-bold text-gray-800 text-lg">{seq.name}</h3>
-                                                {seq.category && (
-                                                    <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs font-medium border border-gray-200">
-                                                        {typeof seq.category === 'object' ? seq.category.name : 'Category'}
-                                                    </span>
-                                                )}
-                                                {seq.subcategory && (
-                                                    <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs font-medium border border-gray-200">
-                                                        {typeof seq.subcategory === 'object' ? seq.subcategory.name : 'Subcategory'}
-                                                    </span>
-                                                )}
                                             </div>
 
                                             <div className="flex flex-wrap items-center gap-2 mt-3">

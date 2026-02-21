@@ -125,6 +125,21 @@ const GeoZoneSchema = new mongoose.Schema({
     // Standard delivery time in days
   },
 
+  /* =======================
+     WAREHOUSE / PICKUP
+  ======================= */
+  warehouseName: {
+    type: String,
+    trim: true,
+    // e.g., "Delhi Warehouse", "Mumbai Hub"
+  },
+
+  warehousePincode: {
+    type: String,
+    trim: true,
+    // Pickup pincode for shipments from this zone's warehouse
+  },
+
   holidays: [Date],
 
   operatingHours: {
@@ -202,8 +217,8 @@ GeoZoneSchema.statics.resolveByPincode = async function (pincode) {
     $or: [
       { zipCode: pincode },
       {
-        zipCodeStart: { $lte: pincode },
-        zipCodeEnd: { $gte: pincode }
+        pincodeStart: { $lte: Number(pincode) || 0 },
+        pincodeEnd: { $gte: Number(pincode) || 0 }
       }
     ]
   }).populate('geoZone');

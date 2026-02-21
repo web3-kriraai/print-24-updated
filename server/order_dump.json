@@ -1,0 +1,283 @@
+{
+  "_id": "6999618b89a267d1d10896ed",
+  "user": "692038746d33643c1656ab72",
+  "orderNumber": "ORD-1771659653865-6390",
+  "product": "693f9c8f249a2481b79806df",
+  "quantity": 100,
+  "finish": "Standard",
+  "shape": "Standard",
+  "selectedOptions": [],
+  "selectedDynamicAttributes": [
+    {
+      "attributeTypeId": "693fb8e2268419a3e7a0d61c",
+      "attributeName": "Printing Side",
+      "attributeValue": "single-side",
+      "label": "Single Side",
+      "priceMultiplier": 1,
+      "priceAdd": 0,
+      "description": "Price Impact: ₹0.00",
+      "image": "https://res.cloudinary.com/dwggbfodl/image/upload/v1767794461/editor-images/xeblkxumczpfart0uwxv.jpg",
+      "uploadedImages": [],
+      "_id": "6999618b89a267d1d10896ee"
+    },
+    {
+      "attributeTypeId": "693eb1afbd274a079116f0f7",
+      "attributeName": "Paper GSM",
+      "attributeValue": "500-gsm",
+      "label": "500 GSM",
+      "priceMultiplier": null,
+      "priceAdd": 8,
+      "description": "Price Impact: ₹8.00 | Images Required: 1",
+      "image": "https://res.cloudinary.com/dwggbfodl/image/upload/v1767775818/editor-images/zpykxzc7dvhdgdikkrwy.jpg",
+      "uploadedImages": [
+        {
+          "filename": "page-1.jpg",
+          "url": "https://res.cloudinary.com/dwggbfodl/image/upload/v1771659654/orders/ORD-1771659653865-6390/attributes/page-1.jpg",
+          "publicId": "orders/ORD-1771659653865-6390/attributes/page-1",
+          "_id": "6999618b89a267d1d10896f0"
+        }
+      ],
+      "_id": "6999618b89a267d1d10896ef"
+    },
+    {
+      "attributeTypeId": "6941258c9bbce23e552b3e11",
+      "attributeName": "UV on Text",
+      "attributeValue": "front-side",
+      "label": "Front Side",
+      "priceMultiplier": 1,
+      "priceAdd": 0,
+      "description": null,
+      "image": null,
+      "uploadedImages": [],
+      "_id": "6999618b89a267d1d10896f1"
+    },
+    {
+      "attributeTypeId": "693eccfbbd274a07911700ee",
+      "attributeName": "Cutting",
+      "attributeValue": "rectangle",
+      "label": "Rectangle",
+      "priceMultiplier": 1,
+      "priceAdd": 0,
+      "description": null,
+      "image": null,
+      "uploadedImages": [],
+      "_id": "6999618b89a267d1d10896f2"
+    },
+    {
+      "attributeTypeId": "699450a0f2deb336542a8a50",
+      "attributeName": "test",
+      "attributeValue": "good",
+      "label": "good",
+      "priceMultiplier": null,
+      "priceAdd": 2,
+      "description": "Price Impact: ₹2.00",
+      "image": null,
+      "uploadedImages": [],
+      "_id": "6999618b89a267d1d10896f3"
+    },
+    {
+      "attributeTypeId": "693fb9cf268419a3e7a0d758",
+      "attributeName": "Gloss Area",
+      "attributeValue": "not-req.",
+      "label": "Not Req.",
+      "priceMultiplier": 1,
+      "priceAdd": 0,
+      "description": "Price Impact: ₹0",
+      "image": null,
+      "uploadedImages": [],
+      "_id": "6999618b89a267d1d10896f4"
+    },
+    {
+      "attributeTypeId": "693eae2ce6f111bc0535f5d0",
+      "attributeName": "Paper Color",
+      "attributeValue": "metallic-sheet",
+      "label": "Metallic Sheet",
+      "priceMultiplier": null,
+      "priceAdd": 4,
+      "description": "Price Impact: ₹4.00 | Images Required: 1",
+      "image": "https://res.cloudinary.com/dwggbfodl/image/upload/v1767776156/editor-images/y0okgungajqxlsdaqg4w.jpg",
+      "uploadedImages": [
+        {
+          "filename": "page-2.jpg",
+          "url": "https://res.cloudinary.com/dwggbfodl/image/upload/v1771659656/orders/ORD-1771659653865-6390/attributes/page-2.jpg",
+          "publicId": "orders/ORD-1771659653865-6390/attributes/page-2",
+          "_id": "6999618b89a267d1d10896f6"
+        }
+      ],
+      "_id": "6999618b89a267d1d10896f5"
+    }
+  ],
+  "totalPrice": 13570,
+  "priceSnapshot": {
+    "basePrice": 1,
+    "unitPrice": 101,
+    "quantity": 100,
+    "appliedModifiers": [
+      {
+        "modifierType": "FIXED",
+        "value": 101,
+        "source": "ZONE_BOOK",
+        "_id": "6999618b89a267d1d10896f8"
+      }
+    ],
+    "subtotal": 11500,
+    "gstPercentage": 18,
+    "gstAmount": 2070,
+    "totalPayable": 13570,
+    "currency": "INR",
+    "calculatedAt": "2026-02-21T07:40:59.300Z",
+    "_id": "6999618b89a267d1d10896f7"
+  },
+  "status": "completed",
+  "currentDepartment": "69991c404b47188f1c564b6e",
+  "currentDepartmentIndex": 1,
+  "deliveryDate": "2026-03-02T07:40:23.486Z",
+  "pincode": "395006",
+  "address": "test",
+  "mobileNumber": "9876543211",
+  "uploadedDesign": {
+    "pdfFile": {
+      "url": "https://res.cloudinary.com/dwggbfodl/raw/upload/v1771659652/orders/ORD-1771659653865-6390/pdf/Untitled%20design.pdf",
+      "publicId": "orders/ORD-1771659653865-6390/pdf/Untitled design.pdf",
+      "filename": "Untitled design.pdf",
+      "pageCount": 2,
+      "pageMapping": [
+        {
+          "pageNumber": 1,
+          "purpose": "Paper GSM - 500 GSM",
+          "type": "attribute",
+          "attributeName": "Paper GSM",
+          "isRequired": true,
+          "_id": "6999618b89a267d1d10896f9"
+        },
+        {
+          "pageNumber": 2,
+          "purpose": "Paper Color - Metallic Sheet",
+          "type": "attribute",
+          "attributeName": "Paper Color",
+          "isRequired": true,
+          "_id": "6999618b89a267d1d10896fa"
+        }
+      ]
+    }
+  },
+  "notes": "",
+  "adminNotes": "",
+  "departmentStatuses": [
+    {
+      "department": "69991c174b47188f1c564b50",
+      "status": "completed",
+      "whenAssigned": "2026-02-21T07:41:19.640Z",
+      "startedAt": "2026-02-21T07:41:40.561Z",
+      "pausedAt": null,
+      "completedAt": "2026-02-21T07:41:41.890Z",
+      "stoppedAt": null,
+      "operator": "6999173408b9bcc0aeba0a89",
+      "notes": "",
+      "_id": "6999619f89a267d1d1089755"
+    },
+    {
+      "department": "69991c404b47188f1c564b6e",
+      "status": "completed",
+      "whenAssigned": "2026-02-21T07:41:41.912Z",
+      "startedAt": "2026-02-21T07:41:53.739Z",
+      "pausedAt": null,
+      "completedAt": "2026-02-21T07:41:54.732Z",
+      "stoppedAt": null,
+      "operator": "69991c354b47188f1c564b5e",
+      "notes": "",
+      "_id": "699961b589a267d1d10897ef"
+    }
+  ],
+  "designOption": null,
+  "designerAssigned": null,
+  "designFileSentAt": null,
+  "customerResponse": null,
+  "fileUploadedAt": null,
+  "fileStatus": null,
+  "fileRejectionReason": "",
+  "productionStartedAt": null,
+  "movedToPackingAt": null,
+  "packedAt": null,
+  "packedBy": null,
+  "numberOfBoxes": 0,
+  "movedToDispatchAt": null,
+  "handedOverToCourierAt": null,
+  "invoiceNumber": null,
+  "invoiceGeneratedAt": null,
+  "invoiceUrl": null,
+  "shiprocketOrderId": null,
+  "shiprocketShipmentId": null,
+  "awbCode": null,
+  "isMockShipment": false,
+  "estimatedDeliveryDate": null,
+  "pickupScheduledDate": null,
+  "courierPartner": null,
+  "trackingId": null,
+  "dispatchedAt": null,
+  "courierStatus": null,
+  "deliveredAt": null,
+  "courierTrackingUrl": null,
+  "advancePaid": 0,
+  "paymentStatus": "COMPLETED",
+  "paymentGatewayInvoiceId": null,
+  "paperGSM": null,
+  "paperQuality": null,
+  "laminationType": null,
+  "specialEffects": [],
+  "productionTimeline": [
+    {
+      "department": "69991c174b47188f1c564b50",
+      "action": "requested",
+      "timestamp": "2026-02-21T07:41:19.640Z",
+      "operator": null,
+      "notes": "Auto-approved upon payment success and assigned to test24",
+      "_id": "6999619f89a267d1d1089756"
+    },
+    {
+      "department": "69991c174b47188f1c564b50",
+      "action": "started",
+      "timestamp": "2026-02-21T07:41:40.561Z",
+      "operator": "6999173408b9bcc0aeba0a89",
+      "notes": "",
+      "_id": "699961b489a267d1d10897a6"
+    },
+    {
+      "department": "69991c174b47188f1c564b50",
+      "action": "completed",
+      "timestamp": "2026-02-21T07:41:41.890Z",
+      "operator": "6999173408b9bcc0aeba0a89",
+      "notes": "",
+      "_id": "699961b589a267d1d10897ed"
+    },
+    {
+      "department": "69991c404b47188f1c564b6e",
+      "action": "requested",
+      "timestamp": "2026-02-21T07:41:41.912Z",
+      "operator": "6999173408b9bcc0aeba0a89",
+      "notes": "Request sent after \"test24\" completed",
+      "_id": "699961b589a267d1d10897f0"
+    },
+    {
+      "department": "69991c404b47188f1c564b6e",
+      "action": "started",
+      "timestamp": "2026-02-21T07:41:53.739Z",
+      "operator": "69991c354b47188f1c564b5e",
+      "notes": "",
+      "_id": "699961c189a267d1d108984c"
+    },
+    {
+      "department": "69991c404b47188f1c564b6e",
+      "action": "completed",
+      "timestamp": "2026-02-21T07:41:54.732Z",
+      "operator": "69991c354b47188f1c564b5e",
+      "notes": "",
+      "_id": "699961c289a267d1d1089897"
+    }
+  ],
+  "designTimeline": [],
+  "courierTimeline": [],
+  "createdAt": "2026-02-21T07:40:59.322Z",
+  "updatedAt": "2026-02-21T07:41:54.735Z",
+  "__v": 6
+}

@@ -26,6 +26,7 @@ export const createOrder = async (req, res) => {
       mobileNumber,
       uploadedDesign,
       notes,
+      deliveryDate,
     } = req.body;
 
     // Validate required fields
@@ -460,6 +461,7 @@ export const createOrder = async (req, res) => {
       paperQuality: req.body.paperQuality || null,
       laminationType: req.body.laminationType || null,
       specialEffects: req.body.specialEffects || [],
+      deliveryDate: deliveryDate ? new Date(deliveryDate) : null,
     };
 
     // --- PRICING INTEGRATION START ---
@@ -621,6 +623,7 @@ export const createOrderWithAccount = async (req, res) => {
       paperQuality,
       laminationType,
       specialEffects,
+      deliveryDate,
     } = req.body;
 
     // Validate required fields
@@ -983,6 +986,7 @@ export const createOrderWithAccount = async (req, res) => {
       paperQuality: paperQuality || null,
       laminationType: laminationType || null,
       specialEffects: specialEffects || [],
+      deliveryDate: deliveryDate ? new Date(deliveryDate) : null,
     };
 
     // --- PRICING INTEGRATION START ---

@@ -97,13 +97,13 @@ const ManageUsers: React.FC<ManageUsersProps> = ({ setError }) => {
 
     const handleRoleChange = async (userId: string, newRole: string) => {
         try {
-            const response = await fetch(`${API_BASE_URL}/admin/users/${userId}/role`, {
-                method: "PATCH",
+            const response = await fetch(`${API_BASE_URL}/admin/update-user-role`, {
+                method: "PUT",
                 headers: {
                     ...getAuthHeaders(),
                     "Content-Type": "application/json",
                 },
-                body: JSON.stringify({ role: newRole }),
+                body: JSON.stringify({ userId, role: newRole }),
             });
 
             if (!response.ok) throw new Error("Failed to update role");
@@ -141,11 +141,18 @@ const ManageUsers: React.FC<ManageUsersProps> = ({ setError }) => {
         e.preventDefault();
         setLoading(true);
         try {
-            const response = await fetch(`${API_BASE_URL}/auth/register`, {
+            let endpoint = `${API_BASE_URL}/auth/register`;
+            if (createUserForm.role === 'emp') {
+                endpoint = `${API_BASE_URL}/admin/create-employee`;
+            } else if (createUserForm.role === 'admin') {
+                endpoint = `${API_BASE_URL}/admin/create-admin`;
+            }
+
+            const response = await fetch(endpoint, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
-                    ...getAuthHeaders(), // Assuming register might need admin auth if created by admin, or public
+                    ...getAuthHeaders(),
                 },
                 body: JSON.stringify(createUserForm),
             });
@@ -176,7 +183,7 @@ const ManageUsers: React.FC<ManageUsersProps> = ({ setError }) => {
     const roleColors: Record<string, string> = {
         admin: "bg-purple-100 text-purple-800",
         user: "bg-blue-100 text-blue-800",
-        employee: "bg-amber-100 text-amber-800"
+        emp: "bg-amber-100 text-amber-800"
     };
 
     return (
@@ -299,7 +306,7 @@ const ManageUsers: React.FC<ManageUsersProps> = ({ setError }) => {
                                     { value: 'all', label: 'All Roles' },
                                     { value: 'admin', label: 'Administrator' },
                                     { value: 'user', label: 'Customer' },
-                                    { value: 'employee', label: 'Employee' }
+                                    { value: 'emp', label: 'Employee' }
                                 ]}
                                 className="w-full"
                                 enableSearch={false}
@@ -408,7 +415,7 @@ const ManageUsers: React.FC<ManageUsersProps> = ({ setError }) => {
                                                 >
                                                     <option value="admin">Administrator</option>
                                                     <option value="user">Customer</option>
-                                                    <option value="employee">Employee</option>
+                                                    <option value="emp">Employee</option>
                                                 </select>
                                                 <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none opacity-60 group-hover:opacity-100 transition-opacity" size={12} />
                                             </div>
@@ -564,7 +571,7 @@ const ManageUsers: React.FC<ManageUsersProps> = ({ setError }) => {
                                             options={[
                                                 { value: 'user', label: 'User' },
                                                 { value: 'admin', label: 'Admin' },
-                                                { value: 'employee', label: 'Employee' }
+                                                { value: 'emp', label: 'Employee' }
                                             ]}
                                             className="w-full"
                                             enableSearch={false}

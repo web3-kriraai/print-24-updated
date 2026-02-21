@@ -34,7 +34,8 @@ export const createProduct = async (req, res) => {
       showAttributePrices,
       instructions,
       specialization,
-      productionSequence
+      productionSequence,
+      productionTimeRanges
     } = req.body;
 
     if (!name) {
@@ -259,6 +260,18 @@ export const createProduct = async (req, res) => {
       }
     }
 
+    // Parse productionTimeRanges JSON
+    let parsedProductionTimeRanges = [];
+    if (productionTimeRanges) {
+      try {
+        parsedProductionTimeRanges = typeof productionTimeRanges === 'string'
+          ? JSON.parse(productionTimeRanges)
+          : productionTimeRanges;
+      } catch (err) {
+        return res.status(400).json({ error: "Invalid JSON in productionTimeRanges" });
+      }
+    }
+
     // Ensure subcategory is properly set (not empty string)
     // If subcategory is provided, use it; otherwise use categoryId
     const subcategoryValue = subcategoryStr && subcategoryStr !== '' && subcategoryStr !== 'null' ? subcategoryStr : null;
@@ -333,6 +346,7 @@ export const createProduct = async (req, res) => {
       instructions: instructions || "",
       specialization: specialization || "",
       productionSequence: parsedProductionSequence,
+      productionTimeRanges: parsedProductionTimeRanges,
       sortOrder: nextSortOrder,
     });
 
@@ -1107,7 +1121,8 @@ export const updateProduct = async (req, res) => {
       showAttributePrices,
       instructions,
       specialization,
-      productionSequence
+      productionSequence,
+      productionTimeRanges
     } = req.body;
     const productId = req.params.id;
 
@@ -1303,6 +1318,19 @@ export const updateProduct = async (req, res) => {
       }
     }
 
+    // Parse productionTimeRanges JSON
+    let parsedProductionTimeRanges = product.productionTimeRanges || [];
+    if (productionTimeRanges !== undefined) {
+      try {
+        parsedProductionTimeRanges = typeof productionTimeRanges === 'string'
+          ? JSON.parse(productionTimeRanges)
+          : productionTimeRanges;
+      } catch (err) {
+        console.log("Error parsing productionTimeRanges:", err);
+        parsedProductionTimeRanges = product.productionTimeRanges || [];
+      }
+    }
+
     // Handle category and subcategory updates
     let categoryUpdate = product.category;
     let subcategoryUpdate = product.subcategory;
@@ -1420,6 +1448,7 @@ export const updateProduct = async (req, res) => {
         instructions: instructions !== undefined ? instructions : product.instructions,
         specialization: specialization !== undefined ? specialization : product.specialization,
         productionSequence: parsedProductionSequence,
+        productionTimeRanges: parsedProductionTimeRanges,
       },
       { new: true }
     )

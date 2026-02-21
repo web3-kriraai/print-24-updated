@@ -8,7 +8,81 @@ import PaymentWebhookLog from '../models/PaymentWebhookLog.js';
 import PaymentTransaction from '../models/PaymentTransaction.js';
 import Order from '../models/orderModal.js';
 import BulkOrder from '../models/BulkOrder.js'; // BulkOrder ported
+import Product from '../models/productModal.js';
+import Department from '../models/departmentModal.js';
 import { paymentRouter } from '../services/payment/index.js';
+
+/**
+ * Helper to automatically assign order to the first production department upon payment
+ */
+const autoApproveOrder = async (orderId) => {
+    try {
+        const order = await Order.findById(orderId).populate('product');
+        if (!order) return;
+
+        // If already has departmentStatuses, skip
+        if (order.departmentStatuses && order.departmentStatuses.length > 0) return;
+
+        const productId = order.product._id || order.product;
+        const product = await Product.findById(productId).populate('productionSequence');
+
+        if (!product || !product.productionSequence || product.productionSequence.length === 0) {
+            console.log(`[Payment Auto-Approve] Product ${productId} has no production sequence. Skipping assignment.`);
+            return;
+        }
+
+        const deptIds = product.productionSequence.map(dept => typeof dept === 'object' ? dept._id : dept);
+        const departments = await Department.find({ _id: { $in: deptIds }, isEnabled: true });
+
+        if (departments.length === 0) return;
+
+        const deptMap = new Map(departments.map(d => [d._id.toString(), d]));
+        const departmentsInOrder = deptIds
+            .map(id => {
+                const idStr = typeof id === 'object' ? id.toString() : id?.toString();
+                return idStr ? deptMap.get(idStr) : null;
+            })
+            .filter(d => d !== null && d !== undefined);
+
+        if (departmentsInOrder.length === 0) return;
+
+        const firstDept = departmentsInOrder[0];
+        const now = new Date();
+
+        order.departmentStatuses = [{
+            department: firstDept._id,
+            status: 'pending',
+            whenAssigned: now,
+            startedAt: null,
+            pausedAt: null,
+            completedAt: null,
+            stoppedAt: null,
+            operator: null,
+            notes: '',
+        }];
+
+        order.currentDepartment = firstDept._id;
+        order.currentDepartmentIndex = 0;
+        order.status = 'approved';
+
+        order.productionTimeline = order.productionTimeline || [];
+        order.productionTimeline.push({
+            department: firstDept._id,
+            action: 'requested',
+            timestamp: now,
+            operator: null,
+            notes: `Auto-approved upon payment success and assigned to ${firstDept.name}`,
+        });
+
+        order.markModified('departmentStatuses');
+        order.markModified('productionTimeline');
+
+        await order.save();
+        console.log(`[Payment Auto-Approve] Order ${orderId} assigned to ${firstDept.name}`);
+    } catch (err) {
+        console.error('[Payment Auto-Approve] Error auto-approving order:', err);
+    }
+};
 
 /**
  * Universal webhook endpoint
@@ -331,7 +405,7 @@ async function processPayUCallback(payload, provider) {
                         orderIdForUpdate,
                         {
                             paymentStatus: 'COMPLETED',
-                            status: 'confirmed', // Confirmed after successful payment
+                            status: 'approved', // Confirmed after successful payment, change to approved for auto-production
                             'payment_details.transaction_id': transaction._id,
                             'payment_details.gateway_used': 'PAYU',
                             'payment_details.payment_method': mappedMethod,
@@ -345,6 +419,7 @@ async function processPayUCallback(payload, provider) {
                         console.log('✅ Order updated successfully!');
                         console.log('   Order Number:', updatedOrder.orderNumber);
                         console.log('   Payment Status:', updatedOrder.paymentStatus);
+                        await autoApproveOrder(updatedOrder._id);
                     } else {
                         // If not an order, try updating as a bulk order
                         console.log('ℹ️ Order not found, checking if it is a BulkOrder...');
@@ -374,6 +449,7 @@ async function processPayUCallback(payload, provider) {
                                 {
                                     $set: {
                                         paymentStatus: 'COMPLETED',
+                                        status: 'approved',
                                         'payment_details.transaction_id': transaction._id,
                                         'payment_details.gateway_used': 'PAYU',
                                         'payment_details.payment_method': mappedMethod,
@@ -382,6 +458,16 @@ async function processPayUCallback(payload, provider) {
                                     }
                                 }
                             );
+                            // Auto approve all child orders
+                            const childOrdersToApprove = await Order.find({
+                                $or: [
+                                    { bulkOrderRef: updatedBulkOrder._id },
+                                    { bulkParentOrderId: updatedBulkOrder._id }
+                                ]
+                            });
+                            for (const child of childOrdersToApprove) {
+                                await autoApproveOrder(child._id);
+                            }
                             console.log(`✅ Updated ${childOrdersUpdate.modifiedCount} child orders to COMPLETED`);
                         } else {
                             console.error('❌ Order/BulkOrder not found with ID:', orderIdForUpdate);
@@ -516,13 +602,14 @@ async function processRazorpayWebhook(payload, provider) {
 
             await Order.findByIdAndUpdate(transaction.order, {
                 paymentStatus: 'COMPLETED',
-                status: 'confirmed', // Confirmed after successful payment
+                status: 'approved', // Confirmed after successful payment, change to approved for auto-production
                 'payment_details.transaction_id': transaction._id,
                 'payment_details.gateway_used': 'RAZORPAY',
                 'payment_details.payment_method': payment.method,
                 'payment_details.captured_at': new Date(),
                 'payment_details.amount_paid': transaction.amount
             });
+            await autoApproveOrder(transaction.order);
 
             return {
                 processed: true,
@@ -586,13 +673,14 @@ async function processStripeWebhook(payload, provider) {
 
                 await Order.findByIdAndUpdate(transaction.order, {
                     paymentStatus: 'COMPLETED',
-                    status: 'confirmed', // Confirmed after successful payment
+                    status: 'approved', // Confirmed after successful payment, change to approved for auto-production
                     'payment_details.transaction_id': transaction._id,
                     'payment_details.gateway_used': 'STRIPE',
                     'payment_details.payment_method': 'CARD',
                     'payment_details.captured_at': new Date(),
                     'payment_details.amount_paid': transaction.amount
                 });
+                await autoApproveOrder(transaction.order);
 
                 return { processed: true, transaction: transaction._id };
             }
@@ -650,12 +738,13 @@ async function processPhonePeWebhook(payload, provider) {
 
             await Order.findByIdAndUpdate(transaction.order, {
                 paymentStatus: 'COMPLETED',
-                status: 'confirmed', // Confirmed after successful payment
+                status: 'approved', // Confirmed after successful payment, change to approved for auto-production
                 'payment_details.gateway_used': 'PHONEPE',
                 'payment_details.payment_method': data.paymentInstrument?.type || 'UPI',
                 'payment_details.captured_at': new Date(),
                 'payment_details.amount_paid': transaction.amount
             });
+            await autoApproveOrder(transaction.order);
 
             return { processed: true, transaction: transaction._id };
         }

@@ -10,10 +10,6 @@ export const createSequence = async (req, res) => {
       return res.status(400).json({ error: "Sequence name is required." });
     }
 
-    if (!category || !subcategory) {
-      return res.status(400).json({ error: "Category and subcategory are required." });
-    }
-
     if (!departments || !Array.isArray(departments) || departments.length === 0) {
       return res.status(400).json({ error: "At least one department is required." });
     }
@@ -67,7 +63,7 @@ export const createSequence = async (req, res) => {
 export const getAllSequences = async (req, res) => {
   try {
     const { category, subcategory } = req.query;
-    
+
     let query = {};
     if (category) {
       query.category = category;
@@ -135,10 +131,10 @@ export const getSingleSequence = async (req, res) => {
 export const getSequenceBySubcategory = async (req, res) => {
   try {
     const { subcategoryId } = req.params;
-    
-    const sequence = await Sequence.findOne({ 
+
+    const sequence = await Sequence.findOne({
       subcategory: subcategoryId,
-      isDefault: true 
+      isDefault: true
     })
       .populate('category', 'name')
       .populate('subcategory', 'name')

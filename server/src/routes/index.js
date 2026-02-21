@@ -219,7 +219,21 @@ import bulkOrderRoutes from "./bulkOrderRoutes.js";
 /* COMPLAINT ROUTES */
 import complaintRoutes from "./complaintRoutes.js";
 
+/* SHIPPING & LOGISTICS ROUTES */
+import shippingRoutes from "./shippingRoutes.js";
+
+/* SHIPMENT CONTROLLERS */
+import { getShipmentDetails, getTrackingInfo, retryShipment } from "../controllers/shipment.controller.js";
+
+/* COURIER WEBHOOK */
+import { handleCourierWebhook } from "../controllers/courierWebhook.controller.js";
+
 const router = express.Router();
+
+/* =====================================
+   SHIPPING ROUTES
+===================================== */
+router.use("/shipping", shippingRoutes);
 
 /* =====================================
    CATEGORY ROUTES
@@ -436,6 +450,10 @@ router.get("/orders/my-orders", authMiddleware, getMyOrders);
 router.get("/orders/:orderId", authMiddleware, getSingleOrder);
 router.put("/orders/:orderId/cancel", authMiddleware, cancelOrder);
 
+// Shipment routes (authenticated)
+router.get("/orders/:orderId/shipment", authMiddleware, getShipmentDetails);
+router.get("/orders/:orderId/tracking", authMiddleware, getTrackingInfo);
+
 // Admin order routes
 router.get("/admin/orders", authMiddleware, adminAuth, getAllOrders);
 router.put(
@@ -443,6 +461,14 @@ router.put(
   authMiddleware,
   adminAuth,
   updateOrderStatus
+);
+
+// Admin: manually trigger shipment creation
+router.post(
+  "/admin/orders/:orderId/create-shipment",
+  authMiddleware,
+  adminAuth,
+  retryShipment
 );
 
 // New: Admin order approval route (ensures proper department assignment)
@@ -674,5 +700,10 @@ router.use("/bulk-orders", bulkOrderRoutes);
    COMPLAINT ROUTES
 ===================================== */
 router.use("/complaints", complaintRoutes);
+
+/* =====================================
+   COURIER WEBHOOK (No Auth - called by 3PL)
+===================================== */
+router.post("/webhooks/courier-update", handleCourierWebhook);
 
 export default router;

@@ -10,9 +10,8 @@ const SequenceSchema = new mongoose.Schema(
     category: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Category",
-      required: true,
+      required: false, // Made optional as per user request
     },
-    // Keep subcategory for backward compatibility during migration (will be removed later)
     subcategory: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "SubCategory",
