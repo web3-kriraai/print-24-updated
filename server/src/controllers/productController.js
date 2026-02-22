@@ -28,6 +28,7 @@ export const createProduct = async (req, res) => {
       minFileHeight,
       maxFileHeight,
       blockCDRandJPG,
+      requireCustomerName,
       additionalDesignCharge,
       gstPercentage,
       showPriceIncludingGst,
@@ -234,6 +235,7 @@ export const createProduct = async (req, res) => {
     const parsedMinFileHeight = minFileHeight ? parseInt(minFileHeight) : undefined;
     const parsedMaxFileHeight = maxFileHeight ? parseInt(maxFileHeight) : undefined;
     const parsedBlockCDRandJPG = blockCDRandJPG === "true" || blockCDRandJPG === true;
+    const parsedRequireCustomerName = requireCustomerName === "true" || requireCustomerName === true;
 
     // Parse additional charges and taxes
     const parsedAdditionalDesignCharge = additionalDesignCharge ? parseFloat(additionalDesignCharge) : 0;
@@ -339,6 +341,7 @@ export const createProduct = async (req, res) => {
       minFileHeight: parsedMinFileHeight,
       maxFileHeight: parsedMaxFileHeight,
       blockCDRandJPG: parsedBlockCDRandJPG,
+      requireCustomerName: parsedRequireCustomerName,
       additionalDesignCharge: parsedAdditionalDesignCharge,
       gstPercentage: parsedGstPercentage,
       showPriceIncludingGst: parsedShowPriceIncludingGst,
@@ -1115,6 +1118,7 @@ export const updateProduct = async (req, res) => {
       minFileHeight,
       maxFileHeight,
       blockCDRandJPG,
+      requireCustomerName,
       additionalDesignCharge,
       gstPercentage,
       showPriceIncludingGst,
@@ -1292,6 +1296,7 @@ export const updateProduct = async (req, res) => {
     const parsedMinFileHeight = minFileHeight !== undefined ? (minFileHeight ? parseInt(minFileHeight) : undefined) : product.minFileHeight;
     const parsedMaxFileHeight = maxFileHeight !== undefined ? (maxFileHeight ? parseInt(maxFileHeight) : undefined) : product.maxFileHeight;
     const parsedBlockCDRandJPG = blockCDRandJPG !== undefined ? (blockCDRandJPG === "true" || blockCDRandJPG === true) : product.blockCDRandJPG;
+    const parsedRequireCustomerName = requireCustomerName !== undefined ? (requireCustomerName === "true" || requireCustomerName === true) : product.requireCustomerName;
 
     // Parse additional charges and taxes
     const parsedAdditionalDesignCharge = additionalDesignCharge !== undefined ? (additionalDesignCharge ? parseFloat(additionalDesignCharge) : 0) : product.additionalDesignCharge;
@@ -1441,6 +1446,7 @@ export const updateProduct = async (req, res) => {
         minFileHeight: parsedMinFileHeight,
         maxFileHeight: parsedMaxFileHeight,
         blockCDRandJPG: parsedBlockCDRandJPG,
+        requireCustomerName: parsedRequireCustomerName,
         additionalDesignCharge: parsedAdditionalDesignCharge,
         gstPercentage: parsedGstPercentage,
         showPriceIncludingGst: parsedShowPriceIncludingGst,

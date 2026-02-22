@@ -1213,7 +1213,7 @@ const VisitingCards: React.FC = () => {
 
       {/* Header with Breadcrumb - Only show when viewing subcategories, not products */}
       {!subCategoryId && (
-        <div className="relative overflow-hidden bg-gradient-to-r from-rose-50 via-purple-50 to-blue-50 pb-8 sm:pb-12 pt-8 sm:pt-12 mb-8 sm:mb-10">
+        <div className="relative overflow-hidden bg-gradient-to-r from-rose-50 via-purple-50 to-blue-50 pb-2 sm:pb-3 pt-2 sm:pt-3 mb-3 sm:mb-4">
           {/* Decorative background elements */}
           <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-rose-200/30 to-transparent rounded-full blur-3xl" />
           <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-purple-200/30 to-transparent rounded-full blur-3xl" />
@@ -1236,7 +1236,7 @@ const VisitingCards: React.FC = () => {
           </motion.div>
 
           <div className="container mx-auto px-4 sm:px-6 relative z-10">
-            <div className="flex flex-col gap-3 text-center md:text-left">
+            <div className="flex flex-col gap-1.5 text-center md:text-left">
               {/* Breadcrumb with pill style */}
               <div className="flex items-center justify-center md:justify-start gap-2 text-xs sm:text-sm font-medium">
                 <Link
@@ -1256,7 +1256,7 @@ const VisitingCards: React.FC = () => {
 
               {/* Animated title */}
               <motion.h1
-                className="font-serif text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold bg-gradient-to-r from-gray-900 via-purple-800 to-rose-900 bg-clip-text text-transparent pb-2 leading-tight"
+                className="font-serif text-2xl sm:text-3xl md:text-4xl font-bold bg-gradient-to-r from-gray-900 via-purple-800 to-rose-900 bg-clip-text text-transparent pb-1 leading-tight"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.6 }}
@@ -1266,7 +1266,7 @@ const VisitingCards: React.FC = () => {
 
               {categoryDescription && (
                 <motion.p
-                  className="text-base sm:text-lg text-gray-600 mt-2 max-w-2xl mx-auto md:mx-0 leading-relaxed"
+                  className="text-sm sm:text-base text-gray-600 mt-1 max-w-2xl mx-auto md:mx-0 leading-relaxed"
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.6, delay: 0.2 }}
@@ -1339,7 +1339,7 @@ const VisitingCards: React.FC = () => {
                           {/* Content */}
                           <div className="px-5 sm:px-6 py-5 sm:py-6 flex flex-col flex-grow">
                             <div className="mb-3">
-                              <h3 className="font-serif text-xl sm:text-2xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent group-hover:from-purple-700 group-hover:to-rose-600 transition-all duration-400 pb-1 leading-tight">
+                              <h3 className="font-serif text-lg sm:text-xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent group-hover:from-purple-700 group-hover:to-rose-600 transition-all duration-400 pb-1 leading-tight">
                                 {subCategory.name}
                               </h3>
                               {subCategory.shortDescription && (
@@ -1349,24 +1349,7 @@ const VisitingCards: React.FC = () => {
                               )}
                             </div>
 
-                            {/* Decorative Divider */}
-                            <div className="pt-4 mt-auto border-t border-gray-200/50 group-hover:border-purple-200 transition-colors duration-300">
-                              <div className="flex items-center justify-between">
-                                <span className="text-sm font-medium text-gray-600 group-hover:text-purple-700 transition-colors duration-300 flex items-center gap-2">
-                                  Explore Collection
-                                  <div className="w-4 h-0.5 bg-gradient-to-r from-purple-400 to-rose-400 rounded-full group-hover:w-6 transition-all duration-300" />
-                                </span>
-                                <div className="relative">
-                                  <div className="absolute inset-0 bg-gradient-to-r from-rose-400 to-purple-500 rounded-full blur group-hover:blur-md transition-all duration-300 opacity-50" />
-                                  <div className="relative w-9 h-9 rounded-full bg-gradient-to-r from-rose-400 to-purple-500 flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-md group-hover:shadow-lg">
-                                    <ArrowRight
-                                      size={18}
-                                      className="text-white group-hover:translate-x-1 transition-all duration-300"
-                                    />
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
+
                           </div>
 
                           {/* Floating corner accent */}

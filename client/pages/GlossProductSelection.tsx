@@ -155,6 +155,7 @@ interface GlossProduct {
   minFileHeight?: number;
   maxFileHeight?: number;
   blockCDRandJPG?: boolean;
+  requireCustomerName?: boolean;
   // Additional charges and taxes
   additionalDesignCharge?: number;
   gstPercentage?: number;
@@ -298,6 +299,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
   const [frontDesignPreview, setFrontDesignPreview] = useState<string>("");
   const [backDesignPreview, setBackDesignPreview] = useState<string>("");
   const [orderNotes, setOrderNotes] = useState<string>("");
+  const [productCustomerName, setProductCustomerName] = useState<string>("");
 
   // Populate pincode from user context once loaded
   useEffect(() => {
@@ -3957,6 +3959,10 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
     if (!quantity || quantity <= 0) {
       throw new Error("Please enter a valid quantity (must be greater than 0).");
     }
+    // Validate customer name if required by this product
+    if (selectedProduct.requireCustomerName && !productCustomerName.trim()) {
+      throw new Error("Please enter the customer name to be printed on the product.");
+    }
     // Use locked pricing if available, otherwise fallback to current state
     const currentPrice = pricingContext?.price ?? price;
     const currentGst = pricingContext?.gstAmount ?? gstAmount;
@@ -4398,6 +4404,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
         mobileNumber: pMobile.trim(),
         uploadedDesign: uploadedDesign,
         notes: orderNotes || "",
+        productCustomerName: productCustomerName || "",
         // Payment information - payment not required
         advancePaid: 0, // No advance payment
         paymentStatus: "pending", // Payment pending
@@ -5848,7 +5855,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                     )}
 
                                     {/* Instructions Button - Only show if instructions or constraints exist */}
-                                    {(selectedProduct.instructions || selectedProduct.maxFileSizeMB || selectedProduct.minFileWidth || selectedProduct.maxFileWidth || selectedProduct.minFileHeight || selectedProduct.maxFileHeight || selectedProduct.blockCDRandJPG || selectedProduct.additionalDesignCharge || selectedProduct.gstPercentage) && (
+                                    {(selectedProduct.instructions || selectedProduct.maxFileSizeMB || selectedProduct.minFileWidth || selectedProduct.maxFileWidth || selectedProduct.minFileHeight || selectedProduct.maxFileHeight || selectedProduct.blockCDRandJPG || (selectedProduct.additionalDesignCharge > 0) || (selectedProduct.gstPercentage > 0)) && (
                                       <button
                                         onClick={() => {
                                           setIsInstructionsOpen(!isInstructionsOpen);
@@ -6120,7 +6127,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                           )}
 
                                           {/* Additional Settings */}
-                                          {(selectedProduct.additionalDesignCharge || selectedProduct.gstPercentage) && (
+                                          {(selectedProduct.additionalDesignCharge > 0 || selectedProduct.gstPercentage > 0) && (
                                             <div>
                                               <p className="font-semibold text-yellow-900 mb-2">Additional Charges:</p>
                                               <div className="space-y-1 ml-4">
@@ -6134,7 +6141,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                             </div>
                                           )}
 
-                                          {!selectedProduct.instructions && !selectedProduct.maxFileSizeMB && !selectedProduct.minFileWidth && !selectedProduct.maxFileWidth && !selectedProduct.minFileHeight && !selectedProduct.maxFileHeight && !selectedProduct.blockCDRandJPG && !selectedProduct.additionalDesignCharge && !selectedProduct.gstPercentage && (
+                                          {!selectedProduct.instructions && !selectedProduct.maxFileSizeMB && !selectedProduct.minFileWidth && !selectedProduct.maxFileWidth && !selectedProduct.minFileHeight && !selectedProduct.maxFileHeight && !selectedProduct.blockCDRandJPG && !(selectedProduct.additionalDesignCharge > 0) && !(selectedProduct.gstPercentage > 0) && (
                                             <p className="text-yellow-700 italic">No special instructions for this product.</p>
                                           )}
                                         </div>
@@ -7088,6 +7095,22 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
 
 
+
+                              {/* Customer Name Input (if product requires it) */}
+                              {selectedProduct?.requireCustomerName && (
+                                <div className="mb-6">
+                                  <label className="block text-xs sm:text-sm font-bold text-gray-900 mb-3 uppercase tracking-wider">
+                                    {sectionNum++}. Customer Name (to be printed)
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={productCustomerName}
+                                    onChange={(e) => setProductCustomerName(e.target.value)}
+                                    placeholder="Enter customer name to be printed on the product"
+                                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-gray-500 focus:border-gray-500 text-sm font-medium transition-all duration-200"
+                                  />
+                                </div>
+                              )}
 
                               {/* Design Method Selection */}
                               <div className="mb-6">

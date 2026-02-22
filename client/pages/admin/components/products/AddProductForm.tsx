@@ -1004,6 +1004,7 @@ const AddProductForm: React.FC<AddProductFormProps> = ({
                 formData.append("maxFileHeight", productForm.maxFileHeight);
             }
             formData.append("blockCDRandJPG", productForm.blockCDRandJPG ? "true" : "false");
+            formData.append("requireCustomerName", productForm.requireCustomerName ? "true" : "false");
 
             // Append production time ranges
             if (productForm.productionTimeRanges && productForm.productionTimeRanges.length > 0) {
@@ -1146,6 +1147,7 @@ const AddProductForm: React.FC<AddProductFormProps> = ({
                 maxFileHeight: "",
                 variants: [],
                 blockCDRandJPG: false,
+                requireCustomerName: false,
                 additionalDesignCharge: "",
                 gstPercentage: "",
                 showPriceIncludingGst: false,
@@ -2776,6 +2778,20 @@ const AddProductForm: React.FC<AddProductFormProps> = ({
                             </div>
                             <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
                                 Block CDR and JPG files (PDF/AI/PSD/EPS only)
+                            </span>
+                        </div>
+
+                        <div className="flex items-center gap-4 bg-slate-50/50 p-4 rounded-xl border border-slate-100">
+                            <div
+                                onClick={() => setProductForm({ ...productForm, requireCustomerName: !productForm.requireCustomerName })}
+                                className={`w-12 h-6 flex items-center rounded-full p-1 cursor-pointer transition-all ${productForm.requireCustomerName ? 'bg-sky-500 shadow-inner' : 'bg-slate-300'}`}
+                            >
+                                <div
+                                    className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform ${productForm.requireCustomerName ? 'translate-x-6' : 'translate-x-0'}`}
+                                />
+                            </div>
+                            <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                                Require Customer Name on Product
                             </span>
                         </div>
 

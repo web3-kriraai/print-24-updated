@@ -34,6 +34,7 @@ export const createOrder = async (req, res) => {
       deliveryDate,
       isBulkOrder,
       numberOfDesigns,
+      productCustomerName,
     } = req.body;
 
     console.log('📬 [OrderController:createOrder] Incoming uploadedDesign keys:', uploadedDesign ? Object.keys(uploadedDesign) : 'null');
@@ -499,6 +500,7 @@ export const createOrder = async (req, res) => {
       mobileNumber,
       uploadedDesign: processedDesign,
       notes: notes || "",
+      productCustomerName: productCustomerName || "",
       status: "request",
       departmentStatuses: departmentStatuses,
       // Payment information - only set if provided (order created after payment)
@@ -724,6 +726,7 @@ export const createOrderWithAccount = async (req, res) => {
       deliveryDate,
       isBulkOrder,
       numberOfDesigns,
+      productCustomerName,
     } = req.body;
 
     // Validate required fields
@@ -1096,7 +1099,7 @@ export const createOrderWithAccount = async (req, res) => {
       user: user._id,
       orderNumber: orderNumber,
       product: productId,
-     quantity: (isBulkOrder === true || isBulkOrder === "true")
+      quantity: (isBulkOrder === true || isBulkOrder === "true")
         ? (parseInt(req.body.perDesignQuantity) || parseInt(quantity)) * (parseInt(numberOfDesigns) || 1)
         : parseInt(quantity),
       finish: orderFinish,
@@ -1109,6 +1112,7 @@ export const createOrderWithAccount = async (req, res) => {
       mobileNumber,
       uploadedDesign: processedDesign,
       notes: notes || "",
+      productCustomerName: productCustomerName || "",
       status: "request",
       departmentStatuses: departmentStatuses,
       advancePaid: advancePaid ? parseFloat(advancePaid) : 0,

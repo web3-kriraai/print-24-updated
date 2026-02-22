@@ -233,6 +233,11 @@ const OrderSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    // Customer name to be printed on the product (if product requires it)
+    productCustomerName: {
+      type: String,
+      default: "",
+    },
     adminNotes: {
       type: String,
       default: "",

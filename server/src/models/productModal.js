@@ -163,6 +163,7 @@ const ProductSchema = new mongoose.Schema(
     minFileHeight: { type: Number }, // Minimum file height in pixels
     maxFileHeight: { type: Number }, // Maximum file height in pixels
     blockCDRandJPG: { type: Boolean, default: false }, // Block CDR and JPG file types
+    requireCustomerName: { type: Boolean, default: false }, // Require customer name input on product page
 
     // Sorting order for display in product selection deck
     sortOrder: {

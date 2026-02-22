@@ -23,6 +23,7 @@ interface Order {
     paymentStatus: string;
     createdAt: string;
     adminNotes?: string;
+    productCustomerName?: string;
     priceSnapshot?: {
         basePrice: number;
         subtotal: number;
@@ -256,6 +257,19 @@ const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order: initialOrd
                                     </div>
                                 </div>
                             </div>
+
+                            {/* Customer Name (Printed) */}
+                            {order.productCustomerName && (
+                                <div className="bg-sky-50 border border-sky-200 rounded-xl p-4 flex items-center gap-3">
+                                    <div className="p-2 bg-sky-100 rounded-lg">
+                                        <User size={18} className="text-sky-600" />
+                                    </div>
+                                    <div>
+                                        <p className="text-xs font-bold text-sky-600 uppercase tracking-wider">Customer Name (Printed on Product)</p>
+                                        <p className="text-sm font-bold text-gray-900">{order.productCustomerName}</p>
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Design Files */}
                             {order.uploadedDesign && (

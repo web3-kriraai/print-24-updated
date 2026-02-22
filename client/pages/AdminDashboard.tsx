@@ -374,6 +374,7 @@ const AdminDashboard: React.FC = () => {
     minFileHeight: "",
     maxFileHeight: "",
     blockCDRandJPG: false,
+    requireCustomerName: false,
     // Additional charges and taxes
     additionalDesignCharge: "",
     gstPercentage: "",
@@ -2846,7 +2847,7 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
- 
+
   // Attribute Type Management Functions
   const fetchAttributeTypes = async (categoryId?: string, subCategoryId?: string) => {
     setLoadingAttributeTypes(true);
@@ -4560,6 +4561,7 @@ const AdminDashboard: React.FC = () => {
         minFileHeight: product.minFileHeight?.toString() || "",
         maxFileHeight: product.maxFileHeight?.toString() || "",
         blockCDRandJPG: product.blockCDRandJPG || false,
+        requireCustomerName: product.requireCustomerName || false,
         additionalDesignCharge: product.additionalDesignCharge?.toString() || "",
         gstPercentage: product.gstPercentage?.toString() || "",
         showPriceIncludingGst: product.showPriceIncludingGst || false,
@@ -6776,7 +6778,7 @@ const AdminDashboard: React.FC = () => {
             </AnimatePresence>
 
 
-           
+
 
             {/* Upload Modal */}
             <AnimatePresence>
