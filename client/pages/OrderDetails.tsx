@@ -124,12 +124,14 @@ interface Order {
     description?: string;
     image?: string;
     uploadedImages?: Array<{
-      data: any | string;
-      contentType: string;
+      url?: string;
+      data?: any | string;
+      contentType?: string;
       filename: string;
     }>;
   }>;
   totalPrice: number;
+  shippingCost?: number;
   status: 'request' | 'confirmed' | 'production_ready' | 'processing' | 'completed' | 'cancelled' | 'rejected';
   deliveryDate: string | null;
   deliveredAt?: string | null;
@@ -211,6 +213,7 @@ interface Order {
     subtotal: number;
     gstPercentage: number;
     gstAmount: number;
+    shippingCost?: number;
     totalPayable: number;
     currency: string;
     calculatedAt: string;
@@ -578,7 +581,32 @@ const ProductSpecsPanel: React.FC<{ order: Order }> = ({ order }) => {
                       </p>
                       <p className="text-sm font-semibold text-gray-900 mb-1">{attr.label}</p>
                       {attr.description && (
-                        <p className="text-xs text-gray-600 leading-relaxed">{attr.description}</p>
+                        <p className="text-xs text-gray-600 leading-relaxed mb-2">{attr.description}</p>
+                      )}
+
+                      {/* Attribute Uploaded Images */}
+                      {attr.uploadedImages && attr.uploadedImages.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          {attr.uploadedImages.map((img, i) => (
+                            <a
+                              key={i}
+                              href={img.url || (img.data ? (img.data.startsWith('data:') ? img.data : `data:${img.contentType};base64,${img.data}`) : '#')}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="group/img relative w-12 h-12 rounded-lg border border-gray-100 overflow-hidden hover:border-blue-400 transition-all shadow-sm"
+                              title={img.filename}
+                            >
+                              <img
+                                src={img.url || (img.data ? (img.data.startsWith('data:') ? img.data : `data:${img.contentType};base64,${img.data}`) : '')}
+                                className="w-full h-full object-cover"
+                                alt={img.filename}
+                              />
+                              <div className="absolute inset-0 bg-black/0 group-hover/img:bg-black/20 flex items-center justify-center transition-colors">
+                                <ExternalLink size={12} className="text-white opacity-0 group-hover/img:opacity-100" />
+                              </div>
+                            </a>
+                          ))}
+                        </div>
                       )}
                     </div>
                     {(attr.priceAdd > 0 || attr.priceMultiplier) && (
@@ -674,6 +702,7 @@ const PriceBreakdownPanel: React.FC<{ order: Order }> = ({ order }) => {
     subtotal = order.priceSnapshot.subtotal;
     gstPercentage = order.priceSnapshot.gstPercentage;
     gstAmount = order.priceSnapshot.gstAmount;
+    const shippingCost = order.priceSnapshot.shippingCost || order.shippingCost || 0;
     finalTotal = order.priceSnapshot.totalPayable;
     appliedModifiers = order.priceSnapshot.appliedModifiers || [];
   } else {
@@ -777,6 +806,13 @@ const PriceBreakdownPanel: React.FC<{ order: Order }> = ({ order }) => {
             <span className="text-gray-600">GST ({gstPercentage}%)</span>
             <span className="text-purple-600 font-semibold">+{formatCurrency(gstAmount)}</span>
           </div>
+
+          {(order.shippingCost || (order.priceSnapshot && (order.priceSnapshot as any).shippingCost)) && (
+            <div className="flex justify-between items-center py-3 border-t border-gray-200">
+              <span className="text-gray-600">Shipping</span>
+              <span className="text-blue-600 font-semibold">+{formatCurrency(order.shippingCost || (order.priceSnapshot as any).shippingCost)}</span>
+            </div>
+          )}
         </div>
 
         {/* Total */}
@@ -875,6 +911,19 @@ const FileUploadPanel: React.FC<{ order: Order }> = ({ order }) => {
         uploadedAt: order.createdAt,
         sizeMb: 0,
         data: imgSrc,
+      });
+    }
+  }
+
+  if (order.uploadedDesign?.pdfFile) {
+    const pdfSrc = order.uploadedDesign.pdfFile.url;
+    if (pdfSrc) {
+      files.push({
+        type: 'pdf',
+        fileName: order.uploadedDesign.pdfFile.filename || 'design-source.pdf',
+        uploadedAt: order.createdAt,
+        sizeMb: 0,
+        data: pdfSrc,
       });
     }
   }

@@ -382,10 +382,16 @@ export default function ProductPriceBox({
                 <span className="text-gray-900 font-semibold">{quantity.toLocaleString()}</span>
               </div>
 
-              {/* Base Price per unit (final price after dynamic pricing modifiers) */}
+              {/* Base Price per unit (Base Price + all Attribute per-unit charges) */}
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500 font-medium">Base price (per unit)</span>
-                <span className="text-gray-900 font-semibold">{formatPrice(pricing.subtotal / quantity)}</span>
+                <span className="text-gray-900 font-semibold">
+                  {(() => {
+                    const basePerUnit = pricing.subtotal / quantity;
+                    const totalAttrPerUnit = attributeCharges.reduce((sum, c) => sum + (c.perUnitCharge || 0), 0);
+                    return formatPrice(basePerUnit + totalAttrPerUnit);
+                  })()}
+                </span>
               </div>
 
               {/* Dynamic Attributes / Options - sorted by displayOrder */}

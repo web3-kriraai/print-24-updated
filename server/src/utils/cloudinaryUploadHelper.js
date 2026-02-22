@@ -77,14 +77,14 @@ export const uploadPdfToCloudinary = async (base64Data, folder, filename) => {
  */
 export const uploadPdfBufferToCloudinary = async (buffer, folder, filename) => {
     return new Promise((resolve, reject) => {
-        const publicId = filename.replace(/\.[^/.]+$/, "");
+        const isPdf = filename.toLowerCase().endsWith('.pdf');
         const uploadStream = cloudinary.uploader.upload_stream(
             {
                 folder,
-                resource_type: "raw",
-                public_id: publicId,
+                resource_type: isPdf ? "image" : "raw",
+                public_id: filename.replace(/\.[^/.]+$/, ""), // Cloudinary appends extension for image type
                 overwrite: true,
-                format: "pdf",
+                ...(isPdf ? { format: "pdf" } : {}),
             },
             (error, result) => {
                 if (error) {

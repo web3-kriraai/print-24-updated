@@ -7,35 +7,35 @@ import { useState, useEffect, useCallback } from 'react';
  * @param {Object} options - Configuration options
  * @returns {Object} { price, loading, error, refetch, updatePincode }
  */
-export const useDynamicPricing = (productId, options = {}) => {
+export const useDynamicPricing = (productId: string | null, options: any = {}) => {
   const [price, setPrice] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  
-  const { 
-    quantity = 1, 
+
+  const {
+    quantity = 1,
     selectedDynamicAttributes = [],
     pincode = null,
     userPreferredCurrency = null, // NEW: For currency conversion
-    skip = false 
+    skip = false
   } = options;
 
-  const fetchPrice = useCallback(async (customPincode) => {
+  const fetchPrice = useCallback(async (customPincode?: string) => {
     if (!productId || skip) {
       setLoading(false);
       return;
     }
-    
+
     setLoading(true);
     setError(null);
-    
+
     try {
       const token = localStorage.getItem('authToken');
-      
+
       const headers = {
         'Content-Type': 'application/json',
       };
-      
+
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
       }
@@ -59,7 +59,7 @@ export const useDynamicPricing = (productId, options = {}) => {
       }
 
       const data = await response.json();
-      
+
       if (data.success) {
         setPrice(data);
         setError(null);
@@ -76,11 +76,11 @@ export const useDynamicPricing = (productId, options = {}) => {
     }
   }, [productId, quantity, JSON.stringify(selectedDynamicAttributes), pincode, userPreferredCurrency, skip]);
 
-  const refetch = useCallback((newPincode) => {
+  const refetch = useCallback((newPincode?: string) => {
     fetchPrice(newPincode);
   }, [fetchPrice]);
 
-  const updatePincode = useCallback((newPincode) => {
+  const updatePincode = useCallback((newPincode: string) => {
     localStorage.setItem('pincode', newPincode);
     refetch(newPincode);
   }, [refetch]);
@@ -89,10 +89,10 @@ export const useDynamicPricing = (productId, options = {}) => {
     fetchPrice();
   }, [fetchPrice]);
 
-  return { 
-    price, 
-    loading, 
-    error, 
+  return {
+    price,
+    loading,
+    error,
     refetch,
     updatePincode
   };
@@ -105,15 +105,15 @@ export const useDynamicPricing = (productId, options = {}) => {
  * @param {Object} options - Configuration options
  * @returns {Object} { prices, loading, error, getPrice }
  */
-export const useBatchDynamicPricing = (productIds, options = {}) => {
+export const useBatchDynamicPricing = (productIds: string[], options: any = {}) => {
   const [prices, setPrices] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  
-  const { 
+
+  const {
     quantity = 1,
     pincode = null,
-    skip = false 
+    skip = false
   } = options;
 
   useEffect(() => {
@@ -125,14 +125,14 @@ export const useBatchDynamicPricing = (productIds, options = {}) => {
     const fetchBatchPrices = async () => {
       setLoading(true);
       setError(null);
-      
+
       try {
         const token = localStorage.getItem('authToken');
-        
+
         const headers = {
           'Content-Type': 'application/json',
         };
-        
+
         if (token) {
           headers['Authorization'] = `Bearer ${token}`;
         }
@@ -152,7 +152,7 @@ export const useBatchDynamicPricing = (productIds, options = {}) => {
         }
 
         const data = await response.json();
-        
+
         if (data.success) {
           // Convert array to object for easy lookup
           const priceMap = {};
@@ -177,13 +177,13 @@ export const useBatchDynamicPricing = (productIds, options = {}) => {
     fetchBatchPrices();
   }, [JSON.stringify(productIds), quantity, pincode, skip]);
 
-  const getPrice = useCallback((productId) => {
+  const getPrice = useCallback((productId: string) => {
     return prices[productId];
   }, [prices]);
 
-  return { 
-    prices, 
-    loading, 
+  return {
+    prices,
+    loading,
     error,
     getPrice
   };

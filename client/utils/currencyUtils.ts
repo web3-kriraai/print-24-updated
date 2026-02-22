@@ -21,7 +21,7 @@ export const getCurrencySymbol = (currencyCode: string): string => {
         'AUD': 'A$',
         'CAD': 'C$',
         'AED': 'د.إ',
-        
+
         'SAR': '﷼',
         'SGD': 'S$',
         'MYR': 'RM',
@@ -58,7 +58,7 @@ export const formatPrice = (
     options: FormatPriceOptions = {}
 ): string => {
     const {
-        decimals = 2,
+        decimals = 6, // Increased to support high-precision attribute prices
         showSymbol = true,
         locale = 'en-US'
     } = options;
@@ -69,8 +69,8 @@ export const formatPrice = (
 
     const symbol = getCurrencySymbol(currencyCode);
     const formatted = Number(amount).toLocaleString(locale, {
-        minimumFractionDigits: decimals,
-        maximumFractionDigits: decimals
+        minimumFractionDigits: 2, // Always show at least 2 for consistency
+        maximumFractionDigits: 6  // Support up to 6 for high-precision attributes
     });
 
     return showSymbol ? `${symbol}${formatted}` : formatted;

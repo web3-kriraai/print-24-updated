@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { ArrowRight, Loader, X, Clock, FileText, Star } from 'lucide-react';
 import GlossProductSelection from './GlossProductSelection';
 import { API_BASE_URL_WITH_API as API_BASE_URL } from "../lib/apiConfig";
+import { formatPrice } from '../utils/currencyUtils';
 
 import BackButton from '../components/BackButton';
 
@@ -1449,8 +1450,8 @@ const VisitingCards: React.FC = () => {
 
                         const basePrice = product.basePrice || 0;
                         const displayPrice = basePrice < 1
-                          ? (basePrice * 1000).toFixed(2)
-                          : basePrice.toFixed(2);
+                          ? formatPrice(basePrice * 1000)
+                          : formatPrice(basePrice);
                         const priceLabel = basePrice < 1 ? "per 1000 units" : "";
 
                         const descriptionText = product.description
@@ -1501,7 +1502,7 @@ const VisitingCards: React.FC = () => {
                                     <div className="text-right flex-shrink-0 flex items-center gap-2">
                                       <div>
                                         <div className="text-lg sm:text-xl font-bold text-gray-900">
-                                          ₹{displayPrice}
+                                          {displayPrice}
                                         </div>
                                         {priceLabel && (
                                           <div className="text-xs text-gray-500 mt-0.5">

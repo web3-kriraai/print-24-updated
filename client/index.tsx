@@ -17,12 +17,15 @@ if (!rootElement) {
 
 const root = ReactDOM.createRoot(rootElement);
 // Global handler to disable scroll on numeric fields
-const preventNumericScroll = (e: Event) => {
+const preventNumericScroll = (e: WheelEvent) => {
   const target = e.target as HTMLElement;
   if (target && target.tagName === 'INPUT' && (target as HTMLInputElement).type === 'number') {
-    // Prevent the scroll from changing the value.
-    // Use capture phase and preventDefault to be as aggressive as possible.
-    e.preventDefault();
+    // If the input is focused, blur it to prevent value change while allowing page scroll
+    if (document.activeElement === target) {
+      (target as HTMLInputElement).blur();
+    }
+    // Alternatively, just prevent default if we want to stay focused but not change value
+    // e.preventDefault(); 
   }
 };
 
@@ -41,7 +44,11 @@ const ensureDecimalPrecision = (e: Event) => {
   const target = e.target as HTMLInputElement;
   if (target && target.tagName === 'INPUT' && target.type === 'number') {
     // Force 6 decimal places to bypass any existing coarser step constraints
-    target.step = '0.000001';
+    // Only apply if no step is already defined or if it's coarser than 0.000001
+    const currentStep = target.getAttribute('step');
+    if (!currentStep || parseFloat(currentStep) > 0.000001) {
+      target.step = '0.000001';
+    }
   }
 };
 

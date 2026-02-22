@@ -336,6 +336,7 @@ class PricingService {
         needDesigner = false,
         designerType = null,
         visitType = 'Office',
+        shippingCost = 0,
     }) {
         const pricingResult = await this.resolvePrice({
             userId,
@@ -371,7 +372,8 @@ class PricingService {
             subtotal: pricingResult.subtotal,
             gstPercentage: pricingResult.gstPercentage,
             gstAmount: pricingResult.gstAmount,
-            totalPayable: pricingResult.totalPayable,
+            shippingCost: shippingCost,
+            totalPayable: pricingResult.totalPayable + shippingCost,
             currency: pricingResult.currency,
             calculatedAt: pricingResult.calculatedAt,
         };

@@ -140,9 +140,10 @@ const BulkOrderSchema = new mongoose.Schema(
         ====================== */
         price: {
             unitPrice: { type: Number, default: 0 },
-            totalPrice: { type: Number, default: 0 }, // Final payable amount including GST
+            totalPrice: { type: Number, default: 0 }, // Final payable amount including GST and shipping
             gstAmount: { type: Number, default: 0 },
             netAmount: { type: Number, default: 0 }, // Amount before GST
+            shippingCost: { type: Number, default: 0 },
             currency: { type: String, default: "INR" },
         },
 

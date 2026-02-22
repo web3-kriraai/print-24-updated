@@ -12,7 +12,8 @@ import UserContextService from "../services/UserContextService.js";
 import PricingService from "../services/pricing/PricingService.js";
 import bulkOrderService from "../services/bulkOrderService.js"; // Create child orders synchronously
 import PhysicalDesignerBooking from "../designer/models/PhysicalDesignerBooking.js";
-
+import Complaint from "../models/ComplaintSchema.js"; // For stats
+import mongoose from "mongoose";
 // Create a new order
 export const createOrder = async (req, res) => {
   try {
@@ -24,6 +25,7 @@ export const createOrder = async (req, res) => {
       shape,
       selectedOptions,
       totalPrice,
+      shippingCost,
       pincode,
       address,
       mobileNumber,
@@ -491,6 +493,7 @@ export const createOrder = async (req, res) => {
       selectedOptions: enhancedSelectedOptions,
       selectedDynamicAttributes: processedDynamicAttributes,
       totalPrice: parseFloat(totalPrice),
+      shippingCost: parseFloat(shippingCost || 0),
       pincode,
       address,
       mobileNumber,
@@ -531,6 +534,7 @@ export const createOrder = async (req, res) => {
         userId: userId,
         productId: productId,
         pincode: pincode,
+        shippingCost: parseFloat(shippingCost || 0),
         selectedDynamicAttributes: processedDynamicAttributes,
         quantity: parseInt(quantity),
         needDesigner: req.body.needDesigner,
@@ -703,6 +707,7 @@ export const createOrderWithAccount = async (req, res) => {
       selectedOptions,
       selectedDynamicAttributes,
       totalPrice,
+      shippingCost,
       pincode,
       address,
       uploadedDesign,
@@ -1091,7 +1096,7 @@ export const createOrderWithAccount = async (req, res) => {
       user: user._id,
       orderNumber: orderNumber,
       product: productId,
-      quantity: (isBulkOrder === true || isBulkOrder === "true")
+     quantity: (isBulkOrder === true || isBulkOrder === "true")
         ? (parseInt(req.body.perDesignQuantity) || parseInt(quantity)) * (parseInt(numberOfDesigns) || 1)
         : parseInt(quantity),
       finish: orderFinish,
@@ -1725,3 +1730,203 @@ export const cancelOrder = async (req, res) => {
   }
 };
 
+// List orders with filtering, sorting and pagination (Admin)
+export const listOrders = async (req, res) => {
+  try {
+    const {
+      page = 1,
+      limit = 20,
+      search,
+      status,
+      paymentStatus,
+      startDate,
+      endDate,
+      minAmount,
+      maxAmount,
+      deliveryStatus,
+      sortBy = "createdAt",
+      sortOrder = "desc",
+    } = req.query;
+
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip = (pageNum - 1) * limitNum;
+
+    // Base query
+    const match = {};
+
+    // Filters
+    if (status) match.status = { $in: status.split(",") };
+    if (paymentStatus) match.paymentStatus = { $in: paymentStatus.split(",") };
+    if (deliveryStatus) match.courierStatus = { $in: deliveryStatus.split(",") };
+
+    // Date range
+    if (startDate || endDate) {
+      match.createdAt = {};
+      if (startDate) match.createdAt.$gte = new Date(startDate);
+      if (endDate) match.createdAt.$lte = new Date(endDate);
+    }
+
+    // Amount range
+    if (minAmount || maxAmount) {
+      match.totalPrice = {};
+      if (minAmount) match.totalPrice.$gte = parseFloat(minAmount);
+      if (maxAmount) match.totalPrice.$lte = parseFloat(maxAmount);
+    }
+
+    // Lookups for search
+    const pipeline = [
+      { $match: match },
+      {
+        $lookup: {
+          from: "users",
+          localField: "user",
+          foreignField: "_id",
+          as: "userDetails"
+        }
+      },
+      { $unwind: "$userDetails" },
+      {
+        $lookup: {
+          from: "products",
+          localField: "product",
+          foreignField: "_id",
+          as: "productDetails"
+        }
+      },
+      { $unwind: "$productDetails" },
+      // Search
+      ...(search ? [{
+        $match: {
+          $or: [
+            { orderNumber: { $regex: search, $options: "i" } },
+            { "userDetails.name": { $regex: search, $options: "i" } },
+            { "userDetails.email": { $regex: search, $options: "i" } },
+            { "productDetails.name": { $regex: search, $options: "i" } }
+          ]
+        }
+      }] : []),
+      // Sorting
+      { $sort: { [sortBy]: sortOrder === "desc" ? -1 : 1 } },
+      // Pagination
+      {
+        $facet: {
+          metadata: [{ $count: "total" }],
+          data: [
+            { $skip: skip },
+            { $limit: limitNum },
+            {
+              $project: {
+                _id: 1,
+                orderNumber: 1,
+                status: 1,
+                paymentStatus: 1,
+                totalPrice: 1,
+                createdAt: 1,
+                updatedAt: 1,
+                priceSnapshot: 1,
+                quantity: 1,
+                deliveryStatus: "$courierStatus",
+                user: {
+                  _id: "$userDetails._id",
+                  name: "$userDetails.name",
+                  email: "$userDetails.email",
+                  mobileNumber: "$userDetails.mobileNumber"
+                },
+                product: {
+                  _id: "$productDetails._id",
+                  name: "$productDetails.name",
+                  image: "$productDetails.image"
+                }
+              }
+            }
+          ]
+        }
+      }
+    ];
+
+    const results = await mongoose.model("Order").aggregate(pipeline);
+    const data = results[0];
+    const total = data.metadata[0]?.total || 0;
+
+    res.status(200).json({
+      orders: data.data,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        pages: Math.ceil(total / limitNum)
+      }
+    });
+
+  } catch (error) {
+    console.error("List orders error:", error);
+    res.status(500).json({ error: "Failed to list orders." });
+  }
+};
+
+// Get order stats (Admin)
+export const getOrderStats = async (req, res) => {
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const stats = await mongoose.model("Order").aggregate([
+      {
+        $facet: {
+          totalOrders: [{ $count: "count" }],
+          pendingOrders: [
+            { $match: { status: "request" } },
+            { $count: "count" }
+          ],
+          todayOrders: [
+            { $match: { createdAt: { $gte: today } } },
+            { $count: "count" }
+          ],
+          totalRevenue: [
+            { $match: { paymentStatus: "completed" } },
+            { $group: { _id: null, total: { $sum: "$totalPrice" } } }
+          ]
+        }
+      }
+    ]);
+
+    // Active complaints
+    const activeComplaints = await Complaint.countDocuments({
+      status: { $in: ["NEW", "UNDER_REVIEW", "WAITING_FOR_CUSTOMER", "REOPENED"] }
+    });
+
+    const data = stats[0];
+    res.status(200).json({
+      totalOrders: data.totalOrders[0]?.count || 0,
+      pendingOrders: data.pendingOrders[0]?.count || 0,
+      todayOrders: data.todayOrders[0]?.count || 0,
+      totalRevenue: data.totalRevenue[0]?.total || 0,
+      activeComplaints
+    });
+  } catch (error) {
+    console.error("Get order stats error:", error);
+    res.status(500).json({ error: "Failed to fetch order stats." });
+  }
+};
+
+// Bulk delete orders (Admin)
+export const bulkDeleteOrders = async (req, res) => {
+  try {
+    const { orderIds } = req.body;
+
+    if (!orderIds || !Array.isArray(orderIds) || orderIds.length === 0) {
+      return res.status(400).json({ error: "No order IDs provided" });
+    }
+
+    const result = await Order.deleteMany({ _id: { $in: orderIds } });
+
+    res.status(200).json({
+      message: "Orders deleted successfully",
+      deletedCount: result.deletedCount
+    });
+  } catch (error) {
+    console.error("Bulk delete orders error:", error);
+    res.status(500).json({ error: "Failed to delete orders in bulk." });
+  }
+};

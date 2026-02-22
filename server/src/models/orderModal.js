@@ -65,6 +65,10 @@ const OrderSchema = new mongoose.Schema(
       type: Number,
       required: true,
     },
+    shippingCost: {
+      type: Number,
+      default: 0,
+    },
     /* =====================
        🔒 PRICE SNAPSHOT (IMMUTABLE)
     ====================== */
@@ -103,6 +107,7 @@ const OrderSchema = new mongoose.Schema(
         subtotal: { type: Number, default: 0 },
         gstPercentage: { type: Number, default: 0 },
         gstAmount: { type: Number, default: 0 },
+        shippingCost: { type: Number, default: 0 },
         totalPayable: { type: Number, default: 0 },
 
         currency: { type: String, default: "INR" },

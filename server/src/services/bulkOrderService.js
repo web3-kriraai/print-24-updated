@@ -77,9 +77,11 @@ export const createChildOrders = async (parentOrder) => {
             quantity: perDesignQuantity,
             subtotal: parseFloat(((parentOrder.priceSnapshot.subtotal || 0) / numberOfDesigns).toFixed(2)),
             gstAmount: parseFloat(((parentOrder.priceSnapshot.gstAmount || 0) / numberOfDesigns).toFixed(2)),
+            shippingCost: parseFloat(((parentOrder.priceSnapshot.shippingCost || parentOrder.shippingCost || 0) / numberOfDesigns).toFixed(2)),
             totalPayable: parseFloat(((parentOrder.priceSnapshot.totalPayable || 0) / numberOfDesigns).toFixed(2)),
           }
         : undefined,
+      shippingCost: parseFloat(((parentOrder.shippingCost || 0) / numberOfDesigns).toFixed(2)),
     });
 
     await childOrder.save();

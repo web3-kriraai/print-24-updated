@@ -19,6 +19,8 @@ import { toast } from 'react-hot-toast';
 import { getAuthHeaders } from '../lib/apiConfig';
 import { getSocketId, joinSlotRoom, onSessionEvent, offSessionEvent } from '../lib/socketClient';
 import { useDesignerSettings } from '../hooks/useSiteSettings';
+import { useUserContext } from '../lib/useUserContext';
+import { formatPrice } from '../utils/currencyUtils';
 
 // IST Time Helpers
 const IST_OFFSET = 5.5 * 60 * 60 * 1000;
@@ -37,6 +39,20 @@ const formatISTDate = (input?: string | number | Date) => {
 
 // Configure PDF.js worker - use local file for reliability
 pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+
+// Helper for efficient base64 conversion without blocking main thread
+const fileToBase64 = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      const base64Data = result.includes(',') ? result.split(',')[1] : result;
+      resolve(base64Data);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+};
 
 interface SubCategory {
   _id: string;
@@ -198,6 +214,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
   const navigate = useNavigate();
   const location = useLocation();
   const { designerSettings } = useDesignerSettings();
+  const { context: userContext } = useUserContext();
   const { categoryId, subCategoryId, nestedSubCategoryId } = params;
   // Use forcedProductId if provided, otherwise fallback to params.productId
   const productId = forcedProductId || params.productId;
@@ -282,6 +299,13 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
   const [backDesignPreview, setBackDesignPreview] = useState<string>("");
   const [orderNotes, setOrderNotes] = useState<string>("");
 
+  // Populate pincode from user context once loaded
+  useEffect(() => {
+    if (userContext?.location?.pincode && !pincode) {
+      setPincode(userContext.location.pincode);
+    }
+  }, [userContext, pincode]);
+
   // PDF Upload states
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [pdfValidationError, setPdfValidationError] = useState<string | null>(null);
@@ -363,6 +387,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
   const [baseSubtotalBeforeDiscount, setBaseSubtotalBeforeDiscount] = useState(0);
   const [perUnitPriceExcludingGst, setPerUnitPriceExcludingGst] = useState(0); // Store per unit price excluding GST
   const [isImageModalOpen, setIsImageModalOpen] = useState(false);
+  const [selectedPreviewImage, setSelectedPreviewImage] = useState<string | null>(null);
   const [isDescriptionOpen, setIsDescriptionOpen] = useState(false);
   const [isInstructionsOpen, setIsInstructionsOpen] = useState(false);
   const [isSpecializationOpen, setIsSpecializationOpen] = useState(false);
@@ -712,41 +737,57 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
       });
 
       // Auto-select single values for visible attributes
+      let hasUpdates = false;
+      const updates: Record<string, any> = {};
+
       ruleResult.attributes.forEach((attr) => {
         if (!attr.isVisible) return;
         const attributeValues = attr.attributeValues || [];
+        const currentValue = currentAttrs[attr._id];
+
+        // 1. If only one value is allowed, force it
         if (attributeValues.length === 1) {
           const singleValue = attributeValues[0];
-          if (!currentAttrs[attr._id] || currentAttrs[attr._id] !== singleValue.value) {
-            setSelectedDynamicAttributes((prev) => ({
-              ...prev,
-              [attr._id]: singleValue.value,
-            }));
+          if (currentValue !== singleValue.value) {
+            updates[attr._id] = singleValue.value;
+            hasUpdates = true;
           }
         }
-        // Apply SET_DEFAULT if no selection and default is set
-        if (attr.defaultValue && !currentAttrs[attr._id]) {
+        // 2. If current value is invalid (not in allowed values), reset to first allowed or default
+        else if (currentValue !== undefined && currentValue !== null && currentValue !== "" && currentValue !== "not-required") {
+          const isValid = attributeValues.some((av: any) => av.value === currentValue);
+          if (!isValid && attributeValues.length > 0) {
+            const nextValue = attr.defaultValue && attributeValues.some((av: any) => av.value === attr.defaultValue)
+              ? attr.defaultValue
+              : attributeValues[0].value;
+            updates[attr._id] = nextValue;
+            hasUpdates = true;
+          }
+        }
+        // 3. Apply SET_DEFAULT if no selection and default is set
+        else if (attr.defaultValue && (currentValue === undefined || currentValue === null || currentValue === "")) {
           const defaultValueExists = attributeValues.some((av: any) => av.value === attr.defaultValue);
           if (defaultValueExists) {
-            setSelectedDynamicAttributes((prev) => ({
-              ...prev,
-              [attr._id]: attr.defaultValue,
-            }));
+            updates[attr._id] = attr.defaultValue;
+            hasUpdates = true;
           } else if (attributeValues.length > 0 && attr.inputStyle !== 'CHECKBOX') {
-            setSelectedDynamicAttributes((prev) => ({
-              ...prev,
-              [attr._id]: attributeValues[0].value,
-            }));
+            updates[attr._id] = attributeValues[0].value;
+            hasUpdates = true;
           }
-        } else if (!currentAttrs[attr._id] && attributeValues.length > 0) {
+        } else if ((currentValue === undefined || currentValue === null || currentValue === "") && attributeValues.length > 0) {
           if (attr.inputStyle !== 'CHECKBOX') {
-            setSelectedDynamicAttributes((prev) => ({
-              ...prev,
-              [attr._id]: attributeValues[0].value,
-            }));
+            updates[attr._id] = attributeValues[0].value;
+            hasUpdates = true;
           }
         }
       });
+
+      if (hasUpdates) {
+        setSelectedDynamicAttributes((prev) => ({
+          ...prev,
+          ...updates,
+        }));
+      }
 
       // Extract quantity constraints from engine results
       let quantityConstraints: { min?: number; max?: number; step?: number } | null = null;
@@ -761,6 +802,9 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
       // Fallback to old logic if PDP not loaded yet
       const currentAttrs = selectedDynamicAttributesRef.current;
       if (selectedProduct.dynamicAttributes) {
+        let hasUpdates = false;
+        const updates: Record<string, any> = {};
+
         selectedProduct.dynamicAttributes.forEach((attr) => {
           if (!attr.isEnabled) return;
           const attrType = typeof attr.attributeType === 'object' ? attr.attributeType : null;
@@ -772,19 +816,23 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
           if (attributeValues.length === 1) {
             const singleValue = attributeValues[0];
-            if (!currentAttrs[attrType._id] || currentAttrs[attrType._id] !== singleValue.value) {
-              setSelectedDynamicAttributes((prev) => ({
-                ...prev,
-                [attrType._id]: singleValue.value,
-              }));
+            if (currentAttrs[attrType._id] !== singleValue.value) {
+              updates[attrType._id] = singleValue.value;
+              hasUpdates = true;
             }
           }
         });
+
+        if (hasUpdates) {
+          setSelectedDynamicAttributes((prev) => ({
+            ...prev,
+            ...updates,
+          }));
+        }
       }
     }
-    // selectedDynamicAttributes intentionally excluded — read via ref to prevent infinite loop
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedProduct, isInitialized, pdpAttributes, pdpRules, quantity]);
+  }, [selectedProduct?._id, isInitialized, pdpAttributes, pdpRules, quantity, JSON.stringify(selectedDynamicAttributes)]);
 
   // Keep refs in sync with state
   useEffect(() => {
@@ -1023,7 +1071,38 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                   setPdpSubAttributes(subAttributes);
                   setPdpRules(rules);
                   setPdpQuantityConfig(quantityConfig);
+
+                  // --------------------------------------------------------------------------------
+                  // CRITICAL: Initialize dynamic attributes with default values immediately
+                  // This ensures that pricing triggers correctly on page refresh/initial load
+                  // --------------------------------------------------------------------------------
+                  const initialAttributes: { [key: string]: string | number | boolean | File | null | any[] } = {};
+                  if (attributes && Array.isArray(attributes)) {
+                    attributes.forEach((attr: any) => {
+                      const attributeValues = attr.attributeValues || [];
+
+                      // Set default value if available
+                      if (attr.defaultValue && attributeValues.find((av: any) => av.value === attr.defaultValue)) {
+                        initialAttributes[attr._id] = attr.defaultValue;
+                      } else if (attributeValues.length > 0) {
+                        // For checkbox, initialize as empty array, for others use first value
+                        if (attr.inputStyle === 'CHECKBOX') {
+                          initialAttributes[attr._id] = [];
+                        } else {
+                          initialAttributes[attr._id] = attributeValues[0].value;
+                        }
+                      }
+                    });
+                  }
+
+                  // Read current URL search params to see if any attributes were passed (optional feature)
+                  // For now, just set the defaults calculated from PDP data
+                  setSelectedDynamicAttributes(initialAttributes);
+                  // Sync the ref immediately so subsequent pricing calculations have access to it
+                  selectedDynamicAttributesRef.current = initialAttributes;
+
                   setIsInitialized(true);
+                  setIsPricingLoading(false);
                 }
               } else {
                 const errorText = await pdpResponse.text();
@@ -2343,7 +2422,8 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                 if (matchedSubAttr) {
                   let subPerUnit = 0;
                   if (matchedSubAttr.priceAdd) {
-                    subPerUnit = matchedSubAttr.priceAdd / 1000;
+                    // Sub-attributes priceAdd is treated as absolute per-unit impact (consistent with UI)
+                    subPerUnit = matchedSubAttr.priceAdd;
                   }
 
                   if (subPerUnit !== 0) {
@@ -3836,7 +3916,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
   // Process payment and create order
   const handlePaymentAndOrder = async (
     paymentData?: { customerName: string; customerEmail: string; pincode: string; address: string; mobileNumber: string },
-    pricingContext?: { price: number; gstAmount: number; numberOfDesigns: number } | null
+    pricingContext?: { price: number; gstAmount: number; numberOfDesigns: number; shippingCost?: number } | null
   ) => {
     // Use paymentData directly if provided (avoids React async setState race condition)
     const pName = paymentData?.customerName || customerName;
@@ -3859,7 +3939,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
       }
     } else {
       // Accept either a PDF/CDR design file OR a reference image upload — skip if hiring a designer
-      if (designMethod !== 'hire' && !frontDesignFile && !pdfFile) {
+      if (designMethod !== 'hire' && !frontDesignFile && !pdfFile && !bulkCompositePdf) {
         throw new Error("Please upload a design file (PDF/CDR) or a reference image.");
       }
       if (designMethod === 'hire' && !isDesignerConfirmed) {
@@ -3880,8 +3960,10 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
     // Use locked pricing if available, otherwise fallback to current state
     const currentPrice = pricingContext?.price ?? price;
     const currentGst = pricingContext?.gstAmount ?? gstAmount;
+    const currentShipping = pricingContext?.shippingCost ?? shippingCost ?? 0;
+    const currentNumDesigns = pricingContext?.numberOfDesigns ?? (parseInt(numberOfDesigns) || 1);
 
-    const finalTotalPrice = currentPrice + currentGst + (shippingCost || 0);
+    const finalTotalPrice = (currentPrice + currentGst) + currentShipping;
     if (!finalTotalPrice || finalTotalPrice <= 0) {
       throw new Error("Invalid order total. Please refresh and try again.");
     }
@@ -3975,9 +4057,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
           // Front image is optional when PDF is provided
           console.error('Failed to prepare front design image:', err);
         }
-      } else if (!pdfFile && orderMode !== 'bulk') {
-        // No design file at all (single mode only) - this should have been caught by validation
-      } else if (!pdfFile && designMethod !== 'hire') {
+      } else if (!pdfFile && orderMode !== 'bulk' && designMethod !== 'hire') {
         // No design file at all - this should have been caught by validation (skip for hired designer)
         throw new Error("Please upload a design file (PDF/CDR) or a reference image.");
       }
@@ -4006,11 +4086,9 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
       // Prepare BULK composite PDF — treat as the design PDF (same as single order's pdfFile)
       if (orderMode === 'bulk' && bulkCompositePdf) {
         try {
-          const pdfArrayBuffer = await bulkCompositePdf.arrayBuffer();
-          const pdfBase64 = btoa(
-            new Uint8Array(pdfArrayBuffer)
-              .reduce((data, byte) => data + String.fromCharCode(byte), '')
-          );
+          // Convert bulk PDF to base64 efficiently
+          const pdfBase64 = await fileToBase64(bulkCompositePdf);
+
           uploadedDesign.pdfFile = {
             data: pdfBase64,
             contentType: bulkCompositePdf.type || 'application/pdf',
@@ -4028,16 +4106,12 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
       // Prepare single-order PDF file (if uploaded via PDF upload feature, single mode only)
       if (pdfFile && pdfPageMapping.length > 0 && orderMode !== 'bulk') {
         try {
-          // Convert PDF to base64
-          const pdfArrayBuffer = await pdfFile.arrayBuffer();
-          const pdfBase64 = btoa(
-            new Uint8Array(pdfArrayBuffer)
-              .reduce((data, byte) => data + String.fromCharCode(byte), '')
-          );
+          // Convert PDF to base64 efficiently
+          const pdfBase64 = await fileToBase64(pdfFile);
 
           uploadedDesign.pdfFile = {
             data: pdfBase64,
-            contentType: 'application/pdf',
+            contentType: pdfFile.type || 'application/pdf',
             filename: pdfFile.name,
             pageCount: extractedPdfPages.length,
             pageMapping: pdfPageMapping.map(mapping => ({
@@ -4316,8 +4390,8 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
         shape: selectedDeliverySpeed || 'Standard',
         selectedOptions: selectedOptions,
         selectedDynamicAttributes: selectedDynamicAttributesArray, // Send complete attribute information
-        totalPrice: (currentPrice + currentGst + (shippingCost || 0)), // Store total including GST and shipping for order
-        shippingCost: shippingCost || 0, // Include explicit shipping cost
+        totalPrice: (currentPrice + currentGst + (currentShipping || 0)), // Store total including GST and shipping for order
+        shippingCost: currentShipping || 0, // Include explicit shipping cost
         // Delivery information collected at checkout
         pincode: pPincode.trim(),
         address: pAddress.trim(),
@@ -4350,7 +4424,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
         // Override totalPrice for bulk (per-design price × numberOfDesigns + shipping)
         // Price and GST are already calculated for a single design's quantity
-        (orderData as any).totalPrice = ((currentPrice + currentGst) * numDesigns) + (shippingCost || 0);
+        (orderData as any).totalPrice = ((currentPrice + currentGst) * currentNumDesigns) + (currentShipping || 0);
       }
 
       // Check if user is authenticated
@@ -4437,7 +4511,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
               // Return order data so the modal or caller can proceed
               const orderNumber = order.orderNumber || order.order?.orderNumber || null;
-              const totalAmount = price + gstAmount;
+              const totalAmount = (orderData as any).totalPrice;
 
               // We'll navigate after the alert, but returning the data is better for consistency
               if (orderId) {
@@ -4493,11 +4567,10 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
       setIsProcessingPayment(false);
 
       // Return order data so the modal can proceed to payment step
+      // Return order data so the modal can proceed to payment step
       const orderNumber = order.orderNumber || order.order?.orderNumber || null;
-      // For bulk mode: multiply by number of designs so payment gateway gets full amount
-      const numDesignsForPayment = orderMode === 'bulk' ? (parseInt(numberOfDesigns) || 1) : 1;
-      // Use locked unit price for final amount
-      const totalAmount = (currentPrice + currentGst) * numDesignsForPayment;
+      // Use the final calculated totalPrice from orderData which correctly handles bulk and shipping
+      const totalAmount = (orderData as any).totalPrice;
 
       return { orderId, totalAmount, orderNumber };
     } catch (err) {
@@ -5475,7 +5548,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                               const parentValueLabel = parentAttrValues.find((av: any) => av.value === value)?.label || value;
 
                               const subPriceImpact = matchedSubAttr?.priceAdd
-                                ? (matchedSubAttr.priceAdd / 1000) * quantity
+                                ? matchedSubAttr.priceAdd * quantity
                                 : 0;
 
                               result.push({
@@ -6052,7 +6125,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                               <p className="font-semibold text-yellow-900 mb-2">Additional Charges:</p>
                                               <div className="space-y-1 ml-4">
                                                 {selectedProduct.additionalDesignCharge > 0 && (
-                                                  <p>• Additional Design Charge: <strong>₹{selectedProduct.additionalDesignCharge.toFixed(2)}</strong> (applied if design help is needed)</p>
+                                                  <p>• Additional Design Charge: <strong>{formatPrice(selectedProduct.additionalDesignCharge)}</strong> (applied if design help is needed)</p>
                                                 )}
                                                 {selectedProduct.gstPercentage > 0 && (
                                                   <p>• GST: <strong>{selectedProduct.gstPercentage}%</strong> (applied on subtotal + design charge)</p>
@@ -6174,7 +6247,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                           )}
                                           {option.priceAdd !== undefined && option.priceAdd !== 0 && (
                                             <p className="text-xs text-gray-700 mt-1 font-medium">
-                                              {option.priceAdd > 0 ? '+' : ''}₹{typeof option.priceAdd === 'number' ? option.priceAdd.toFixed(2) : parseFloat(option.priceAdd).toFixed(2)} per 1000 units
+                                              {option.priceAdd > 0 ? '+' : ''}{formatPrice(option.priceAdd)} per 1000 units
                                             </p>
                                           )}
                                           {option.image && (
@@ -6229,7 +6302,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                           <div className="font-bold text-sm">{option}</div>
                                           {priceInfo !== null && (
                                             <div className="text-xs text-gray-600 mt-1">
-                                              {priceInfo > 0 ? '+' : ''}₹{Math.abs(priceInfo).toFixed(2)} per 1000 units
+                                              {priceInfo > 0 ? '+' : ''}{formatPrice(Math.abs(priceInfo))} per 1000 units
                                             </div>
                                           )}
                                         </button>
@@ -6274,7 +6347,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                           <div>{texture}</div>
                                           {priceInfo !== null && (selectedProduct.showAttributePrices !== false) && (
                                             <div className="text-xs text-gray-600 mt-1">
-                                              {priceInfo > 0 ? '+' : ''}₹{Math.abs(priceInfo).toFixed(2)}/1k
+                                              {priceInfo > 0 ? '+' : ''}{formatPrice(Math.abs(priceInfo))}/1k
                                             </div>
                                           )}
                                         </button>
@@ -6320,7 +6393,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                           <div className="font-bold text-sm">{speed}</div>
                                           {priceInfo !== null && (selectedProduct.showAttributePrices !== false) && (
                                             <div className="text-xs text-gray-600 mt-1">
-                                              {priceInfo > 0 ? '+' : ''}₹{Math.abs(priceInfo).toFixed(2)} per 1000 units
+                                              {priceInfo > 0 ? '+' : ''}{formatPrice(Math.abs(priceInfo))} per 1000 units
                                             </div>
                                           )}
                                         </button>
@@ -6329,6 +6402,26 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                   </div>
                                 </div>
                               )}
+
+                              {/* Shipping Estimate Section */}
+                              <div className="mb-3 sm:mb-4">
+                                <ShippingEstimate
+                                  productId={selectedProduct._id}
+                                  quantity={quantity}
+                                  initialPincode={pincode}
+                                  onPincodeChange={(newPin) => setPincode(newPin)}
+                                  onEstimateChange={(est) => {
+                                    if (est && est.eta_range_end) {
+                                      // The backend returns an ISO string or similar.
+                                      setEstimatedDeliveryDate(new Date(est.eta_range_end).toISOString());
+                                      setShippingCost(est.shipping_cost || 0);
+                                    } else {
+                                      setEstimatedDeliveryDate(null);
+                                      setShippingCost(0);
+                                    }
+                                  }}
+                                />
+                              </div>
 
                               {/* Quantity Selection */}
                               <div className="mb-3 sm:mb-4" data-section="quantity">
@@ -6457,7 +6550,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                 {range.label || `${min.toLocaleString()}${max ? ` - ${max.toLocaleString()}` : "+"} units`}
                                                 {price > 0 && (selectedProduct.showAttributePrices !== false) && (
                                                   <span className="ml-2 text-green-600">
-                                                    (₹{price.toFixed(2)})
+                                                    ({formatPrice(price)})
                                                   </span>
                                                 )}
                                               </div>
@@ -6502,25 +6595,6 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                 )}
                               </div>
 
-                              {/* Shipping Estimate Section */}
-                              <div className="mb-3 sm:mb-4">
-                                <ShippingEstimate
-                                  productId={selectedProduct._id}
-                                  quantity={quantity}
-                                  initialPincode={pincode}
-                                  onPincodeChange={(newPin) => setPincode(newPin)}
-                                  onEstimateChange={(est) => {
-                                    if (est && est.eta_range_end) {
-                                      // The backend returns an ISO string or similar.
-                                      setEstimatedDeliveryDate(new Date(est.eta_range_end).toISOString());
-                                      setShippingCost(est.shipping_cost || 0);
-                                    } else {
-                                      setEstimatedDeliveryDate(null);
-                                      setShippingCost(0);
-                                    }
-                                  }}
-                                />
-                              </div>
 
                               {/* Dynamic Attributes */}
                               {(() => {
@@ -6673,7 +6747,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                               if (priceImpactMatch) {
                                                                 const priceImpact = parseFloat(priceImpactMatch[1]) || 0;
                                                                 if (priceImpact > 0) {
-                                                                  priceDisplay = ` (+₹${priceImpact.toFixed(2)}/unit)`;
+                                                                  priceDisplay = ` (+${formatPrice(priceImpact)}/unit)`;
                                                                 }
                                                               }
                                                             }
@@ -6681,7 +6755,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                               const basePrice = selectedProduct.basePrice || 0;
                                                               const pricePerUnit = basePrice * (av.priceMultiplier - 1);
                                                               if (Math.abs(pricePerUnit) >= 0.01) {
-                                                                priceDisplay = ` (+₹${pricePerUnit.toFixed(2)}/unit)`;
+                                                                priceDisplay = ` (+${formatPrice(pricePerUnit)}/unit)`;
                                                               }
                                                             }
                                                           }
@@ -6730,7 +6804,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                           const getSubAttrPriceDisplay = () => {
                                                             if (!showPrice) return null;
                                                             if (!subAttr.priceAdd || subAttr.priceAdd === 0) return null;
-                                                            return `+₹${subAttr.priceAdd.toFixed(2)}`;
+                                                            return `+${formatPrice(subAttr.priceAdd)}`;
                                                           };
                                                           const subAttrKey = `${attrId}__${selectedValue}`;
                                                           const isSubAttrSelected = selectedDynamicAttributes[subAttrKey] === subAttr.value;
@@ -6862,7 +6936,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                         if (priceImpactMatch) {
                                                           const priceImpact = parseFloat(priceImpactMatch[1]) || 0;
                                                           if (priceImpact > 0) {
-                                                            return `+₹${priceImpact.toFixed(2)}/unit`;
+                                                            return `+${formatPrice(priceImpact)}/unit`;
                                                           }
                                                         }
                                                       }
@@ -6871,7 +6945,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                       const basePrice = selectedProduct.basePrice || 0;
                                                       const pricePerUnit = basePrice * (av.priceMultiplier - 1);
                                                       if (Math.abs(pricePerUnit) < 0.01) return null;
-                                                      return `+₹${pricePerUnit.toFixed(2)}/unit`;
+                                                      return `+${formatPrice(pricePerUnit)}/unit`;
                                                     };
 
                                                     const isSelected = Array.isArray(selectedDynamicAttributes[attrId]) && (selectedDynamicAttributes[attrId] as any).includes(av.value);
@@ -7452,75 +7526,28 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                         };
 
                                                         return (
-                                                          <div key={index} className="relative group">
-                                                            {/* Image Container with dynamic aspect ratio */}
-                                                            <div className="w-full relative overflow-hidden rounded-xl ring-2 ring-blue-400 ring-offset-0 shadow-lg hover:shadow-2xl hover:ring-blue-500 transition-all duration-300 hover:scale-[1.02]">
+                                                          <div key={index} className="bg-white border rounded-lg overflow-hidden transition hover:shadow-md cursor-zoom-in group flex flex-col h-full" onClick={() => { setSelectedPreviewImage(preview); setIsImageModalOpen(true); }} style={{ borderColor: "#e4e6eb" }}>
+
+                                                            {/* Image */}
+                                                            {/* Image Container with Fixed Height for Alignment */}
+                                                            <div className="w-full h-44 bg-gray-50 flex items-center justify-center p-2 flex-shrink-0">
                                                               <img
                                                                 src={preview}
                                                                 alt={`Page ${index + 1}`}
-                                                                className="w-full bg-white object-contain"
-                                                                style={{ aspectRatio: 'auto' }}
+                                                                className="max-w-full max-h-full object-contain transition-transform duration-300 group-hover:scale-105"
                                                               />
                                                             </div>
-
-                                                            {/* Page Number Badge */}
-                                                            <div className={`absolute -top-2 -left-2 w-8 h-8 ${colorClasses.badge} rounded-full flex items-center justify-center shadow-xl border-2 border-white ring-1 ring-blue-200`}>
-                                                              <span className="text-white text-xs font-black">{mapping.pageNumber}</span>
-                                                            </div>
-
-                                                            {/* Required Badge */}
-                                                            {mapping.isRequired && (
-                                                              <div className="absolute -top-2 -right-2 w-7 h-7 bg-gradient-to-br from-red-500 to-rose-600 rounded-full flex items-center justify-center shadow-xl border-2 border-white ring-1 ring-red-200">
-                                                                <span className="text-white text-xs font-black">!</span>
-                                                              </div>
-                                                            )}
-
-                                                            {/* Purpose Label - Always Visible */}
-                                                            <div className={`absolute bottom-0 left-0 right-0 ${colorClasses.labelBg} text-white px-2 py-2.5 rounded-b-xl shadow-md`}>
-                                                              <div className="flex items-center gap-1.5">
-                                                                <ImageIcon size={15} className="flex-shrink-0" />
-                                                                <div className="flex-1 min-w-0">
-                                                                  <p className="text-[11px] font-bold truncate leading-tight">
-                                                                    {mapping.purpose}
-                                                                  </p>
-                                                                  {mapping.type === 'attribute' && (
-                                                                    <p className="text-[9px] opacity-95 truncate font-medium">
-                                                                      {mapping.isRequired ? 'Required' : 'Optional'}
-                                                                    </p>
-                                                                  )}
-                                                                </div>
+                                                            <div className="p-3 border-t bg-white flex-1 flex items-center">
+                                                              <div className="flex items-center gap-2">
+                                                                <ImageIcon size={14} className="text-gray-500 flex-shrink-0" />
+                                                                <p className="text-xs font-bold text-gray-800 truncate">
+                                                                  {mapping.purpose}
+                                                                </p>
                                                               </div>
                                                             </div>
-
-                                                            {/* Hover Tooltip with Full Details */}
-                                                            <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300 rounded-xl pointer-events-none"></div>
                                                           </div>
                                                         );
                                                       })}
-                                                    </div>
-
-                                                    {/* Legend */}
-                                                    <div className="mt-4 p-3.5 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 border border-blue-200 rounded-xl shadow-sm">
-                                                      <div className="text-xs font-bold text-gray-800 mb-2.5 flex items-center gap-2">
-                                                        <div className="w-5 h-5 rounded-md bg-blue-100 flex items-center justify-center">
-                                                          <Info size={13} className="text-blue-600" />
-                                                        </div>
-                                                        Legend
-                                                      </div>
-                                                      <div className="flex flex-wrap gap-4">
-                                                        <div className="flex items-center gap-2">
-                                                          <div className="w-6 h-6 rounded-lg bg-white shadow-sm flex items-center justify-center">
-                                                            <ImageIcon size={15} className="text-blue-600" />
-                                                          </div>
-                                                          <span className="text-xs text-gray-700 font-medium">Attribute Images</span>
-                                                        </div>
-                                                        <div className="flex items-center gap-2">
-                                                          <div className="w-6 h-6 rounded-lg bg-white shadow-sm flex items-center justify-center">
-                                                            <AlertTriangle size={15} className="text-red-600" />
-                                                          </div>
-                                                          <span className="text-xs text-gray-700 font-medium">Required</span>
-                                                        </div>
-                                                      </div>
                                                     </div>
                                                   </div>
                                                 )}
@@ -7671,7 +7698,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                               // 2. Not already processing
                               // 3. Either "upload" mode with a file/preview, OR "hire" mode with confirmed designer
                               const hasDesignReady = designMethod === 'upload'
-                                ? (!!frontDesignFile || !!pdfFile)
+                                ? (orderMode === 'bulk' ? !!bulkCompositePdf : (!!frontDesignFile || !!pdfFile))
                                 : (designMethod === 'hire' && isDesignerConfirmed);
 
                               const isDisabled = isProcessingPayment || noPriceAvailable || !hasDesignReady;
@@ -8533,8 +8560,11 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
-            onClick={() => setIsImageModalOpen(false)}
+            className="fixed inset-0 z-50 bg-black/95 backdrop-blur-sm flex items-center justify-center p-4 sm:p-8"
+            onClick={() => {
+              setIsImageModalOpen(false);
+              setTimeout(() => setSelectedPreviewImage(null), 300);
+            }}
           >
             <motion.div
               initial={{ scale: 0.8, opacity: 0 }}
@@ -8556,23 +8586,24 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                 }}
               >
                 <img
-                  src={selectedSubCategory?.image || "/Glossy.png"}
-                  alt={selectedSubCategory?.name || "Product Preview"}
-                  className="w-full h-full object-contain"
+                  src={selectedPreviewImage || selectedSubCategory?.image || "/Glossy.png"}
+                  alt={selectedPreviewImage ? "Design Preview" : (selectedSubCategory?.name || "Product Preview")}
+                  className="max-w-full max-h-[85vh] object-contain shadow-2xl rounded-lg"
                   style={{
-                    maxWidth: '100%',
-                    maxHeight: '90vh',
                     width: 'auto',
                     height: 'auto',
                   }}
                 />
               </div>
               <button
-                onClick={() => setIsImageModalOpen(false)}
-                className="absolute top-4 right-4 bg-white/10 hover:bg-white/20 text-white rounded-full p-2 backdrop-blur-sm transition-colors z-50"
+                onClick={() => {
+                  setIsImageModalOpen(false);
+                  setTimeout(() => setSelectedPreviewImage(null), 300);
+                }}
+                className="absolute top-0 right-0 sm:-top-8 sm:-right-8 bg-white/20 hover:bg-white/40 text-white rounded-full p-2.5 backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 z-50 shadow-lg border border-white/30"
                 aria-label="Close image"
               >
-                <X size={24} />
+                <X size={26} strokeWidth={2.5} />
               </button>
             </motion.div>
           </motion.div>
@@ -8628,7 +8659,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                         if (priceImpactMatch) {
                           const priceImpact = parseFloat(priceImpactMatch[1]) || 0;
                           if (priceImpact > 0) {
-                            return `+₹${priceImpact.toFixed(2)}/unit`;
+                            return `+${formatPrice(priceImpact)}/unit`;
                           }
                         }
                       }
@@ -8637,7 +8668,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                       const basePrice = selectedProduct.basePrice || 0;
                       const pricePerUnit = basePrice * (av.priceMultiplier - 1);
                       if (Math.abs(pricePerUnit) < 0.01) return null;
-                      return `+₹${pricePerUnit.toFixed(2)}/unit`;
+                      return `+${formatPrice(pricePerUnit)}/unit`;
                     };
 
                     const isSelected = radioModalData.selectedValue === av.value;
@@ -8803,7 +8834,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                   {subAttrModalData.subAttributes.map((subAttr) => {
                     const getSubAttrPriceDisplay = () => {
                       if (!subAttr.priceAdd || subAttr.priceAdd === 0) return null;
-                      return `+₹${subAttr.priceAdd.toFixed(2)}`;
+                      return `+${formatPrice(subAttr.priceAdd)}`;
                     };
 
                     const subAttrKey = `${subAttrModalData.attributeId}__${subAttrModalData.parentValue}`;
@@ -8906,78 +8937,86 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
       </AnimatePresence>
 
       {/* Scroll-Triggered Sticky Top Bar */}
-      <AnimatePresence>
-        {showStickyBar && selectedProduct && (
-          <motion.div
-            initial={{ y: -80, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: -80, opacity: 0 }}
-            transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-            className="fixed top-[8%] left-0 right-0 z-[200] bg-white border-b border-gray-200 shadow-lg sm:hidden"
-          >
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2.5 flex items-center justify-between gap-4">
-              {/* Left: Product image + name */}
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-12 h-12 rounded-lg overflow-hidden border border-gray-200 bg-gray-50 flex-shrink-0">
-                  <img
-                    src={(() => {
-                      // Priority 0: Uploaded file preview (PDF/image first page)
-                      if (pdfPreviewPages && pdfPreviewPages.length > 0) return pdfPreviewPages[0];
-                      // Use the same image resolution logic as the main panel
-                      let img = selectedProduct?.image || selectedSubCategory?.image || "/Glossy.png";
-                      if (matrixImageUrl) img = matrixImageUrl;
-                      else if (selectedProduct && userSelectedAttributes.size > 0) {
-                        const selectionArray = Array.from(userSelectedAttributes).reverse();
-                        for (const attrId of selectionArray) {
-                          const attr = selectedProduct.dynamicAttributes?.find(a => {
-                            const aType = typeof a.attributeType === 'object' ? a.attributeType : null;
-                            return aType && aType._id === attrId;
-                          });
-                          if (!attr || !attr.isEnabled) continue;
-                          const attrType = typeof attr.attributeType === 'object' ? attr.attributeType : null;
-                          if (!attrType) continue;
-                          const selectedValue = selectedDynamicAttributes[attrType._id];
-                          if (!selectedValue) continue;
-                          const attributeValues = attr.customValues && attr.customValues.length > 0 ? attr.customValues : attrType.attributeValues || [];
-                          const selectedAttrValue = attributeValues.find(av => av.value === selectedValue || av.value === String(selectedValue));
-                          if (selectedAttrValue && selectedAttrValue.image && selectedAttrValue.image.trim() !== '') {
-                            img = selectedAttrValue.image;
-                            break;
-                          }
-                        }
-                      }
-                      return img;
-                    })()}
-                    alt={selectedProduct.name}
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-bold text-gray-900 truncate">{selectedProduct.name}</p>
-                  <p className="text-xs text-gray-500">{quantity.toLocaleString()} units</p>
-                </div>
-              </div>
+      {(() => {
+        const isAnyModalOpen = showPaymentModal || showDesignerSelectionModal || showVisualDesignerForm ||
+          showPhysicalDesignerList || radioModalOpen || isImageModalOpen ||
+          isDescriptionOpen || isInstructionsOpen || isSpecializationOpen || subAttrModalOpen;
 
-              {/* Right: Total price + Buy Now */}
-              <div className="flex items-center gap-3 flex-shrink-0">
-                {(price + gstAmount) > 0 && (
-                  <div className="text-right block">
-                    <div className="flex items-baseline gap-0.5">
-                      <span className="text-xl font-bold text-gray-900">
-                        ₹{(() => {
-                          const totalPrice = price + gstAmount;
-                          const [integerPart, decimalPart] = totalPrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).split('.');
-                          return <>{integerPart}<span className="text-sm">.{decimalPart}</span></>;
+        return (
+          <AnimatePresence>
+            {showStickyBar && selectedProduct && !isAnyModalOpen && (
+              <motion.div
+                initial={{ y: -80, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                exit={{ y: -80, opacity: 0 }}
+                transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                className="fixed top-[8%] left-0 right-0 z-40 bg-white border-b border-gray-200 shadow-lg sm:hidden"
+              >
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2.5 flex items-center justify-between gap-4">
+                  {/* Left: Product image + name */}
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-12 h-12 rounded-lg overflow-hidden border border-gray-200 bg-gray-50 flex-shrink-0">
+                      <img
+                        src={(() => {
+                          // Priority 0: Uploaded file preview (PDF/image first page)
+                          if (pdfPreviewPages && pdfPreviewPages.length > 0) return pdfPreviewPages[0];
+                          // Use the same image resolution logic as the main panel
+                          let img = selectedProduct?.image || selectedSubCategory?.image || "/Glossy.png";
+                          if (matrixImageUrl) img = matrixImageUrl;
+                          else if (selectedProduct && userSelectedAttributes.size > 0) {
+                            const selectionArray = Array.from(userSelectedAttributes).reverse();
+                            for (const attrId of selectionArray) {
+                              const attr = selectedProduct.dynamicAttributes?.find(a => {
+                                const aType = typeof a.attributeType === 'object' ? a.attributeType : null;
+                                return aType && aType._id === attrId;
+                              });
+                              if (!attr || !attr.isEnabled) continue;
+                              const attrType = typeof attr.attributeType === 'object' ? attr.attributeType : null;
+                              if (!attrType) continue;
+                              const selectedValue = selectedDynamicAttributes[attrType._id];
+                              if (!selectedValue) continue;
+                              const attributeValues = attr.customValues && attr.customValues.length > 0 ? attr.customValues : attrType.attributeValues || [];
+                              const selectedAttrValue = attributeValues.find(av => av.value === selectedValue || av.value === String(selectedValue));
+                              if (selectedAttrValue && selectedAttrValue.image && selectedAttrValue.image.trim() !== '') {
+                                img = selectedAttrValue.image;
+                                break;
+                              }
+                            }
+                          }
+                          return img;
                         })()}
-                      </span>
+                        alt={selectedProduct.name}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-gray-900 truncate">{selectedProduct.name}</p>
+                      <p className="text-xs text-gray-500">{quantity.toLocaleString()} units</p>
                     </div>
                   </div>
-                )}
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+
+                  {/* Right: Total price + Buy Now */}
+                  <div className="flex items-center gap-3 flex-shrink-0">
+                    {(price + gstAmount + shippingCost) > 0 && (
+                      <div className="text-right block">
+                        <div className="flex items-baseline gap-0.5">
+                          <span className="text-xl font-bold text-gray-900">
+                            ₹{(() => {
+                              const totalPrice = price + gstAmount + shippingCost;
+                              const [integerPart, decimalPart] = totalPrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).split('.');
+                              return <>{integerPart}<span className="text-sm">.{decimalPart}</span></>;
+                            })()}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        );
+      })()}
     </div>
   );
 };

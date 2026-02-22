@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Clock, User, FileText, Package, Truck, CheckCircle2 } from 'lucide-react';
+import { formatPrice } from '../utils/currencyUtils';
 
 interface TimelineStage {
     stage: string;
@@ -44,7 +45,7 @@ const StageDetailsModal: React.FC<StageDetailsModalProps> = ({ stage, isOpen, on
                         <DetailRow label="Order Number" value={stage.details.orderNumber} />
                         <DetailRow label="Placed By" value={stage.details.placedBy} />
                         <DetailRow label="Placed On" value={formatDateTime(stage.details.placedOn)} />
-                        <DetailRow label="Total Amount" value={`₹${stage.details.totalAmount?.toFixed(2) || 0}`} />
+                        <DetailRow label="Total Amount" value={formatPrice(stage.details.totalAmount || 0)} />
                         <DetailRow
                             label="Payment Status"
                             value={stage.details.paymentStatus}

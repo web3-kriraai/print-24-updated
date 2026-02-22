@@ -79,8 +79,11 @@ import {
   getMyOrders,
   getSingleOrder,
   getAllOrders,
+  listOrders,
+  getOrderStats,
   updateOrderStatus,
   cancelOrder,
+  bulkDeleteOrders,
 } from "../controllers/orderController.js";
 
 /* ORDER APPROVAL CONTROLLERS */
@@ -465,11 +468,19 @@ router.get("/orders/:orderId/tracking", authMiddleware, getTrackingInfo);
 
 // Admin order routes
 router.get("/admin/orders", authMiddleware, adminAuth, getAllOrders);
+router.get("/admin/orders/list", authMiddleware, adminAuth, listOrders);
+router.get("/admin/orders/stats", authMiddleware, adminAuth, getOrderStats);
 router.put(
   "/admin/orders/:orderId",
   authMiddleware,
   adminAuth,
   updateOrderStatus
+);
+router.post(
+  "/admin/orders/bulk-delete",
+  authMiddleware,
+  adminAuth,
+  bulkDeleteOrders
 );
 
 // Admin: manually trigger shipment creation
