@@ -832,7 +832,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedProduct?._id, isInitialized, pdpAttributes, pdpRules, quantity, JSON.stringify(selectedDynamicAttributes)]);
+  }, [selectedProduct?._id, isInitialized, pdpAttributes, pdpRules, quantity]);
 
   // Keep refs in sync with state
   useEffect(() => {
