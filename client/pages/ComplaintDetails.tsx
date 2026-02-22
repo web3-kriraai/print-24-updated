@@ -13,7 +13,9 @@ import {
     AlertCircle, RefreshCcw, ArrowLeft, Paperclip, Loader2, Shield
 } from 'lucide-react';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+import { API_BASE_URL_WITH_API } from '../lib/apiConfig';
+
+const API_URL = API_BASE_URL_WITH_API;
 
 interface Conversation {
     message: string;

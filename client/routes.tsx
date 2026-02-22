@@ -32,6 +32,8 @@ import ClientDashboard from './pages/ClientDashboard';
 import DesignerDashboard from './pages/designer/DesignerDashboard';
 import ActiveSession from './pages/designer/ActiveSession';
 
+import ProtectedRoute from './components/ProtectedRoute';
+
 // Shared routes configuration for both SSR and client
 export const routes = [
   {
@@ -65,27 +67,115 @@ export const routes = [
       { path: 'contact', element: <Contact />, errorElement: <ErrorBoundary /> },
       { path: 'login', element: <Login />, errorElement: <ErrorBoundary /> },
       { path: 'signup', element: <SignUp />, errorElement: <ErrorBoundary /> },
-      { path: 'profile', element: <Profile />, errorElement: <ErrorBoundary /> },
-      { path: 'my-orders', element: <MyOrders />, errorElement: <ErrorBoundary /> },
-      { path: 'orders/:orderId', element: <OrderDetails />, errorElement: <ErrorBoundary /> },
-      { path: 'order/:orderId', element: <OrderDetails />, errorElement: <ErrorBoundary /> },
-      { path: 'admin/dashboard', element: <AdminDashboard />, errorElement: <ErrorBoundary /> },
-      { path: 'admin/services', element: <ServiceAdmin />, errorElement: <ErrorBoundary /> },
-      { path: 'admin/about', element: <AboutAdmin />, errorElement: <ErrorBoundary /> },
-      { path: 'employee/dashboard', element: <EmployeeDashboard />, errorElement: <ErrorBoundary /> },
-      { path: 'department-portal', element: <DepartmentPortal />, errorElement: <ErrorBoundary /> },
-      { path: 'admin/test-payment', element: <PaymentTestPage />, errorElement: <ErrorBoundary /> },
+
+      // Protected User Routes
+      {
+        path: 'profile',
+        element: <ProtectedRoute><Profile /></ProtectedRoute>,
+        errorElement: <ErrorBoundary />
+      },
+      {
+        path: 'my-orders',
+        element: <ProtectedRoute><MyOrders /></ProtectedRoute>,
+        errorElement: <ErrorBoundary />
+      },
+      {
+        path: 'orders/:orderId',
+        element: <ProtectedRoute><OrderDetails /></ProtectedRoute>,
+        errorElement: <ErrorBoundary />
+      },
+      {
+        path: 'order/:orderId',
+        element: <ProtectedRoute><OrderDetails /></ProtectedRoute>,
+        errorElement: <ErrorBoundary />
+      },
+
+      // Admin Only Routes
+      {
+        path: 'admin/dashboard',
+        element: <ProtectedRoute allowedRoles={['admin']}><AdminDashboard /></ProtectedRoute>,
+        errorElement: <ErrorBoundary />
+      },
+      {
+        path: 'admin/services',
+        element: <ProtectedRoute allowedRoles={['admin']}><ServiceAdmin /></ProtectedRoute>,
+        errorElement: <ErrorBoundary />
+      },
+      {
+        path: 'admin/about',
+        element: <ProtectedRoute allowedRoles={['admin']}><AboutAdmin /></ProtectedRoute>,
+        errorElement: <ErrorBoundary />
+      },
+      {
+        path: 'admin/test-payment',
+        element: <ProtectedRoute allowedRoles={['admin']}><PaymentTestPage /></ProtectedRoute>,
+        errorElement: <ErrorBoundary />
+      },
+      {
+        path: 'admin/complaints',
+        element: <ProtectedRoute allowedRoles={['admin']}><AdminComplaintManagement /></ProtectedRoute>,
+        errorElement: <ErrorBoundary />
+      },
+
+      // Employee Routes
+      {
+        path: 'employee/dashboard',
+        element: <ProtectedRoute allowedRoles={['emp', 'admin']}><EmployeeDashboard /></ProtectedRoute>,
+        errorElement: <ErrorBoundary />
+      },
+      {
+        path: 'department-portal',
+        element: <ProtectedRoute allowedRoles={['emp', 'admin']}><DepartmentPortal /></ProtectedRoute>,
+        errorElement: <ErrorBoundary />
+      },
 
       // Complaint Routes
-      { path: 'complaints/register/:orderId', element: <RegisterComplaint />, errorElement: <ErrorBoundary /> },
-      { path: 'complaints/:id', element: <ComplaintDetails />, errorElement: <ErrorBoundary /> },
-      { path: 'admin/complaints', element: <AdminComplaintManagement />, errorElement: <ErrorBoundary /> },
-      { path: 'bulk-order/:id/status', element: <BulkOrderStatus />, errorElement: <ErrorBoundary /> },
-      { path: 'bulk-orders', element: <BulkOrdersPage />, errorElement: <ErrorBoundary /> },
-      { path: 'bulk-orders/:id', element: <BulkOrdersPage />, errorElement: <ErrorBoundary /> },
-      { path: 'client-dashboard', element: <ClientDashboard />, errorElement: <ErrorBoundary /> },
-      { path: 'designer', element: <DesignerDashboard />, errorElement: <ErrorBoundary /> },
-      { path: 'session/:sessionId', element: <ActiveSession />, errorElement: <ErrorBoundary /> },
+      {
+        path: 'complaints/register/:orderId',
+        element: <ProtectedRoute><RegisterComplaint /></ProtectedRoute>,
+        errorElement: <ErrorBoundary />
+      },
+      {
+        path: 'complaints/:id',
+        element: <ProtectedRoute><ComplaintDetails /></ProtectedRoute>,
+        errorElement: <ErrorBoundary />
+      },
+
+      // Bulk Order Routes
+      {
+        path: 'bulk-order/:id/status',
+        element: <ProtectedRoute><BulkOrderStatus /></ProtectedRoute>,
+        errorElement: <ErrorBoundary />
+      },
+      {
+        path: 'bulk-orders',
+        element: <ProtectedRoute><BulkOrdersPage /></ProtectedRoute>,
+        errorElement: <ErrorBoundary />
+      },
+      {
+        path: 'bulk-orders/:id',
+        element: <ProtectedRoute><BulkOrdersPage /></ProtectedRoute>,
+        errorElement: <ErrorBoundary />
+      },
+
+      // Client Dashboard
+      {
+        path: 'client-dashboard',
+        element: <ProtectedRoute allowedRoles={['user', 'customer']}><ClientDashboard /></ProtectedRoute>,
+        errorElement: <ErrorBoundary />
+      },
+
+      // Designer Routes
+      {
+        path: 'designer',
+        element: <ProtectedRoute allowedRoles={['designer', 'admin']}><DesignerDashboard /></ProtectedRoute>,
+        errorElement: <ErrorBoundary />
+      },
+      {
+        path: 'session/:sessionId',
+        element: <ProtectedRoute allowedRoles={['designer', 'admin', 'user', 'customer']}><ActiveSession /></ProtectedRoute>,
+        errorElement: <ErrorBoundary />
+      },
 
       { path: 'reviews', element: <Reviews />, errorElement: <ErrorBoundary /> },
       // 404 catch-all route - must be last

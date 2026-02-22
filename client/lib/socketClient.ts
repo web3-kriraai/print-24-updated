@@ -1,6 +1,8 @@
 import { io, Socket } from 'socket.io-client';
 
-const SOCKET_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000';
+import { API_BASE_URL } from './apiConfig';
+
+const SOCKET_URL = API_BASE_URL;
 
 let socket: Socket | null = null;
 

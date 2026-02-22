@@ -1,6 +1,6 @@
 import Redis from 'ioredis';
 
-const redis = new Redis(process.env.REDIS_URLL, {
+const redis = new Redis(process.env.REDIS_URL, {
     maxRetriesPerRequest: null,
     retryStrategy: (times) => {
         const delay = Math.min(times * 50, 2000);

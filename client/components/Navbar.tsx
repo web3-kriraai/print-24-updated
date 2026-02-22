@@ -10,6 +10,7 @@ import {
   User as UserIcon,
   Package,
   ShoppingBag,
+  LayoutDashboard,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLogo } from "../hooks/useSiteSettings";
@@ -267,18 +268,17 @@ const Navbar: React.FC = () => {
 
                           {/* Dropdown Menu Items */}
                           <div className="py-2">
-                            {" "}
-                            {/* Increased py-1 to py-2 */}
                             <button
                               onClick={() => {
                                 navigate("/profile");
                                 setIsProfileDropdownOpen(false);
                               }}
-                              className="w-full flex items-center gap-3 px-4 py-2 text-sm text-cream-700 hover:bg-cream-50 transition-colors" // Increased py-1.5 to py-2
+                              className="w-full flex items-center gap-3 px-4 py-2 text-sm text-cream-700 hover:bg-cream-50 transition-colors"
                             >
                               <UserIcon size={16} />
                               My Profile
                             </button>
+
                             <button
                               onClick={() => {
                                 navigate("/my-orders");
@@ -289,18 +289,34 @@ const Navbar: React.FC = () => {
                               <ShoppingBag size={16} />
                               My Orders
                             </button>
+
+                            {/* Role-Specific Dashboards */}
                             {userData.role === "admin" && (
                               <button
                                 onClick={() => {
                                   navigate("/admin/dashboard");
                                   setIsProfileDropdownOpen(false);
                                 }}
-                                className="w-full flex items-center gap-3 px-4 py-2 text-sm text-cream-700 hover:bg-cream-50 transition-colors" // Increased py-1.5 to py-2
+                                className="w-full flex items-center gap-3 px-4 py-2 text-sm text-cream-700 hover:bg-cream-50 transition-colors"
                               >
                                 <Settings size={16} />
                                 Admin Dashboard
                               </button>
                             )}
+
+                            {userData.role === "designer" && (
+                              <button
+                                onClick={() => {
+                                  navigate("/designer");
+                                  setIsProfileDropdownOpen(false);
+                                }}
+                                className="w-full flex items-center gap-3 px-4 py-2 text-sm text-cream-700 hover:bg-cream-50 transition-colors"
+                              >
+                                <LayoutDashboard size={16} />
+                                Designer Dashboard
+                              </button>
+                            )}
+
                             {userData.role === "emp" && (
                               <button
                                 onClick={() => {
@@ -311,6 +327,19 @@ const Navbar: React.FC = () => {
                               >
                                 <Package size={16} />
                                 Employee Dashboard
+                              </button>
+                            )}
+
+                            {(userData.role === "user" || userData.role === "customer" || !["admin", "designer", "emp"].includes(userData.role)) && (
+                              <button
+                                onClick={() => {
+                                  navigate("/client-dashboard");
+                                  setIsProfileDropdownOpen(false);
+                                }}
+                                className="w-full flex items-center gap-3 px-4 py-2 text-sm text-cream-700 hover:bg-cream-50 transition-colors"
+                              >
+                                <LayoutDashboard size={16} />
+                                My Dashboard
                               </button>
                             )}
                           </div>
@@ -434,7 +463,7 @@ const Navbar: React.FC = () => {
                           navigate("/profile");
                           setIsMobileMenuOpen(false);
                         }}
-                        className="w-full text-center text-cream-900 font-medium py-2 flex items-center justify-center gap-2" // Increased padding
+                        className="w-full text-center text-cream-900 font-medium py-2 flex items-center justify-center gap-2"
                       >
                         <UserIcon size={16} />
                         My Profile
@@ -457,10 +486,49 @@ const Navbar: React.FC = () => {
                             navigate("/admin/dashboard");
                             setIsMobileMenuOpen(false);
                           }}
-                          className="w-full text-center text-cream-900 font-medium py-2 flex items-center justify-center gap-2" // Increased padding
+                          className="w-full text-center text-cream-900 font-medium py-2 flex items-center justify-center gap-2"
                         >
                           <Settings size={16} />
                           Admin Dashboard
+                        </button>
+                      )}
+
+                      {userData.role === "designer" && (
+                        <button
+                          onClick={() => {
+                            navigate("/designer");
+                            setIsMobileMenuOpen(false);
+                          }}
+                          className="w-full text-center text-cream-900 font-medium py-2 flex items-center justify-center gap-2"
+                        >
+                          <LayoutDashboard size={16} />
+                          Designer Dashboard
+                        </button>
+                      )}
+
+                      {userData.role === "emp" && (
+                        <button
+                          onClick={() => {
+                            navigate("/employee/dashboard");
+                            setIsMobileMenuOpen(false);
+                          }}
+                          className="w-full text-center text-cream-900 font-medium py-2 flex items-center justify-center gap-2"
+                        >
+                          <Package size={16} />
+                          Employee Dashboard
+                        </button>
+                      )}
+
+                      {(userData.role === "user" || userData.role === "customer" || !["admin", "designer", "emp"].includes(userData.role)) && (
+                        <button
+                          onClick={() => {
+                            navigate("/client-dashboard");
+                            setIsMobileMenuOpen(false);
+                          }}
+                          className="w-full text-center text-cream-900 font-medium py-2 flex items-center justify-center gap-2"
+                        >
+                          <LayoutDashboard size={16} />
+                          My Dashboard
                         </button>
                       )}
 

@@ -208,7 +208,7 @@ export const initializePayment = async (req, res) => {
             paymentCurrency = currency || 'INR';
         } else {
             // For regular orders, use price snapshot
-            paymentAmount = orderDoc.priceSnapshot.totalPayable;
+            paymentAmount = orderDoc.totalPrice || orderDoc.priceSnapshot?.totalPayable;
             paymentCurrency = orderDoc.priceSnapshot.currency || 'INR';
         }
 

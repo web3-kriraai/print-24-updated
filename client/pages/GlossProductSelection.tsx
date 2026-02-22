@@ -4228,9 +4228,9 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                     // Extract priceImpact from descriptions (new format)
                     selectedValueDetails.forEach((sv: any) => {
                       if (sv.description) {
-                        const priceImpactMatch = sv.description.match(/Price Impact: ₹([\d.]+)/);
+                        const priceImpactMatch = sv.description.match(/Price Impact: \D?([\d,.]+)/);
                         if (priceImpactMatch) {
-                          totalPriceAdd += parseFloat(priceImpactMatch[1]) || 0;
+                          totalPriceAdd += parseFloat(priceImpactMatch[1].replace(/,/g, '')) || 0;
                         }
                       }
                       if (sv.priceMultiplier) {
@@ -4291,9 +4291,9 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
                     // Extract priceImpact from description (new format)
                     if (selectedValueDetails.description) {
-                      const priceImpactMatch = selectedValueDetails.description.match(/Price Impact: ₹([\d.]+)/);
+                      const priceImpactMatch = selectedValueDetails.description.match(/Price Impact: \D?([\d,.]+)/);
                       if (priceImpactMatch) {
-                        priceAdd = parseFloat(priceImpactMatch[1]) || 0;
+                        priceAdd = parseFloat(priceImpactMatch[1].replace(/,/g, '')) || 0;
                         // If using priceAdd, don't use priceMultiplier
                         if (priceAdd > 0) {
                           priceMultiplier = undefined;
@@ -6743,9 +6743,9 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                           let priceDisplay = '';
                                                           if (showPrice) {
                                                             if (av.description) {
-                                                              const priceImpactMatch = av.description.match(/Price Impact: ₹([\d.]+)/);
+                                                              const priceImpactMatch = av.description.match(/Price Impact: \D?([\d,.]+)/);
                                                               if (priceImpactMatch) {
-                                                                const priceImpact = parseFloat(priceImpactMatch[1]) || 0;
+                                                                const priceImpact = parseFloat(priceImpactMatch[1].replace(/,/g, '')) || 0;
                                                                 if (priceImpact > 0) {
                                                                   priceDisplay = ` (+${formatPrice(priceImpact)}/unit)`;
                                                                 }
@@ -6932,9 +6932,9 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                       if (!showPrice) return null;
                                                       // Check for priceImpact first (new format with option usage)
                                                       if (av.description) {
-                                                        const priceImpactMatch = av.description.match(/Price Impact: ₹([\d.]+)/);
+                                                        const priceImpactMatch = av.description.match(/Price Impact: \D?([\d,.]+)/);
                                                         if (priceImpactMatch) {
-                                                          const priceImpact = parseFloat(priceImpactMatch[1]) || 0;
+                                                          const priceImpact = parseFloat(priceImpactMatch[1].replace(/,/g, '')) || 0;
                                                           if (priceImpact > 0) {
                                                             return `+${formatPrice(priceImpact)}/unit`;
                                                           }
@@ -8655,9 +8655,9 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                     const getPriceDisplay = () => {
                       // Check for priceImpact first (new format with option usage)
                       if (av.description) {
-                        const priceImpactMatch = av.description.match(/Price Impact: ₹([\d.]+)/);
+                        const priceImpactMatch = av.description.match(/Price Impact: \D?([\d,.]+)/);
                         if (priceImpactMatch) {
-                          const priceImpact = parseFloat(priceImpactMatch[1]) || 0;
+                          const priceImpact = parseFloat(priceImpactMatch[1].replace(/,/g, '')) || 0;
                           if (priceImpact > 0) {
                             return `+${formatPrice(priceImpact)}/unit`;
                           }

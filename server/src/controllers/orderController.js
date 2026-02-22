@@ -553,7 +553,7 @@ export const createOrder = async (req, res) => {
           ...snapshot,
           subtotal: snapshot.subtotal * designs,
           gstAmount: snapshot.gstAmount * designs,
-          totalPayable: snapshot.totalPayable * designs
+          totalPayable: (snapshot.subtotal + snapshot.gstAmount) * designs + snapshot.shippingCost
         };
       } else {
         orderData.priceSnapshot = snapshot;
@@ -561,7 +561,7 @@ export const createOrder = async (req, res) => {
 
       // Keep client-provided totalPrice — do NOT override it
       const serverPrice = orderData.isBulkParent
-        ? snapshot.totalPayable * (orderData.distinctDesigns || 1)
+        ? (snapshot.subtotal + snapshot.gstAmount) * (orderData.distinctDesigns || 1) + snapshot.shippingCost
         : snapshot.totalPayable;
       console.log(`Price audit: Client=${totalPrice}, Server-calculated=${serverPrice}`);
       if (Math.abs(serverPrice - parseFloat(totalPrice)) > 1.0) {
