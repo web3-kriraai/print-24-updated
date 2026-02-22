@@ -370,12 +370,6 @@ export default function ProductPriceBox({
 
           return (
             <>
-              {/* Product Name */}
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-500 font-medium">Product</span>
-                <span className="text-gray-900 font-semibold">{productName || "Product"}</span>
-              </div>
-
               {/* Quantity */}
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500 font-medium">Quantity</span>
@@ -394,62 +388,19 @@ export default function ProductPriceBox({
                 </span>
               </div>
 
-              {/* Dynamic Attributes / Options - sorted by displayOrder */}
-              {selectedDynamicAttributes
-                ?.filter((attr) => {
-                  const val = attr.label || attr.value || attr.attributeValue;
-                  if (typeof val === 'string' && (val.length > 50 || /^[0-9a-f]{24}$/i.test(val))) return false;
-                  return val != null && val !== '' && val !== 'default' && val !== 'not-required';
-                })
-                .sort((a, b) => (a.displayOrder ?? 999) - (b.displayOrder ?? 999))
-                .map((attr, index) => {
-                  const attrName = attr.name || attr.attributeName || attr.type || attr.attributeType;
-                  const attrValue = attr.label || attr.value || attr.attributeValue;
-                  const isSubAttr = attr.isSubAttribute;
 
-                  // Look up charge from attributeCharges prop (frontend-calculated)
-                  const chargeEntry = attributeCharges.find(c => c.name === attrName);
-                  const chargeAmount = chargeEntry?.charge || 0;
-                  const perUnitChargeSource = chargeEntry?.perUnitCharge || 0;
 
-                  return (
-                    <div key={index} className="flex justify-between text-sm">
-                      <span className={`text-gray-500 font-medium ${isSubAttr ? 'pl-4 flex items-center gap-1 text-[13px]' : ''}`}>
-                        {isSubAttr && <span className="text-gray-300">└</span>}
-                        {attrName}: {String(attrValue)}
-                      </span>
-                      <span className="text-gray-900 font-semibold">
-                        {chargeAmount > 0 ? `+${formatPrice(chargeAmount)}` : formatPrice(0)}
-                      </span>
-                    </div>
-                  );
-                })}
-
-              {/* Designer Fee */}
-              {designerFee > 0 && (
+              {/* Designer Charge (Combined) */}
+              {(designerFee > 0 || visitFee > 0) && (
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-500 font-medium">Designer Fee</span>
+                  <span className="text-gray-500 font-medium">Designer Charge</span>
                   <span className="text-gray-900 font-semibold">
-                    +{formatPrice(designerFee)}
+                    +{formatPrice(designerFee + visitFee)}
                   </span>
                 </div>
               )}
 
-              {/* Visit Fee */}
-              {visitFee > 0 && (
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-500 font-medium">Visit Fee</span>
-                  <span className="text-gray-900 font-semibold">
-                    +{formatPrice(visitFee)}
-                  </span>
-                </div>
-              )}
 
-              {/* Subtotal (API base × qty + attribute charges) */}
-              <div className="flex justify-between text-sm pt-2 border-t border-gray-50">
-                <span className="text-gray-600 font-semibold">Subtotal</span>
-                <span className="text-gray-900 font-semibold">{formatPrice(adjustedSubtotal)}</span>
-              </div>
 
               {/* GST */}
               <div className="flex justify-between text-sm">

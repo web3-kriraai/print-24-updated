@@ -6,6 +6,7 @@ import Product from '../models/productModal.js';
 import GeoZone from '../models/GeoZon.js';
 import UserSegment from '../models/UserSegment.js';
 import JSONRuleEvaluator from './JSONRuleEvaluator.js';
+import mongoose from 'mongoose';
 
 /**
  * Virtual Price Book Service
@@ -409,13 +410,21 @@ class VirtualPriceBookService {
 
     if (attributesToCheck.length > 0) {
       for (const attr of attributesToCheck) {
-        const attributeModifiers = await PriceModifier.find({
-          appliesTo: 'ATTRIBUTE',
-          attributeType: attr.type || attr.attributeType,
-          attributeValue: attr.value || attr.attributeValue,
-          isActive: true
-        }).sort({ priority: 1 }).lean();
-        modifiers.push(...attributeModifiers);
+        const attributeTypeId = attr.type || attr.attributeType;
+        
+        // Only query if attributeTypeId is a valid ObjectId
+        // This avoids CastError for composite keys like 'attrId__value'
+        if (attributeTypeId && mongoose.Types.ObjectId.isValid(attributeTypeId)) {
+          const attributeModifiers = await PriceModifier.find({
+            appliesTo: 'ATTRIBUTE',
+            attributeType: attributeTypeId,
+            attributeValue: attr.value || attr.attributeValue,
+            isActive: true
+          }).sort({ priority: 1 }).lean();
+          modifiers.push(...attributeModifiers);
+        } else {
+          console.log(`[VirtualPriceBookService] Skipping non-ObjectId attributeType: ${attributeTypeId}`);
+        }
       }
     }
 

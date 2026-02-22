@@ -210,7 +210,7 @@ interface PhysicalBookingPayload {
   };
 }
 
-const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedProductId }) => {
+export default function GlossProductSelection({ forcedProductId }: GlossProductSelectionProps) {
   const params = useParams<{ categoryId: string; subCategoryId?: string; nestedSubCategoryId?: string; productId?: string }>();
   const navigate = useNavigate();
   const location = useLocation();
@@ -734,7 +734,12 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
       const ruleResult = applyAttributeRules({
         attributes: pdpAttributes,
         rules: pdpRules,
-        selectedValues: { ...currentAttrs } as Record<string, string | number | boolean | File | any[] | null>,
+        selectedValues: {
+          ...currentAttrs,
+          printingOption: selectedPrintingOption,
+          deliverySpeed: selectedDeliverySpeed,
+          textureType: selectedTextureType
+        } as Record<string, string | number | boolean | File | any[] | null>,
         quantity: quantity,
       });
 
@@ -744,42 +749,54 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
       ruleResult.attributes.forEach((attr) => {
         if (!attr.isVisible) return;
-        const attributeValues = attr.attributeValues || [];
+        const allowedValues = attr.allowedValues || [];
         const currentValue = currentAttrs[attr._id];
 
-        // 1. If only one value is allowed, force it
-        if (attributeValues.length === 1) {
-          const singleValue = attributeValues[0];
-          if (currentValue !== singleValue.value) {
-            updates[attr._id] = singleValue.value;
+        // 1. If only one value is allowed by rules, force it
+        if (allowedValues.length === 1) {
+          const singleValue = allowedValues[0];
+          if (currentValue !== singleValue) {
+            updates[attr._id] = singleValue;
             hasUpdates = true;
           }
         }
-        // 2. If current value is invalid (not in allowed values), reset to first allowed or default
+        // 2. If current value is invalid (not in allowed values per rules), reset to first allowed or default
         else if (currentValue !== undefined && currentValue !== null && currentValue !== "" && currentValue !== "not-required") {
-          const isValid = attributeValues.some((av: any) => av.value === currentValue);
-          if (!isValid && attributeValues.length > 0) {
-            const nextValue = attr.defaultValue && attributeValues.some((av: any) => av.value === attr.defaultValue)
+          const isValid = allowedValues.includes(String(currentValue));
+          if (!isValid && allowedValues.length > 0) {
+            const nextValue = attr.defaultValue && allowedValues.includes(String(attr.defaultValue))
               ? attr.defaultValue
-              : attributeValues[0].value;
+              : allowedValues[0];
             updates[attr._id] = nextValue;
             hasUpdates = true;
           }
         }
         // 3. Apply SET_DEFAULT if no selection and default is set
-        else if (attr.defaultValue && (currentValue === undefined || currentValue === null || currentValue === "")) {
-          const defaultValueExists = attributeValues.some((av: any) => av.value === attr.defaultValue);
-          if (defaultValueExists) {
+        else if (currentValue === undefined || currentValue === null || currentValue === "") {
+          if (attr.defaultValue && allowedValues.includes(String(attr.defaultValue))) {
             updates[attr._id] = attr.defaultValue;
             hasUpdates = true;
-          } else if (attributeValues.length > 0 && attr.inputStyle !== 'CHECKBOX') {
-            updates[attr._id] = attributeValues[0].value;
+          } else if (allowedValues.length > 0 && attr.inputStyle !== 'CHECKBOX') {
+            updates[attr._id] = allowedValues[0];
             hasUpdates = true;
           }
-        } else if ((currentValue === undefined || currentValue === null || currentValue === "") && attributeValues.length > 0) {
-          if (attr.inputStyle !== 'CHECKBOX') {
-            updates[attr._id] = attributeValues[0].value;
-            hasUpdates = true;
+        }
+      });
+
+      // Auto-select sub-attributes for visible main attributes
+      const combinedAttrs = { ...currentAttrs, ...updates };
+      ruleResult.attributes.forEach((attr) => {
+        if (!attr.isVisible) return;
+        const mainValue = combinedAttrs[attr._id];
+        if (mainValue && (typeof mainValue === 'string' || typeof mainValue === 'number')) {
+          const subKey = `${attr._id}:${mainValue}`;
+          const availableSubs = pdpSubAttributes[subKey] || [];
+          if (availableSubs.length > 0) {
+            const subSelectionKey = `${attr._id}__${mainValue}`;
+            if (!combinedAttrs[subSelectionKey]) {
+              updates[subSelectionKey] = availableSubs[0].value;
+              hasUpdates = true;
+            }
           }
         }
       });
@@ -834,7 +851,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedProduct?._id, isInitialized, pdpAttributes, pdpRules, quantity]);
+  }, [selectedProduct?._id, isInitialized, pdpAttributes, pdpRules, pdpSubAttributes, quantity, selectedDynamicAttributes, selectedPrintingOption, selectedDeliverySpeed, selectedTextureType]);
 
   // Keep refs in sync with state
   useEffect(() => {
@@ -1082,16 +1099,31 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                   if (attributes && Array.isArray(attributes)) {
                     attributes.forEach((attr: any) => {
                       const attributeValues = attr.attributeValues || [];
+                      let selectedVal = null;
 
                       // Set default value if available
                       if (attr.defaultValue && attributeValues.find((av: any) => av.value === attr.defaultValue)) {
-                        initialAttributes[attr._id] = attr.defaultValue;
+                        selectedVal = attr.defaultValue;
                       } else if (attributeValues.length > 0) {
                         // For checkbox, initialize as empty array, for others use first value
                         if (attr.inputStyle === 'CHECKBOX') {
-                          initialAttributes[attr._id] = [];
+                          selectedVal = [];
                         } else {
-                          initialAttributes[attr._id] = attributeValues[0].value;
+                          selectedVal = attributeValues[0].value;
+                        }
+                      }
+
+                      if (selectedVal !== null) {
+                        initialAttributes[attr._id] = selectedVal;
+
+                        // Auto-select first sub-attribute if available for this value
+                        if (typeof selectedVal === 'string' || typeof selectedVal === 'number') {
+                          const subAttributesKey = `${attr._id}:${selectedVal}`;
+                          const availableSubs = subAttributes[subAttributesKey] || [];
+                          if (availableSubs.length > 0) {
+                            const subSelectionKey = `${attr._id}__${selectedVal}`;
+                            initialAttributes[subSelectionKey] = availableSubs[0].value;
+                          }
                         }
                       }
                     });
@@ -2315,7 +2347,12 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
         const ruleResult = applyAttributeRules({
           attributes: pdpAttributes,
           rules: pdpRules,
-          selectedValues: { ...selectedDynamicAttributes } as Record<string, string | number | boolean | File | any[] | null>,
+          selectedValues: {
+            ...selectedDynamicAttributes,
+            printingOption: selectedPrintingOption,
+            deliverySpeed: selectedDeliverySpeed,
+            textureType: selectedTextureType
+          } as Record<string, string | number | boolean | File | any[] | null>,
           quantity: quantity,
         });
         ruleResult.attributes.forEach((attr) => {
@@ -2328,7 +2365,12 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
         const ruleResult = applyAttributeRules({
           attributes: pdpAttributes,
           rules: pdpRules,
-          selectedValues: selectedDynamicAttributes as Record<string, any>,
+          selectedValues: {
+            ...selectedDynamicAttributes,
+            printingOption: selectedPrintingOption,
+            deliverySpeed: selectedDeliverySpeed,
+            textureType: selectedTextureType
+          } as Record<string, any>,
           quantity: quantity,
         });
 
@@ -2907,7 +2949,12 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
       const ruleResult = applyAttributeRules({
         attributes: pdpAttributes,
         rules: pdpRules,
-        selectedValues: { ...selectedDynamicAttributes } as Record<string, string | number | boolean | File | any[] | null>,
+        selectedValues: {
+          ...selectedDynamicAttributes,
+          printingOption: selectedPrintingOption,
+          deliverySpeed: selectedDeliverySpeed,
+          textureType: selectedTextureType
+        } as Record<string, string | number | boolean | File | any[] | null>,
         quantity: quantity,
       });
       attributesToCheck = ruleResult.attributes.filter((attr) => attr.isVisible);
@@ -3113,7 +3160,12 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
         const ruleResult = applyAttributeRules({
           attributes: pdpAttributes,
           rules: pdpRules,
-          selectedValues: { ...selectedDynamicAttributes } as Record<string, string | number | boolean | File | any[] | null>,
+          selectedValues: {
+            ...selectedDynamicAttributes,
+            printingOption: selectedPrintingOption,
+            deliverySpeed: selectedDeliverySpeed,
+            textureType: selectedTextureType
+          } as Record<string, string | number | boolean | File | any[] | null>,
           quantity: quantity,
         });
         attributesToCheck = ruleResult.attributes.filter((attr) => attr.isVisible);
@@ -3730,7 +3782,12 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
       const ruleResult = applyAttributeRules({
         attributes: pdpAttributes,
         rules: pdpRules,
-        selectedValues: { ...selectedDynamicAttributes } as Record<string, string | number | boolean | File | any[] | null>,
+        selectedValues: {
+          ...selectedDynamicAttributes,
+          printingOption: selectedPrintingOption,
+          deliverySpeed: selectedDeliverySpeed,
+          textureType: selectedTextureType
+        } as Record<string, string | number | boolean | File | any[] | null>,
         quantity: quantity,
       });
 
@@ -3979,7 +4036,12 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
       const ruleResult = applyAttributeRules({
         attributes: pdpAttributes,
         rules: pdpRules,
-        selectedValues: { ...selectedDynamicAttributes } as Record<string, string | number | boolean | File | any[] | null>,
+        selectedValues: {
+          ...selectedDynamicAttributes,
+          printingOption: selectedPrintingOption,
+          deliverySpeed: selectedDeliverySpeed,
+          textureType: selectedTextureType
+        } as Record<string, string | number | boolean | File | any[] | null>,
         quantity: quantity,
       });
       const visibleRequiredAttrs = ruleResult.attributes.filter((a) => a.isVisible && a.isRequired);
@@ -5480,7 +5542,12 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                             const ruleResult = applyAttributeRules({
                               attributes: pdpAttributes,
                               rules: pdpRules,
-                              selectedValues: { ...selectedDynamicAttributes } as Record<string, string | number | boolean | File | any[] | null>,
+                              selectedValues: {
+                                ...selectedDynamicAttributes,
+                                printingOption: selectedPrintingOption,
+                                deliverySpeed: selectedDeliverySpeed,
+                                textureType: selectedTextureType
+                              } as Record<string, string | number | boolean | File | any[] | null>,
                               quantity: quantity,
                             });
                             evaluatedAttributes = ruleResult.attributes
@@ -6613,7 +6680,12 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                   const ruleResult = applyAttributeRules({
                                     attributes: pdpAttributes,
                                     rules: pdpRules,
-                                    selectedValues: { ...selectedDynamicAttributes } as Record<string, string | number | boolean | File | any[] | null>,
+                                    selectedValues: {
+                                      ...selectedDynamicAttributes,
+                                      printingOption: selectedPrintingOption,
+                                      deliverySpeed: selectedDeliverySpeed,
+                                      textureType: selectedTextureType
+                                    } as Record<string, string | number | boolean | File | any[] | null>,
                                     quantity: quantity,
                                   });
 
@@ -6779,10 +6851,22 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                                                         return valueExists ? currentValue : (attributeValues.length > 0 ? attributeValues[0].value : "");
                                                       })()}
                                                       onValueChange={(value) => {
-                                                        setSelectedDynamicAttributes({
+                                                        const newSelected = {
                                                           ...selectedDynamicAttributes,
                                                           [attrId]: value
-                                                        });
+                                                        };
+
+                                                        // Auto-select first sub-attribute if available for this value
+                                                        const subAttributesKey = `${attrId}:${value}`;
+                                                        const availableSubs = pdpSubAttributes[subAttributesKey] || [];
+                                                        if (availableSubs.length > 0) {
+                                                          const subSelectionKey = `${attrId}__${value}`;
+                                                          if (!newSelected[subSelectionKey]) {
+                                                            newSelected[subSelectionKey] = availableSubs[0].value;
+                                                          }
+                                                        }
+
+                                                        setSelectedDynamicAttributes(newSelected);
                                                         setUserSelectedAttributes(prev => {
                                                           const next = new Set(prev);
                                                           next.delete(attrId);
@@ -7654,7 +7738,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                         ) : (
                           <div ref={stickyAnchorRef} className="sticky bottom-0 z-20 mt-auto pt-6 border-t border-gray-100 bg-white shadow-[0_-10px_20px_-5px_rgba(0,0,0,0.05)] px-2 pb-2">
                             <div className="flex justify-between items-end mb-4">
-                              {(price + gstAmount + shippingCost) > 0 ? (
+                              {(price + gstAmount) > 0 ? (
                                 <div>
                                   <p className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-1">
                                     {orderMode === 'bulk'
@@ -7685,7 +7769,7 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                               ) : (
                                 <div className="flex flex-col gap-1">
                                   <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">Estimated Total Value</p>
-                                  <span className="text-sm font-medium text-amber-600 italic">Price to be updated</span>
+                                  <span className="text-sm font-medium text-amber-600 italic">Price Unavailable</span>
                                 </div>
                               )}
                               <div className="text-right flex flex-col items-end gap-1">
@@ -7796,7 +7880,12 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
             const ruleResult = applyAttributeRules({
               attributes: pdpAttributes,
               rules: pdpRules,
-              selectedValues: { ...selectedDynamicAttributes } as Record<string, string | number | boolean | File | any[] | null>,
+              selectedValues: {
+                ...selectedDynamicAttributes,
+                printingOption: selectedPrintingOption,
+                deliverySpeed: selectedDeliverySpeed,
+                textureType: selectedTextureType
+              } as Record<string, string | number | boolean | File | any[] | null>,
               quantity: quantity,
             });
             evaluatedAttributes = ruleResult.attributes.filter(a => a.isVisible);
@@ -8710,6 +8799,18 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                             ...selectedDynamicAttributes,
                             [radioModalData.attributeId]: av.value
                           };
+
+                          // Auto-select first sub-attribute if available for this value
+                          const valueSubAttributesKey = `${radioModalData.attributeId}:${av.value}`;
+                          const valueSubAttributes = pdpSubAttributes[valueSubAttributesKey] || [];
+                          let autoSelectedSubValue: string | null = null;
+                          const subAttrKey = `${radioModalData.attributeId}__${av.value}`;
+
+                          if (valueSubAttributes.length > 0) {
+                            autoSelectedSubValue = (newSelected[subAttrKey] as string) || valueSubAttributes[0].value;
+                            newSelected[subAttrKey] = autoSelectedSubValue;
+                          }
+
                           setSelectedDynamicAttributes(newSelected);
 
                           // Mark this attribute as user-selected for image updates (preserved order)
@@ -8722,14 +8823,12 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
                           // If this value has sub-attributes, open sub-attribute modal
                           if (valueSubAttributes.length > 0) {
-                            const subAttrKey = `${radioModalData.attributeId}__${av.value}`;
-                            const existingSubValue = (newSelected[subAttrKey] as string) || null;
                             setSubAttrModalData({
                               attributeId: radioModalData.attributeId,
                               parentValue: av.value,
                               parentLabel: av.label,
                               subAttributes: valueSubAttributes,
-                              selectedValue: existingSubValue,
+                              selectedValue: autoSelectedSubValue,
                             });
                             setSubAttrModalOpen(true);
                           }
@@ -8975,10 +9074,10 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
                 transition={{ type: 'spring', stiffness: 300, damping: 30 }}
                 className="fixed top-[8%] left-0 right-0 z-40 bg-white border-b border-gray-200 shadow-lg sm:hidden"
               >
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2.5 flex items-center justify-between gap-4">
+                <div className="max-w-7xl min-h-[100px] mx-auto px-4 sm:px-6 py-2.5 flex items-center justify-between gap-4">
                   {/* Left: Product image + name */}
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-12 h-12 rounded-lg overflow-hidden border border-gray-200 bg-gray-50 flex-shrink-0">
+                  <div className="flex items-center  gap-3 min-w-0">
+                    <div className="w-16 h-16 rounded-lg overflow-hidden border border-gray-200 bg-gray-50 flex-shrink-0">
                       <img
                         src={(() => {
                           // Priority 0: Uploaded file preview (PDF/image first page)
@@ -9020,19 +9119,40 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
 
                   {/* Right: Total price + Buy Now */}
                   <div className="flex items-center gap-3 flex-shrink-0">
-                    {(price + gstAmount + shippingCost) > 0 && (
-                      <div className="text-right block">
-                        <div className="flex items-baseline gap-0.5">
-                          <span className="text-xl font-bold text-gray-900">
-                            ₹{(() => {
-                              const totalPrice = price + gstAmount + shippingCost;
-                              const [integerPart, decimalPart] = totalPrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).split('.');
-                              return <>{integerPart}<span className="text-sm">.{decimalPart}</span></>;
-                            })()}
-                          </span>
+                    {(() => {
+                      const hasPrice = (price + gstAmount) > 0;
+
+                      if (isPricingLoading) {
+                        return (
+                          <div className="text-right block">
+                            <div className="h-5 w-20 bg-gray-100 animate-pulse rounded-md" />
+                          </div>
+                        );
+                      }
+
+                      if (!hasPrice) {
+                        return (
+                          <div className="text-right block">
+                            <span className="text-sm font-bold text-amber-600 italic">Price Unavailable</span>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div className="text-right block">
+                          <div className="flex items-baseline gap-0.5">
+                            <span className="text-2xl font-bold text-gray-900 leading-none">
+                              ₹{(() => {
+                                const totalPrice = price + gstAmount + shippingCost;
+                                const [integerPart, decimalPart] = totalPrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).split('.');
+                                return <>{integerPart}<span className="text-sm">.{decimalPart}</span></>;
+                              })()}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-gray-500 font-medium leading-none mt-1">incl. taxes + shipping</p>
                         </div>
-                      </div>
-                    )}
+                      );
+                    })()}
                   </div>
                 </div>
               </motion.div>
@@ -9042,6 +9162,4 @@ const GlossProductSelection: React.FC<GlossProductSelectionProps> = ({ forcedPro
       })()}
     </div>
   );
-};
-
-export default GlossProductSelection;
+}
