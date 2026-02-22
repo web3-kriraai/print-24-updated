@@ -358,30 +358,53 @@ export const getComplaints = async (req, res) => {
 
         const filter = {};
 
-        // Multi-status filter (comma-separated)
-        if (status) {
-            const statuses = status.split(',').map(s => s.trim());
-            filter.status = { $in: statuses };
+        // Status filter
+        if (status && status !== '') {
+            // Support both single status and comma-separated
+            if (status.includes(',')) {
+                const statuses = status.split(',').map(s => s.trim()).filter(s => s !== '');
+                if (statuses.length > 0) filter.status = { $in: statuses };
+            } else {
+                filter.status = status;
+            }
         }
 
-        if (type) filter.type = type;
-        if (assignedTo) filter.assignedTo = assignedTo;
-        if (registerSource) filter.registerSource = registerSource;
+        if (type && type !== '') filter.type = type;
+        if (assignedTo && assignedTo !== '') filter.assignedTo = assignedTo;
+        if (registerSource && registerSource !== '') filter.registerSource = registerSource;
 
         // Date range filter
         if (startDate || endDate) {
             filter.createdAt = {};
             if (startDate) filter.createdAt.$gte = new Date(startDate);
-            if (endDate) filter.createdAt.$lte = new Date(endDate);
+            if (endDate) {
+                const end = new Date(endDate);
+                end.setHours(23, 59, 59, 999); // Inclusion of full day
+                filter.createdAt.$lte = end;
+            }
         }
 
-        // Enhanced search by order number, complaint ID, customer name/email/phone
+        // Enhanced search by order number, customer email/phone, or complaint ID (including partial matches)
         const searchTerm = search || q;
-        if (searchTerm) {
-            filter.$or = [
-                { orderNumber: { $regex: searchTerm, $options: 'i' } },
-                { _id: mongoose.Types.ObjectId.isValid(searchTerm) ? searchTerm : null }
+        if (searchTerm && searchTerm.trim() !== '') {
+            const trimmedSearch = searchTerm.trim();
+            const searchOr = [
+                { orderNumber: { $regex: trimmedSearch, $options: 'i' } },
+                { raisedByEmail: { $regex: trimmedSearch, $options: 'i' } },
+                { raisedByMobile: { $regex: trimmedSearch, $options: 'i' } },
+                // Support searching by the string representation of the _id (allows finding by the short ID displayed)
+                {
+                    $expr: {
+                        $regexMatch: {
+                            input: { $toString: "$_id" },
+                            regex: trimmedSearch,
+                            options: "i"
+                        }
+                    }
+                }
             ];
+
+            filter.$or = searchOr;
         }
 
         const skip = (parseInt(page) - 1) * parseInt(limit);

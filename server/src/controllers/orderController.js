@@ -1744,6 +1744,8 @@ export const listOrders = async (req, res) => {
       minAmount,
       maxAmount,
       deliveryStatus,
+      hasComplaint,
+      activeComplaint,
       sortBy = "createdAt",
       sortOrder = "desc",
     } = req.query;
@@ -1755,16 +1757,37 @@ export const listOrders = async (req, res) => {
     // Base query
     const match = {};
 
-    // Filters
-    if (status) match.status = { $in: status.split(",") };
-    if (paymentStatus) match.paymentStatus = { $in: paymentStatus.split(",") };
-    if (deliveryStatus) match.courierStatus = { $in: deliveryStatus.split(",") };
+    // Filter by Order Status
+    if (status) {
+      match.status = { $in: status.split(",") };
+    }
+
+    // Filter by Payment Status (Handle both cases found in DB)
+    if (paymentStatus) {
+      const statuses = paymentStatus.split(",");
+      const expandedStatuses = [];
+      statuses.forEach(s => {
+        expandedStatuses.push(s);
+        expandedStatuses.push(s.toUpperCase());
+        expandedStatuses.push(s.toLowerCase());
+      });
+      match.paymentStatus = { $in: [...new Set(expandedStatuses)] };
+    }
+
+    // Filter by Delivery Status
+    if (deliveryStatus) {
+      match.courierStatus = { $in: deliveryStatus.split(",") };
+    }
 
     // Date range
     if (startDate || endDate) {
       match.createdAt = {};
       if (startDate) match.createdAt.$gte = new Date(startDate);
-      if (endDate) match.createdAt.$lte = new Date(endDate);
+      if (endDate) {
+        const endDay = new Date(endDate);
+        endDay.setHours(23, 59, 59, 999);
+        match.createdAt.$lte = endDay;
+      }
     }
 
     // Amount range
@@ -1774,9 +1797,34 @@ export const listOrders = async (req, res) => {
       if (maxAmount) match.totalPrice.$lte = parseFloat(maxAmount);
     }
 
-    // Lookups for search
+    // Pipeline Construction
     const pipeline = [
       { $match: match },
+      // Join with complaints to support filtering by complaint status
+      {
+        $lookup: {
+          from: "complaints",
+          localField: "_id",
+          foreignField: "order",
+          as: "orderComplaints"
+        }
+      },
+      // Filtering based on complaints
+      ...(hasComplaint === 'true' ? [
+        { $match: { "orderComplaints.0": { $exists: true } } }
+      ] : []),
+      ...(activeComplaint === 'true' ? [
+        {
+          $match: {
+            "orderComplaints": {
+              $elemMatch: {
+                status: { $nin: ["RESOLVED", "CLOSED", "REJECTED"] }
+              }
+            }
+          }
+        }
+      ] : []),
+      // Standard lookups
       {
         $lookup: {
           from: "users",
@@ -1795,20 +1843,30 @@ export const listOrders = async (req, res) => {
         }
       },
       { $unwind: "$productDetails" },
-      // Search
+      // Search logic
       ...(search ? [{
         $match: {
           $or: [
             { orderNumber: { $regex: search, $options: "i" } },
             { "userDetails.name": { $regex: search, $options: "i" } },
             { "userDetails.email": { $regex: search, $options: "i" } },
-            { "productDetails.name": { $regex: search, $options: "i" } }
+            { "productDetails.name": { $regex: search, $options: "i" } },
+            // Support partial searching by ID
+            {
+              $expr: {
+                $regexMatch: {
+                  input: { $toString: "$_id" },
+                  regex: search,
+                  options: "i"
+                }
+              }
+            }
           ]
         }
       }] : []),
       // Sorting
       { $sort: { [sortBy]: sortOrder === "desc" ? -1 : 1 } },
-      // Pagination
+      // Pagination & Projection
       {
         $facet: {
           metadata: [{ $count: "total" }],
@@ -1826,7 +1884,11 @@ export const listOrders = async (req, res) => {
                 updatedAt: 1,
                 priceSnapshot: 1,
                 quantity: 1,
+                isBulkParent: 1,
+                isBulkChild: 1,
+                childOrders: 1,
                 deliveryStatus: "$courierStatus",
+                uploadedDesign: 1,
                 user: {
                   _id: "$userDetails._id",
                   name: "$userDetails.name",
@@ -1837,7 +1899,8 @@ export const listOrders = async (req, res) => {
                   _id: "$productDetails._id",
                   name: "$productDetails.name",
                   image: "$productDetails.image"
-                }
+                },
+                complaint: { $arrayElemAt: ["$orderComplaints", 0] }
               }
             }
           ]

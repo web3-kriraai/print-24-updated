@@ -36,6 +36,10 @@ interface Order {
         backImage?: { url?: string; data?: string; filename?: string; contentType?: string };
         pdfFile?: { url?: string; filename?: string; pageCount?: number };
     };
+    complaint?: {
+        _id: string;
+        status: string;
+    };
 }
 
 interface OrderTableProps {
@@ -164,6 +168,14 @@ const OrderTable: React.FC<OrderTableProps> = ({
                             <td className="px-6 py-4 whitespace-nowrap">
                                 <div className="flex items-center gap-2">
                                     <span className="text-sm font-bold text-gray-900">{order.orderNumber}</span>
+                                    {order.complaint && (
+                                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${['RESOLVED', 'CLOSED', 'REJECTED'].includes(order.complaint.status)
+                                                ? 'bg-gray-100 text-gray-500'
+                                                : 'bg-red-100 text-red-700 animate-pulse'
+                                            }`} title={`Complaint: ${order.complaint.status}`}>
+                                            Complaint: {order.complaint.status}
+                                        </span>
+                                    )}
                                     {order.isBulkParent && (
                                         <span className="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded text-[10px] font-bold uppercase" title="Bulk Parent Order">
                                             Bulk

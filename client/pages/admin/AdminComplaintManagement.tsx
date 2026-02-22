@@ -26,11 +26,21 @@ const AdminComplaintManagement = () => {
         endDate: ''
     });
 
+    // Debounced search effect
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            fetchData();
+        }, 500); // 500ms debounce
+        return () => clearTimeout(timer);
+    }, [filters.search]);
+
+    // Regular effect for other filters
     useEffect(() => {
         fetchData();
-    }, [filters]);
+    }, [filters.status, filters.type, filters.startDate, filters.endDate]);
 
     const fetchData = async () => {
+        setLoading(true);
         try {
             const token = localStorage.getItem('token');
             const headers = { Authorization: `Bearer ${token}` };
@@ -54,14 +64,47 @@ const AdminComplaintManagement = () => {
         }
     };
 
-    if (loading) return <div className="p-8">Loading...</div>;
+    // Skeleton component for rows
+    const TableSkeleton = () => (
+        <>
+            {[...Array(5)].map((_, i) => (
+                <tr key={i} className="animate-pulse">
+                    <td className="px-6 py-4"><div className="h-4 bg-gray-200 rounded w-20"></div></td>
+                    <td className="px-6 py-4"><div className="h-4 bg-gray-200 rounded w-40"></div></td>
+                    <td className="px-6 py-4"><div className="h-4 bg-gray-200 rounded w-24"></div></td>
+                    <td className="px-6 py-4"><div className="h-6 bg-gray-200 rounded-full w-20"></div></td>
+                    <td className="px-6 py-4"><div className="h-4 bg-gray-200 rounded w-24"></div></td>
+                    <td className="px-6 py-4"><div className="h-4 bg-gray-200 rounded w-16"></div></td>
+                </tr>
+            ))}
+        </>
+    );
+
+    // Skeleton for stats
+    const StatsSkeleton = () => (
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+            {[...Array(5)].map((_, i) => (
+                <div key={i} className="bg-white p-4 rounded-lg shadow animate-pulse">
+                    <div className="h-10 bg-gray-200 rounded w-full"></div>
+                </div>
+            ))}
+        </div>
+    );
 
     return (
-        <div className="p-6 max-w-7xl mx-auto">
-            <h1 className="text-3xl font-bold mb-6">Complaint Management</h1>
+        <div className="p-6 max-w-7xl mx-auto min-h-screen">
+            <div className="flex justify-between items-center mb-6">
+                <h1 className="text-3xl font-bold">Complaint Management</h1>
+                <button
+                    onClick={fetchData}
+                    className="p-2 text-gray-500 hover:text-indigo-600 transition-colors"
+                >
+                    Refresh
+                </button>
+            </div>
 
             {/* Stats Cards */}
-            {data.stats && (
+            {!data.stats && loading ? <StatsSkeleton /> : data.stats && (
                 <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
                     <div className="bg-white p-4 rounded-lg shadow">
                         <div className="flex items-center justify-between">
@@ -112,18 +155,21 @@ const AdminComplaintManagement = () => {
             )}
 
             {/* Enhanced Filters */}
-            <div className="bg-white p-4 rounded-lg shadow mb-6">
+            <div className="bg-white p-4 rounded-lg shadow mb-6 relative">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                     {/* Search */}
                     <div className="lg:col-span-2">
                         <label className="block text-xs text-gray-600 mb-1">Search</label>
-                        <input
-                            type="text"
-                            placeholder="Order number or Complaint ID..."
-                            value={filters.search}
-                            onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-                            className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                        />
+                        <div className="relative">
+                            <input
+                                type="text"
+                                placeholder="Order#, Complaint ID suffix, etc..."
+                                value={filters.search}
+                                onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+                                className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                            />
+                            <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
+                        </div>
                     </div>
 
                     {/* Status Filter */}
@@ -158,7 +204,7 @@ const AdminComplaintManagement = () => {
                             <option value="WRONG_CONTENT">Wrong Content</option>
                             <option value="QUANTITY_ISSUE">Quantity Issue</option>
                             <option value="ORDER_DELAY">Order Delay</option>
-                            <option value="DAMAGE_DELIVERY">Damage in Delivery</option>
+                            <option value="WRONG_PRODUCT">Wrong Product</option>
                             <option value="OTHER">Other</option>
                         </select>
                     </div>
@@ -167,9 +213,9 @@ const AdminComplaintManagement = () => {
                     <div className="flex items-end">
                         <button
                             onClick={() => setFilters({ status: '', type: '', search: '', startDate: '', endDate: '' })}
-                            className="w-full px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"
+                            className="w-full px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors flex items-center justify-center gap-2"
                         >
-                            Clear Filters
+                            <XCircle className="w-4 h-4" /> Clear
                         </button>
                     </div>
                 </div>
@@ -198,56 +244,67 @@ const AdminComplaintManagement = () => {
             </div>
 
             {/* Complaints List */}
-            <div className="bg-white rounded-lg shadow overflow-hidden">
+            <div className="bg-white rounded-lg shadow overflow-hidden relative">
+                {loading && data.complaints.length > 0 && (
+                    <div className="absolute inset-0 bg-white/50 z-10 flex items-center justify-center">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div>
+                    </div>
+                )}
                 <table className="w-full">
-                    <thead className="bg-gray-50">
+                    <thead className="bg-gray-50 border-b">
                         <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Order#</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Order#</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
-                        {data.complaints.map((complaint: any) => (
-                            <tr key={complaint._id} className="hover:bg-gray-50">
-                                <td className="px-6 py-4 text-sm">{complaint._id.slice(-8).toUpperCase()}</td>
-                                <td className="px-6 py-4 text-sm font-medium">{complaint.orderNumber}</td>
-                                <td className="px-6 py-4 text-sm">{complaint.type.replace(/_/g, ' ')}</td>
-                                <td className="px-6 py-4">
-                                    <span className={`px-2 py-1 text-xs rounded-full ${complaint.status === 'RESOLVED' ? 'bg-green-100 text-green-800' :
-                                        complaint.status === 'NEW' ? 'bg-blue-100 text-blue-800' :
-                                            'bg-yellow-100 text-yellow-800'
-                                        }`}>
-                                        {complaint.status}
-                                    </span>
-                                    {/* SLA Badge */}
-                                    {complaint.slaBreached === true && (
-                                        <span className="ml-2 px-2 py-1 text-xs rounded-full bg-red-100 text-red-800">
-                                            SLA ⏰
-                                        </span>
-                                    )}
-                                    {complaint.firstResponseTime && !complaint.slaBreached && (
-                                        <span className="ml-2 px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">
-                                            ✓ On Time
-                                        </span>
-                                    )}
-                                </td>
-                                <td className="px-6 py-4 text-sm text-gray-600">
-                                    {new Date(complaint.createdAt).toLocaleDateString()}
-                                </td>
-                                <td className="px-6 py-4 text-sm">
-                                    <a
-                                        href={`/complaints/${complaint._id}`}
-                                        className="text-indigo-600 hover:text-indigo-900"
-                                    >
-                                        View Details
-                                    </a>
+                        {loading && data.complaints.length === 0 ? (
+                            <TableSkeleton />
+                        ) : data.complaints.length === 0 ? (
+                            <tr>
+                                <td colSpan={6} className="px-6 py-10 text-center text-gray-500">
+                                    No complaints found matching your criteria.
                                 </td>
                             </tr>
-                        ))}
+                        ) : (
+                            data.complaints.map((complaint: any) => (
+                                <tr key={complaint._id} className="hover:bg-gray-50 transition-colors">
+                                    <td className="px-6 py-4 text-sm font-mono text-gray-500">
+                                        {complaint._id.slice(-8).toUpperCase()}
+                                    </td>
+                                    <td className="px-6 py-4 text-sm font-medium text-gray-900">{complaint.orderNumber}</td>
+                                    <td className="px-6 py-4 text-sm text-gray-600">{complaint.type.replace(/_/g, ' ')}</td>
+                                    <td className="px-6 py-4">
+                                        <span className={`px-2.5 py-0.5 text-xs font-semibold rounded-full ${complaint.status === 'RESOLVED' ? 'bg-green-100 text-green-800' :
+                                                complaint.status === 'NEW' ? 'bg-blue-100 text-blue-800' :
+                                                    complaint.status === 'REJECTED' ? 'bg-red-100 text-red-800' :
+                                                        'bg-yellow-100 text-yellow-800'
+                                            }`}>
+                                            {complaint.status}
+                                        </span>
+                                    </td>
+                                    <td className="px-6 py-4 text-sm text-gray-600">
+                                        {new Date(complaint.createdAt).toLocaleDateString(undefined, {
+                                            month: 'short',
+                                            day: 'numeric',
+                                            year: 'numeric'
+                                        })}
+                                    </td>
+                                    <td className="px-6 py-4 text-sm">
+                                        <a
+                                            href={`/complaints/${complaint._id}`}
+                                            className="text-indigo-600 hover:text-indigo-900 font-medium"
+                                        >
+                                            View Details
+                                        </a>
+                                    </td>
+                                </tr>
+                            ))
+                        )}
                     </tbody>
                 </table>
             </div>

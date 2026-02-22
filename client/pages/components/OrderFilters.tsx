@@ -137,6 +137,25 @@ const OrderFilters: React.FC<OrderFiltersProps> = ({ filters, onChange, onClose 
                         />
                     </div>
                 </div>
+
+                {/* Delivery Status Filter */}
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Delivery Status</label>
+                    <div className="flex flex-wrap gap-2">
+                        {['shipped', 'in_transit', 'delivered', 'returned'].map(status => (
+                            <button
+                                key={status}
+                                onClick={() => handleMultiSelect('deliveryStatus', status)}
+                                className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase transition-colors ${filters.deliveryStatus.includes(status)
+                                    ? 'bg-indigo-600 text-white'
+                                    : 'bg-white text-gray-700 border border-gray-300 hover:border-indigo-500'
+                                    }`}
+                            >
+                                {status.replace('_', ' ')}
+                            </button>
+                        ))}
+                    </div>
+                </div>
             </div>
 
             {/* Boolean Filters */}
